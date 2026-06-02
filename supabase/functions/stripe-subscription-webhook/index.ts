@@ -8,6 +8,7 @@
  * Auth: Stripe webhook signature
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
+import { getStripeApiBase } from '../_shared/stripe.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const WEBHOOK_SECRET = env('STRIPE_SUBSCRIPTION_WEBHOOK_SECRET')
@@ -93,12 +94,35 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       // Activate Pro flag on profile
       await supabase.from('profiles').update({ is_pro: true }).eq('id', targetUserId)
 
-      // Notify user
+      // Notify user (in-app)
       await supabase.from('notifications').insert({
         user_id: targetUserId,
         content: '🎉 Welcome to CasaGrown Pro! Your subscription is active. Enjoy lower fees, Facebook catalog sync, and more.',
         link_url: '/profile',
       })
+
+      // ── Send subscription_change welcome email with user guide ──
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', targetUserId)
+          .single()
+
+        if (profile?.email) {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'subscription_change',
+              recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+              plan: 'pro',
+              action: 'signup',
+            },
+          })
+          console.log(`[SUB-WEBHOOK] Welcome email sent to ${profile.email} for Pro signup`)
+        }
+      } catch (emailErr) {
+        console.warn('[SUB-WEBHOOK] Welcome email failed:', emailErr)
+      }
 
       console.log(`[SUB-WEBHOOK] Activated Pro for user ${targetUserId}`)
       return jsonOk({ received: true, action: 'activated' }, corsHeaders)
@@ -335,6 +359,29 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           link_url: '/profile',
         })
 
+        // ── Send cancellation confirmation email with Lite guide ──
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', sub.user_id)
+            .single()
+
+          if (profile?.email) {
+            await supabase.functions.invoke('send-notification-email', {
+              body: {
+                type: 'subscription_change',
+                recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+                plan: 'lite',
+                action: 'cancel',
+              },
+            })
+            console.log(`[SUB-WEBHOOK] Cancellation email sent to ${profile.email}`)
+          }
+        } catch (emailErr) {
+          console.warn('[SUB-WEBHOOK] Cancellation email failed:', emailErr)
+        }
+
         console.log(`[SUB-WEBHOOK] Revoked Pro for user ${sub.user_id}, archived non-default booths`)
       }
 
@@ -345,10 +392,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     case 'customer.subscription.updated': {
       const subscription = event.data.object
       const customerId = subscription.customer
+      const STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', true)!
+      const stripeBase = getStripeApiBase()
 
       const { data: sub } = await supabase
         .from('seller_subscriptions')
-        .select('user_id')
+        .select('user_id, plan')
         .eq('stripe_customer_id', customerId)
         .single()
 
@@ -358,10 +407,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         else if (subscription.status === 'past_due') status = 'past_due'
         else if (subscription.status === 'canceled') status = 'canceled'
 
+        const stripePlan = await getSubscriptionPlanFromStripe(subscription.id, STRIPE_SECRET_KEY, stripeBase, subscription)
+
         await supabase
           .from('seller_subscriptions')
           .update({
             status,
+            plan: stripePlan,
             current_period_start: subscription.current_period_start
               ? new Date(subscription.current_period_start * 1000).toISOString()
               : null,
@@ -378,19 +430,63 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           })
           .eq('user_id', sub.user_id)
 
-        // Sync is_pro flag based on subscription status
-        const isActive = ['active', 'trialing'].includes(status)
+        // Sync is_pro flag based on subscription status and plan
+        const isActive = ['active', 'trialing'].includes(status) && stripePlan !== 'lite'
         await supabase.from('profiles').update({ is_pro: isActive }).eq('id', sub.user_id)
 
-        // If downgrading, archive non-default booths
-        if (!isActive) {
+        // Detect plan change direction for email
+        const oldPlan = sub.plan || 'lite'
+        const planChanged = oldPlan !== stripePlan
+
+        // If downgrading to Lite or if plan revoked, archive all non-default booths
+        if (stripePlan === 'lite' || !isActive) {
           await supabase
             .from('market_booths')
-            .update({ is_open: false, updated_at: new Date().toISOString() })
+            .update({ is_open: false, marked_for_archival: false, updated_at: new Date().toISOString() })
             .eq('owner_id', sub.user_id)
             .eq('is_default', false)
 
-          console.log(`[SUB-WEBHOOK] Downgraded user ${sub.user_id}, archived non-default booths`)
+          console.log(`[SUB-WEBHOOK] Revoked/Downgraded user ${sub.user_id} to Lite, archived non-default booths`)
+        } else {
+          // Process any pending archivals at rollover/renewals
+          const { data: updatedBooths } = await supabase
+            .from('market_booths')
+            .update({ is_open: false, marked_for_archival: false, updated_at: new Date().toISOString() })
+            .eq('owner_id', sub.user_id)
+            .eq('marked_for_archival', true)
+            .select('id')
+          
+          if (updatedBooths && updatedBooths.length > 0) {
+            console.log(`[SUB-WEBHOOK] Rollover downgrade completed for user ${sub.user_id}: archived ${updatedBooths.length} stands marked for archival`)
+          }
+        }
+
+        // ── Send subscription_change email on plan upgrade/downgrade ──
+        if (planChanged && ['active', 'trialing'].includes(status)) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', sub.user_id)
+              .single()
+
+            if (profile?.email) {
+              const planRank: Record<string, number> = { lite: 0, pro: 1, elite: 2 }
+              const action = (planRank[stripePlan] || 0) > (planRank[oldPlan] || 0) ? 'upgrade' : 'downgrade'
+
+              await supabase.functions.invoke('send-notification-email', {
+                body: {
+                  type: 'subscription_change',
+                  recipients: [{ email: profile.email, name: profile.full_name || 'there' }],
+                  plan: stripePlan,
+                  action,
+                },
+              })
+              console.log(`[SUB-WEBHOOK] ${action} email sent to ${profile.email}: ${oldPlan} → ${stripePlan}`)
+            }
+          } catch (emailErr) {
+            console.warn('[SUB-WEBHOOK] Subscription change email failed:', emailErr)
+          }
         }
       }
 
@@ -450,5 +546,54 @@ async function verifyStripeSignature(
   } catch (e) {
     console.error('Signature verification error:', e)
     return false
+  }
+}
+
+// ── Retrieve Active Subscription Plan Tier from Stripe ──
+async function getSubscriptionPlanFromStripe(
+  subscriptionId: string,
+  stripeSecretKey: string,
+  stripeBase: string,
+  subscriptionObj?: any,
+): Promise<string> {
+  try {
+    if (subscriptionId.startsWith('sub_test') || subscriptionId.startsWith('sub_sim')) {
+      if (subscriptionObj?.metadata?.plan) {
+        return subscriptionObj.metadata.plan
+      }
+      return 'pro'
+    }
+    const res = await fetch(`${stripeBase}/v1/subscriptions/${subscriptionId}`, {
+      headers: { 'Authorization': `Bearer ${stripeSecretKey}` },
+    })
+    if (!res.ok) {
+      console.error('[SUB-WEBHOOK] Failed to fetch subscription details from Stripe:', await res.text())
+      return 'pro'
+    }
+    const subscription = await res.json()
+
+    // 1. Prioritize metadata 'plan' attribute
+    if (subscription.metadata?.plan) {
+      return subscription.metadata.plan
+    }
+
+    // 2. Fetch corresponding Product resource to parse product name
+    const productId = subscription.items?.data?.[0]?.price?.product
+    if (productId) {
+      const prodRes = await fetch(`${stripeBase}/v1/products/${productId}`, {
+        headers: { 'Authorization': `Bearer ${stripeSecretKey}` },
+      })
+      if (prodRes.ok) {
+        const product = await prodRes.json()
+        const productName = (product.name || '').toLowerCase()
+        if (productName.includes('elite')) return 'elite'
+        if (productName.includes('pro')) return 'pro'
+      }
+    }
+
+    return 'pro'
+  } catch (e) {
+    console.error('[SUB-WEBHOOK] Error retrieving subscription details from Stripe:', e)
+    return 'pro'
   }
 }

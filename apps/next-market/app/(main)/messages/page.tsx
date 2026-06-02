@@ -62,6 +62,36 @@ export default function MessagesInboxPage() {
         .order('created_at', { ascending: false, foreignTable: 'messenger_messages' })
         .limit(1, { foreignTable: 'messenger_messages' })
 
+      // Fetch Instagram conversations
+      const { data: igData } = await supabase
+        .from('ig_conversations')
+        .select(`
+          id,
+          ig_sender_id,
+          last_message_at,
+          message_count,
+          ig_messages(content, created_at, role)
+        `)
+        .eq('seller_id', user.id)
+        .order('last_message_at', { ascending: false })
+        .order('created_at', { ascending: false, foreignTable: 'ig_messages' })
+        .limit(1, { foreignTable: 'ig_messages' })
+
+      // Fetch WhatsApp conversations
+      const { data: waData } = await supabase
+        .from('wa_conversations')
+        .select(`
+          id,
+          wa_sender_phone,
+          last_message_at,
+          message_count,
+          wa_messages(content, created_at, role)
+        `)
+        .eq('seller_id', user.id)
+        .order('last_message_at', { ascending: false })
+        .order('created_at', { ascending: false, foreignTable: 'wa_messages' })
+        .limit(1, { foreignTable: 'wa_messages' })
+
       let gbPreview = 'Ask me anything about gardening! 🌱'
       const allConversations: any[] = []
 
@@ -118,6 +148,50 @@ export default function MessagesInboxPage() {
             unreadCount: 0,
             preview: lastMsg?.content || 'No messages yet',
             channel: 'messenger' as const,
+          })
+        }
+      }
+
+      // Format Instagram conversations
+      if (igData) {
+        for (const mc of igData) {
+          const msgs = mc.ig_messages || []
+          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          const lastMsg = msgs.length > 0 ? msgs[0] : null
+
+          allConversations.push({
+            id: mc.id,
+            otherUser: {
+              id: mc.ig_sender_id,
+              full_name: mc.ig_sender_id ? `IG User ${mc.ig_sender_id.slice(-4)}` : 'Instagram Customer',
+              avatar_url: null,
+            },
+            lastMessageAt: new Date(mc.last_message_at),
+            unreadCount: 0,
+            preview: lastMsg?.content || 'No messages yet',
+            channel: 'instagram' as const,
+          })
+        }
+      }
+
+      // Format WhatsApp conversations
+      if (waData) {
+        for (const wc of waData) {
+          const msgs = wc.wa_messages || []
+          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          const lastMsg = msgs.length > 0 ? msgs[0] : null
+
+          allConversations.push({
+            id: wc.id,
+            otherUser: {
+              id: wc.wa_sender_phone,
+              full_name: wc.wa_sender_phone ? `WA Customer ${wc.wa_sender_phone.slice(-4)}` : 'WhatsApp Customer',
+              avatar_url: null,
+            },
+            lastMessageAt: new Date(wc.last_message_at),
+            unreadCount: 0,
+            preview: lastMsg?.content || 'No messages yet',
+            channel: 'whatsapp' as const,
           })
         }
       }
@@ -206,46 +280,84 @@ export default function MessagesInboxPage() {
           </div>
         ) : (
           conversations
-            .filter(c => c.channel === 'messenger' || c.otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07')
+            .filter(c => c.channel === 'messenger' || c.channel === 'instagram' || c.channel === 'whatsapp' || c.otherUser?.id !== 'a0000000-0000-0000-0000-00000ca5ab07')
             .filter(c => !filterQuery.trim() || c.otherUser?.full_name?.toLowerCase().includes(filterQuery.toLowerCase()))
-            .map(conv => (
-            <li key={`${conv.channel}-${conv.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <Link href={conv.channel === 'messenger' ? `/messages/messenger/${conv.id}` : `/messages/${conv.id}`} style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: conv.unreadCount > 0 ? '#ecfdf5' : 'white', transition: 'background 0.2s' }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: conv.channel === 'messenger' ? '#e7f0ff' : '#e5e7eb', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: conv.channel === 'messenger' ? '#1877F2' : '#9ca3af', marginRight: 16, fontSize: conv.channel === 'messenger' ? '20px' : 'inherit' }}>
-                  {conv.channel === 'messenger' ? (
-                    '📱'
-                  ) : conv.otherUser?.avatar_url ? (
-                    <img src={conv.otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    conv.otherUser?.full_name?.charAt(0).toUpperCase() || '?'
-                  )}
-                </div>
-                <div style={{ flexGrow: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                    <span style={{ fontWeight: conv.unreadCount > 0 ? '700' : '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {conv.otherUser?.full_name || 'Neighbor'}
-                      {conv.channel === 'messenger' && (
-                        <span style={{ fontSize: 10, background: '#1877F2', color: 'white', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap' }}>📱 Messenger</span>
+            .map(conv => {
+              const isMessenger = conv.channel === 'messenger'
+              const isInstagram = conv.channel === 'instagram'
+              const isWhatsApp = conv.channel === 'whatsapp'
+              
+              const linkHref = isMessenger 
+                ? `/messages/messenger/${conv.id}` 
+                : isInstagram 
+                ? `/messages/instagram/${conv.id}`
+                : isWhatsApp 
+                ? `/messages/whatsapp/${conv.id}`
+                : `/messages/${conv.id}`
+                
+              const avatarBg = isMessenger 
+                ? '#e7f0ff' 
+                : isInstagram 
+                ? '#fdf2f8' 
+                : isWhatsApp 
+                ? '#f0fdf4' 
+                : '#e5e7eb'
+                
+              const avatarColor = isMessenger 
+                ? '#1877F2' 
+                : isInstagram 
+                ? '#E1306C' 
+                : isWhatsApp 
+                ? '#25D366' 
+                : '#9ca3af'
+                
+              const channelIcon = isMessenger ? '📱' : isInstagram ? '📸' : isWhatsApp ? '🟢' : ''
+
+              return (
+                <li key={`${conv.channel}-${conv.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <Link href={linkHref} style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: conv.unreadCount > 0 ? '#ecfdf5' : 'white', transition: 'background 0.2s' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: avatarBg, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: avatarColor, marginRight: 16, fontSize: (isMessenger || isInstagram || isWhatsApp) ? '20px' : 'inherit' }}>
+                      {(isMessenger || isInstagram || isWhatsApp) ? (
+                        channelIcon
+                      ) : conv.otherUser?.avatar_url ? (
+                        <img src={conv.otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        conv.otherUser?.full_name?.charAt(0).toUpperCase() || '?'
                       )}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: conv.unreadCount > 0 ? '#10b981' : '#9ca3af', flexShrink: 0, marginLeft: 8 }}>
-                      {conv.lastMessageAt.toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <p style={{ fontSize: '0.875rem', color: conv.unreadCount > 0 ? '#1f2937' : '#6b7280', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: conv.unreadCount > 0 ? '500' : '400', flexGrow: 1 }}>
-                      {conv.preview}
-                    </p>
-                    {conv.unreadCount > 0 && (
-                      <span style={{ background: '#ef4444', color: 'white', borderRadius: '10px', padding: '3px 7px', fontSize: '0.7rem', fontWeight: 'bold', marginLeft: 8 }}>
-                        {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            </li>
-          ))
+                    </div>
+                    <div style={{ flexGrow: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                        <span style={{ fontWeight: conv.unreadCount > 0 ? '700' : '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {conv.otherUser?.full_name || 'Neighbor'}
+                          {isMessenger && (
+                            <span style={{ fontSize: 10, background: '#1877F2', color: 'white', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap' }}>📱 Messenger</span>
+                          )}
+                          {isInstagram && (
+                            <span style={{ fontSize: 10, background: '#E1306C', color: 'white', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap' }}>📸 Instagram</span>
+                          )}
+                          {isWhatsApp && (
+                            <span style={{ fontSize: 10, background: '#25D366', color: 'white', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap' }}>🟢 WhatsApp</span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: conv.unreadCount > 0 ? '#10b981' : '#9ca3af', flexShrink: 0, marginLeft: 8 }}>
+                          {conv.lastMessageAt.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <p style={{ fontSize: '0.875rem', color: conv.unreadCount > 0 ? '#1f2937' : '#6b7280', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: conv.unreadCount > 0 ? '500' : '400', flexGrow: 1 }}>
+                          {conv.preview}
+                        </p>
+                        {conv.unreadCount > 0 && (
+                          <span style={{ background: '#ef4444', color: 'white', borderRadius: '10px', padding: '3px 7px', fontSize: '0.7rem', fontWeight: 'bold', marginLeft: 8 }}>
+                            {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              )
+            })
         )}
       </ul>
     </div>

@@ -259,3 +259,185 @@ export async function sendMarketingSms(
         };
     }
 }
+
+interface ProvisionedPhone {
+    success: boolean;
+    phoneNumber?: string;
+    phoneSid?: string;
+    subaccountSid?: string;
+    subaccountToken?: string;
+    error?: string;
+}
+
+/** Create a new Twilio Subaccount for an Elite Seller */
+export async function createTwilioSubaccount(
+    friendlyName: string,
+): Promise<{ success: boolean; sid?: string; authToken?: string; error?: string }> {
+    const mainSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const mainToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+
+    if (!mainSid || !mainToken || mainSid.startsWith("mock_")) {
+        console.log(`[MOCK TWILIO] Created subaccount for: ${friendlyName}`);
+        return {
+            success: true,
+            sid: `ACsubaccount_mock_${Date.now()}`,
+            authToken: `mock_auth_token_${Date.now()}`,
+        };
+    }
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts.json`;
+    const credentials = btoa(`${mainSid}:${mainToken}`);
+
+    const params = new URLSearchParams();
+    params.set("FriendlyName", friendlyName);
+
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                Authorization: `Basic ${credentials}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: params.toString(),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            return { success: true, sid: data.sid, authToken: data.auth_token };
+        }
+        return { success: false, error: data.message || "Failed to create Twilio subaccount" };
+    } catch (err) {
+        return { success: false, error: (err as Error).message };
+    }
+}
+
+/** Search, Purchase, and Register a new WhatsApp-enabled number on a subaccount */
+export async function provisionWhatsAppNumber(
+    subaccountSid: string,
+    subaccountToken: string,
+    areaCode = "844", // Default to Toll-Free for easy instant verification
+): Promise<ProvisionedPhone> {
+    if (subaccountSid.startsWith("ACsubaccount_mock_")) {
+        const mockLocal = `+1${areaCode}555${String(Math.floor(1000 + Math.random() * 9000))}`;
+        console.log(`[MOCK TWILIO] Provisioned local phone number ${mockLocal} (area ${areaCode}) on subaccount ${subaccountSid}`);
+        return {
+            success: true,
+            phoneNumber: mockLocal,
+            phoneSid: `PNphone_mock_${Date.now()}`,
+            subaccountSid,
+            subaccountToken,
+        };
+    }
+
+    const credentials = btoa(`${subaccountSid}:${subaccountToken}`);
+
+    try {
+        // 1. Search for available local numbers matching the area code
+        let searchUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/AvailablePhoneNumbers/US/Local.json?AreaCode=${areaCode}&SmsEnabled=true&VoiceEnabled=true&Limit=1`;
+        let searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Basic ${credentials}` },
+        });
+
+        if (!searchRes.ok) {
+            throw new Error(`Failed to search local numbers: ${await searchRes.text()}`);
+        }
+
+        let searchData = await searchRes.json();
+        let availableNumber = searchData.available_phone_numbers?.[0];
+
+        // Fallback: if no local number found, try nearby area codes then toll-free
+        if (!availableNumber) {
+            console.log(`[TWILIO] No local numbers for area code ${areaCode}, trying toll-free fallback`);
+            searchUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/AvailablePhoneNumbers/US/TollFree.json?SmsEnabled=true&Limit=1`;
+            searchRes = await fetch(searchUrl, {
+                headers: { Authorization: `Basic ${credentials}` },
+            });
+            if (!searchRes.ok) {
+                throw new Error(`Failed to search toll-free numbers: ${await searchRes.text()}`);
+            }
+            searchData = await searchRes.json();
+            availableNumber = searchData.available_phone_numbers?.[0];
+        }
+
+        if (!availableNumber) {
+            throw new Error("No available phone numbers found matching criteria");
+        }
+
+        const targetPhone = availableNumber.phone_number;
+
+        // 2. Purchase the phone number
+        const purchaseUrl = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/IncomingPhoneNumbers.json`;
+        const purchaseParams = new URLSearchParams();
+        purchaseParams.set("PhoneNumber", targetPhone);
+        
+        // Configure SMS Webhook pointing to our new WhatsApp Edge Function
+        const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-webhook`;
+        purchaseParams.set("SmsUrl", webhookUrl);
+        purchaseParams.set("SmsMethod", "POST");
+
+        const purchaseRes = await fetch(purchaseUrl, {
+            method: "POST",
+            headers: {
+                Authorization: `Basic ${credentials}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: purchaseParams.toString(),
+        });
+
+        if (!purchaseRes.ok) {
+            throw new Error(`Failed to purchase phone number: ${await purchaseRes.text()}`);
+        }
+
+        const purchaseData = await purchaseRes.json();
+
+        // 3. Register as a WhatsApp Sender (Toll-Free numbers can be WhatsApp enabled instantly via Meta)
+        // Note: For custom WABA numbers, Meta handles number enablement via the Cloud API registration
+        // flow when connected in connect-facebook. Here, we track the successfully provisioned Twilio resources.
+
+        return {
+            success: true,
+            phoneNumber: purchaseData.phone_number,
+            phoneSid: purchaseData.sid,
+            subaccountSid,
+            subaccountToken,
+        };
+
+    } catch (err) {
+        console.error("[TWILIO-PROVISION] Error provisioning number:", err);
+        return { success: false, error: (err as Error).message };
+    }
+}
+
+/** Release/Cancel a purchased phone number to stop charges */
+export async function releasePhoneNumber(
+    subaccountSid: string,
+    subaccountToken: string,
+    phoneSid: string,
+): Promise<{ success: boolean; error?: string }> {
+    if (subaccountSid.startsWith("ACsubaccount_mock_") || phoneSid.startsWith("PNphone_mock_")) {
+        console.log(`[MOCK TWILIO] Released phone number ${phoneSid} on subaccount ${subaccountSid}`);
+        return { success: true };
+    }
+
+    const credentials = btoa(`${subaccountSid}:${subaccountToken}`);
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${subaccountSid}/IncomingPhoneNumbers/${phoneSid}.json`;
+
+    try {
+        const res = await fetch(url, {
+            method: "DELETE",
+            headers: { Authorization: `Basic ${credentials}` },
+        });
+
+        if (res.ok || res.status === 404) {
+            // 404 means already deleted
+            console.log(`[TWILIO] Successfully released phone number ${phoneSid}`);
+            return { success: true };
+        }
+
+        const errText = await res.text();
+        console.error(`[TWILIO] Failed to release phone number ${phoneSid}: ${errText}`);
+        return { success: false, error: errText };
+    } catch (err) {
+        return { success: false, error: (err as Error).message };
+    }
+}
+

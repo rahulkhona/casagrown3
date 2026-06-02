@@ -87,8 +87,15 @@ Deno.test({
     TEST_BOOTH_ID = await sqlExec(`SELECT id FROM market_booths WHERE owner_id = '${TEST_SELLER_ID}' LIMIT 1`);
     assertExists(TEST_BOOTH_ID, "Seller should have a booth");
 
-    // Get a valid product_id for TEST_SELLER_ID
+    // Get or create a valid product_id for TEST_SELLER_ID
     TEST_PRODUCT_ID = await sqlExec(`SELECT id FROM market_products WHERE seller_id = '${TEST_SELLER_ID}' LIMIT 1`);
+    if (!TEST_PRODUCT_ID || TEST_PRODUCT_ID === "") {
+      TEST_PRODUCT_ID = await sqlExec(`
+        INSERT INTO market_products (seller_id, booth_id, market_date, name, category, price_usd, unit, inventory, moderation_status)
+        VALUES ('${TEST_SELLER_ID}', '${TEST_BOOTH_ID}', CURRENT_DATE, 'Post-Checkout Test Apples', 'produce', 2.50, 'lb', 100, 'approved')
+        RETURNING id
+      `);
+    }
     assertExists(TEST_PRODUCT_ID, "Seller should have a product");
 
     // 2. Ensure test seller has a subscription

@@ -97,6 +97,17 @@ Deno.test({
       WHERE owner_id = '${SELLER_ID}' AND is_default = true
     `);
 
+    // Ensure the seller has at least one product (needed for order chat tests)
+    const existingProduct = await sqlExec(
+      `SELECT id FROM market_products WHERE seller_id = '${SELLER_ID}' LIMIT 1`,
+    );
+    if (!existingProduct || existingProduct === "") {
+      await sqlExec(`
+        INSERT INTO market_products (seller_id, booth_id, market_date, name, category, price_usd, unit, inventory, moderation_status)
+        VALUES ('${SELLER_ID}', '${boothId}', CURRENT_DATE, 'Auto-Reply Test Peppers', 'produce', 6.00, 'lb', 50, 'approved')
+      `);
+    }
+
     // Clean up any old drafts and messages for this test seller/buyer to prevent test contamination
     await sqlExec(`DELETE FROM bot_reply_drafts WHERE seller_id = '${SELLER_ID}'`);
     await sqlExec(`DELETE FROM market_chat_messages WHERE sender_id IN ('${SELLER_ID}', '${BUYER_ID}')`);
@@ -137,15 +148,21 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { data } = await callAutoReply({
-      type: "dm",
-      messageId: "fake-id",
-      senderId: BUYER_ID,
-      recipientId: SELLER_ID,
-      isBot: true,
-    });
-    assertEquals(data.skipped, true);
-    assertEquals(data.reason, "bot_message");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const { data } = await callAutoReply({
+        type: "dm",
+        messageId: "fake-id",
+        senderId: BUYER_ID,
+        recipientId: SELLER_ID,
+        isBot: true,
+      });
+      assertEquals(data.skipped, true);
+      assertEquals(data.reason, "bot_message");
+    } finally {
+      clearTimeout(timeout);
+    }
   },
 });
 
@@ -629,6 +646,334 @@ Deno.test({
 });
 
 // ══════════════════════════════════════════════════════════════
+// Instagram Channel Tests
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "auto-reply: Instagram — Elite seller creates draft with correct prefix",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Setup: ensure seller is elite
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'elite', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'elite', status = 'active'
+    `);
+
+    // Setup: ensure bot_channels has instagram enabled
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"instagram": {"enabled": true, "delayMinutes": 5}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    const igConvId = "a0000000-0000-0000-0000-100000000001";
+
+    // Create ig_conversations row
+    await sqlExec(`
+      INSERT INTO ig_conversations (id, seller_id, ig_sender_id, last_message_at, message_count)
+      VALUES ('${igConvId}', '${SELLER_ID}', 'ig_buyer_sender_test', now(), 1)
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    // Create ig_messages row (the buyer's message)
+    const igMsgId = await sqlExec(`
+      INSERT INTO ig_messages (conversation_id, role, content)
+      VALUES ('${igConvId}', 'user', 'Do you have organic veggies on Instagram?')
+      RETURNING id
+    `);
+
+    // Clean old drafts
+    await sqlExec(`DELETE FROM bot_reply_drafts WHERE conversation_ref = 'instagram_${igConvId}'`);
+
+    const { status, data } = await callAutoReply({
+      type: "instagram",
+      messageId: igMsgId,
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: igConvId,
+    });
+
+    assertEquals(status, 200);
+    assertEquals(data.success, true);
+
+    // Wait for processing
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Verify draft created with correct prefixed conversation_ref
+    const draftConvRef = await sqlExec(`
+      SELECT conversation_ref FROM bot_reply_drafts
+      WHERE conversation_ref = 'instagram_${igConvId}'
+        AND channel = 'instagram'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    assertEquals(draftConvRef, `instagram_${igConvId}`);
+
+    const draftChannel = await sqlExec(`
+      SELECT channel FROM bot_reply_drafts
+      WHERE conversation_ref = 'instagram_${igConvId}'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    assertEquals(draftChannel, "instagram");
+
+    // Cleanup
+    await sqlExec(`DELETE FROM bot_reply_drafts WHERE conversation_ref = 'instagram_${igConvId}'`);
+    await sqlExec(`DELETE FROM ig_messages WHERE conversation_id = '${igConvId}'`);
+    await sqlExec(`DELETE FROM ig_conversations WHERE id = '${igConvId}'`);
+  },
+});
+
+Deno.test({
+  name: "auto-reply: Instagram — Pro (non-Elite) seller is rejected",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Set seller to pro (not elite)
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'pro', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'pro', status = 'active'
+    `);
+
+    const { data } = await callAutoReply({
+      type: "instagram",
+      messageId: "fake-ig-msg-id",
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: "test_ig_conv_pro_reject",
+    });
+
+    assertEquals(data.skipped, true);
+    assertEquals(data.reason, "not_elite");
+
+    // Reset to elite for subsequent tests
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'elite', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'elite', status = 'active'
+    `);
+  },
+});
+
+Deno.test({
+  name: "auto-reply: Instagram — disabled channel returns bot_mode_off",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Set instagram channel to disabled
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"instagram": {"enabled": false}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    const igConvId = "a0000000-0000-0000-0000-100000000002";
+
+    // Create ig_conversations row
+    await sqlExec(`
+      INSERT INTO ig_conversations (id, seller_id, ig_sender_id, last_message_at, message_count)
+      VALUES ('${igConvId}', '${SELLER_ID}', 'ig_buyer_disabled_test', now(), 1)
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    // Create ig_messages row
+    const igMsgId = await sqlExec(`
+      INSERT INTO ig_messages (conversation_id, role, content)
+      VALUES ('${igConvId}', 'user', 'Hello from Instagram')
+      RETURNING id
+    `);
+
+    const { data } = await callAutoReply({
+      type: "instagram",
+      messageId: igMsgId,
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: igConvId,
+    });
+
+    assertEquals(data.skipped, true);
+    assertEquals(data.reason, "bot_mode_off");
+
+    // Reset config
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"instagram": {"enabled": true, "delayMinutes": 5}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    // Cleanup
+    await sqlExec(`DELETE FROM ig_messages WHERE conversation_id = '${igConvId}'`);
+    await sqlExec(`DELETE FROM ig_conversations WHERE id = '${igConvId}'`);
+  },
+});
+
+// ══════════════════════════════════════════════════════════════
+// WhatsApp Channel Tests
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "auto-reply: WhatsApp — Elite seller creates draft with correct prefix",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Setup: ensure seller is elite
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'elite', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'elite', status = 'active'
+    `);
+
+    // Setup: ensure bot_channels has whatsapp enabled
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"whatsapp": {"enabled": true, "delayMinutes": 5}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    const waConvId = "b0000000-0000-0000-0000-200000000001";
+
+    // Create wa_conversations row (delete first to handle unique constraint on seller_id+phone)
+    await sqlExec(`DELETE FROM wa_messages WHERE conversation_id = '${waConvId}'`);
+    await sqlExec(`DELETE FROM wa_conversations WHERE id = '${waConvId}' OR (seller_id = '${SELLER_ID}' AND wa_sender_phone = '16505557777')`);
+    await sqlExec(`
+      INSERT INTO wa_conversations (id, seller_id, wa_sender_phone, last_message_at, message_count)
+      VALUES ('${waConvId}', '${SELLER_ID}', '16505557777', now(), 1)
+    `);
+
+    // Create wa_messages row (the buyer's message)
+    const waMsgId = await sqlExec(`
+      INSERT INTO wa_messages (conversation_id, role, content)
+      VALUES ('${waConvId}', 'user', 'Do you deliver on WhatsApp?')
+      RETURNING id
+    `);
+
+    // Clean old drafts
+    await sqlExec(`DELETE FROM bot_reply_drafts WHERE conversation_ref = 'whatsapp_${waConvId}'`);
+
+    const { status, data } = await callAutoReply({
+      type: "whatsapp",
+      messageId: waMsgId,
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: waConvId,
+    });
+
+    assertEquals(status, 200);
+    assertEquals(data.success, true);
+
+    // Wait for processing
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Verify draft created with correct prefixed conversation_ref
+    const draftConvRef = await sqlExec(`
+      SELECT conversation_ref FROM bot_reply_drafts
+      WHERE conversation_ref = 'whatsapp_${waConvId}'
+        AND channel = 'whatsapp'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    assertEquals(draftConvRef, `whatsapp_${waConvId}`);
+
+    const draftChannel = await sqlExec(`
+      SELECT channel FROM bot_reply_drafts
+      WHERE conversation_ref = 'whatsapp_${waConvId}'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    assertEquals(draftChannel, "whatsapp");
+
+    // Cleanup
+    await sqlExec(`DELETE FROM bot_reply_drafts WHERE conversation_ref = 'whatsapp_${waConvId}'`);
+    await sqlExec(`DELETE FROM wa_messages WHERE conversation_id = '${waConvId}'`);
+    await sqlExec(`DELETE FROM wa_conversations WHERE id = '${waConvId}'`);
+  },
+});
+
+Deno.test({
+  name: "auto-reply: WhatsApp — Pro (non-Elite) seller is rejected",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Set seller to pro (not elite)
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'pro', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'pro', status = 'active'
+    `);
+
+    const { data } = await callAutoReply({
+      type: "whatsapp",
+      messageId: "fake-wa-msg-id",
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: "test_wa_conv_pro_reject",
+    });
+
+    assertEquals(data.skipped, true);
+    assertEquals(data.reason, "not_elite");
+
+    // Reset to elite for subsequent tests
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'elite', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'elite', status = 'active'
+    `);
+  },
+});
+
+Deno.test({
+  name: "auto-reply: WhatsApp — disabled channel returns bot_mode_off",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // Set whatsapp channel to disabled
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"whatsapp": {"enabled": false}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    const waConvId = "b0000000-0000-0000-0000-200000000002";
+
+    // Create wa_conversations row (delete first to handle unique constraint)
+    await sqlExec(`DELETE FROM wa_messages WHERE conversation_id = '${waConvId}'`);
+    await sqlExec(`DELETE FROM wa_conversations WHERE id = '${waConvId}' OR (seller_id = '${SELLER_ID}' AND wa_sender_phone = '16505558888')`);
+    await sqlExec(`
+      INSERT INTO wa_conversations (id, seller_id, wa_sender_phone, last_message_at, message_count)
+      VALUES ('${waConvId}', '${SELLER_ID}', '16505558888', now(), 1)
+    `);
+
+    // Create wa_messages row
+    const waMsgId = await sqlExec(`
+      INSERT INTO wa_messages (conversation_id, role, content)
+      VALUES ('${waConvId}', 'user', 'Hello from WhatsApp')
+      RETURNING id
+    `);
+
+    const { data } = await callAutoReply({
+      type: "whatsapp",
+      messageId: waMsgId,
+      senderId: BUYER_ID,
+      recipientId: SELLER_ID,
+      conversationId: waConvId,
+    });
+
+    assertEquals(data.skipped, true);
+    assertEquals(data.reason, "bot_mode_off");
+
+    // Reset config
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"whatsapp": {"enabled": true, "delayMinutes": 5}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    // Cleanup
+    await sqlExec(`DELETE FROM wa_messages WHERE conversation_id = '${waConvId}'`);
+    await sqlExec(`DELETE FROM wa_conversations WHERE id = '${waConvId}'`);
+  },
+});
+
+// ══════════════════════════════════════════════════════════════
 // Teardown
 // ══════════════════════════════════════════════════════════════
 
@@ -639,6 +984,12 @@ Deno.test({
   async fn() {
     await sqlExec(`DELETE FROM bot_reply_drafts WHERE seller_id = '${SELLER_ID}'`);
     await sqlExec(`DELETE FROM market_chat_messages WHERE sender_id IN ('${SELLER_ID}', '${BUYER_ID}')`);
+    // Clean up any remaining IG/WA test data
+    await sqlExec(`DELETE FROM ig_messages WHERE conversation_id IN ('a0000000-0000-0000-0000-100000000001', 'a0000000-0000-0000-0000-100000000002')`);
+    await sqlExec(`DELETE FROM ig_conversations WHERE id IN ('a0000000-0000-0000-0000-100000000001', 'a0000000-0000-0000-0000-100000000002')`);
+    await sqlExec(`DELETE FROM wa_messages WHERE conversation_id IN ('b0000000-0000-0000-0000-200000000001', 'b0000000-0000-0000-0000-200000000002')`);
+    await sqlExec(`DELETE FROM wa_conversations WHERE id IN ('b0000000-0000-0000-0000-200000000001', 'b0000000-0000-0000-0000-200000000002')`);
+    await sqlExec(`UPDATE profiles SET bot_channels = NULL WHERE id = '${SELLER_ID}'`);
   },
 });
 

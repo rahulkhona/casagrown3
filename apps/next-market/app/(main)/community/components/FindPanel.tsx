@@ -104,7 +104,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
       .select('street_address, city, state_code, zip_code')
       .eq('id', userId)
       .single()
-      .then(async ({ data: profile }) => {
+      .then(async ({ data: profile }: { data: any }) => {
         if (profile?.street_address) {
           const addr: AddressFields = {
             street: profile.street_address || '',
@@ -264,11 +264,11 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
         setUsdaMarkets([])
         supabase.functions.invoke('usda-farmers-markets', {
           body: { zipcode, radius }
-        }).then(({ data }) => {
+        }).then(({ data }: { data: any }) => {
           if (data?.data && Array.isArray(data.data)) {
             setUsdaMarkets(data.data.slice(0, 5))
           }
-        }).catch(e => console.warn('USDA fallback error (FindPanel):', e))
+        }).catch((e: any) => console.warn('USDA fallback error (FindPanel):', e))
           .finally(() => setLoadingUsda(false))
       }
     } else {
@@ -281,7 +281,7 @@ export default function FindPanel({ userId, profileH3, onClose, onSendMessage, o
         p_keywords: keywords.trim(),
         p_community_h3: profileH3,
         p_searcher_id: userId,
-      }).then(({ error: matchErr }) => {
+      }).then(({ error: matchErr }: { error: any }) => {
         if (matchErr) console.warn('Grower match queue failed (non-blocking):', matchErr)
       })
     }

@@ -5,7 +5,7 @@ import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 
 interface BotSuggestionBarProps {
-  channel: 'dm' | 'order' | 'messenger'
+  channel: 'dm' | 'order' | 'messenger' | 'instagram' | 'whatsapp'
   conversationRef: string  // conversation_id or order_id
   onSend: (text: string) => void
   onSelect?: (text: string) => void
@@ -57,7 +57,7 @@ export function BotSuggestionBar({ channel, conversationRef, onSend, onSelect, i
         schema: 'public',
         table: 'bot_reply_drafts',
         filter: `conversation_ref=eq.${conversationRef}`,
-      }, (payload) => {
+      }, (payload: any) => {
         if (payload.eventType === 'INSERT' && (payload.new as any).status === 'pending') {
           setDraft(payload.new)
         } else if (payload.eventType === 'UPDATE') {

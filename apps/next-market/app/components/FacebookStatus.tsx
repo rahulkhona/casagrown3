@@ -24,7 +24,7 @@ export function FacebookStatus() {
       .select('*')
       .eq('user_id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         setConnection(data)
         setLoading(false)
       })
@@ -101,6 +101,34 @@ export function FacebookStatus() {
       .eq('user_id', user!.id)
     setSavingField(null)
   }
+
+  const renderToggle = (field: string, label: string, description: string, testId: string) => (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <button
+        type="button" role="switch" aria-checked={!!connection[field]}
+        data-testid={testId}
+        onClick={() => handleToggle(field, !!connection[field])}
+        style={{
+          position: 'relative', width: 44, height: 24, borderRadius: 12,
+          border: 'none', background: connection[field] ? '#22c55e' : '#d1d5db',
+          cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s', padding: 0, marginTop: 1,
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 2, left: connection[field] ? 22 : 2,
+          width: 20, height: 20, borderRadius: '50%', background: 'white',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
+        }} />
+      </button>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+          {label}
+          {savingField === field && <span style={{ marginLeft: 6, fontSize: 11, color: '#9ca3af' }}>Saving…</span>}
+        </div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{description}</div>
+      </div>
+    </div>
+  )
 
   if (loading) {
     return (
@@ -251,95 +279,23 @@ export function FacebookStatus() {
         </button>
       </div>
 
-      {/* Auto-post opt-in toggles */}
+      {/* Feature toggles — organized by function */}
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {[
-          {
-            field: 'auto_sync_enabled',
-            label: '📦 Automatic catalog sync',
-            description: null,
-            testId: 'toggle-auto-sync',
-          },
-          {
-            field: 'auto_post_enabled',
-            label: '📣 Post daily available items to my Facebook Page',
-            description:
-              'GrowBot will automatically post a beautiful daily update of your in-stock products, prices, pickup/delivery details, and a product photo carousel.',
-            testId: 'toggle-auto-post',
-          },
-          {
-            field: 'casagrown_post_enabled',
-            label: '🌱 Allow CasaGrown to feature my products',
-            description:
-              'Promote your booth with free organic traffic! Your daily listings and new seller welcomes may be featured on the official CasaGrown Facebook Page.',
-            testId: 'toggle-casagrown-post',
-          },
-        ].map(({ field, label, description, testId }) => (
-          <div
-            key={field}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-            }}
-          >
-            <button
-              type="button"
-              role="switch"
-              aria-checked={!!connection[field]}
-              data-testid={testId}
-              onClick={() => handleToggle(field, !!connection[field])}
-              style={{
-                position: 'relative',
-                width: 44,
-                height: 24,
-                borderRadius: 12,
-                border: 'none',
-                background: connection[field] ? '#22c55e' : '#d1d5db',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'background 0.2s',
-                padding: 0,
-                marginTop: 1,
-              }}
-            >
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  left: connection[field] ? 22 : 2,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'white',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                  transition: 'left 0.2s',
-                }}
-              />
-            </button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
-                {label}
-                {savingField === field && (
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      fontSize: 11,
-                      color: '#9ca3af',
-                    }}
-                  >
-                    Saving…
-                  </span>
-                )}
-              </div>
-              {description && (
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                  {description}
-                </div>
-              )}
-            </div>
+        {/* Catalog Sync */}
+        {renderToggle('auto_sync_enabled', '📦 Sync product catalog to Facebook', 'Keep your Facebook Shop catalog in sync with your CasaGrown inventory.', 'toggle-auto-sync')}
+
+        {/* Daily Posting */}
+        {renderToggle('auto_post_enabled', '📣 Post daily available items to my Facebook Page', 'GrowBot will automatically post a beautiful daily update of your in-stock products, prices, pickup/delivery details, and a product photo carousel.', 'toggle-auto-post')}
+
+        {/* Video Posts — nested under posting, only shows when auto_post is on */}
+        {connection.auto_post_enabled && (
+          <div style={{ marginLeft: 54 }}>
+            {renderToggle('video_posts_enabled', '🎬 Include video posts', 'Generate engaging AI video content from your product photos alongside regular posts.', 'toggle-video-posts')}
           </div>
-        ))}
+        )}
+
+        {/* CasaGrown feature */}
+        {renderToggle('casagrown_post_enabled', '🌱 Allow CasaGrown to feature my products', 'Promote your booth with free organic traffic! Your daily listings may be featured on the official CasaGrown Facebook Page.', 'toggle-casagrown-post')}
       </div>
 
       {connection.last_error && (

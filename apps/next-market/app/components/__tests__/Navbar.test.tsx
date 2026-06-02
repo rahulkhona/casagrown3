@@ -57,6 +57,15 @@ vi.mock('../../../lib/store', () => ({
   isMarketOpen: () => true,
 }))
 
+vi.mock('../../../lib/useQuickSetup', () => ({
+  useQuickSetup: () => ({ requireAuth: vi.fn() }),
+}))
+
+// Mock useProEnabled
+vi.mock('../../../lib/useProEnabled', () => ({
+  useProEnabled: () => false,
+}))
+
 import { Navbar } from '../Navbar'
 
 describe('Navbar', () => {

@@ -343,7 +343,7 @@ function BrowseMarketPageInner() {
     supabase.from('profiles')
       .select('street_address, city, state_code, zip_code, home_community_h3_index')
       .eq('id', user.id).single()
-      .then(async ({ data: profile, error }) => {
+      .then(async ({ data: profile, error }: { data: any; error: any }) => {
         if (error) { console.error('Profile fetch error:', error.message); setProfileLoading(false); return }
         // Address resolution (skip if already resolved from URL)
         if (!addressResolved && !searchParams.has('lat')) {
@@ -372,7 +372,7 @@ function BrowseMarketPageInner() {
   useEffect(() => {
     if (!addressResolved) return
     supabase.rpc('get_allowed_categories', { buyer_zip: zipCode || null })
-      .then(({ data }) => { if (data) setAllowedCategories(data) })
+      .then(({ data }: { data: any }) => { if (data) setAllowedCategories(data) })
   }, [addressResolved, zipCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch Pioneer Banner Independently
@@ -383,7 +383,7 @@ function BrowseMarketPageInner() {
     
     supabase.from('profiles').select('home_community_h3_index')
       .eq('id', user.id).single()
-      .then(({ data: profile }) => {
+      .then(({ data: profile }: { data: any }) => {
         if (!profile?.home_community_h3_index) return
         
         try {
@@ -395,7 +395,7 @@ function BrowseMarketPageInner() {
         
         setUserH3(profile.home_community_h3_index)
         supabase.rpc('get_community_member_count', { target_h3: profile.home_community_h3_index })
-          .then(({ data: count }) => {
+          .then(({ data: count }: { data: any }) => {
             if (typeof count === 'number') setCommunityMemberCount(count)
           })
       })
@@ -422,7 +422,7 @@ function BrowseMarketPageInner() {
       exclude_demos: false,
       p_limit: 12, p_offset: 0,
       buyer_zip: null,
-    }).then(({ data }) => {
+    }).then(({ data }: { data: any }) => {
       if (data && Array.isArray(data)) {
         const demos = data.filter((b: BoothResult) => b.is_demo)
         if (demos.length > 0) setBooths(demos)
@@ -599,7 +599,7 @@ function BrowseMarketPageInner() {
         // 1. Run USDA (works with zip OR lat/lng)
         supabase.functions.invoke('usda-farmers-markets', {
           body: { zipcode: effectiveZip, lat, lng, radius: maxMiles }
-        }).then(({ data: usdaData }) => {
+        }).then(({ data: usdaData }: { data: any }) => {
           if (usdaData?.data && Array.isArray(usdaData.data)) {
             setUsdaMarkets(usdaData.data.slice(0, 5))
           }
@@ -607,7 +607,7 @@ function BrowseMarketPageInner() {
             setLocalFarms(usdaData.farms.slice(0, 6))
           }
           setLoadingExternal(false)
-        }).catch(e => {
+        }).catch((e: any) => {
           console.warn('USDA search error:', e)
           setLoadingExternal(false)
         })
@@ -617,13 +617,13 @@ function BrowseMarketPageInner() {
         if (OFN_ENABLED && search.trim() && nativeCount < 4) {
           supabase.functions.invoke('ofn-product-search', {
             body: { query: search.trim(), zipcode: effectiveZip, lat, lng, radius: maxMiles }
-          }).then(({ data: ofnData }) => {
+          }).then(({ data: ofnData }: { data: any }) => {
             if (ofnData?.data && Array.isArray(ofnData.data)) {
               setOfnProducts(ofnData.data)
             } else {
               setOfnProducts([])
             }
-          }).catch(e => {
+          }).catch((e: any) => {
             console.warn('OFN search error:', e)
             setOfnProducts([])
           })
@@ -794,7 +794,7 @@ function BrowseMarketPageInner() {
     // Old builds (e.g. Android in review) will fall through to navigator.geolocation.
     if (NativeBridge.supportsLocation) {
       NativeBridge.requestLocation()
-        .then(async ({ lat: nLat, lng: nLng }) => {
+        .then(async ({ lat: nLat, lng: nLng }: { lat: number; lng: number }) => {
           setLat(nLat); setLng(nLng)
           try {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${nLat}&lon=${nLng}`)
@@ -814,7 +814,7 @@ function BrowseMarketPageInner() {
           } catch { /* ignore reverse geocode failure */ }
           setAddressResolved(true); setLocationLoading(false)
         })
-        .catch((err) => {
+        .catch((err: any) => {
           const msg = err?.message || ''
           if (msg === 'DENIED') {
             setLocationError('Location access denied.')
@@ -874,8 +874,8 @@ function BrowseMarketPageInner() {
     })
 
     supabase.from('product_reminders').select('product_id').eq('user_id', user.id)
-      .then(({ data }) => {
-        if (data) setSavedProductIds(new Set(data.map(r => r.product_id)))
+      .then(({ data }: { data: any }) => {
+        if (data) setSavedProductIds(new Set(data.map((r: any) => r.product_id)))
       })
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 

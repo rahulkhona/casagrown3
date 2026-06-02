@@ -83,6 +83,9 @@ export class StripeSimulator {
   private paymentIntents: Map<string, StoredPI> = new Map();
   private accounts: Map<string, StoredAccount> = new Map();
   private refunds: Array<{ id: string; payment_intent: string; amount: number; status: string }> = [];
+  private prices: Map<string, { id: string; unit_amount: number; currency: string; recurring_interval: string; product_name: string }> = new Map();
+  private coupons: Map<string, { id: string; percent_off: number; duration: string; duration_in_months: number | null; currency: string; name: string }> = new Map();
+  private checkoutSessions: Map<string, { id: string; customer: string | null; coupon: string | null; price: string | null; params: Record<string, string> }> = new Map();
 
   // Audit log
   private callLog: ApiCallLog[] = [];
@@ -122,6 +125,14 @@ export class StripeSimulator {
   getCallLog() { return [...this.callLog]; }
   getTransferLog() { return this.callLog.filter(c => c.path === "/v1/transfers"); }
   getCaptureLog() { return this.callLog.filter(c => c.path.endsWith("/capture")); }
+  getCouponLog() { return this.callLog.filter(c => c.path === "/v1/coupons"); }
+  getPriceLog() { return this.callLog.filter(c => c.path === "/v1/prices"); }
+  getCoupon(id: string) { return this.coupons.get(id); }
+  getPrice(id: string) { return this.prices.get(id); }
+  getCheckoutSession(id: string) { return this.checkoutSessions.get(id); }
+  getAllCoupons() { return [...this.coupons.values()]; }
+  getAllPrices() { return [...this.prices.values()]; }
+  getAllCheckoutSessions() { return [...this.checkoutSessions.values()]; }
   getPaymentIntent(id: string) { return this.paymentIntents.get(id); }
 
   // ── Server lifecycle ──────────────────────────────────────────────
@@ -147,6 +158,9 @@ export class StripeSimulator {
     this.callLog = [];
     this.idempotencyCache.clear();
     this.transferBehaviors.clear();
+    this.prices.clear();
+    this.coupons.clear();
+    this.checkoutSessions.clear();
     this.counter = 0;
   }
 
@@ -235,6 +249,16 @@ export class StripeSimulator {
     // ── Customers ─────────────────────────────────────────────────
     if (path === "/v1/customers" && method === "POST") {
       return this.handleCreateCustomer(params!);
+    }
+
+    // ── Prices ────────────────────────────────────────────────────
+    if (path === "/v1/prices" && method === "POST") {
+      return this.handleCreatePrice(params!);
+    }
+
+    // ── Coupons ───────────────────────────────────────────────────
+    if (path === "/v1/coupons" && method === "POST") {
+      return this.handleCreateCoupon(params!);
     }
 
     // ── Checkout Sessions ────────────────────────────────────────
@@ -571,19 +595,79 @@ export class StripeSimulator {
     });
   }
 
+  // ── Price handler ──────────────────────────────────────────────────
+
+  private handleCreatePrice(params: URLSearchParams): Response {
+    const id = `price_sim_${++this.counter}_${Date.now()}`;
+    const unitAmount = parseInt(params.get("unit_amount") || "0", 10);
+    const currency = params.get("currency") || "usd";
+    const interval = params.get("recurring[interval]") || "month";
+    const productName = params.get("product_data[name]") || "";
+
+    const price = { id, unit_amount: unitAmount, currency, recurring_interval: interval, product_name: productName };
+    this.prices.set(id, price);
+    this.log("POST", "/v1/prices", 200);
+    return this.json(200, {
+      id,
+      object: "price",
+      unit_amount: unitAmount,
+      currency,
+      recurring: { interval },
+      product: { name: productName },
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
+  // ── Coupon handler ─────────────────────────────────────────────────
+
+  private handleCreateCoupon(params: URLSearchParams): Response {
+    const id = `cpn_sim_${++this.counter}_${Date.now()}`;
+    const percentOff = parseFloat(params.get("percent_off") || "0");
+    const duration = params.get("duration") || "once";
+    const durationInMonths = params.get("duration_in_months") ? parseInt(params.get("duration_in_months")!, 10) : null;
+    const currency = params.get("currency") || "usd";
+    const name = params.get("name") || "";
+
+    const coupon = { id, percent_off: percentOff, duration, duration_in_months: durationInMonths, currency, name };
+    this.coupons.set(id, coupon);
+    this.log("POST", "/v1/coupons", 200);
+    return this.json(200, {
+      id,
+      object: "coupon",
+      percent_off: percentOff,
+      duration,
+      duration_in_months: durationInMonths,
+      currency,
+      name,
+      valid: true,
+      created: Math.floor(Date.now() / 1000),
+    });
+  }
+
   // ── Checkout Session handler ──────────────────────────────────────
 
   private handleCreateCheckoutSession(params: URLSearchParams): Response {
     const id = `cs_sim_${++this.counter}_${Date.now()}`;
     const successUrl = params.get("success_url") || "http://localhost:3002/profile?pro=success";
-    // Simulate: return a URL that redirects to the success page directly
+    const coupon = params.get("discounts[0][coupon]") || null;
+    const price = params.get("line_items[0][price]") || null;
+    const customer = params.get("customer") || null;
+
+    // Store all raw params for test inspection
+    const rawParams: Record<string, string> = {};
+    for (const [k, v] of params.entries()) {
+      rawParams[k] = v;
+    }
+
+    this.checkoutSessions.set(id, { id, customer, coupon, price, params: rawParams });
     this.log("POST", "/v1/checkout/sessions", 200);
     return this.json(200, {
       id,
       object: "checkout.session",
       mode: params.get("mode") || "subscription",
-      customer: params.get("customer") || null,
+      customer,
       url: successUrl,
+      client_secret: `${id}_secret_sim`,
       status: "open",
       created: Math.floor(Date.now() / 1000),
     });

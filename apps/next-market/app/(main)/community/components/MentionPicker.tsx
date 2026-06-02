@@ -33,7 +33,7 @@ export default function MentionPicker({ query, onSelect, h3Index }: MentionPicke
         .limit(5)
         
       if (!error && data) {
-        setUsers(data.map(d => ({
+        setUsers(data.map((d: any) => ({
           id: d.id,
           name: d.full_name || 'Neighbor',
           avatar: d.avatar_url

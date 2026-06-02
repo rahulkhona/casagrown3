@@ -97,12 +97,12 @@ export function RatingReminder() {
     }
 
     // Check immediately if already loaded
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       if (session?.user) check(session.user.id)
     })
 
     // Listen for auth state — fires when session is restored from storage
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
       if (session?.user) check(session.user.id)
     })
 

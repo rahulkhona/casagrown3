@@ -8,6 +8,7 @@ import { useMarketStatus } from '../../../lib/useMarketStatus'
 import { createClient } from '../../../lib/supabase'
 import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
+import { useQuickSetup } from '../../../lib/useQuickSetup'
 import { hasValidWindows } from '../../../lib/windowUtils'
 import styles from './page.module.css'
 
@@ -16,6 +17,7 @@ export default function CartPage() {
   const { isOpen: marketIsOpen, loading: marketLoading } = useMarketStatus()
 
   const { user, isAuthenticated } = useAuth()
+  const { requireAuth } = useQuickSetup()
   const router = useRouter()
   const supabase = createClient()
 
@@ -127,7 +129,7 @@ export default function CartPage() {
     // Get existing hold
     supabase.from('market_holds').select('hold_amount_cents, spent_amount_cents')
       .eq('buyer_id', user.id).eq('status', 'active').single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setExistingHoldRemaining(Math.max(0, data.hold_amount_cents - data.spent_amount_cents))
         }
@@ -186,7 +188,13 @@ export default function CartPage() {
 
   // Unified checkout with Stripe card entry — HOLD-FIRST flow
   const handleUnifiedCheckout = async () => {
-    if (!user || !isAuthenticated) { router.push('/login?redirect=/cart'); return }
+    if (!user || !isAuthenticated) {
+      requireAuth({
+        trigger: 'checkout',
+        onReady: () => handleUnifiedCheckout(),
+      })
+      return
+    }
     if (!balanceLoaded) { setCheckoutError('Still loading payment info, please wait'); return }
     if (needsCard && (!stripeReady || !cardElementRef.current)) {
       setCheckoutError('Card form is loading, please wait'); return
@@ -623,6 +631,9 @@ export default function CartPage() {
       })()}
 
       <Link href="/market" className={styles.continueLink}>← Continue Shopping</Link>
+
+      {/* Quick Setup Modal (for guest auth gate) */}
+
 
       {/* Toast */}
       {toast && <div className={styles.toast}>{toast}</div>}

@@ -96,7 +96,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonOk({ skipped: true, reason: 'bot_message' }, corsHeaders)
   }
 
-  // 1. Check if the sender is a Pro seller (meaning the seller manually replied/took over).
+  // 1. Check if the sender is a Pro or Elite seller (meaning the seller manually replied/took over).
   // If so, cancel any pending drafts for this conversation and exit.
   const { data: senderSub } = await supabase
     .from('seller_subscriptions')
@@ -104,8 +104,16 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     .eq('user_id', senderId)
     .single()
 
-  if (senderSub && senderSub.plan === 'pro' && ['active', 'trialing'].includes(senderSub.status)) {
-    const convRef = type === 'order' ? orderId : (type === 'messenger' ? `messenger_${conversationId}` : conversationId)
+  if (senderSub && ['pro', 'elite'].includes(senderSub.plan) && ['active', 'trialing'].includes(senderSub.status)) {
+    const convRef = type === 'order' 
+      ? orderId 
+      : type === 'messenger' 
+      ? `messenger_${conversationId}` 
+      : type === 'instagram' 
+      ? `instagram_${conversationId}` 
+      : type === 'whatsapp' 
+      ? `whatsapp_${conversationId}` 
+      : conversationId
     if (convRef) {
       await supabase
         .from('bot_reply_drafts')
@@ -121,7 +129,15 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   // If the seller is in the chat thread, the bot must not auto-respond automatically.
   if (body.isManual !== true) {
     let sellerInChat = false
-    const convRef = type === 'order' ? orderId : (type === 'messenger' ? `messenger_${conversationId}` : conversationId)
+    const convRef = type === 'order' 
+      ? orderId 
+      : type === 'messenger' 
+      ? `messenger_${conversationId}` 
+      : type === 'instagram' 
+      ? `instagram_${conversationId}` 
+      : type === 'whatsapp' 
+      ? `whatsapp_${conversationId}` 
+      : conversationId
 
     if (convRef) {
       if (type === 'dm') {
@@ -140,7 +156,31 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         const { data: conv } = await supabase
           .from('messenger_conversations')
           .select('seller_last_active_at')
-          .eq('id', convRef)
+          .eq('id', conversationId)
+          .single()
+        if (conv?.seller_last_active_at) {
+          const lastActive = new Date(conv.seller_last_active_at).getTime()
+          if (Date.now() - lastActive < 12000) {
+            sellerInChat = true
+          }
+        }
+      } else if (type === 'instagram') {
+        const { data: conv } = await supabase
+          .from('ig_conversations')
+          .select('seller_last_active_at')
+          .eq('id', conversationId)
+          .single()
+        if (conv?.seller_last_active_at) {
+          const lastActive = new Date(conv.seller_last_active_at).getTime()
+          if (Date.now() - lastActive < 12000) {
+            sellerInChat = true
+          }
+        }
+      } else if (type === 'whatsapp') {
+        const { data: conv } = await supabase
+          .from('wa_conversations')
+          .select('seller_last_active_at')
+          .eq('id', conversationId)
           .single()
         if (conv?.seller_last_active_at) {
           const lastActive = new Date(conv.seller_last_active_at).getTime()
@@ -156,19 +196,31 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
   }
 
-  // The recipient (seller) must be a Pro user
+  // The recipient (seller) must be Pro or Elite
   const { data: sub } = await supabase
     .from('seller_subscriptions')
     .select('plan, status')
     .eq('user_id', recipientId)
     .single()
 
-  if (!sub || sub.plan !== 'pro' || !['active', 'trialing'].includes(sub.status)) {
-    return jsonOk({ skipped: true, reason: 'not_pro' }, corsHeaders)
+  const requiresElite = type === 'instagram' || type === 'whatsapp'
+  const allowedPlans = requiresElite ? ['elite'] : ['pro', 'elite']
+
+  if (!sub || !allowedPlans.includes(sub.plan) || !['active', 'trialing'].includes(sub.status)) {
+    return jsonOk({ skipped: true, reason: requiresElite ? 'not_elite' : 'not_pro' }, corsHeaders)
   }
 
   // Get the message content
-  const table = type === 'order' ? 'order_chat_messages' : type === 'messenger' ? 'messenger_messages' : 'market_chat_messages'
+  const table = type === 'order' 
+    ? 'order_chat_messages' 
+    : type === 'messenger' 
+    ? 'messenger_messages' 
+    : type === 'instagram' 
+    ? 'ig_messages' 
+    : type === 'whatsapp' 
+    ? 'wa_messages' 
+    : 'market_chat_messages'
+
   const { data: message } = await supabase
     .from(table)
     .select('content')
@@ -199,6 +251,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       .eq('id', conversationId)
       .single()
     boothId = messengerConv?.matched_booth_id
+  } else if (type === 'instagram' && conversationId) {
+    const { data: igConv } = await supabase
+      .from('ig_conversations')
+      .select('matched_booth_id')
+      .eq('id', conversationId)
+      .single()
+    boothId = igConv?.matched_booth_id
+  } else if (type === 'whatsapp' && conversationId) {
+    const { data: waConv } = await supabase
+      .from('wa_conversations')
+      .select('matched_booth_id')
+      .eq('id', conversationId)
+      .single()
+    boothId = waConv?.matched_booth_id
   }
 
   if (!boothId) {
@@ -215,24 +281,26 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonOk({ skipped: true, reason: 'no_booth' }, corsHeaders)
   }
 
-  // Get booth settings — bot mode config
-  const { data: boothSettings } = await supabase
-    .from('market_booths')
-    .select('bot_reply_mode, bot_reply_delay_minutes')
-    .eq('id', boothId)
+  // Load configuration from profiles.bot_channels
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('bot_channels')
+    .eq('id', recipientId)
     .single()
 
-  // bot_reply_mode: 'copilot' (default) | 'off'
-  // bot_reply_delay_minutes: number (default 5)
-  const botMode = boothSettings?.bot_reply_mode || 'copilot'
-  const delayMinutes = boothSettings?.bot_reply_delay_minutes ?? 5
+  const configs = (profile?.bot_channels as Record<string, any>) || {}
+  const configKey = type === 'order' ? 'orders' : type as 'dm' | 'orders' | 'messenger' | 'instagram' | 'whatsapp'
+  const channelConfig = configs[configKey] || {}
+  
+  const botMode = channelConfig.enabled !== false ? 'copilot' : 'off'
+  const delayMinutes = channelConfig.delayMinutes ?? 5
 
   // If bot is off, skip
   if (botMode === 'off') {
     return jsonOk({ skipped: true, reason: 'bot_mode_off' }, corsHeaders)
   }
 
-  const channelKey = type === 'order' ? 'orders' : type as 'dm' | 'orders' | 'messenger'
+  const channelKey = type === 'order' ? 'orders' : type as 'dm' | 'orders' | 'messenger' | 'instagram' | 'whatsapp'
 
   // Check if bot is already in conversation mode (last draft was auto-sent and
   // seller hasn't replied since). If so, reply instantly — no delay.
@@ -255,7 +323,16 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
   }
 
-  const convRef = type === 'order' ? orderId : (type === 'messenger' ? `messenger_${conversationId}` : conversationId)
+  const convRef = type === 'order' 
+    ? orderId 
+    : type === 'messenger' 
+    ? `messenger_${conversationId}` 
+    : type === 'instagram' 
+    ? `instagram_${conversationId}` 
+    : type === 'whatsapp' 
+    ? `whatsapp_${conversationId}` 
+    : conversationId
+
   if (!isManual && convRef && delayMinutes > 0) {
     const { data: lastDraft } = await supabase
       .from('bot_reply_drafts')
@@ -311,7 +388,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
         const { data: messages } = await supabase
           .from('messenger_messages')
           .select('id')
-          .eq('conversation_id', convRef)
+          .eq('conversation_id', conversationId)
           .eq('role', 'seller')
           .gt('created_at', lastDraft.created_at)
           .limit(1)
@@ -322,7 +399,55 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
           const { data: conv } = await supabase
             .from('messenger_conversations')
             .select('seller_last_active_at')
-            .eq('id', convRef)
+            .eq('id', conversationId)
+            .single()
+          if (conv?.seller_last_active_at) {
+            const lastActiveTime = new Date(conv.seller_last_active_at).getTime()
+            const lastDraftTime = new Date(lastDraft.created_at).getTime()
+            if (lastActiveTime > lastDraftTime) {
+              sellerReplied = true
+            }
+          }
+        }
+      } else if (type === 'instagram') {
+        const { data: messages } = await supabase
+          .from('ig_messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('role', 'seller')
+          .gt('created_at', lastDraft.created_at)
+          .limit(1)
+        if (messages && messages.length > 0) {
+          sellerReplied = true
+        } else {
+          const { data: conv } = await supabase
+            .from('ig_conversations')
+            .select('seller_last_active_at')
+            .eq('id', conversationId)
+            .single()
+          if (conv?.seller_last_active_at) {
+            const lastActiveTime = new Date(conv.seller_last_active_at).getTime()
+            const lastDraftTime = new Date(lastDraft.created_at).getTime()
+            if (lastActiveTime > lastDraftTime) {
+              sellerReplied = true
+            }
+          }
+        }
+      } else if (type === 'whatsapp') {
+        const { data: messages } = await supabase
+          .from('wa_messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('role', 'seller')
+          .gt('created_at', lastDraft.created_at)
+          .limit(1)
+        if (messages && messages.length > 0) {
+          sellerReplied = true
+        } else {
+          const { data: conv } = await supabase
+            .from('wa_conversations')
+            .select('seller_last_active_at')
+            .eq('id', conversationId)
             .single()
           if (conv?.seller_last_active_at) {
             const lastActiveTime = new Date(conv.seller_last_active_at).getTime()
@@ -433,6 +558,36 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       const text = h.role === 'bot' ? h.content.replace(/^🤖\s*/, '') : h.content
       historyContents.push({ role: geminiRole, parts: [{ text }] })
     }
+  } else if (type === 'instagram' && conversationId) {
+    const { data: history } = await supabase
+      .from('ig_messages')
+      .select('role, content')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const sortedHistory = (history || []).reverse()
+    for (const h of sortedHistory) {
+      if (h.content === userMessage) continue
+      const geminiRole = (h.role === 'seller' || h.role === 'bot') ? 'model' : 'user'
+      const text = h.role === 'bot' ? h.content.replace(/^🤖\s*/, '') : h.content
+      historyContents.push({ role: geminiRole, parts: [{ text }] })
+    }
+  } else if (type === 'whatsapp' && conversationId) {
+    const { data: history } = await supabase
+      .from('wa_messages')
+      .select('role, content')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const sortedHistory = (history || []).reverse()
+    for (const h of sortedHistory) {
+      if (h.content === userMessage) continue
+      const geminiRole = (h.role === 'seller' || h.role === 'bot') ? 'model' : 'user'
+      const text = h.role === 'bot' ? h.content.replace(/^🤖\s*/, '') : h.content
+      historyContents.push({ role: geminiRole, parts: [{ text }] })
+    }
   } else if (conversationId) {
     const { data: history } = await supabase
       .from('market_chat_messages')
@@ -465,7 +620,15 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   }
 
   // Hoist realtime channel so we reuse the SAME instance for typing + bot_reply
-  const realtimeChannelName = type === 'dm' ? `dm_${conversationId}` : type === 'order' ? `order_chat_${orderId}` : null
+  const realtimeChannelName = type === 'dm' 
+    ? `dm_${conversationId}` 
+    : type === 'order' 
+    ? `order_chat_${orderId}` 
+    : type === 'instagram'
+    ? `ig-thread-${conversationId}`
+    : type === 'whatsapp'
+    ? `wa-thread-${conversationId}`
+    : null
   let rtChannel: any = null
   if (realtimeChannelName && effectiveDelay === 0) {
     try {
@@ -573,6 +736,40 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
           content: `🤖 ${replyText}`,
         })
       }
+    } else if (type === 'instagram' && conversationId) {
+      try {
+        await supabase.functions.invoke('send-instagram-reply', {
+          body: {
+            conversation_id: conversationId,
+            message: `🤖 ${replyText}`,
+            seller_id: recipientId,
+          },
+        })
+      } catch (igErr: any) {
+        console.error('[AUTO-REPLY] Instagram send error:', igErr.message)
+        await supabase.from('ig_messages').insert({
+          conversation_id: conversationId,
+          role: 'bot',
+          content: `🤖 ${replyText}`,
+        })
+      }
+    } else if (type === 'whatsapp' && conversationId) {
+      try {
+        await supabase.functions.invoke('send-whatsapp-reply', {
+          body: {
+            conversation_id: conversationId,
+            message: `🤖 ${replyText}`,
+            seller_id: recipientId,
+          },
+        })
+      } catch (waErr: any) {
+        console.error('[AUTO-REPLY] WhatsApp send error:', waErr.message)
+        await supabase.from('wa_messages').insert({
+          conversation_id: conversationId,
+          role: 'bot',
+          content: `🤖 ${replyText}`,
+        })
+      }
     } else if (type === 'order' && orderId) {
       await supabase.from('order_chat_messages').insert({
         order_id: orderId,
@@ -666,8 +863,25 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
       .eq('id', recipientId)
       .single()
 
-    const label = type === 'messenger' ? 'Messenger' : type === 'order' ? 'Order chat' : 'DM'
-    const linkUrl = type === 'messenger' ? `/messages/messenger/${conversationId}` : type === 'order' ? `/orders/${orderId}` : '/messages'
+    const label = type === 'messenger' 
+      ? 'Messenger' 
+      : type === 'instagram' 
+      ? 'Instagram' 
+      : type === 'whatsapp' 
+      ? 'WhatsApp' 
+      : type === 'order' 
+      ? 'Order chat' 
+      : 'DM'
+
+    const linkUrl = type === 'messenger' 
+      ? `/messages/messenger/${conversationId}` 
+      : type === 'instagram' 
+      ? `/messages/instagram/${conversationId}` 
+      : type === 'whatsapp' 
+      ? `/messages/whatsapp/${conversationId}` 
+      : type === 'order' 
+      ? `/orders/${orderId}` 
+      : '/messages'
     const msgPreview = userMessage.slice(0, 80)
 
     // SMS

@@ -21,6 +21,28 @@
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
+// ═══════════════════════════════════════════════════════════════
+// Production Environment Sanity Check (runs once at import time)
+// Warnings appear in: Dashboard → Edge Functions → Logs tab
+// Or via CLI: npx supabase functions logs <name> --project-ref <ref>
+// ═══════════════════════════════════════════════════════════════
+{
+  const isProduction = !!Deno.env.get("POSTMARK_SERVER_TOKEN");
+  if (isProduction) {
+    const checks: [string, string | undefined, (v: string) => boolean, string][] = [
+      ["SITE_URL", Deno.env.get("SITE_URL"), (v) => v.includes("localhost"), "contains 'localhost' — emails will have broken links!"],
+      ["POSTMARK_FROM_EMAIL", Deno.env.get("POSTMARK_FROM_EMAIL"), (v) => v.includes("casasgrown") || v.includes("localhost"), "has typo or localhost domain!"],
+      ["STRIPE_SECRET_KEY", Deno.env.get("STRIPE_SECRET_KEY"), (v) => v.startsWith("sk_test_"), "using TEST key in production!"],
+      ["GEMINI_API_KEY", Deno.env.get("GEMINI_API_KEY"), (v) => !v || v.length < 10, "missing or too short!"],
+    ];
+    for (const [name, value, isBad, msg] of checks) {
+      if (value && isBad(value)) {
+        console.error(`🚨 [ENV SANITY] ${name} ${msg} Current value prefix: "${value.substring(0, 20)}..."`);
+      }
+    }
+  }
+}
+
 interface EmailPayload {
     /** Recipient email address */
     to: string;

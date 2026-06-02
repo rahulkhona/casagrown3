@@ -5,14 +5,39 @@ test.describe.configure({ mode: 'serial' })
 
 test.describe('Order Chat Shortcuts', () => {
   test('Quick replies and ETA picker work correctly', async ({ browser }) => {
-    // 1. Setup Data - Find a pickup order where Sam is the seller
-    // The "Ready for Pickup" shortcut only appears for sellers on pickup orders
-    // Find a pickup order where Sam is the seller AND Beth is the buyer
-    const orderId = execSql(`SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND fulfillment_type = 'pickup' LIMIT 1`)
-    if (!orderId) {
-      console.log('No pickup orders found in database for Sam to test chat shortcuts. Skipping.')
-      test.skip()
-      return
+    // 1. Setup Data - Find a pickup order where Sam is the seller with status='pending'
+    // The "Ready for Pickup" shortcut only appears for sellers on PENDING pickup orders
+    let orderId = execSql(`SELECT id FROM market_orders WHERE seller_id = 'a1111111-1111-1111-1111-111111111111' AND buyer_id = 'b2222222-2222-2222-2222-222222222222' AND fulfillment_type = 'pickup' AND status = 'pending' LIMIT 1`)
+
+    if (!orderId || !orderId.trim()) {
+      // No pending pickup order found — create a fresh one for this test
+      console.log('[CHAT SHORTCUTS] No pending pickup order found. Creating one...')
+      orderId = execSql(`
+        INSERT INTO market_orders (
+          seller_id, buyer_id, booth_id, product_id,
+          product_name, quantity, unit_price_usd, subtotal_usd, tax_amount_usd, tax_rate_pct, total_usd,
+          platform_fee_pct, platform_fee_usd,
+          fulfillment_type, status
+        )
+        SELECT
+          'a1111111-1111-1111-1111-111111111111',
+          'b2222222-2222-2222-2222-222222222222',
+          b.id,
+          p.id,
+          p.name, 2, p.price_usd, p.price_usd * 2, 0.80, 8.0, p.price_usd * 2 + 0.80,
+          5, 0.50,
+          'pickup', 'pending'
+        FROM market_booths b
+        JOIN market_products p ON p.seller_id = b.owner_id AND p.is_active = true
+        WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111'
+        LIMIT 1
+        RETURNING id
+      `)
+      if (!orderId || !orderId.trim()) {
+        console.log('[CHAT SHORTCUTS] Could not create test order. Skipping.')
+        test.skip()
+        return
+      }
     }
 
     // Login as Sam, who is the seller for this order
@@ -22,10 +47,15 @@ test.describe('Order Chat Shortcuts', () => {
     await navigateTo(page, `/orders/${orderId.trim()}`)
     await assertPageHealthy(page)
 
-    // 3. Open the chat panel if it's hidden
-    const chatToggle = page.locator('button', { hasText: /Chat with/i })
-    if (await chatToggle.isVisible()) {
-      await chatToggle.click()
+    // 3. The chat panel is shown by default. If it was hidden, toggle it open.
+    const chatToggle = page.locator('button', { hasText: /Order Notes/i })
+    const toggleVisible = await chatToggle.isVisible({ timeout: 3000 }).catch(() => false)
+    if (toggleVisible) {
+      const toggleText = await chatToggle.innerText()
+      // Only click if it says "Order Notes with ..." (i.e. chat is hidden)
+      if (!toggleText.includes('Hide')) {
+        await chatToggle.click()
+      }
     }
 
     // Ensure the chat input area is visible
@@ -47,10 +77,14 @@ test.describe('Order Chat Shortcuts', () => {
     await navigateTo(bethPage, `/orders/${orderId.trim()}`)
     await assertPageHealthy(bethPage)
     
-    // Open chat panel for Beth
-    const bethChatToggle = bethPage.locator('button', { hasText: /Chat with/i })
-    if (await bethChatToggle.isVisible()) {
-      await bethChatToggle.click()
+    // Open chat panel for Beth if hidden
+    const bethChatToggle = bethPage.locator('button', { hasText: /Order Notes/i })
+    const bethToggleVisible = await bethChatToggle.isVisible({ timeout: 3000 }).catch(() => false)
+    if (bethToggleVisible) {
+      const bethToggleText = await bethChatToggle.innerText()
+      if (!bethToggleText.includes('Hide')) {
+        await bethChatToggle.click()
+      }
     }
     // Dismiss any rating popup that may overlay the chat area
     const bethSkipRating = bethPage.getByText('Skip for now')

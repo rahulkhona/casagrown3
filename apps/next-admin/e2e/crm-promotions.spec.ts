@@ -23,13 +23,16 @@ test.describe('Admin — CRM Promotions Page', () => {
     await expect(page.locator('input[placeholder="e.g. Summer Kickoff"]')).toBeVisible()
 
     // Toggle buttons (crm-toggle) expand additional sections
-    const giveawayToggle = page.locator('button.crm-toggle').nth(1)
+    // Section 2: Physical Giveaway — click the Included/Disabled toggle
+    const giveawayToggle = page.locator('button.crm-toggle', { hasText: /Included|Disabled/ }).first()
     await giveawayToggle.click()
     await expect(page.locator('text=Giveaway Item Name')).toBeVisible()
 
-    const creditsToggle = page.locator('button.crm-toggle').nth(2)
+    // Section 3: Recurring USD Buying Discounts — has Discount Type (not Credit Type)
+    const allToggles = page.locator('button.crm-toggle', { hasText: /Included|Disabled/ })
+    const creditsToggle = allToggles.nth(1)
     await creditsToggle.click()
-    await expect(page.locator('text=Credit Type')).toBeVisible()
+    await expect(page.locator('text=Discount Type')).toBeVisible({ timeout: 15000 })
     
     // Test cancel
     await page.locator('button:has-text("Cancel")').click()
@@ -39,7 +42,7 @@ test.describe('Admin — CRM Promotions Page', () => {
   test('Delete promotion asks for confirmation', async ({ page }) => {
     let dialogHandled = false
     page.on('dialog', async dialog => {
-      expect(dialog.message()).toContain('WARNING: Deleting this promotion will immediately cancel any recurring credits')
+      expect(dialog.message()).toContain('WARNING: Deleting this promotion will instantly cancel any ongoing recurring buying discounts')
       await dialog.dismiss()
       dialogHandled = true
     })

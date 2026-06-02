@@ -16,7 +16,7 @@ import {
 test.describe('Facebook Auto-Post Settings', () => {
   test('Facebook connection section is visible for Pro seller', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     // Skip if redirected to login
@@ -35,7 +35,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('auto-sync toggle is visible and checked by default', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -60,7 +60,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('auto-post toggle is visible with correct label', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -71,7 +71,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
     const toggle = page.locator('[data-testid="toggle-auto-post"]')
     if (await toggle.isVisible()) {
-      const label = page.locator('text=Post daily product highlights')
+      const label = page.locator('text=Post daily available items')
       await expect(label).toBeVisible()
     } else {
       // Toggle only visible when FB connected
@@ -84,7 +84,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('casagrown-post toggle is visible with correct label', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -107,7 +107,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('toggling auto-post persists state', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -138,7 +138,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('toggles show description text', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -148,11 +148,11 @@ test.describe('Facebook Auto-Post Settings', () => {
     }
 
     const content = await page.textContent('body')
-    if (content?.includes('Post daily product highlights')) {
+    if (content?.includes('Post daily available items')) {
       // Auto-post description
-      expect(content).toContain('GrowBot will post one product')
+      expect(content).toContain('GrowBot will automatically post')
       // CasaGrown description
-      expect(content).toContain('products may be featured')
+      expect(content).toContain('may be featured')
     } else {
       // FB not connected or not Pro
       expect(content).toMatch(/Facebook|Profile|Connect/i)
@@ -163,7 +163,7 @@ test.describe('Facebook Auto-Post Settings', () => {
 
   test('disconnect button is visible and enabled', async ({ browser }) => {
     const page = await loginAsUser(browser, 'sam')
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     if (page.url().includes('/login')) {
@@ -189,7 +189,7 @@ test.describe('Facebook Auto-Post Settings', () => {
     const jsErrors: string[] = []
     page.on('pageerror', (err: Error) => jsErrors.push(err.message))
 
-    await navigateTo(page, '/profile')
+    await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
     const criticalErrors = jsErrors.filter(e =>

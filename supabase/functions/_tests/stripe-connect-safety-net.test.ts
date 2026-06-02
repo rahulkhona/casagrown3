@@ -188,8 +188,10 @@ Deno.test({
     })
 
     // Create a settlement with stripe_transfer_pending status
+    const marketDate = `${2098 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2098-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 100.00,
     })
@@ -279,8 +281,10 @@ Deno.test({
     })
 
     // Create a settlement that was successfully paid out
+    const marketDate = `${2097 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2097-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 80.00,
     })
@@ -361,8 +365,10 @@ Deno.test({
       stripe_connect_active: true,
     })
 
+    const marketDate = `${2096 + Math.floor(Math.random() * 100)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, { method: 'DELETE', headers: HEADERS }).catch(() => {})
     const settlement = await restPost('market_settlements', {
-      market_date: `2096-01-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 60.00,
     })

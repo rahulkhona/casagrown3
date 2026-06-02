@@ -9,7 +9,8 @@
  *   3. Seller Daily Menu — all products by booth with pickup/delivery info (→ auto-post)
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { publishPagePost, publishMultiPhotoPost } from '../_shared/facebook.ts'
+import { publishPagePost, publishMultiPhotoPost, publishInstagramPost, publishInstagramCarousel } from '../_shared/facebook.ts'
+import { getGoogleAccessToken, publishGoogleLocalPost } from '../_shared/google.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -18,12 +19,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
 
-  // ── 1. Get all Pro sellers with active FB connections ──────────
+  // ── 1. Get all Pro/Elite sellers with active FB connections ──────────
   const { data: connections, error: connErr } = await supabase
     .from('seller_fb_connections')
     .select(`
       id, user_id, fb_page_id, fb_page_access_token, fb_page_name, status,
       auto_post_enabled, casagrown_post_enabled,
+      ig_business_account_id, ig_username, ig_access_token, ig_auto_post_enabled,
+      wa_phone_number_id, wa_display_phone, wa_auto_reply_enabled,
       seller_subscriptions!inner(plan, status)
     `)
     .eq('status', 'connected')
@@ -35,6 +38,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
   if (!connections || connections.length === 0) {
     return jsonOk({ seller_posts: 0, casagrown_posts: 0, message: 'No active connections' }, corsHeaders)
+  }
+
+  // Load subscription tiers to check features dynamically
+  const { data: tiersData } = await supabase
+    .from('subscription_tiers')
+    .select('tier_name, features')
+
+  const tierFeatures: Record<string, any> = {}
+  if (tiersData) {
+    for (const t of tiersData) {
+      tierFeatures[t.tier_name] = t.features || {}
+    }
   }
 
   let sellerPostsPublished = 0
@@ -49,6 +64,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     const sub = (conn as any).seller_subscriptions
     if (!sub || !['active', 'trialing'].includes(sub.status)) continue
     if (!conn.fb_page_access_token || !conn.fb_page_id) continue
+
+    const features = tierFeatures[sub.plan] || {}
+    if (!features.facebook_posts) continue
 
     const autoPostEnabled = (conn as any).auto_post_enabled === true
     if (!autoPostEnabled) continue
@@ -77,7 +95,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     // Get seller profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, farm_name')
+      .select('full_name, farm_name, business_type')
       .eq('id', conn.user_id)
       .single()
 
@@ -93,8 +111,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     if (!booths || booths.length === 0) continue
 
+    // Business type labels
+    const bizTypeLabels: Record<string, string> = {
+      hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+      cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+      homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+      gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+      commercial: '🏢 Commercial / Licensed',
+    }
+
     // Build the daily menu post grouped by booth
     let message = `🌱 What's fresh today from ${sellerName}!\n`
+    if (profile?.business_type && bizTypeLabels[profile.business_type]) {
+      message += `${bizTypeLabels[profile.business_type]}\n`
+    }
     let hasProducts = false
     const allProductPhotos: string[] = []
     const boothLinks: string[] = []
@@ -176,7 +206,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     if (!hasProducts) continue
 
-    message += `\nOrder now 👇\n${boothLinks[0]}`
+    if (features.whatsapp_chat && conn.wa_display_phone) {
+      const cleanWaPhone = conn.wa_display_phone.replace(/\D/g, '')
+      if (cleanWaPhone) {
+        const waLink = `https://wa.me/${cleanWaPhone}?text=Hi!%20I%20saw%20your%20post%20on%20social%20media%20and%20would%20love%20to%20order%20some%20fresh%20produce!`
+        message += `\n\n💬 Or message us on WhatsApp to order:\n${waLink}`
+      }
+    }
+
+    message += `\n\nOrder now 👇\n${boothLinks[0]}`
 
     try {
       // Use multi-photo carousel if we have multiple product photos
@@ -198,6 +236,73 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         fb_post_id: fbResult?.id || null,
         message,
       })
+
+      // ── Instagram posting for Elite sellers ──
+      if (features.instagram_posts && conn.ig_auto_post_enabled && conn.ig_business_account_id) {
+        try {
+          const igResult = allProductPhotos.length > 1
+            ? await publishInstagramCarousel(conn.ig_business_account_id, conn.fb_page_access_token, {
+                caption: message,
+                imageUrls: allProductPhotos,
+              })
+            : await publishInstagramPost(conn.ig_business_account_id, conn.fb_page_access_token, {
+                caption: message,
+                imageUrl: allProductPhotos[0] || '',
+              })
+
+          await supabase.from('fb_auto_post_log').insert({
+            user_id: conn.user_id,
+            target: 'instagram',
+            fb_post_id: igResult?.id || null,
+            message,
+          })
+          console.log(`[GEN-FB-POST] ✅ Posted daily menu to Instagram for ${sellerName}`)
+        } catch (igErr: any) {
+          console.error(`[GEN-FB-POST] ❌ Instagram posting failed for ${sellerName}: ${igErr.message}`)
+          await supabase.from('fb_auto_post_log').insert({
+            user_id: conn.user_id,
+            target: 'instagram',
+            error: igErr.message,
+            message,
+          })
+        }
+      }
+
+      // ── Google Business Profile posting for Elite sellers ──
+      if (features.google_places) {
+        const { data: googleConn } = await supabase
+          .from('seller_google_connections')
+          .select('google_refresh_token, google_location_id, google_location_name, auto_post_specials')
+          .eq('user_id', conn.user_id)
+          .maybeSingle()
+
+        if (googleConn?.auto_post_specials && googleConn?.google_location_id && googleConn?.google_refresh_token) {
+          try {
+            const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+            const gbpResult = await publishGoogleLocalPost(googleConn.google_location_id, googleAccessToken, {
+              caption: message,
+              photoUrl: allProductPhotos[0] || undefined,
+              buttonUrl: boothLinks[0],
+            })
+
+            await supabase.from('fb_auto_post_log').insert({
+              user_id: conn.user_id,
+              target: 'google_local',
+              fb_post_id: gbpResult?.name || null,
+              message,
+            })
+            console.log(`[GEN-FB-POST] ✅ Posted daily specials to Google Maps for ${sellerName}`)
+          } catch (gbpErr: any) {
+            console.error(`[GEN-FB-POST] ❌ Google Maps posting failed for ${sellerName}: ${gbpErr.message}`)
+            await supabase.from('fb_auto_post_log').insert({
+              user_id: conn.user_id,
+              target: 'google_local',
+              error: gbpErr.message,
+              message,
+            })
+          }
+        }
+      }
 
       sellerPostsPublished++
       console.log(`[GEN-FB-POST] ✅ Posted daily menu to ${sellerName}'s page (${allProductPhotos.length} photos)`)

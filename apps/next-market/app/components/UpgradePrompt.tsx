@@ -129,7 +129,7 @@ export function UpgradePrompt({
       .select('pro_monthly_price_usd, standard_platform_fee, pro_platform_fee, pro_free_trial_days')
       .limit(1)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) setConfig(data as PlatformConfig)
       })
 
@@ -140,7 +140,7 @@ export function UpgradePrompt({
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data) setDiscount(data as PromoDiscount)
         })
 
@@ -150,7 +150,7 @@ export function UpgradePrompt({
         .select('farm_name, business_type, business_license, business_logo_url, seller_bio, food_handler_permit, cottage_food_permit, insurance_provider')
         .eq('id', user.id)
         .single()
-        .then(({ data }) => {
+        .then(({ data }: { data: any }) => {
           if (data) {
             setFarmForm((f) => ({
               ...f,

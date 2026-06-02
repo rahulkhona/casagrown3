@@ -42,14 +42,14 @@ export async function POST(request: Request) {
     }
 
     if (action === 'upsert_credits') {
-      const { data, error } = await supabase.from('crm_recurring_user_incentives_blueprint')
+      const { data, error } = await supabase.from('crm_promo_buyer_discounts')
         .upsert(payload, { onConflict: 'promotion_id' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })
     }
 
     if (action === 'delete_credits') {
-      await supabase.from('crm_recurring_user_incentives_blueprint').delete().eq('promotion_id', payload.promotion_id)
+      await supabase.from('crm_promo_buyer_discounts').delete().eq('promotion_id', payload.promotion_id)
       return NextResponse.json({ ok: true })
     }
 
@@ -75,13 +75,20 @@ export async function POST(request: Request) {
 
     if (action === 'upsert_sub_discount') {
       const { data, error } = await supabase.from('crm_promo_subscription_discounts')
-        .upsert(payload, { onConflict: 'promotion_id' })
+        .upsert(payload, { onConflict: 'promotion_id,plan' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })
     }
 
     if (action === 'delete_sub_discount') {
-      await supabase.from('crm_promo_subscription_discounts').delete().eq('promotion_id', payload.promotion_id)
+      const query = supabase.from('crm_promo_subscription_discounts').delete().eq('promotion_id', payload.promotion_id)
+      if (payload.plan) {
+        const { error } = await query.eq('plan', payload.plan)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      } else {
+        const { error } = await query
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      }
       return NextResponse.json({ ok: true })
     }
 

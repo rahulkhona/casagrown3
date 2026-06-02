@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarket } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
+import { useQuickSetup } from '../../../lib/useQuickSetup'
 import {
   fetchCommunityMessages,
   sendCommunityMessage,
@@ -52,6 +53,7 @@ export default function ClientPage({
   const targetMessageId = searchParams?.get('message_id')
   const { state } = useMarket()
   const { user, isAuthenticated, loading } = useAuth()
+  const { requireAuth } = useQuickSetup()
   
   const [messages, setMessages] = useState<CommunityChatMessage[]>([...initialMessages].reverse())
   const [isLoading, setIsLoading] = useState(false) // No longer loading initially!
@@ -124,7 +126,7 @@ export default function ClientPage({
     if (isGuest) return
     
     if (!isAuthenticated || !user) {
-      router.push('/login?redirect=/community')
+      // Don't redirect — guest mode handles this gracefully
       return
     }
 
@@ -325,7 +327,7 @@ export default function ClientPage({
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'community_chat_messages' },
-          (payload) => {
+          (payload: any) => {
             checkNewMessages()
           }
         )
@@ -564,7 +566,7 @@ export default function ClientPage({
             author_name: profileName || 'Neighbor',
             parent_id: replyingTo?.id,
           },
-        }).then((res) => {
+        }).then((res: any) => {
           console.log('[CasaBot] Response:', res)
           // Don't call loadMessages() — the WebSocket/polling will pick up the bot reply
           // and merge it in. This prevents the full re-fetch that causes flicker.
@@ -587,7 +589,13 @@ export default function ClientPage({
 
   // ── Sell chip handler ──
   const handleSellClick = () => {
-    if (!user) { router.push('/login?redirect=/community'); return }
+    if (!user) {
+      requireAuth({
+        trigger: 'sell_from_community',
+        onReady: () => handleSellClick(),
+      })
+      return
+    }
     router.push('/my-booth/products/new?from=buzz')
   }
 
@@ -778,42 +786,20 @@ export default function ClientPage({
             onSend={async (msg) => {
               setGuestDraftMessage(msg)
               try { localStorage.setItem('casagrown_community_draft', msg) } catch {}
-              setShowGuestLoginPrompt(true)
+              requireAuth({
+                trigger: 'community_post',
+                onReady: () => {
+                  // After auth completes, the auto-send draft effect will handle posting
+                  setShowGuestLoginPrompt(false)
+                },
+              })
             }}
             userId="guest"
             h3Index={profileH3 || undefined}
             prefillText={composePrefill}
             onPrefillConsumed={() => setComposePrefill(undefined)}
           />
-          {showGuestLoginPrompt && (
-            <div className={styles.guestLoginOverlay} onClick={() => setShowGuestLoginPrompt(false)}>
-              <div className={styles.guestLoginModal} onClick={e => e.stopPropagation()}>
-                <span style={{ fontSize: '2rem' }}>🌱</span>
-                <h3 style={{ margin: '0.5rem 0 0.25rem', color: 'var(--gray-900)' }}>Join the Conversation</h3>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                  Sign up or log in to send messages, react, and connect with your neighbors.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', width: '100%' }}>
-                  <button
-                    className={styles.guestComposeBtn}
-                    style={{ flex: 1 }}
-                    onClick={() => {
-                      try { localStorage.setItem('casagrown_community_draft', guestDraftMessage) } catch {}
-                      router.push('/login?redirect=/community')
-                    }}
-                  >
-                    Sign Up / Log In
-                  </button>
-                  <button
-                    style={{ flex: 0, padding: '0.5rem 1rem', background: 'var(--gray-100)', border: 'none', borderRadius: 'var(--radius-full)', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--gray-600)' }}
-                    onClick={() => setShowGuestLoginPrompt(false)}
-                  >
-                    Later
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
       ) : (
         <div className={styles.composeWrapper} ref={composeRef}>
@@ -845,6 +831,7 @@ export default function ClientPage({
         </div>
       )}
       {!isGuest && <NotificationPromptModal {...modalProps} />}
+
     </div>
   )
 }

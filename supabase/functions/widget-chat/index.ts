@@ -45,14 +45,25 @@ Deno.serve(async (req: Request) => {
       return jsonRes({ error: 'Booth not found' }, 404)
     }
 
-    // 2. Verify booth owner has active Pro subscription
+    // 2. Verify booth owner has active subscription
     const { data: sub } = await supabase
       .from('seller_subscriptions')
       .select('plan, status')
       .eq('user_id', booth.owner_id)
       .single()
 
-    if (!sub || sub.plan !== 'pro' || !['active', 'trialing'].includes(sub.status)) {
+    if (!sub || !['active', 'trialing'].includes(sub.status)) {
+      return jsonRes({ error: 'Widget not available for this booth' }, 403)
+    }
+
+    // Load subscription tier's features dynamically
+    const { data: tier } = await supabase
+      .from('subscription_tiers')
+      .select('features')
+      .eq('tier_name', sub.plan)
+      .single()
+
+    if (!tier?.features?.growbot_copilot) {
       return jsonRes({ error: 'Widget not available for this booth' }, 403)
     }
 

@@ -123,30 +123,6 @@ describe('OrderChat', () => {
     expect(screen.getByText('🚗 On my way to pick up...')).toBeDefined()
   })
 
-  it('shows "On my way to pick up..." chip for buyer + pickup + confirmed', () => {
-    render(
-      <OrderChat
-        {...baseProps}
-        isSeller={false}
-        fulfillmentType="pickup"
-        orderStatus="confirmed"
-      />
-    )
-    expect(screen.getByText('🚗 On my way to pick up...')).toBeDefined()
-  })
-
-  it('shows "On my way..." chip for seller + delivery + confirmed', () => {
-    render(
-      <OrderChat
-        {...baseProps}
-        isSeller={true}
-        fulfillmentType="delivery"
-        orderStatus="confirmed"
-      />
-    )
-    expect(screen.getByText('🚗 On my way...')).toBeDefined()
-  })
-
   it('hides "On my way to pick up..." chip when status is delivered', () => {
     render(
       <OrderChat

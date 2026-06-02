@@ -7,6 +7,7 @@
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
 import { upsertCatalogProducts, deleteCatalogProduct } from '../_shared/facebook.ts'
+import { getGoogleAccessToken, syncProductToGoogleCatalog, updateGoogleBusinessProfile } from '../_shared/google.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -20,6 +21,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     .from('seller_fb_connections')
     .select(`
       id, user_id, fb_page_access_token, fb_page_id, status, auto_sync_enabled,
+      wa_display_phone, wa_auto_reply_enabled,
       seller_subscriptions!inner(plan, status)
     `)
     .eq('status', 'connected')
@@ -124,9 +126,21 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         // Get seller profile for brand name
         const { data: sellerProfile } = await supabase
           .from('profiles')
-          .select('full_name, city, zip_code')
+          .select('full_name, city, zip_code, farm_name, seller_bio, business_type, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
           .eq('id', conn.user_id)
           .single()
+
+        // Get WA phone for this connection
+        const waPhone = conn.wa_display_phone || null
+
+        // Business type labels
+        const bizTypeLabels: Record<string, string> = {
+          hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+          cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+          homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+          gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+          commercial: '🏢 Commercial / Licensed',
+        }
 
         // Compute content hashes and find changed products
         const productPayloads = []
@@ -144,16 +158,43 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
           const photoUrl = product.photos?.[0] || `${siteUrl}/logo.png`
 
+          // Build enriched description
+          let enrichedDesc = product.description || product.name
+
+          // Business type
+          if (sellerProfile?.business_type && bizTypeLabels[sellerProfile.business_type]) {
+            enrichedDesc += `\n\n${bizTypeLabels[sellerProfile.business_type]}`
+          }
+
+          // Seller bio
+          if (sellerProfile?.seller_bio) {
+            enrichedDesc += `\n\n🌱 About: ${sellerProfile.seller_bio.substring(0, 200)}`
+          }
+
+          // Trust badges
+          const badges = []
+          if (sellerProfile?.business_license) badges.push('✓ Licensed')
+          if (sellerProfile?.food_handler_permit) badges.push('✓ Food Handler')
+          if (sellerProfile?.cottage_food_permit) badges.push('✓ Cottage Food')
+          if (sellerProfile?.insurance_provider) badges.push('✓ Insured')
+          if (badges.length > 0) enrichedDesc += `\n${badges.join(' · ')}`
+
+          // Add fulfillment
+          enrichedDesc += fulfillmentDesc
+
+          // WA number
+          if (waPhone) enrichedDesc += `\n\n📱 WhatsApp: wa.me/${waPhone.replace(/\D/g, '')}`
+
           productPayloads.push({
             retailer_id: product.id,
             name: `${product.name} · ${sellerProfile?.city || ''} ${sellerProfile?.zip_code || ''}`.trim(),
-            description: `${product.description || product.name}${fulfillmentDesc}`.substring(0, 5000),
+            description: enrichedDesc.substring(0, 5000),
             price: Number(product.price_usd),
             currency: 'USD',
             url: `${siteUrl}/market/product/${product.id}`,
             image_url: photoUrl,
             availability: product.inventory > 0 ? 'in stock' : 'out of stock',
-            brand: sellerProfile?.full_name || 'CasaGrown Seller',
+            brand: sellerProfile?.farm_name || sellerProfile?.full_name || 'CasaGrown Seller',
             condition: 'new',
             category: product.category || 'Food, Beverages & Tobacco',
           })
@@ -189,6 +230,44 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
                   seller_error: null,
                 })
                 .eq('product_id', p.retailer_id)
+            }
+
+            // ── Google Business Profile Catalog Sync ──
+            if (sub.plan === 'elite') {
+              const { data: googleConn } = await supabase
+                .from('seller_google_connections')
+                .select('google_refresh_token, google_location_id, google_location_name, auto_sync_catalog')
+                .eq('user_id', conn.user_id)
+                .maybeSingle()
+
+              if (googleConn?.auto_sync_catalog && googleConn?.google_location_id && googleConn?.google_refresh_token) {
+                try {
+                  const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+                  for (const p of productPayloads) {
+                    await syncProductToGoogleCatalog(googleConn.google_location_id, googleAccessToken, {
+                      retailer_id: p.retailer_id,
+                      name: p.name,
+                      description: p.description,
+                      price: p.price,
+                      image_url: p.image_url,
+                      url: p.url,
+                    })
+                  }
+                  console.log(`[GBP-CATALOG] ✅ Synced ${productPayloads.length} products to Google Maps Catalog`)
+
+                  // Update Google Business Profile metadata
+                  try {
+                    await updateGoogleBusinessProfile(googleConn.google_location_id, googleAccessToken, {
+                      description: sellerProfile?.seller_bio || undefined,
+                      additionalPhone: waPhone,
+                    })
+                  } catch (gbpMetaErr: any) {
+                    console.warn(`[GBP] Profile metadata update failed: ${gbpMetaErr.message}`)
+                  }
+                } catch (gbpErr: any) {
+                  console.error(`[GBP-CATALOG] ❌ Google Maps Catalog sync failed: ${gbpErr.message}`)
+                }
+              }
             }
 
             connectionProductCount += productPayloads.length

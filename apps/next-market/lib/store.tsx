@@ -616,7 +616,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     import('../lib/supabase').then(({ createClient }) => {
       const supabase = createClient()
-      supabase.rpc('get_market_config').then(({ data }) => {
+      supabase.rpc('get_market_config').then(({ data }: { data: any }) => {
         if (data) {
           const schedule: MarketSchedule[] = (data.schedule || []).map((s: any) => ({
             dayOfWeek: s.dayOfWeek,

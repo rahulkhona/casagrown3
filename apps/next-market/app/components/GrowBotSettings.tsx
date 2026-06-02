@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase'
 
 interface GrowBotSettingsProps {
   userId: string
   isPro: boolean
+  plan?: string
 }
 
 interface ChannelConfig {
@@ -23,6 +25,33 @@ const CHANNELS = [
     hasDelay: true,
   },
   {
+    key: 'instagram',
+    icon: '📸',
+    label: 'Instagram Direct Messages',
+    desc: 'Auto-reply to buyers messaging your Instagram Business account',
+    note: 'Requires Elite tier. Pauses when you reply. Resumes if you stop replying.',
+    hasDelay: true,
+    requiresElite: true,
+  },
+  {
+    key: 'whatsapp',
+    icon: '🟢',
+    label: 'WhatsApp Business',
+    desc: 'Auto-reply to buyers messaging your WhatsApp number',
+    note: 'Requires Elite tier. Pauses when you reply. Resumes if you stop replying.',
+    hasDelay: true,
+    requiresElite: true,
+  },
+  {
+    key: 'comments',
+    icon: '🚜',
+    label: 'GrowBot Comment Scanning',
+    desc: 'Auto-reply to social comments and send private checkout DMs on buying intent',
+    note: 'Requires Elite tier. Automatically scans public comments for price/location questions and positive feedback.',
+    hasDelay: false,
+    requiresElite: true,
+  },
+  {
     key: 'dm',
     icon: '✉️',
     label: 'CasaGrown DMs',
@@ -32,14 +61,10 @@ const CHANNELS = [
   },
 ] as const
 
-type ChannelKey = 'messenger' | 'dm' | 'orders'
+type ChannelKey = 'messenger' | 'dm' | 'orders' | 'instagram' | 'whatsapp' | 'comments'
 
-/**
- * GrowBot AI settings — per-channel auto-reply configuration.
- * Suggested replies (copilot) on DMs & Orders are always on — no config needed.
- * Messenger has no copilot since we don't control Facebook's UI.
- */
-export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
+export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
+  const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -48,10 +73,15 @@ export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
 
   const [configs, setConfigs] = useState<Record<ChannelKey, ChannelConfig>>({
     messenger: { enabled: true, delayMinutes: 0 },
+    instagram: { enabled: true, delayMinutes: 0 },
+    whatsapp: { enabled: true, delayMinutes: 0 },
+    comments: { enabled: true, delayMinutes: 0 },
     dm: { enabled: true, delayMinutes: 5 },
     orders: { enabled: true, delayMinutes: 5 },
   })
   const [botInstructions, setBotInstructions] = useState('')
+
+  const isElite = plan === 'elite'
 
   useEffect(() => {
     const load = async () => {
@@ -67,6 +97,9 @@ export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
           const bc = data.bot_channels as Record<string, any>
           setConfigs((prev) => ({
             messenger: { ...prev.messenger, ...bc.messenger },
+            instagram: { ...prev.instagram, ...bc.instagram },
+            whatsapp: { ...prev.whatsapp, ...bc.whatsapp },
+            comments: { ...prev.comments, ...bc.comments },
             dm: { ...prev.dm, ...bc.dm },
             orders: { ...prev.orders, ...bc.orders },
           }))
@@ -75,7 +108,7 @@ export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
       setLoading(false)
     }
     load()
-  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId])
 
   const handleSave = async () => {
     setSaving(true)
@@ -114,7 +147,7 @@ export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
     }}>
       <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
         <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-        GrowBot Auto-Reply
+        GrowBot Auto-Reply & Commentary
       </h3>
 
       {!isPro && (
@@ -131,10 +164,14 @@ export function GrowBotSettings({ userId, isPro }: GrowBotSettingsProps) {
         opacity: isPro ? 1 : 0.5,
         pointerEvents: isPro ? 'auto' : 'none',
       }}>
-        {CHANNELS.map((ch) => {
+        {CHANNELS.filter((ch) => {
+          // Hide Elite-only channels if user is not on Elite plan
+          if ('requiresElite' in ch && ch.requiresElite && !isElite) return false
+          return true
+        }).map((ch) => {
           const cfg = configs[ch.key]
           const isAlwaysCopilot = 'isAlwaysCopilot' in ch && ch.isAlwaysCopilot
-          const isEnabled = isAlwaysCopilot ? true : cfg.enabled
+          const isEnabled = isAlwaysCopilot ? true : cfg?.enabled
 
           return (
             <div

@@ -131,16 +131,16 @@ export default function CatalogPage() {
             .order('created_at', { ascending: false })
             .limit(50)
           if (localProducts && localProducts.length > 0) {
-            const sellerIds = Array.from(new Set(localProducts.map(p => p.seller_id)))
+            const sellerIds = Array.from(new Set(localProducts.map((p: any) => p.seller_id)))
             const { data: neighborSellers } = await supabase
               .from('profiles').select('id').eq('home_community_h3_index', h3).in('id', sellerIds)
             if (neighborSellers && neighborSellers.length > 0) {
-              const neighborIds = new Set(neighborSellers.map(s => s.id))
-              const matches = localProducts.filter(p => neighborIds.has(p.seller_id))
+              const neighborIds = new Set(neighborSellers.map((s: any) => s.id))
+              const matches = localProducts.filter((p: any) => neighborIds.has(p.seller_id))
               if (matches.length >= 3) {
-                const avg = matches.reduce((sum, p) => sum + Number(p.price_usd), 0) / matches.length
+                const avg = matches.reduce((sum: number, p: any) => sum + Number(p.price_usd), 0) / matches.length
                 const unitCounts: Record<string, number> = {}
-                matches.forEach(p => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
+                matches.forEach((p: any) => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
                 const topUnit = Object.entries(unitCounts).sort((a, b) => b[1] - a[1])[0][0]
                 setSuggestedPrice({ price_usd: Math.round(avg * 100) / 100, unit: topUnit, source: 'neighborhood_average' })
                 setSuggestingPrice(false)
@@ -220,7 +220,7 @@ export default function CatalogPage() {
     supabase.from('market_booths')
       .select('id, name, delivery_windows, pickup_windows, weekly_delivery_windows, weekly_pickup_windows')
       .eq('owner_id', user.id).order('created_at')
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) setBooths(data.map((b: any) => {
           const hasDw = Array.isArray(b.delivery_windows) && b.delivery_windows.length > 0
           const hasPw = Array.isArray(b.pickup_windows) && b.pickup_windows.length > 0
@@ -267,7 +267,7 @@ export default function CatalogPage() {
           category: allocItem.category,
           photo_url: allocItem.photos?.[0] || null,
         },
-      }).then(modRes => {
+      }).then((modRes: any) => {
         const modData = modRes.data as any
         if (modData?.status === 'flagged' && modData?.flags) {
           const messages = Object.values(modData.flags.issue_messages || {}) as string[]
@@ -275,7 +275,7 @@ export default function CatalogPage() {
           setToastMsg(`⚠️ ${reason} — The listing has been hidden until the issue is resolved.`)
           setTimeout(() => setToastMsg(null), 6000)
         }
-      }).catch(err => {
+      }).catch((err: any) => {
         console.warn('Moderation check failed (non-blocking):', err)
       })
     }
@@ -332,10 +332,10 @@ export default function CatalogPage() {
         const { data: allocations } = await supabase
           .from('catalog_item_allocations')
           .select('catalog_item_id, allocated_inventory, stand_count')
-          .in('catalog_item_id', itemsRes.data.map(i => i.id))
+          .in('catalog_item_id', itemsRes.data.map((i: any) => i.id))
 
-        const allocMap = new Map(
-          (allocations || []).map(a => [a.catalog_item_id, a])
+        const allocMap = new Map<string, any>(
+          (allocations || []).map((a: any) => [a.catalog_item_id, a])
         )
 
         setItems(

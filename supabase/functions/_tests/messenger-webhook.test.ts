@@ -401,6 +401,71 @@ Deno.test({
   },
 });
 
+// ══════════════════════════════════════════════════════════════
+// Rejected when facebook_chat Feature Flag is False
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "messenger-webhook: rejected when facebook_chat feature flag is false",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // 1. Ensure SELLER_ID has a subscription with plan = 'pro'
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'pro', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'pro', status = 'active'
+    `);
+
+    // 2. Temporarily disable facebook_chat feature flag on pro plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{facebook_chat}', 'false'::jsonb)
+      WHERE tier_name = 'pro'
+    `);
+
+    const uniqueSender = "fb_chat_disabled_" + Date.now();
+    const res = await callWebhook("POST", {}, {
+      object: "page",
+      entry: [
+        {
+          id: "test_page_e2e",
+          time: Date.now(),
+          messaging: [
+            {
+              sender: { id: uniqueSender },
+              recipient: { id: "test_page_e2e" },
+              timestamp: Date.now(),
+              message: {
+                mid: "mid_fb_chat_disabled_" + Date.now(),
+                text: "Should be skipped because facebook_chat feature flag is off",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    assertEquals(res.status, 200);
+
+    // Wait for async processing
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Verify no conversation was created
+    const convCount = await sqlExec(
+      `SELECT count(*) FROM messenger_conversations WHERE fb_sender_id = '${uniqueSender}'`,
+    );
+    assertEquals(convCount, "0", "No conversation should be created when facebook_chat feature is false");
+
+    // 3. Restore facebook_chat feature flag to true on pro plan
+    await sqlExec(`
+      UPDATE subscription_tiers
+      SET features = jsonb_set(COALESCE(features, '{}'::jsonb), '{facebook_chat}', 'true'::jsonb)
+      WHERE tier_name = 'pro'
+    `);
+  },
+});
+
 // ── Cleanup ──
 Deno.test({
   name: "messenger-webhook: cleanup test data",

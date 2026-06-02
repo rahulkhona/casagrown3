@@ -181,7 +181,7 @@ export default function Step2Fulfillment() {
       .from('market_booths')
       .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles')
       .eq('owner_id', user.id)
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         const standList = data || []
         setStands(standList)
         setStandsLoaded(true)
@@ -190,8 +190,8 @@ export default function Step2Fulfillment() {
         if (typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search)
           const urlBoothId = params.get('booth')
-          if (urlBoothId && standList.some(s => s.id === urlBoothId) && !state.boothId) {
-            const stand = standList.find(s => s.id === urlBoothId)!
+          if (urlBoothId && standList.some((s: any) => s.id === urlBoothId) && !state.boothId) {
+            const stand = standList.find((s: any) => s.id === urlBoothId)!
             updateState({
               boothId: stand.id,
               offersDelivery: stand.offers_delivery,
@@ -216,7 +216,7 @@ export default function Step2Fulfillment() {
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStandChange = (standId: string) => {
-    const stand = stands.find(s => s.id === standId)
+    const stand = stands.find((s: any) => s.id === standId)
     if (stand) {
       updateState({
         boothId: stand.id,

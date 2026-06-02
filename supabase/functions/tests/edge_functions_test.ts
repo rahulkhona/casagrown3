@@ -19,6 +19,7 @@ async function invoke(name: string, body: unknown, token?: string) {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   })
   const data = await res.json().catch(() => null)
   return { status: res.status, data }
@@ -186,6 +187,7 @@ Deno.test('[stripe-webhook] handles payment_intent.succeeded with missing transa
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   // Webhook returns 200 even on "not found" — Stripe stops retrying
   const data = await res.json().catch(() => null)
@@ -215,6 +217,7 @@ Deno.test('[stripe-webhook] handles payment_intent.payment_failed event structur
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   if (![200, 401, 500].includes(res.status)) {
     await res.body?.cancel()
@@ -236,6 +239,7 @@ Deno.test('[stripe-webhook] handles unrecognized event types gracefully', async 
       'Authorization': `Bearer ${ANON_KEY}`,
     },
     body,
+    signal: AbortSignal.timeout(15000),
   })
   if (![200, 401, 500].includes(res.status)) {
     await res.body?.cancel()

@@ -12,12 +12,32 @@ vi.mock('next/navigation', () => ({
 
 // Create a stable mock function for rpc
 const mockRpc = vi.fn()
+const mockGetSession = vi.fn().mockResolvedValue({ data: { session: null }, error: null })
+
+// Stable mock object that supports chainable call patterns
+const chainMock = {
+  select: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  neq: vi.fn().mockReturnThis(),
+  in: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  then: vi.fn((cb) => Promise.resolve({ data: [], error: null }).then(cb)),
+  update: vi.fn().mockReturnThis(),
+  insert: vi.fn().mockReturnThis(),
+}
+
+const mockFrom = vi.fn(() => chainMock)
 
 // Mock Supabase client
 vi.mock('../lib/supabase', () => ({
   createClient: vi.fn(() => ({
     rpc: mockRpc,
+    from: mockFrom,
     auth: {
+      getSession: mockGetSession,
       signInWithOtp: vi.fn(),
       verifyOtp: vi.fn()
     }
@@ -80,11 +100,9 @@ describe('PromoPage component', () => {
 
     // Fill out the form
     const emailInput = screen.getByPlaceholderText('hello@example.com')
-    const checkbox = screen.getByRole('checkbox')
     const submitBtn = screen.getByText('Continue to Claim')
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
-    fireEvent.click(checkbox)
     fireEvent.click(submitBtn)
 
     // Wait for the fallback UI to appear

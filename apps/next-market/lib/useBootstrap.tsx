@@ -123,7 +123,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
 
     // Step 1: Read session from cookie (instant, no network)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       const sessionUser = session?.user
       if (sessionUser) {
         // Check for Playwright test override
@@ -150,7 +150,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     })
 
     // Listen for auth changes (login/logout/token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.user) {
         const u = { id: session.user.id, email: session.user.email ?? undefined }
         setUser(u)

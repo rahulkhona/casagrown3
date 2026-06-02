@@ -5,9 +5,10 @@ import { createClient } from './supabase'
 import { useAuth } from './useAuth'
 
 export interface SubscriptionInfo {
-  plan: 'free' | 'pro'
+  plan: 'lite' | 'pro' | 'elite'
   status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'inactive'
   isPro: boolean
+  isElite: boolean
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   canceledAt: string | null
@@ -17,9 +18,10 @@ export interface SubscriptionInfo {
 export function useSubscription(): SubscriptionInfo {
   const { user } = useAuth()
   const [sub, setSub] = useState<SubscriptionInfo>({
-    plan: 'free',
+    plan: 'lite',
     status: 'inactive',
     isPro: false,
+    isElite: false,
     trialEndsAt: null,
     currentPeriodEnd: null,
     canceledAt: null,
@@ -52,13 +54,15 @@ export function useSubscription(): SubscriptionInfo {
       const isProTester = !!testerResult.data
 
       if (data && !error) {
-        const isPro =
-          (data.plan === 'pro' &&
-          ['active', 'trialing'].includes(data.status)) || isProTester
+        const rawPlan = data.plan === 'free' || !data.plan ? 'lite' : (data.plan as 'lite' | 'pro' | 'elite')
+        const isPro = ['pro', 'elite'].includes(rawPlan) && ['active', 'trialing'].includes(data.status) || isProTester
+        const isElite = (rawPlan === 'elite' && ['active', 'trialing'].includes(data.status)) || isProTester
+
         setSub({
-          plan: isProTester ? 'pro' : (data.plan as 'free' | 'pro'),
+          plan: isProTester && rawPlan === 'lite' ? 'elite' : rawPlan,
           status: isProTester && data.status === 'inactive' ? 'active' : (data.status as any),
           isPro,
+          isElite,
           trialEndsAt: data.trial_ends_at,
           currentPeriodEnd: data.current_period_end,
           canceledAt: data.canceled_at,
@@ -67,9 +71,10 @@ export function useSubscription(): SubscriptionInfo {
       } else if (isProTester) {
         // No subscription record at all, but user is a pro tester — grant implicit Pro
         setSub({
-          plan: 'pro',
+          plan: 'elite',
           status: 'active',
           isPro: true,
+          isElite: true,
           trialEndsAt: null,
           currentPeriodEnd: null,
           canceledAt: null,
@@ -85,13 +90,15 @@ export function useSubscription(): SubscriptionInfo {
     const handleSubChange = (e: any) => {
       const data = e.detail || e // CustomEvent on web, plain object on native
       if (data) {
-        const isPro =
-          data.plan === 'pro' &&
-          ['active', 'trialing'].includes(data.status)
+        const rawPlan = data.plan === 'free' || !data.plan ? 'lite' : (data.plan as 'lite' | 'pro' | 'elite')
+        const isPro = ['pro', 'elite'].includes(rawPlan) && ['active', 'trialing'].includes(data.status)
+        const isElite = rawPlan === 'elite' && ['active', 'trialing'].includes(data.status)
+
         setSub({
-          plan: data.plan,
+          plan: rawPlan,
           status: data.status,
           isPro,
+          isElite,
           trialEndsAt: data.trial_ends_at,
           currentPeriodEnd: data.current_period_end,
           canceledAt: data.canceled_at,

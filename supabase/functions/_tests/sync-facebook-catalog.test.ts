@@ -286,3 +286,16 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "sync-facebook-catalog: subscription_tiers table has features JSONB column",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const hasCol = await sqlExec(`
+      SELECT COUNT(*) FROM information_schema.columns
+      WHERE table_name = 'subscription_tiers' AND column_name = 'features'
+    `);
+    assertEquals(hasCol, "1", "features column must exist on subscription_tiers");
+  },
+});
+

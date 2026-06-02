@@ -13,6 +13,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 export interface SellerContext {
   sellerName: string
   sellerBio: string | null
+  businessCredentials: {
+    businessType: string | null
+    businessLicense: string | null
+    foodHandlerPermit: string | null
+    cottageFoodPermit: string | null
+    insuranceProvider: string | null
+  }
   boothName: string
   boothId: string
   botInstructions: string | null
@@ -123,11 +130,12 @@ export async function loadBoothContext(
 
   const { data: rawProfile } = await supabase
     .from('profiles')
-    .select('full_name, seller_bio')
+    .select('full_name, farm_name, seller_bio, business_type, business_license, food_handler_permit, cottage_food_permit, insurance_provider, bot_instructions')
     .eq('id', booth.owner_id)
     .single()
 
   const profile = rawProfile as any
+  const profileBotInstructions = profile?.bot_instructions || null
 
   const { data: products } = await supabase
     .from('market_products')
@@ -154,12 +162,25 @@ export async function loadBoothContext(
 
   const siteUrl = Deno.env.get('SITE_URL') || 'https://casagrown.com'
 
+  // Merge profile-level and booth-level bot instructions
+  // Profile instructions (Manage Features) take priority as global override
+  const mergedInstructions = [profileBotInstructions, booth.bot_instructions]
+    .filter(Boolean)
+    .join('\n\n')
+
   return {
-    sellerName: profile?.full_name || 'the seller',
+    sellerName: profile?.farm_name || profile?.full_name || 'the seller',
     sellerBio: profile?.seller_bio || null,
+    businessCredentials: {
+      businessType: profile?.business_type || null,
+      businessLicense: profile?.business_license || null,
+      foodHandlerPermit: profile?.food_handler_permit || null,
+      cottageFoodPermit: profile?.cottage_food_permit || null,
+      insuranceProvider: profile?.insurance_provider || null,
+    },
     boothName: booth.name,
     boothId: booth.id,
-    botInstructions: booth.bot_instructions || null,
+    botInstructions: mergedInstructions || null,
     products: (products || []).map((p: any) => ({
       id: p.id, name: p.name, description: p.description,
       price: Number(p.price_usd), unit: p.unit,
@@ -198,6 +219,18 @@ export async function loadSellerBotRules(
     .order('created_at')
 
   return (data || []).map((r: any) => r.rule_text)
+}
+
+/** Build a credentials section for the bot prompt if any credentials exist */
+function buildCredentialsSection(creds: SellerContext['businessCredentials']): string {
+  const lines: string[] = []
+  if (creds.businessType) lines.push(`Business Type: ${creds.businessType}`)
+  if (creds.businessLicense) lines.push(`Business License: ${creds.businessLicense}`)
+  if (creds.foodHandlerPermit) lines.push(`Food Handler Permit: ${creds.foodHandlerPermit}`)
+  if (creds.cottageFoodPermit) lines.push(`Cottage Food Permit: ${creds.cottageFoodPermit}`)
+  if (creds.insuranceProvider) lines.push(`Insurance Provider: ${creds.insuranceProvider}`)
+  if (lines.length === 0) return ''
+  return `\nSELLER CREDENTIALS & CERTIFICATIONS:\n${lines.join('\n')}`
 }
 
 /** Build a system prompt for seller-specific GrowBot */
@@ -244,6 +277,7 @@ export function buildSellerSystemPrompt(ctx: SellerContext, rules?: string[]): s
 
 SELLER CONTEXT: ${ctx.sellerName}'s farm stand "${ctx.boothName}" on CasaGrown.
 ${ctx.sellerBio ? `\nABOUT THE SELLER:\n${ctx.sellerBio}` : ''}
+${buildCredentialsSection(ctx.businessCredentials)}
 ${ctx.botInstructions ? `\nSELLER'S CUSTOM INSTRUCTIONS:\n${ctx.botInstructions}` : ''}
 
 AVAILABLE PRODUCTS:

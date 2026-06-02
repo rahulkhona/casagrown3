@@ -182,14 +182,14 @@ export default function GrowBotChatPage() {
       .update({ user_id: user.id })
       .eq('guest_session_id', guestSid)
       .is('user_id', null)
-      .then(({ error }) => { if (error) console.warn('[GrowBot] Poll migration failed:', error) })
+      .then(({ error }: { error: any }) => { if (error) console.warn('[GrowBot] Poll migration failed:', error) })
 
     // 2. Migrate facts AND extract crops for user_garden
     supabase.from('growbot_user_facts')
       .select('fact')
       .eq('guest_session_id', guestSid)
       .is('user_id', null)
-      .then(async ({ data: guestFacts, error: fetchErr }) => {
+      .then(async ({ data: guestFacts, error: fetchErr }: { data: any; error: any }) => {
         if (fetchErr) { console.warn('[GrowBot] Fact fetch failed:', fetchErr); return }
         if (!guestFacts || guestFacts.length === 0) return
 
@@ -202,7 +202,7 @@ export default function GrowBotChatPage() {
         // Extract crops from facts like "User grows: tomatoes, basil, peppers."
         const crops: string[] = []
         let wantsNotify = true // default opt-in
-        guestFacts.forEach(f => {
+        guestFacts.forEach((f: any) => {
           const match = f.fact.match(/^User grows:\s*(.+)\.?$/i)
           if (match) {
             match[1].split(',').forEach((c: string) => {
@@ -642,7 +642,7 @@ export default function GrowBotChatPage() {
       .limit(50)
     if (created) {
       // Get vote counts for each
-      const withCounts = await Promise.all(created.map(async p => {
+      const withCounts = await Promise.all(created.map(async (p: any) => {
         const { count } = await supabase.from('growbot_response_votes').select('*', { count: 'exact', head: true }).eq('response_id', p.id)
         return { ...p, vote_count: count || 0 }
       }))

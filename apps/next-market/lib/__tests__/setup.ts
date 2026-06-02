@@ -2,6 +2,11 @@ import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 import React from 'react'
 
+// Prevent createBrowserClient from throwing during Vitest runs
+process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_dummy'
+process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_dummy'
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -62,9 +67,12 @@ const globalSupabase = {
   storage: { from: vi.fn().mockReturnValue({ upload: vi.fn().mockResolvedValue({ error: null }), getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://img.test/x.jpg' } }) }) },
 }
 
-// Mock supabase at ALL relative depths
+// Mock supabase at ALL relative depths and alias paths
 const supabaseMock = { createClient: () => globalSupabase }
 vi.mock('../../lib/supabase', () => supabaseMock)
+vi.mock('../lib/supabase', () => supabaseMock)
+vi.mock('@/lib/supabase', () => supabaseMock)
+vi.mock('apps/next-market/lib/supabase', () => supabaseMock)
 vi.mock('@supabase/ssr', () => ({ createBrowserClient: () => globalSupabase }))
 
 // Mock lib/store — makes useMarket() work everywhere without MarketProvider

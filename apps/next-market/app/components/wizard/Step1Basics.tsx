@@ -78,10 +78,10 @@ export default function Step1Basics() {
 
     // Fetch user booths for multi-booth selector
     if (isAuthenticated) {
-      supabase.auth.getUser().then(({ data: { user } }) => {
+      supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
         if (!user) return
         supabase.from('market_booths').select('id, name').eq('owner_id', user.id).order('created_at')
-          .then(({ data: booths }) => {
+          .then(({ data: booths }: { data: any }) => {
             if (booths && booths.length > 0) {
               setAllBooths(booths.map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Booth' })))
               // Pre-select first booth if none selected

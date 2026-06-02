@@ -234,7 +234,7 @@ export default function MessengerThreadPage() {
             .select('*')
             .eq('conversation_id', conversationId)
             .order('created_at', { ascending: true })
-            .then(({ data }) => {
+            .then(({ data }: { data: any }) => {
               if (data) {
                 setMessages(prev => {
                   if (prev.length < data.length) setTimeout(scrollToBottom, 50)

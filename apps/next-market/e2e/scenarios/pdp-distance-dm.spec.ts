@@ -78,18 +78,17 @@ test.describe('PDP — Distance Checker & DM Button', () => {
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(2000)
 
-    // Should see DM button (💬 DM <seller name>)
-    const dmBtn = page.locator('a:has-text("💬 DM")')
+    // Should see DM button (💬 DM <seller name>) — it's a <button>, not <a>
+    const dmBtn = page.locator('button:has-text("💬 DM")')
     const visible = await dmBtn.isVisible({ timeout: 5000 }).catch(() => false)
     console.log(`[PDP2] DM button visible for buyer: ${visible}`)
     expect(visible).toBe(true)
 
-    // Verify the link points to /messages/new
+    // Verify the button text contains "DM" (button uses router.push, not href)
     if (visible) {
-      const href = await dmBtn.getAttribute('href')
-      console.log(`[PDP2] DM link: ${href}`)
-      expect(href).toContain('/messages/new')
-      expect(href).toContain('userId=')
+      const btnText = await dmBtn.textContent()
+      console.log(`[PDP2] DM button text: ${btnText}`)
+      expect(btnText).toContain('DM')
     }
 
     await page.context().close()
@@ -117,7 +116,7 @@ test.describe('PDP — Distance Checker & DM Button', () => {
     await page.waitForTimeout(2000)
 
     // DM button should NOT be visible for own product
-    const dmBtn = page.locator('a:has-text("💬 DM")')
+    const dmBtn = page.locator('button:has-text("💬 DM")')
     const visible = await dmBtn.isVisible({ timeout: 3000 }).catch(() => false)
     console.log(`[PDP3] DM button visible for own product: ${visible}`)
     expect(visible).toBe(false)

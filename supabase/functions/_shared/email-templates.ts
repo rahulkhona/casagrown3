@@ -1,4 +1,8 @@
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
+// Safety guard: never use localhost URLs in production emails
+const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
+const SITE_URL = (
+  _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
+) ? "https://www.casagrown.com" : _rawSiteUrl;
 
 /**
  * Wrap the given HTML body inside the standard CasaGrown email branding.

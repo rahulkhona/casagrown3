@@ -18,7 +18,11 @@ import { sendMarketingSms } from "../_shared/twilio.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildTemplateModel } from "../_shared/template-interpolation.ts";
 
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
+// Safety guard: never use localhost URLs in production emails
+const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
+const SITE_URL = (
+  _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
+) ? "https://www.casagrown.com" : _rawSiteUrl;
 const BATCH_SIZE = 500;
 
 Deno.serve(async (req: Request) => {

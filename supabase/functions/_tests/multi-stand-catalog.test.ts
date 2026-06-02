@@ -250,6 +250,18 @@ Deno.test({ name: 'catalog: catalog items can be created and queried', sanitizeR
 // ══════════════════════════════════════════════════════════════
 
 Deno.test({ name: 'multi-stand: booth with weekly windows has correct structure', sanitizeResources: false, sanitizeOps: false, fn: async () => {
+  // Create a booth with weekly windows so the test doesn't rely on seed data
+  const { status, data: windowBooth } = await insert('market_booths', {
+    owner_id: SELLER_ID,
+    name: 'Weekly Window Test Booth',
+    is_default: false,
+    offers_pickup: true,
+    offers_delivery: true,
+    weekly_delivery_windows: { Monday: ['10-12'], Wednesday: ['14-16'] },
+    weekly_pickup_windows: { Saturday: ['8-12'] },
+  })
+  assertEquals(status, 201, 'Should create booth with weekly windows')
+
   const booths = await query('market_booths', `owner_id=eq.${SELLER_ID}&select=id,name,weekly_delivery_windows,weekly_pickup_windows,delivery_windows,pickup_windows`)
   
   let hasWeekly = false
@@ -269,6 +281,9 @@ Deno.test({ name: 'multi-stand: booth with weekly windows has correct structure'
   }
   assert(hasWeekly || hasGeneric, 'At least one booth should have fulfillment windows')
   console.log(`  ✅ Fulfillment windows verified`)
+
+  // Cleanup
+  await remove('market_booths', `id=eq.${windowBooth.id}`)
 }})
 
 // ══════════════════════════════════════════════════════════════

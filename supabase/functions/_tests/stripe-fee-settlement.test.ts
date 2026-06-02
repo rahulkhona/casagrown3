@@ -192,7 +192,7 @@ Deno.test({
       status: 'active',
       stripe_customer_id: `cus_fee_test_${Date.now()}`,
       stripe_subscription_id: `sub_fee_test_${Date.now()}`,
-      absorb_stripe_fees: true,
+      absorb_stripe_fees: false,
     });
 
     // Ensure platform_settings has pass_through
@@ -301,12 +301,22 @@ Deno.test({
     const sellerId = await createUser('settle-pro');
     assertExists(sellerId);
 
+    // Use a unique date to avoid UNIQUE(market_date) conflicts from prior runs
+    const uniqueDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+    const uniqueMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+    const uniqueYear = 2093 + Math.floor(Math.random() * 100);
+    const marketDate = `${uniqueYear}-${uniqueMonth}-${uniqueDay}`;
+
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, {
+      method: 'DELETE', headers: HEADERS,
+    });
+
     const settlement = await restPost('market_settlements', {
-      market_date: `2093-01-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 100,
     });
-    assertExists(settlement?.id, 'Settlement should be created');
+    assertExists(settlement?.id, `Settlement should be created for ${marketDate}`);
 
     const us = await restPost('user_settlements', {
       settlement_id: settlement.id,
@@ -344,11 +354,23 @@ Deno.test({
     const sellerId = await createUser('net-calc');
     assertExists(sellerId);
 
+    // Use a unique date to avoid UNIQUE(market_date) conflicts from prior runs
+    const uniqueDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+    const uniqueMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+    const uniqueYear = 2094 + Math.floor(Math.random() * 100);
+    const marketDate = `${uniqueYear}-${uniqueMonth}-${uniqueDay}`;
+
+    // Clean up any prior settlement for this date
+    await fetch(`${SUPABASE_URL}/rest/v1/market_settlements?market_date=eq.${marketDate}`, {
+      method: 'DELETE', headers: HEADERS,
+    });
+
     const settlement = await restPost('market_settlements', {
-      market_date: `2094-02-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      market_date: marketDate,
       status: 'funds_pending',
       total_captured_usd: 200,
     });
+    assertExists(settlement?.id, `Settlement should be created for ${marketDate}`);
 
     // Simulate: $200 gross - $20 fees - $6.10 stripe fees = $173.90 net
     const us = await restPost('user_settlements', {
@@ -360,6 +382,7 @@ Deno.test({
       net_payout_usd: 173.90,
       status: 'available',
     });
+    assertExists(us?.id, 'User settlement should be created');
 
     const result = await restGet('user_settlements', `id=eq.${us.id}`);
     const net = Number(result[0].net_payout_usd);

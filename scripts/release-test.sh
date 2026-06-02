@@ -368,7 +368,7 @@ else
   log_suite "Drip Sequence Engine" "$SEQ_PASSED" "$SEQ_FAILED"
 fi
 
-# 5g: CRM Promotions RPC tests (enrollment + blueprint incentives)
+# 5g: CRM Promotions RPC tests (enrollment + buyer discounts)
 echo "  Running CRM Promotions RPC tests..."
 PROMO_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
   functions/_tests/crm-promotions-rpcs.test.ts 2>&1)
@@ -515,6 +515,108 @@ else
   log_suite "Pro Subscription" "$PROSUB_PASSED" "$PROSUB_FAILED"
 fi
 
+# 5p: Tier Fee Verification tests
+echo "  Running Tier Fee Verification tests..."
+TIER_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/55_promotion_unification.test.sql 2>&1)
+if echo "$TIER_OUTPUT" | grep -q "All tests successful"; then
+  TIER_TESTS=$(echo "$TIER_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "25")
+  echo -e "  ${GREEN}✅ Tier Fee Verification: ${TIER_TESTS} tests — ALL PASS${NC}"
+  log_suite "Tier Fee Verification" "${TIER_TESTS:-25}"
+else
+  TIER_P=$(echo "$TIER_OUTPUT" | grep -c "^ok " || echo "0")
+  TIER_F=$(echo "$TIER_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Tier Fee Verification: ${TIER_P} passed, ${TIER_F} failed${NC}"
+  echo "$TIER_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Tier Fee Verification" "$TIER_P" "$TIER_F"
+fi
+
+# 5q: Billing Downgrade tests (booth archival, pending downgrade)
+echo "  Running Billing Downgrade tests..."
+DG_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/56_billing_downgrade.test.sql 2>&1)
+if echo "$DG_OUTPUT" | grep -q "All tests successful"; then
+  DG_TESTS=$(echo "$DG_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "12")
+  echo -e "  ${GREEN}✅ Billing Downgrade: ${DG_TESTS} tests — ALL PASS${NC}"
+  log_suite "Billing Downgrade" "${DG_TESTS:-12}"
+else
+  DG_P=$(echo "$DG_OUTPUT" | grep -c "^ok " || echo "0")
+  DG_F=$(echo "$DG_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Billing Downgrade: ${DG_P} passed, ${DG_F} failed${NC}"
+  echo "$DG_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Billing Downgrade" "$DG_P" "$DG_F"
+fi
+
+# 5r: Subscription Receipt & Billing Anchor tests
+echo "  Running Subscription Receipt & Billing Anchor tests..."
+RECEIPT_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/pro-subscription.test.ts 2>&1)
+RECEIPT_PASSED=$(echo "$RECEIPT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+RECEIPT_FAILED=$(echo "$RECEIPT_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${RECEIPT_FAILED:-0}" -eq 0 ] || [ -z "$RECEIPT_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Receipt & Billing: ${RECEIPT_PASSED} tests — ALL PASS${NC}"
+  log_suite "Receipt & Billing" "$RECEIPT_PASSED"
+else
+  echo -e "  ${RED}❌ Receipt & Billing: ${RECEIPT_PASSED} passed, ${RECEIPT_FAILED} failed${NC}"
+  echo "$RECEIPT_OUTPUT" | grep -E "FAILED|error:|AssertionError" | head -10
+  log_suite "Receipt & Billing" "$RECEIPT_PASSED" "$RECEIPT_FAILED"
+fi
+
+# 5s: Subscription Email & Guide tests
+echo "  Running Subscription Email & Guide tests..."
+SUBEMAIL_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \
+  SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  SUPABASE_ANON_KEY="$(npx supabase status -o env 2>/dev/null | grep ANON_KEY | cut -d'"' -f2)" \
+  deno test --allow-env --allow-net --no-check \
+  supabase/functions/_tests/subscription-email.test.ts 2>&1)
+SUBEMAIL_PASSED=$(echo "$SUBEMAIL_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+SUBEMAIL_FAILED=$(echo "$SUBEMAIL_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${SUBEMAIL_FAILED:-0}" -eq 0 ] || [ -z "$SUBEMAIL_FAILED" ]; then
+  echo -e "  ${GREEN}✅ Subscription Email: ${SUBEMAIL_PASSED} tests — ALL PASS${NC}"
+  log_suite "Subscription Email" "$SUBEMAIL_PASSED"
+else
+  echo -e "  ${RED}❌ Subscription Email: ${SUBEMAIL_PASSED} passed, ${SUBEMAIL_FAILED} failed${NC}"
+  echo "$SUBEMAIL_OUTPUT" | grep -E "FAILED|error:|AssertionError" | head -10
+  log_suite "Subscription Email" "$SUBEMAIL_PASSED" "$SUBEMAIL_FAILED"
+fi
+
+# 5t: Subscription Trigger DB tests
+echo "  Running Subscription Trigger DB tests..."
+SUBTRIG_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/65_subscription_change_trigger.test.sql 2>&1)
+if echo "$SUBTRIG_OUTPUT" | grep -q "All tests successful"; then
+  SUBTRIG_TESTS=$(echo "$SUBTRIG_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "4")
+  echo -e "  ${GREEN}✅ Subscription Trigger DB: ${SUBTRIG_TESTS} tests — ALL PASS${NC}"
+  log_suite "Subscription Trigger DB" "${SUBTRIG_TESTS:-4}"
+else
+  SUBTRIG_P=$(echo "$SUBTRIG_OUTPUT" | grep -c "^ok " || echo "0")
+  SUBTRIG_F=$(echo "$SUBTRIG_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Subscription Trigger DB: ${SUBTRIG_P} passed, ${SUBTRIG_F} failed${NC}"
+  echo "$SUBTRIG_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Subscription Trigger DB" "$SUBTRIG_P" "$SUBTRIG_F"
+fi
+
+# 5u: RLS Restricted Tables tests (stripe_connect_audit_log, public_profiles, catalog_item_allocations)
+echo "  Running RLS Restricted Tables tests..."
+RLS_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/66_rls_restricted_tables.test.sql 2>&1)
+if echo "$RLS_OUTPUT" | grep -q "All tests successful"; then
+  RLS_TESTS=$(echo "$RLS_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "19")
+  echo -e "  ${GREEN}✅ RLS Restricted Tables: ${RLS_TESTS} tests — ALL PASS${NC}"
+  log_suite "RLS Restricted Tables" "${RLS_TESTS:-19}"
+else
+  RLS_P=$(echo "$RLS_OUTPUT" | grep -c "^ok " || echo "0")
+  RLS_F=$(echo "$RLS_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ RLS Restricted Tables: ${RLS_P} passed, ${RLS_F} failed${NC}"
+  echo "$RLS_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "RLS Restricted Tables" "$RLS_P" "$RLS_F"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
@@ -549,6 +651,7 @@ else
     local app_dir="$2"
     local port="$3"
     local use_port_env="$4"
+    local test_pattern="${5:-}"  # Optional: glob pattern to pass to playwright test
 
     echo "  Building and starting $app_name server..."
     local pid=""
@@ -602,7 +705,7 @@ else
 
     echo "  Running $app_name Playwright E2E..."
     mkdir -p scripts/output
-    (cd "$app_dir" && env -u FORCE_COLOR NO_COLOR=1 npx playwright test --reporter=line 2>&1) | tee "$logfile"
+    (cd "$app_dir" && SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" env -u FORCE_COLOR NO_COLOR=1 npx playwright test $test_pattern --reporter=line 2>&1) | tee "$logfile"
     local exit_code=${PIPESTATUS[0]}
     local output
     output=$(cat "$logfile" | perl -pe 's/\x1b\[[0-9;]*[mGK]//g')
@@ -633,7 +736,13 @@ else
     sleep 10
   }
 
-  run_playwright_sequential "Market" "apps/next-market" "3001" "true"
+  # ── Market E2E is split into 2 batches to prevent dev server OOM crash ──
+  # The server crashes under sustained parallel load from 77+ heavy E2E tests.
+  # Splitting into mocked (fast) + scenario (heavy) batches, each getting a
+  # fresh server, keeps max parallelism within each batch while avoiding OOM.
+  run_playwright_sequential "Market (mocked)" "apps/next-market" "3001" "true" "e2e/*.spec.ts"
+  run_playwright_sequential "Market (scenarios)" "apps/next-market" "3001" "true" "e2e/scenarios/"
+
   run_playwright_sequential "Admin" "apps/next-admin" "3003" "true"
   run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "true"
   run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "true"

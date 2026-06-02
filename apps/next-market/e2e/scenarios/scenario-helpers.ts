@@ -409,7 +409,7 @@ export async function assertPageHealthy(
   page: Page,
   options: { allowEmpty?: boolean; timeout?: number } = {},
 ): Promise<void> {
-  const timeout = options.timeout ?? 10_000
+  const timeout = options.timeout ?? 30_000
 
   // Wait for page to have content (not blank)
   if (!options.allowEmpty) {

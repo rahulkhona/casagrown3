@@ -249,6 +249,20 @@ vi.mock('../../../lib/useMarketStatus', () => marketStatusMock)
 vi.mock('../../../../lib/useMarketStatus', () => marketStatusMock)
 vi.mock('../../../../../lib/useMarketStatus', () => marketStatusMock)
 
+// Mock useQuickSetup at all depths
+const quickSetupMock = { useQuickSetup: () => ({ requireAuth: () => {} }), QuickSetupProvider: ({ children }: any) => children }
+vi.mock('../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../../lib/useQuickSetup', () => quickSetupMock)
+vi.mock('../../../../../lib/useQuickSetup', () => quickSetupMock)
+
+// Mock useProEnabled at all depths
+const proEnabledMock = { useProEnabled: () => false }
+vi.mock('../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../../lib/useProEnabled', () => proEnabledMock)
+vi.mock('../../../../../lib/useProEnabled', () => proEnabledMock)
+
 // Mock components
 vi.mock('../../components/CameraCapture', () => ({ default: () => null }))
 vi.mock('../../../components/CameraCapture', () => ({ default: () => null }))
