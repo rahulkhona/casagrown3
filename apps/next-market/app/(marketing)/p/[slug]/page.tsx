@@ -7,6 +7,10 @@ import { createClient } from '../../../../lib/supabase'
 import { ENABLE_ELITE } from '../../../../lib/featureFlags'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../../(main)/terms/page'
 import { StripeCheckoutModal } from '../../../components/StripeCheckoutModal'
+import { FacebookStatus } from '../../../components/FacebookStatus'
+import { InstagramSettings } from '../../../components/InstagramSettings'
+import { GooglePlacesSettings } from '../../../components/GooglePlacesSettings'
+import { WhatsAppSettings } from '../../../components/WhatsAppSettings'
 
 type PromotionDetails = {
   id: string
@@ -102,8 +106,8 @@ function PromoContent() {
   const [isExistingUser, setIsExistingUser] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
-  // Wizard steps: 'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success'
-  const [step, setStep] = useState<'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success'>('initial')
+  // Wizard steps: 'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success' | 'booth_setup' | 'manage_features' | 'first_listing' | 'done' | 'lite_intent'
+  const [step, setStep] = useState<'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success' | 'booth_setup' | 'manage_features' | 'first_listing' | 'done' | 'lite_intent'>('initial')
   const [activePromoDiscount, setActivePromoDiscount] = useState<any | null>(null)
   const [fallbackMode, setFallbackMode] = useState<{message: string} | null>(null)
   const [skipPromo, setSkipPromo] = useState(false)
@@ -133,6 +137,24 @@ function PromoContent() {
 
   const [locating, setLocating] = useState(false)
   const [isProTester, setIsProTester] = useState(false)
+
+  // Post-payment onboarding wizard state
+  const [boothName, setBoothName] = useState('')
+  const [boothAddress, setBoothAddress] = useState('')
+  const [boothCity, setBoothCity] = useState('')
+  const [boothState, setBoothState] = useState('')
+  const [boothZip, setBoothZip] = useState('')
+  const [boothPickup, setBoothPickup] = useState(true)
+  const [boothDelivery, setBoothDelivery] = useState(false)
+  const [boothTimeWindows, setBoothTimeWindows] = useState('9:00 AM - 5:00 PM')
+  const [boothSaving, setBoothSaving] = useState(false)
+  const [listingName, setListingName] = useState('')
+  const [listingPrice, setListingPrice] = useState('')
+  const [listingQty, setListingQty] = useState('1')
+  const [listingPhoto, setListingPhoto] = useState<File | null>(null)
+  const [listingPhotoPreview, setListingPhotoPreview] = useState('')
+  const [listingSaving, setListingSaving] = useState(false)
+  const [onboardingCompleted, setOnboardingCompleted] = useState<{ booth: boolean; features: boolean; listing: boolean }>({ booth: false, features: false, listing: false })
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -721,11 +743,8 @@ function PromoContent() {
             })
             .eq('id', session.user.id)
 
-          setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your current promotion. Redirecting to the market...")
-          setStep('success')
-          setTimeout(() => {
-            router.push('/market')
-          }, 3000)
+          setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your current promotion.")
+          setStep('lite_intent')
         } 
         else if (hasCardOnFile && subData?.plan === selectedPlan) {
           if (!skipPromo && promo) {
@@ -756,11 +775,13 @@ function PromoContent() {
             })
             .eq('id', session.user.id)
 
-          setSuccessMessage("🎉 Welcome back! We detected your existing credit card on file. Your subscription has been successfully updated with your campaign discounts, and your billing has been adjusted automatically! Let's create your first listing!")
-          setStep('success')
-          setTimeout(() => {
-            router.push('/create-listing')
-          }, 4000)
+          setSuccessMessage("🎉 Welcome back! Your subscription has been updated.")
+          setBoothName(farmName || '')
+          setBoothAddress(street || '')
+          setBoothCity(city || '')
+          setBoothState(state || '')
+          setBoothZip(zip || '')
+          setStep('booth_setup')
         }
         else {
           const stateToSave = {
@@ -898,11 +919,13 @@ function PromoContent() {
         })
         .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
 
-      setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated with your promotional discounts. Let's create your first listing!")
-      setStep('success')
-      setTimeout(() => {
-        router.push('/create-listing')
-      }, 3000)
+      setSuccessMessage("🎉 Payment Successful! Your new plan has been activated.")
+      setBoothName(farmName || '')
+      setBoothAddress(street || '')
+      setBoothCity(city || '')
+      setBoothState(state || '')
+      setBoothZip(zip || '')
+      setStep('booth_setup')
     } catch (err: any) {
       setErrorMsg(err.message || 'Payment completed but failed to update details.')
     } finally {
@@ -947,11 +970,8 @@ function PromoContent() {
           .update({ farm_name: null, is_pro: false })
           .eq('id', user.id)
 
-        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your current promotion. Redirecting to the market...")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/market')
-        }, 3000)
+        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your current promotion.")
+        setStep('lite_intent')
       } 
       else if (hasCardOnFile && subData?.plan === selectedPlan) {
         await supabase
@@ -964,11 +984,13 @@ function PromoContent() {
           .update({ farm_name: farmName, is_pro: true })
           .eq('id', user.id)
 
-        setSuccessMessage("🎉 Welcome back! We detected your existing credit card on file. Your subscription has been successfully updated while keeping your current promotion rate! Let's create your first listing!")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/create-listing')
-        }, 4000)
+        setSuccessMessage("🎉 Welcome back! Your subscription has been updated with your current promotion rate.")
+        setBoothName(farmName || '')
+        setBoothAddress(street || '')
+        setBoothCity(city || '')
+        setBoothState(state || '')
+        setBoothZip(zip || '')
+        setStep('booth_setup')
       }
       else {
         if (checkoutSessionId) {
@@ -980,11 +1002,13 @@ function PromoContent() {
             .update({ farm_name: farmName, is_pro: true })
             .eq('id', user.id)
 
-          setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated with your current promotion rate. Let's create your first listing!")
-          setStep('success')
-          setTimeout(() => {
-            router.push('/create-listing')
-          }, 3000)
+          setSuccessMessage("🎉 Payment Successful! Your new plan has been activated with your current promotion rate.")
+          setBoothName(farmName || '')
+          setBoothAddress(street || '')
+          setBoothCity(city || '')
+          setBoothState(state || '')
+          setBoothZip(zip || '')
+          setStep('booth_setup')
         } else {
           setStep('payment')
           setShowCheckout(true)
@@ -1043,11 +1067,8 @@ function PromoContent() {
           .update({ farm_name: null, is_pro: false })
           .eq('id', user.id)
 
-        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your new promotion. Redirecting to the market...")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/market')
-        }, 3000)
+        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up with your new promotion.")
+        setStep('lite_intent')
       } 
       else if (hasCardOnFile && subData?.plan === selectedPlan) {
         await supabase
@@ -1060,11 +1081,13 @@ function PromoContent() {
           .update({ farm_name: farmName, is_pro: true })
           .eq('id', user.id)
 
-        setSuccessMessage("🎉 Welcome back! We detected your existing credit card on file. Your subscription has been successfully updated with your new campaign discounts! Let's create your first listing!")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/create-listing')
-        }, 4000)
+        setSuccessMessage("🎉 Welcome back! Your subscription has been updated with your new campaign discounts.")
+        setBoothName(farmName || '')
+        setBoothAddress(street || '')
+        setBoothCity(city || '')
+        setBoothState(state || '')
+        setBoothZip(zip || '')
+        setStep('booth_setup')
       }
       else {
         if (checkoutSessionId) {
@@ -1076,11 +1099,13 @@ function PromoContent() {
             .update({ farm_name: farmName, is_pro: true })
             .eq('id', user.id)
 
-          setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated with your new promotion rate. Let's create your first listing!")
-          setStep('success')
-          setTimeout(() => {
-            router.push('/create-listing')
-          }, 3000)
+          setSuccessMessage("🎉 Payment Successful! Your new plan has been activated with your new promotion rate.")
+          setBoothName(farmName || '')
+          setBoothAddress(street || '')
+          setBoothCity(city || '')
+          setBoothState(state || '')
+          setBoothZip(zip || '')
+          setStep('booth_setup')
         } else {
           setStep('payment')
           setShowCheckout(true)
@@ -1163,11 +1188,8 @@ function PromoContent() {
           .update({ farm_name: null, is_pro: false })
           .eq('id', session?.user?.id || '')
 
-        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up. Redirecting to the market...")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/market')
-        }, 3000)
+        setSuccessMessage("🎉 Welcome to CasaGrown Lite! Your account is set up.")
+        setStep('lite_intent')
       } 
       else if (hasCardOnFile && subData?.plan === selectedPlan) {
         // Card detected - Skip card checkout completely! Apply dynamically
@@ -1188,11 +1210,13 @@ function PromoContent() {
           .update({ farm_name: farmName, is_pro: true })
           .eq('id', session?.user?.id || '')
 
-        setSuccessMessage("🎉 Welcome back! We detected your existing credit card on file. Your subscription has been successfully updated with your campaign discounts, and your billing has been adjusted automatically! Let's create your first listing!")
-        setStep('success')
-        setTimeout(() => {
-          router.push('/create-listing')
-        }, 4000)
+        setSuccessMessage("🎉 Welcome back! Your subscription has been updated.")
+        setBoothName(farmName || '')
+        setBoothAddress(street || '')
+        setBoothCity(city || '')
+        setBoothState(state || '')
+        setBoothZip(zip || '')
+        setStep('booth_setup')
       }
       else {
         // Paid tier, no card on file
@@ -1212,11 +1236,13 @@ function PromoContent() {
             .update({ farm_name: farmName, is_pro: true })
             .eq('id', session?.user?.id || '')
 
-          setSuccessMessage("🎉 Payment Successful! Your new plan has been successfully activated with your promotional discounts. Let's create your first listing!")
-          setStep('success')
-          setTimeout(() => {
-            router.push('/create-listing')
-          }, 3000)
+          setSuccessMessage("🎉 Payment Successful! Your plan has been activated with your promotional discounts.")
+          setBoothName(farmName || '')
+          setBoothAddress(street || '')
+          setBoothCity(city || '')
+          setBoothState(state || '')
+          setBoothZip(zip || '')
+          setStep('booth_setup')
         } else {
           // Verification complete but card checkout required (Registered user without card)
           setStep('payment')
@@ -1324,6 +1350,26 @@ function PromoContent() {
             )}
 
             {/* Dynamic Step Tracker */}
+            {['booth_setup', 'manage_features', 'first_listing', 'done'].includes(step) ? (
+              <div className="progress-steps">
+                <div className={`progress-step ${step === 'booth_setup' ? 'active' : ['manage_features', 'first_listing', 'done'].includes(step) ? 'completed' : ''}`}>
+                  <span className="step-num">{['manage_features', 'first_listing', 'done'].includes(step) ? '✓' : '1'}</span>
+                  <span className="step-label">Stand</span>
+                </div>
+                <div className={`progress-step ${step === 'manage_features' ? 'active' : ['first_listing', 'done'].includes(step) ? 'completed' : ''}`}>
+                  <span className="step-num">{['first_listing', 'done'].includes(step) ? '✓' : '2'}</span>
+                  <span className="step-label">Features</span>
+                </div>
+                <div className={`progress-step ${step === 'first_listing' ? 'active' : step === 'done' ? 'completed' : ''}`}>
+                  <span className="step-num">{step === 'done' ? '✓' : '3'}</span>
+                  <span className="step-label">First Listing</span>
+                </div>
+                <div className={`progress-step ${step === 'done' ? 'active' : ''}`}>
+                  <span className="step-num">{step === 'done' ? '✓' : '4'}</span>
+                  <span className="step-label">Done</span>
+                </div>
+              </div>
+            ) : (
             <div className="progress-steps">
               <div className={`progress-step ${step !== 'initial' ? 'completed' : 'active'}`}>
                 <span className="step-num">{step !== 'initial' ? '✓' : '1'}</span>
@@ -1344,6 +1390,7 @@ function PromoContent() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="desktop-incentives">
               {incentivesContent}
@@ -1697,6 +1744,461 @@ function PromoContent() {
                     >
                       Reopen Payment Window
                     </button>
+                  </div>
+                )}
+
+                {step === 'booth_setup' && (
+                  <div className="fade-in-up">
+                    <h2 className="form-heading">🏪 Set Up Your Stand — Step 1 of 3</h2>
+                    <p className="form-subheading" style={{ marginBottom: '8px' }}>
+                      Your stand is where customers find you. Set your name, location, and when you're available — so neighbors can start buying from you right away.
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, marginBottom: '20px' }}>
+                      ➡️ Next: Set up your Pro features so listings post automatically.
+                    </p>
+
+                    {successMessage && (
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', fontSize: '0.9rem', color: '#15803d', fontWeight: 600 }}>
+                        {successMessage}
+                      </div>
+                    )}
+
+                    <div className="input-group">
+                      <label>Stand Name</label>
+                      <input type="text" value={boothName} onChange={e => setBoothName(e.target.value)} placeholder="e.g. Oakridge Farm Stand" />
+                    </div>
+                    <div className="input-group">
+                      <label>Street Address</label>
+                      <input type="text" value={boothAddress} onChange={e => setBoothAddress(e.target.value)} placeholder="123 Farm Road" />
+                    </div>
+                    <div className="input-row">
+                      <div className="input-group" style={{ flex: 2 }}>
+                        <label>City</label>
+                        <input type="text" value={boothCity} onChange={e => setBoothCity(e.target.value)} placeholder="City" />
+                      </div>
+                      <div className="input-group" style={{ flex: '0 0 70px' }}>
+                        <label>State</label>
+                        <input type="text" value={boothState} onChange={e => setBoothState(e.target.value)} placeholder="ST" maxLength={2} />
+                      </div>
+                      <div className="input-group" style={{ flex: '0 0 110px' }}>
+                        <label>ZIP</label>
+                        <input type="text" value={boothZip} onChange={e => setBoothZip(e.target.value)} placeholder="12345" maxLength={5} />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#374151', display: 'block', marginBottom: '8px' }}>Fulfillment Options</label>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: boothPickup ? '#f0fdf4' : '#f9fafb', border: `2px solid ${boothPickup ? '#22c55e' : '#e5e7eb'}`, borderRadius: '12px', cursor: 'pointer', flex: 1, transition: 'all 0.2s' }}>
+                          <input type="checkbox" checked={boothPickup} onChange={e => setBoothPickup(e.target.checked)} style={{ accentColor: '#22c55e' }} />
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>🏪 Pickup</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: boothDelivery ? '#f0fdf4' : '#f9fafb', border: `2px solid ${boothDelivery ? '#22c55e' : '#e5e7eb'}`, borderRadius: '12px', cursor: 'pointer', flex: 1, transition: 'all 0.2s' }}>
+                          <input type="checkbox" checked={boothDelivery} onChange={e => setBoothDelivery(e.target.checked)} style={{ accentColor: '#22c55e' }} />
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>🚗 Delivery</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="input-group">
+                      <label>Available Hours</label>
+                      <input type="text" value={boothTimeWindows} onChange={e => setBoothTimeWindows(e.target.value)} placeholder="e.g. 9:00 AM - 5:00 PM" />
+                    </div>
+
+                    {errorMsg && <div className="form-error-banner">{errorMsg}</div>}
+
+                    <button
+                      type="button"
+                      disabled={boothSaving}
+                      className="btn-action"
+                      onClick={async () => {
+                        setBoothSaving(true)
+                        setErrorMsg('')
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser()
+                          if (!user) throw new Error('Not authenticated')
+                          const { data: existingBooths } = await supabase
+                            .from('market_booths')
+                            .select('id, is_default')
+                            .eq('owner_id', user.id)
+                            .eq('is_default', true)
+                            .limit(1)
+                          const defaultBooth = existingBooths && existingBooths.length > 0 ? existingBooths[0] : null
+                          const boothPayload = {
+                            name: boothName || farmName || 'My Stand',
+                            address: boothAddress ? `${boothAddress}, ${boothCity}, ${boothState} ${boothZip}` : `${street}, ${city}, ${state} ${zip}`,
+                            fulfillment_pickup: boothPickup,
+                            fulfillment_delivery: boothDelivery,
+                            available_hours: boothTimeWindows,
+                            updated_at: new Date().toISOString()
+                          }
+                          if (defaultBooth) {
+                            await supabase.from('market_booths').update(boothPayload).eq('id', defaultBooth.id)
+                          } else {
+                            await supabase.from('market_booths').insert({ ...boothPayload, owner_id: user.id, is_default: true })
+                          }
+                          setOnboardingCompleted(prev => ({ ...prev, booth: true }))
+                          setStep('manage_features')
+                        } catch (err: any) {
+                          setErrorMsg(err.message || 'Failed to save stand. Please try again.')
+                        } finally {
+                          setBoothSaving(false)
+                        }
+                      }}
+                    >
+                      {boothSaving ? 'Saving...' : 'Save & Continue →'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('manage_features')}
+                      style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginTop: '12px', textAlign: 'center', width: '100%', padding: '8px' }}
+                    >
+                      Skip for now
+                    </button>
+                    <p style={{ fontSize: '0.78rem', color: '#9ca3af', textAlign: 'center', marginTop: '4px', lineHeight: 1.4 }}>
+                      No worries! You can set this up anytime from the ☰ Menu → My Stands.
+                    </p>
+                  </div>
+                )}
+
+                {step === 'manage_features' && (
+                  <div className="fade-in-up">
+                    <h2 className="form-heading">⚡ Manage Your Features — Step 2 of 3</h2>
+                    <p className="form-subheading" style={{ marginBottom: '8px' }}>
+                      This is the power of {selectedPlan === 'elite' ? 'Elite' : 'Pro'} — connect once, and every listing you create automatically posts to your {selectedPlan === 'elite' ? 'Facebook, Instagram, Google Business Profile, and WhatsApp' : 'Facebook, Instagram, and Google Business Profile'}. No more copy-pasting!
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, marginBottom: '24px' }}>
+                      ➡️ Next: Create your first listing and watch it go live everywhere.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>📘 Facebook Page & Catalog</h3>
+                        <FacebookStatus />
+                      </div>
+
+                      <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>📸 Instagram Auto-Post</h3>
+                        <InstagramSettings />
+                      </div>
+
+                      <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>📍 Google Business Profile</h3>
+                        <GooglePlacesSettings />
+                      </div>
+
+                      {selectedPlan === 'elite' && (
+                        <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>💬 WhatsApp Business</h3>
+                          <WhatsAppSettings />
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-action"
+                      style={{ marginTop: '24px' }}
+                      onClick={() => {
+                        setOnboardingCompleted(prev => ({ ...prev, features: true }))
+                        setStep('first_listing')
+                      }}
+                    >
+                      Continue →
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('first_listing')}
+                      style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginTop: '12px', textAlign: 'center', width: '100%', padding: '8px' }}
+                    >
+                      Skip for now
+                    </button>
+                    <p style={{ fontSize: '0.78rem', color: '#9ca3af', textAlign: 'center', marginTop: '4px', lineHeight: 1.4 }}>
+                      You can connect these anytime from the ☰ Menu → Manage Pro Features.
+                    </p>
+                  </div>
+                )}
+
+                {step === 'first_listing' && (
+                  <div className="fade-in-up">
+                    <h2 className="form-heading">📸 Your First Listing — Step 3 of 3</h2>
+                    <p className="form-subheading" style={{ marginBottom: '8px' }}>
+                      Let&apos;s put your first product on the market! Take a photo of something you&apos;re growing — GrowBot AI will write the description, suggest a price, and post it to all your connected channels.
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, marginBottom: '20px' }}>
+                      ➡️ Almost done! Create your listing and you&apos;re all set.
+                    </p>
+
+                    {errorMsg && <div className="form-error-banner">{errorMsg}</div>}
+
+                    <div style={{
+                      border: '2px dashed #d1d5db',
+                      borderRadius: '16px',
+                      padding: '32px 20px',
+                      textAlign: 'center',
+                      marginBottom: '16px',
+                      cursor: 'pointer',
+                      background: listingPhotoPreview ? 'transparent' : '#f9fafb',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s'
+                    }}
+                      onClick={() => document.getElementById('listing-photo-input')?.click()}
+                    >
+                      {listingPhotoPreview ? (
+                        <img src={listingPhotoPreview} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '12px' }} />
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📷</div>
+                          <p style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 600 }}>Tap to add a photo</p>
+                          <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Take a photo of your produce</p>
+                        </>
+                      )}
+                      <input
+                        id="listing-photo-input"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            setListingPhoto(file)
+                            setListingPhotoPreview(URL.createObjectURL(file))
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div className="input-group">
+                      <label>Product Name</label>
+                      <input type="text" value={listingName} onChange={e => setListingName(e.target.value)} placeholder="e.g. Fresh Tomatoes" />
+                    </div>
+                    <div className="input-row">
+                      <div className="input-group" style={{ flex: 1 }}>
+                        <label>Price ($)</label>
+                        <input type="number" step="0.01" min="0" value={listingPrice} onChange={e => setListingPrice(e.target.value)} placeholder="5.00" />
+                      </div>
+                      <div className="input-group" style={{ flex: 1 }}>
+                        <label>Quantity</label>
+                        <input type="number" min="1" value={listingQty} onChange={e => setListingQty(e.target.value)} placeholder="1" />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={listingSaving || !listingName}
+                      className="btn-action"
+                      onClick={async () => {
+                        setListingSaving(true)
+                        setErrorMsg('')
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser()
+                          if (!user) throw new Error('Not authenticated')
+
+                          let photoUrl = ''
+                          if (listingPhoto) {
+                            const ext = listingPhoto.name.split('.').pop() || 'jpg'
+                            const filePath = `${user.id}/${Date.now()}.${ext}`
+                            const { error: uploadErr } = await supabase.storage
+                              .from('listing-photos')
+                              .upload(filePath, listingPhoto)
+                            if (uploadErr) throw uploadErr
+                            const { data: urlData } = supabase.storage.from('listing-photos').getPublicUrl(filePath)
+                            photoUrl = urlData.publicUrl
+                          }
+
+                          const { data: booth } = await supabase
+                            .from('market_booths')
+                            .select('id')
+                            .eq('owner_id', user.id)
+                            .eq('is_default', true)
+                            .limit(1)
+                            .single()
+
+                          await supabase.from('market_listings').insert({
+                            booth_id: booth?.id,
+                            seller_id: user.id,
+                            title: listingName,
+                            price: parseFloat(listingPrice) || 0,
+                            quantity: parseInt(listingQty) || 1,
+                            photo_url: photoUrl || null,
+                            status: 'active'
+                          })
+
+                          setOnboardingCompleted(prev => ({ ...prev, listing: true }))
+                          setStep('done')
+                        } catch (err: any) {
+                          setErrorMsg(err.message || 'Failed to create listing. Please try again.')
+                        } finally {
+                          setListingSaving(false)
+                        }
+                      }}
+                    >
+                      {listingSaving ? 'Creating...' : 'Create & Go →'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep('done')
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginTop: '12px', textAlign: 'center', width: '100%', padding: '8px' }}
+                    >
+                      Skip for now
+                    </button>
+                    <p style={{ fontSize: '0.78rem', color: '#9ca3af', textAlign: 'center', marginTop: '4px', lineHeight: 1.4 }}>
+                      You can create listings anytime from the Market page or at casagrown.com → Create Listing.
+                    </p>
+                  </div>
+                )}
+
+                {step === 'done' && (
+                  <div className="fade-in-up" style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '16px' }}>🎉</div>
+                    <h2 className="form-heading" style={{ textAlign: 'center' }}>You&apos;re All Set!</h2>
+                    <p className="form-subheading" style={{ textAlign: 'center', marginBottom: '24px' }}>
+                      Your {selectedPlan === 'elite' ? 'Elite' : 'Pro'} account is ready. Here&apos;s a summary of your setup:
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left', marginBottom: '24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: onboardingCompleted.booth ? '#f0fdf4' : '#fefce8', borderRadius: '12px', border: `1px solid ${onboardingCompleted.booth ? '#bbf7d0' : '#fde68a'}` }}>
+                        <span style={{ fontSize: '1.2rem' }}>{onboardingCompleted.booth ? '✅' : '⏭️'}</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.9rem' }}>Stand Setup</span>
+                          {!onboardingCompleted.booth && (
+                            <p style={{ fontSize: '0.78rem', color: '#92400e', margin: '2px 0 0' }}>
+                              Set up later: ☰ Menu → <a href="/my-stands" style={{ color: '#166534', textDecoration: 'underline', fontWeight: 600 }}>My Stands</a>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: onboardingCompleted.features ? '#f0fdf4' : '#fefce8', borderRadius: '12px', border: `1px solid ${onboardingCompleted.features ? '#bbf7d0' : '#fde68a'}` }}>
+                        <span style={{ fontSize: '1.2rem' }}>{onboardingCompleted.features ? '✅' : '⏭️'}</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.9rem' }}>Pro Features</span>
+                          {!onboardingCompleted.features && (
+                            <p style={{ fontSize: '0.78rem', color: '#92400e', margin: '2px 0 0' }}>
+                              Connect later: ☰ Menu → <a href="/pro-manage" style={{ color: '#166534', textDecoration: 'underline', fontWeight: 600 }}>Manage Pro Features</a>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: onboardingCompleted.listing ? '#f0fdf4' : '#fefce8', borderRadius: '12px', border: `1px solid ${onboardingCompleted.listing ? '#bbf7d0' : '#fde68a'}` }}>
+                        <span style={{ fontSize: '1.2rem' }}>{onboardingCompleted.listing ? '✅' : '⏭️'}</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.9rem' }}>First Listing</span>
+                          {!onboardingCompleted.listing && (
+                            <p style={{ fontSize: '0.78rem', color: '#92400e', margin: '2px 0 0' }}>
+                              Create later: <a href="/create-listing" style={{ color: '#166534', textDecoration: 'underline', fontWeight: 600 }}>Create Listing</a> or from the Market page
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+                      <button
+                        type="button"
+                        className="btn-action"
+                        onClick={() => router.push('/market')}
+                      >
+                        Go to Market →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/pro-manage')}
+                        style={{ background: '#f1f5f9', color: '#334155', border: 'none', padding: '14px 20px', fontSize: '0.95rem', fontWeight: 700, borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        Manage Pro Features
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 'lite_intent' && (
+                  <div style={{ animation: 'fadeIn 0.5s ease' }}>
+                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                      <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>👋</div>
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', margin: '0 0 8px' }}>Welcome to CasaGrown!</h2>
+                      <p style={{ fontSize: '0.95rem', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+                        Your account is ready. What would you like to do first?
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/market')}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                          padding: '20px 12px', borderRadius: '16px', border: '2px solid #e2e8f0',
+                          background: 'white', cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.background = '#f0fdf4' }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = 'white' }}
+                      >
+                        <span style={{ fontSize: '2rem' }}>🛒</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>Buy Fresh Produce</span>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>Browse what your neighbors are growing</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => router.push('/create-listing')}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                          padding: '20px 12px', borderRadius: '16px', border: '2px solid #e2e8f0',
+                          background: 'white', cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.background = '#f0fdf4' }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = 'white' }}
+                      >
+                        <span style={{ fontSize: '2rem' }}>🌱</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>Sell My Harvest</span>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>List something you're growing</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => router.push('/growbot')}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                          padding: '20px 12px', borderRadius: '16px', border: '2px solid #e2e8f0',
+                          background: 'white', cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.background = '#f0fdf4' }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = 'white' }}
+                      >
+                        <span style={{ fontSize: '2rem' }}>🤖</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>Ask GrowBot</span>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>AI gardening tips & plant care</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => router.push('/community')}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                          padding: '20px 12px', borderRadius: '16px', border: '2px solid #e2e8f0',
+                          background: 'white', cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.background = '#f0fdf4' }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = 'white' }}
+                      >
+                        <span style={{ fontSize: '2rem' }}>👥</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>Join Community</span>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>Connect with neighborhood growers</span>
+                      </button>
+                    </div>
+
+                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', textAlign: 'center', margin: '16px 0 0', lineHeight: 1.5 }}>
+                      You can always access everything from the menu at <strong>casagrown.com</strong>
+                    </p>
                   </div>
                 )}
               </div>

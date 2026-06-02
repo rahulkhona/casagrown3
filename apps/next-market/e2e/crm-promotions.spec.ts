@@ -211,11 +211,18 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
     
     await expect(page.locator('h2')).toHaveText('Verify Your Email')
 
-    // Mock verifyOtp
-    await page.route('**/auth/v1/verify', async route => {
+    // Mock verifyOtp — must match the raw Supabase REST API response shape
+    await page.route('**/auth/v1/verify*', async route => {
       await route.fulfill({
         status: 200,
-        body: JSON.stringify({ user: { id: 'user-1' }, session: { access_token: 'token' } })
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'mock-refresh',
+          user: { id: 'user-1', email: 'enroll@casagrown.com', aud: 'authenticated', role: 'authenticated' },
+        })
       })
     })
 
@@ -224,12 +231,31 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
       await route.fulfill({ status: 200, body: JSON.stringify({ success: true }) })
     })
 
+    // Mock seller_subscriptions (queried after OTP verify)
+    await page.route('**/rest/v1/seller_subscriptions*', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/profiles*', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/market_booths*', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    })
+
     // Submit OTP
     await page.fill('input[placeholder="123456"]', '000000')
     await page.click('button:has-text("Verify & Claim Offer")')
 
-    // Success screen
-    await expect(page.locator('h2')).toHaveText("You're Enrolled!")
+    // Lite signup now goes to lite_intent step which shows "Welcome to CasaGrown!"
+    await expect(page.locator('h2')).toContainText('Welcome to CasaGrown', { timeout: 10_000 })
   })
 
   test('Short link resolution engine (/r/[token]) correctly redirects', async ({ page }) => {
@@ -274,12 +300,38 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
       await route.fulfill({ status: 200, body: JSON.stringify({}) })
     })
 
-    // Mock verifyOtp
-    await page.route('**/auth/v1/verify', async route => {
+    // Mock verifyOtp — must match the raw Supabase REST API response shape
+    await page.route('**/auth/v1/verify*', async route => {
       await route.fulfill({
         status: 200,
-        body: JSON.stringify({ user: { id: 'user-1' }, session: { access_token: 'token' } })
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'mock-refresh',
+          user: { id: 'user-1', email: 'enrolled@casagrown.com', aud: 'authenticated', role: 'authenticated' },
+        })
       })
+    })
+
+    // Mock seller_subscriptions + profiles (queried after OTP verify)
+    await page.route('**/rest/v1/seller_subscriptions*', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/profiles*', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/market_booths*', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
     })
 
     await page.goto(`/p/${testSlug}?promo=promo-123`, { waitUntil: 'domcontentloaded' })
@@ -308,7 +360,7 @@ test.describe('Market — CRM Promotions Landing Page (Full Flow)', () => {
     await page.fill('input[placeholder="123456"]', '000000')
     await page.click('button:has-text("Verify & Claim Offer")')
 
-    // Should show switch/enrollment success
-    await expect(page.locator('h2')).toHaveText("You're Enrolled!")
+    // Lite signup now goes to lite_intent step which shows "Welcome to CasaGrown!"
+    await expect(page.locator('h2')).toContainText('Welcome to CasaGrown', { timeout: 10_000 })
   })
 })

@@ -651,6 +651,7 @@ else
     local app_dir="$2"
     local port="$3"
     local use_port_env="$4"
+    local test_pattern="${5:-}"  # Optional: glob pattern to pass to playwright test
 
     echo "  Building and starting $app_name server..."
     local pid=""
@@ -704,7 +705,7 @@ else
 
     echo "  Running $app_name Playwright E2E..."
     mkdir -p scripts/output
-    (cd "$app_dir" && SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" env -u FORCE_COLOR NO_COLOR=1 npx playwright test --reporter=line 2>&1) | tee "$logfile"
+    (cd "$app_dir" && SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" env -u FORCE_COLOR NO_COLOR=1 npx playwright test $test_pattern --reporter=line 2>&1) | tee "$logfile"
     local exit_code=${PIPESTATUS[0]}
     local output
     output=$(cat "$logfile" | perl -pe 's/\x1b\[[0-9;]*[mGK]//g')
@@ -735,7 +736,13 @@ else
     sleep 10
   }
 
-  run_playwright_sequential "Market" "apps/next-market" "3001" "true"
+  # ── Market E2E is split into 2 batches to prevent dev server OOM crash ──
+  # The server crashes under sustained parallel load from 77+ heavy E2E tests.
+  # Splitting into mocked (fast) + scenario (heavy) batches, each getting a
+  # fresh server, keeps max parallelism within each batch while avoiding OOM.
+  run_playwright_sequential "Market (mocked)" "apps/next-market" "3001" "true" "e2e/*.spec.ts"
+  run_playwright_sequential "Market (scenarios)" "apps/next-market" "3001" "true" "e2e/scenarios/"
+
   run_playwright_sequential "Admin" "apps/next-admin" "3003" "true"
   run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "true"
   run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "true"

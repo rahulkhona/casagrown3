@@ -319,10 +319,10 @@ export default function OrderChat({ orderId, otherUserName, otherUserId, myAvata
               await supabase.rpc('seller_mark_ready_pickup', { p_order_id: orderId })
             }} className={styles.quickReplyChip}>✅ Ready for Pickup</button>
           )}
-          {isSeller && fulfillmentType === 'delivery' && ['pending', 'confirmed'].includes(orderStatus) && (
+          {isSeller && fulfillmentType === 'delivery' && orderStatus === 'pending' && (
             <button onClick={() => setEtaMode(true)} className={styles.quickReplyChip}>🚗 On my way...</button>
           )}
-          {!isSeller && fulfillmentType === 'pickup' && ['pending', 'confirmed'].includes(orderStatus) && (
+          {!isSeller && fulfillmentType === 'pickup' && orderStatus === 'pending' && (
             <button onClick={() => setEtaMode(true)} className={styles.quickReplyChip}>🚗 On my way to pick up...</button>
           )}
         </div>

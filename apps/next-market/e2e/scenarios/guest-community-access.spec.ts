@@ -102,11 +102,14 @@ test.describe('Guest Community Access', () => {
     await sendBtn.click({ force: true })
     await page.waitForTimeout(500)
 
-    // Login prompt modal should appear
-    await expect(page.locator('text=Join the Conversation')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('text=Sign up or log in to send messages')).toBeVisible()
-    await expect(page.locator('button:has-text("Sign Up / Log In")')).toBeVisible()
-    await expect(page.locator('button:has-text("Later")')).toBeVisible()
+    // QuickSetupModal should appear (replaces old "Join the Conversation" modal)
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).toBeVisible({ timeout: 5000 })
+    // Should show either "Quick Setup" (new user) or "Welcome Back" (returning user)
+    const modalText = await page.locator('[data-testid="quick-setup-modal"]').textContent()
+    const hasSetupText = modalText?.includes('Quick Setup') || modalText?.includes('Welcome Back')
+    expect(hasSetupText).toBe(true)
+    // Close button should be visible
+    await expect(page.locator('[data-testid="quick-setup-close"]')).toBeVisible()
 
     await page.context().close()
   })
@@ -133,13 +136,18 @@ test.describe('Guest Community Access', () => {
     await page.locator('button[aria-label="Send Message"]').click({ force: true })
     await page.waitForTimeout(500)
 
-    // Click "Sign Up / Log In" in the modal
-    await page.locator('button:has-text("Sign Up / Log In")').click({ force: true })
+    // Click the close button on QuickSetupModal to dismiss
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).toBeVisible({ timeout: 5000 })
+    // The modal has a link for returning users ("Sign in") and new users get "Continue →"
+    // For guest → login flow, clicking the email input and continuing would redirect
+    // But the test just validates the modal appears with a way to proceed
+    const modalText = await page.locator('[data-testid="quick-setup-modal"]').textContent()
+    const hasSetupText = modalText?.includes('Quick Setup') || modalText?.includes('Welcome Back')
+    expect(hasSetupText).toBe(true)
 
-    // Should navigate to /login with redirect
-    await page.waitForURL('**/login**', { timeout: 10000 })
-    expect(page.url()).toContain('/login')
-    expect(page.url()).toContain('redirect')
+    // Verify there's a way to continue (Continue → or Send Code →)
+    const primaryBtn = page.locator('[data-testid="quick-setup-modal"] button:has-text("→")')
+    await expect(primaryBtn).toBeVisible()
 
     await page.context().close()
   })
@@ -156,17 +164,15 @@ test.describe('Guest Community Access', () => {
     await page.locator('button[aria-label="Send Message"]').click({ force: true })
     await page.waitForTimeout(500)
 
-    await expect(page.locator('text=Join the Conversation')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).toBeVisible({ timeout: 5000 })
 
-    // Click "Later"
-    await page.locator('button:has-text("Later")').click({ force: true })
+    // Click the close button (✕)
+    await page.locator('[data-testid="quick-setup-close"]').click({ force: true })
     await page.waitForTimeout(300)
 
     // Modal should be dismissed
-    await expect(page.locator('text=Join the Conversation')).not.toBeVisible({ timeout: 3000 })
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).not.toBeVisible({ timeout: 3000 })
 
-    // Textarea should still have the message
-    // (ComposeBar clears on send, but guest send is intercepted before clearing)
     // User should still be on /community
     expect(page.url()).toContain('/community')
 
@@ -304,9 +310,12 @@ test.describe('Guest Community Access', () => {
     await textarea.fill('Draft message from guest')
     await page.waitForTimeout(300)
 
-    // Click Send — should trigger login prompt and save draft
+    // Click Send — should trigger QuickSetupModal and save draft
     await page.locator('button[aria-label="Send Message"]').click({ force: true })
     await page.waitForTimeout(500)
+
+    // QuickSetupModal should appear
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).toBeVisible({ timeout: 5000 })
 
     // Verify the draft was saved to localStorage
     const draft = await page.evaluate(() => localStorage.getItem('casagrown_community_draft'))
@@ -327,9 +336,12 @@ test.describe('Guest Community Access', () => {
     await page.locator('button[aria-label="Send Message"]').click({ force: true })
     await page.waitForTimeout(500)
 
-    // Click "Sign Up / Log In"
-    await page.locator('button:has-text("Sign Up / Log In")').click({ force: true })
-    await page.waitForURL('**/login**', { timeout: 10000 })
+    // QuickSetupModal should appear
+    await expect(page.locator('[data-testid="quick-setup-modal"]')).toBeVisible({ timeout: 5000 })
+
+    // Close the modal instead of looking for old "Sign Up / Log In" button
+    await page.locator('[data-testid="quick-setup-close"]').click({ force: true })
+    await page.waitForTimeout(300)
 
     // Draft should still be in localStorage after redirect
     const draft = await page.evaluate(() => localStorage.getItem('casagrown_community_draft'))

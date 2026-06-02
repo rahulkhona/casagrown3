@@ -448,6 +448,50 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       )}
 
+      {/* ===== DM BUTTON ===== */}
+      <div className={styles.actionPanel}>
+        <button
+          className="btn btn-outline"
+          style={{ width: '100%', fontSize: 14 }}
+          onClick={async () => {
+            const supabase = createClient()
+            const otherUserId = isSellerOrHelper ? order.buyer_id : order.seller_id
+            const myId = user!.id
+
+            // Determine participant order (a < b alphabetically for UNIQUE constraint)
+            const [a, b] = myId < otherUserId ? [myId, otherUserId] : [otherUserId, myId]
+
+            // Try to find existing conversation
+            const { data: existing } = await supabase
+              .from('market_conversations')
+              .select('id')
+              .eq('participant_a', a)
+              .eq('participant_b', b)
+              .maybeSingle()
+
+            if (existing) {
+              router.push(`/messages/${existing.id}`)
+              return
+            }
+
+            // Create new conversation
+            const { data: created, error } = await supabase
+              .from('market_conversations')
+              .insert({ participant_a: a, participant_b: b })
+              .select('id')
+              .single()
+
+            if (error) {
+              console.error('[DM] Failed to create conversation:', error.message)
+              return
+            }
+            router.push(`/messages/${created.id}`)
+          }}
+        >
+          💬 Message {isSellerOrHelper ? order.buyer_name : order.seller_name}
+        </button>
+      </div>
+
       {/* ===== ACTION PANELS ===== */}
 
       {/* SELLER: Pending delivery order → Mark Delivered or Decline */}

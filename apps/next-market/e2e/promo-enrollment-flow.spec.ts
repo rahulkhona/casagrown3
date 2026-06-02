@@ -603,8 +603,11 @@ test.describe('Promo Enrollment Flow — Full Wizard', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          user: { id: 'user-otp-1' },
-          session: { access_token: 'mock-token', user: { id: 'user-otp-1', email: 'otp@test.com' } },
+          access_token: 'mock-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'mock-refresh',
+          user: { id: 'user-otp-1', email: 'otp@test.com', aud: 'authenticated', role: 'authenticated' },
         }),
       })
     })
@@ -612,6 +615,25 @@ test.describe('Promo Enrollment Flow — Full Wizard', () => {
     // Mock enrollment RPC
     await page.route('**/rest/v1/rpc/crm_enroll_in_promotion', async (route: any) => {
       await route.fulfill({ status: 200, body: JSON.stringify({ success: true }) })
+    })
+
+    // Mock post-OTP queries (seller_subscriptions, profiles, market_booths)
+    await page.route('**/rest/v1/seller_subscriptions*', async (route: any) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/profiles*', async (route: any) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
+      }
+    })
+    await page.route('**/rest/v1/market_booths*', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
     })
 
     await page.goto(`/p/${SLUG}?promo=promo-enroll-test`, { waitUntil: 'domcontentloaded' })
@@ -637,9 +659,8 @@ test.describe('Promo Enrollment Flow — Full Wizard', () => {
     await page.fill('input[placeholder="123456"]', '000000')
     await page.click('button:has-text("Verify & Claim Offer")')
 
-    // Success screen
-    await expect(page.locator('h2')).toHaveText("You're Enrolled!")
-    await expect(page.locator('.success-icon')).toBeVisible()
+    // Lite signup now goes to lite_intent step which shows "Welcome to CasaGrown!"
+    await expect(page.locator('h2')).toContainText('Welcome to CasaGrown', { timeout: 10_000 })
   })
 
   // 8. Stripe checkout modal opens for paid tiers (new user)
