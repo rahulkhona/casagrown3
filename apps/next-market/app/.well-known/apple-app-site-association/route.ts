@@ -21,7 +21,7 @@ export async function GET() {
       apps: [],
       details: [
         {
-          appIDs: ['casagrown.com.casagrown.market'],
+          appIDs: ['V2W982L9M4.com.casagrown.market'],
           components: [
             // Exclude marketing/landing pages (must come first — Apple matches in order)
             { '/': '/pro', exclude: true },
@@ -88,7 +88,7 @@ export async function GET() {
       ],
     },
     webcredentials: {
-      apps: ['casagrown.com.casagrown.market'],
+      apps: ['V2W982L9M4.com.casagrown.market'],
     },
   };
 
