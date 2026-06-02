@@ -21,7 +21,7 @@ export async function GET() {
       apps: [],
       details: [
         {
-          appIDs: ['casagrown.com.casagrown.market'],
+          appIDs: ['V2W982L9M4.com.casagrown.market'],
           components: [
             // Exclude marketing/landing pages (must come first — Apple matches in order)
             { '/': '/pro', exclude: true },
@@ -43,6 +43,11 @@ export async function GET() {
             { '/': '/gardener', exclude: true },
             { '/': '/gardener/*', exclude: true },
             // App routes — open in native app
+            // NOTE: /market (exact) is excluded because the native app's WebView
+            // loads this URL on launch. If included, iOS intercepts the WebView
+            // navigation and opens Safari instead. /market/* still works for
+            // deep links to specific booths and products.
+            { '/': '/market', exclude: true },
             { '/': '/market/*' },
             { '/': '/cart' },
             { '/': '/cart/*' },
@@ -88,7 +93,7 @@ export async function GET() {
       ],
     },
     webcredentials: {
-      apps: ['casagrown.com.casagrown.market'],
+      apps: ['V2W982L9M4.com.casagrown.market'],
     },
   };
 

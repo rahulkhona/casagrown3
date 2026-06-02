@@ -2,7 +2,7 @@
   "expo": {
     "name": "CasaGrown",
     "slug": "casagrown-market",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -39,6 +39,7 @@
       },
       "package": "com.casagrown.market",
       "googleServicesFile": "./google-services.json",
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {
