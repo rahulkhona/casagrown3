@@ -390,12 +390,18 @@ function NewProductPageInner() {
         .single()
 
       // 2. Load fulfillment windows from table (same source as booth page)
-      const { data: windows } = await supabase
+      const { data: windows, error: winErr } = await supabase
         .from('booth_fulfillment_windows')
         .select('*')
         .eq('booth_id', boothId)
 
+      console.log('[BOOTH-DEFAULTS] boothId=', boothId)
+      console.log('[BOOTH-DEFAULTS] booth=', booth)
+      console.log('[BOOTH-DEFAULTS] windows count=', windows?.length, 'error=', winErr)
+      if (windows && windows.length > 0) console.log('[BOOTH-DEFAULTS] first window=', windows[0])
+
       const hasBoothWindows = windows && windows.length > 0
+      console.log('[BOOTH-DEFAULTS] hasBoothWindows=', hasBoothWindows)
 
       if (hasBoothWindows) {
         // ── Booth HAS fulfillment defaults → use them ──
