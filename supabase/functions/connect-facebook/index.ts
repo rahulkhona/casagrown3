@@ -126,7 +126,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   if (auth instanceof Response) return auth
   const userId = auth
 
-  const { return_path } = await req.json().catch(() => ({ return_path: '/profile' }))
+  const { return_path, include_instagram } = await req.json().catch(() => ({ return_path: '/profile', include_instagram: false }))
   const stateParam = `${userId}:${encodeURIComponent(return_path || '/profile')}`
 
   const redirectUri = `${siteUrl}/api/facebook-callback`
@@ -137,6 +137,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_read_engagement',
     'catalog_management',
     'business_management',
+    // Instagram scopes — only requested when user clicks "Connect Instagram"
+    ...(include_instagram ? ['instagram_basic', 'instagram_manage_messages'] : []),
   ].join(',')
   const fbAuthUrl =
     `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}` +

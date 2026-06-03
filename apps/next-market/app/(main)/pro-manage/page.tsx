@@ -166,34 +166,20 @@ function ProManagePageInner() {
   }
 
   const handleIgConnect = async () => {
-    if (!fbConn?.fb_page_id || !fbConn?.fb_page_access_token) {
+    if (!fbConn?.fb_page_id) {
       setConnectError('Connect Facebook first to link your Instagram.')
       return
     }
     setConnecting('instagram')
     setConnectError('')
     try {
-      // Fetch IG Business Account linked to the FB Page
-      const res = await fetch(`https://graph.facebook.com/v21.0/${fbConn.fb_page_id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${fbConn.fb_page_access_token}`)
-      const data = await res.json()
-      if (data?.instagram_business_account?.id) {
-        const igId = data.instagram_business_account.id
-        const igUsername = data.instagram_business_account.username || ''
-        await supabase.from('seller_fb_connections').update({
-          ig_business_account_id: igId,
-          ig_username: igUsername,
-          ig_messenger_enabled: true,
-          ig_auto_post_enabled: true,
-        }).eq('user_id', user!.id)
-        setFbConn((prev: any) => prev ? { ...prev, ig_business_account_id: igId, ig_username: igUsername, ig_messenger_enabled: true, ig_auto_post_enabled: true } : prev)
-      } else {
-        setConnectError('No Instagram Business account found on your Facebook Page. Make sure your Instagram is linked in Facebook Page Settings → Linked Accounts.')
-      }
-    } catch (err: any) {
-      setConnectError('Failed to fetch Instagram account: ' + (err.message || 'Unknown error'))
-    } finally {
-      setConnecting('')
-    }
+      // Trigger Facebook OAuth with Instagram scopes (incremental auth)
+      const { data, error } = await supabase.functions.invoke('connect-facebook', {
+        body: { return_path: '/pro-manage', include_instagram: true }
+      })
+      if (error || !data?.url) { setConnectError('Failed to start Instagram connection.'); setConnecting(''); return }
+      window.location.href = data.url
+    } catch { setConnectError('Something went wrong.'); setConnecting('') }
   }
 
   const handleIgDisconnect = async () => {
