@@ -10,7 +10,7 @@
 
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-2.0-flash-lite";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
 const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("kong:8000");
@@ -115,6 +115,7 @@ Rules:
         messages: [{ role: "user", content }],
         max_tokens: 300,
         temperature: 0.3,
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -181,7 +182,38 @@ Rules:
     }
 
     if (!result) {
-      console.warn("Failed to parse AI response:", raw.slice(0, 500));
+      // ── Fallback: retry with backup model ──
+      const BACKUP_MODEL = "gemini-3.5-flash";
+      console.warn("Primary model parse failed, retrying with", BACKUP_MODEL, "raw:", raw.slice(0, 300));
+      const backupRes = await fetch(AI_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${AI_KEY}`,
+          "HTTP-Referer": "https://casagrown.com",
+          "X-Title": "CasaGrown Product Analysis",
+        },
+        body: JSON.stringify({
+          model: BACKUP_MODEL,
+          messages: [{ role: "user", content }],
+          max_tokens: 300,
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (backupRes.ok) {
+        const backupData = await backupRes.json();
+        const backupRaw = backupData.choices?.[0]?.message?.content ?? "";
+        result = tryParse(backupRaw);
+        if (!result) {
+          const backupMatch = backupRaw.match(/\{[\s\S]*\}/);
+          if (backupMatch) result = tryParse(backupMatch[0]);
+        }
+      }
+    }
+
+    if (!result) {
+      console.warn("Failed to parse AI response (both models):", raw.slice(0, 500));
       return new Response(JSON.stringify({ error: "Could not parse AI response", raw_preview: raw.slice(0, 200) }), {
         status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
