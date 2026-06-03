@@ -391,9 +391,41 @@ function NewProductPageInner() {
       if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
       setBoothOffersPickup(booth.offers_pickup ?? true)
 
-      // Parse booth weekly windows
-      const weeklyDw = (booth.weekly_delivery_windows || {}) as Record<string, Array<{id: string}>>
-      const weeklyPw = (booth.weekly_pickup_windows || {}) as Record<string, Array<{id: string}>>
+      // Read from booth_fulfillment_windows table (source of truth), fall back to JSONB
+      const { data: tableWindows } = await supabase
+        .from('booth_fulfillment_windows')
+        .select('*')
+        .eq('booth_id', boothId)
+
+      let weeklyDw: Record<string, string[]> = {}
+      let weeklyPw: Record<string, string[]> = {}
+
+      if (tableWindows && tableWindows.length > 0) {
+        // Build from table rows
+        for (const w of tableWindows) {
+          const startH = parseInt(w.start_time.split(':')[0])
+          const endH = parseInt(w.end_time.split(':')[0])
+          const slotId = `${startH}-${endH}`
+          if (w.window_type === 'delivery') {
+            if (!weeklyDw[w.day_of_week]) weeklyDw[w.day_of_week] = []
+            weeklyDw[w.day_of_week].push(slotId)
+          } else {
+            if (!weeklyPw[w.day_of_week]) weeklyPw[w.day_of_week] = []
+            weeklyPw[w.day_of_week].push(slotId)
+          }
+        }
+      } else {
+        // Fall back to JSONB columns
+        const jsonDw = (booth.weekly_delivery_windows || {}) as Record<string, any[]>
+        const jsonPw = (booth.weekly_pickup_windows || {}) as Record<string, any[]>
+        for (const [day, slots] of Object.entries(jsonDw)) {
+          weeklyDw[day] = (slots || []).map((w: any) => typeof w === 'string' ? w : w.id).filter((id: string) => id && !id.startsWith('custom-'))
+        }
+        for (const [day, slots] of Object.entries(jsonPw)) {
+          weeklyPw[day] = (slots || []).map((w: any) => typeof w === 'string' ? w : w.id).filter((id: string) => id && !id.startsWith('custom-'))
+        }
+      }
+
       const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
       const hasWeeklyWindows = Object.keys(weeklyDw).length > 0 || Object.keys(weeklyPw).length > 0
 
@@ -406,14 +438,14 @@ function NewProductPageInner() {
         for (let offset = 0; offset < 7; offset++) {
           const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
           const dayKey = DAY_NAMES[d.getDay()]
-          const dayDw = (weeklyDw[dayKey] || []).map(w => (w as any).id || w).filter((id: any) => typeof id === 'string' && !id.startsWith('custom-')) as string[]
-          const dayPw = (weeklyPw[dayKey] || []).map(w => (w as any).id || w).filter((id: any) => typeof id === 'string' && !id.startsWith('custom-')) as string[]
+          const dayDw = (weeklyDw[dayKey] || []).filter(id => !id.startsWith('custom-'))
+          const dayPw = (weeklyPw[dayKey] || []).filter(id => !id.startsWith('custom-'))
 
           if (dayDw.length > 0 || dayPw.length > 0) {
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
             upcomingDates.push(dateStr)
-            dwMap[dateStr] = dayDw as string[]
-            pwMap[dateStr] = dayPw as string[]
+            dwMap[dateStr] = dayDw
+            pwMap[dateStr] = dayPw
           }
         }
 
