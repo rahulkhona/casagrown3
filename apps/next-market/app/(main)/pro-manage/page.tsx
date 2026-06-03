@@ -433,31 +433,46 @@ function ProManagePageInner() {
               )
             )}
 
-            {/* Own number input */}
+            {/* Own number — Embedded Signup */}
             {isWaSellerProvided && (
-              <>
-                <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
-                  <input type="tel" value={waPhoneInput} onChange={(e) => setWaPhoneInput(e.target.value)} placeholder="+1 (555) 123-4567" style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14, background: '#f9fafb' }} />
-                  <button onClick={handleWaSavePhone} disabled={waSaving || !waPhoneInput.trim()} style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: '#059669', color: 'white', fontSize: 13, fontWeight: 600, cursor: waSaving ? 'wait' : 'pointer', opacity: waSaving || !waPhoneInput.trim() ? 0.6 : 1 }}>
-                    {waSaving ? 'Saving…' : 'Save'}
+              fbConn?.wa_business_account_id && fbConn?.wa_phone_number_id ? (
+                /* Already connected via Embedded Signup — show connected number */
+                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, background: 'linear-gradient(135deg, #065f46, #059669)', color: 'white' }}>
+                  <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Your Connected WhatsApp Business Number</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>{fbConn.wa_display_phone}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(fbConn.wa_display_phone); setWaCopied(true); setTimeout(() => setWaCopied(false), 2000) }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 12, cursor: 'pointer' }}>
+                      {waCopied ? '✓ Copied!' : '📋 Copy'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.8, marginTop: 6 }}>✅ GrowBot auto-reply is active on this number</div>
+                </div>
+              ) : (
+                /* Not connected yet — show Embedded Signup button */
+                <div style={{ marginBottom: 12, padding: '16px', borderRadius: 12, background: '#f9fafb', border: '1px dashed #d1d5db', textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
+                    Connect your WhatsApp Business account so GrowBot can auto-reply to your customers.
+                  </div>
+                  <button
+                    onClick={() => {
+                      const siteUrl = window.location.origin
+                      const state = `${user!.id}:${encodeURIComponent('/pro-manage')}`
+                      const extras = JSON.stringify({ version: 'v4', sessionInfoVersion: '3', featureType: 'whatsapp_business_app_onboarding' })
+                      window.location.href = `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=1878838186137452&config_id=1015862774319265&extras=${encodeURIComponent(extras)}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/whatsapp-callback`)}&state=${encodeURIComponent(state)}`
+                    }}
+                    style={{
+                      padding: '10px 24px', borderRadius: 10, border: 'none',
+                      background: '#25D366', color: 'white', fontSize: 14, fontWeight: 600,
+                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+                    }}
+                  >
+                    📱 Connect WhatsApp Business
                   </button>
-                </div>
-
-                {/* Business verification steps */}
-                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#fef3c7', border: '1px solid #fcd34d', marginBottom: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>⚠️ Business Verification Required</div>
-                  <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.7 }}>
-                    <div style={{ marginBottom: 4 }}>To use your own number with WhatsApp Business API, you must complete Meta Business Verification:</div>
-                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>1.</strong> Go to <a href="https://business.facebook.com/settings/security" target="_blank" rel="noopener noreferrer" style={{ color: '#92400e', fontWeight: 600 }}>Meta Business Suite → Security Center</a></div>
-                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>2.</strong> Click <strong>&quot;Start Verification&quot;</strong> and submit your business documents (license, utility bill, or bank statement)</div>
-                    <div style={{ marginBottom: 4, paddingLeft: 8 }}><strong>3.</strong> Meta reviews in 2–5 business days</div>
-                    <div style={{ paddingLeft: 8 }}><strong>4.</strong> Once verified, your number can send messages via WhatsApp Business API</div>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#78350f', marginTop: 6, fontStyle: 'italic' }}>
-                    💡 Don&apos;t want to verify? Choose &quot;CasaGrown-provisioned number&quot; above — we handle all verification for you.
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
+                    You&apos;ll be redirected to Meta to authorize access to your WhatsApp Business account
                   </div>
                 </div>
-              </>
+              )
             )}
 
             {/* How to use WhatsApp Pro — always visible */}

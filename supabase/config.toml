@@ -818,6 +818,12 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/connect-facebook/index.ts"
 
+[functions.connect-whatsapp]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/connect-whatsapp/index.ts"
+
+
 [functions.manage-subscription]
 enabled = true
 verify_jwt = false
