@@ -390,18 +390,12 @@ function NewProductPageInner() {
         .single()
 
       // 2. Load fulfillment windows from table (same source as booth page)
-      const { data: windows, error: winErr } = await supabase
+      const { data: windows } = await supabase
         .from('booth_fulfillment_windows')
         .select('*')
         .eq('booth_id', boothId)
 
-      console.log('[BOOTH-DEFAULTS] boothId=', boothId)
-      console.log('[BOOTH-DEFAULTS] booth=', booth)
-      console.log('[BOOTH-DEFAULTS] windows count=', windows?.length, 'error=', winErr)
-      if (windows && windows.length > 0) console.log('[BOOTH-DEFAULTS] first window=', windows[0])
-
       const hasBoothWindows = windows && windows.length > 0
-      console.log('[BOOTH-DEFAULTS] hasBoothWindows=', hasBoothWindows)
 
       if (hasBoothWindows) {
         // ── Booth HAS fulfillment defaults → use them ──
@@ -430,8 +424,7 @@ function NewProductPageInner() {
           }
         }
 
-        console.log('[BOOTH-DEFAULTS] weeklyDw=', JSON.stringify(weeklyDw))
-        console.log('[BOOTH-DEFAULTS] weeklyPw=', JSON.stringify(weeklyPw))
+
 
         // Map weekly schedule → next 7 calendar days
         const dates: string[] = []
@@ -442,7 +435,6 @@ function NewProductPageInner() {
           const dayKey = DAY_NAMES[d.getDay()]
           const dw = weeklyDw[dayKey] || []
           const pw = weeklyPw[dayKey] || []
-          console.log('[BOOTH-DEFAULTS] day', i, dayKey, 'dw=', dw.length, 'pw=', pw.length)
           if (dw.length > 0 || pw.length > 0) {
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
             dates.push(dateStr)
@@ -450,7 +442,6 @@ function NewProductPageInner() {
             pwMap[dateStr] = pw
           }
         }
-        console.log('[BOOTH-DEFAULTS] final dates=', dates)
         if (dates.length > 0) {
           setSelectedDates(dates)
           setProductDeliveryWindows(dwMap)
