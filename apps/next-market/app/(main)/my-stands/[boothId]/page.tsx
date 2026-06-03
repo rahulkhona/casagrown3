@@ -240,6 +240,7 @@ interface ProductRow {
   is_active: boolean
   is_draft: boolean
   category: string
+  has_orders: boolean
 }
 
 export default function StandDetailPage({ params }: { params: Promise<{ boothId: string }> }) {
@@ -305,6 +306,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   const [uploadingBanner, setUploadingBanner] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Platform Sync state
   const [hasFbConnection, setHasFbConnection] = useState(false)
@@ -544,6 +546,18 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         .order('created_at', { ascending: false })
 
       if (prods) {
+        // Check which products have associated orders
+        const prodIds = prods.map((p: any) => p.id)
+        let orderProductIds = new Set<string>()
+        if (prodIds.length > 0) {
+          const { data: orderRows } = await supabase
+            .from('market_orders')
+            .select('product_id')
+            .in('product_id', prodIds)
+          if (orderRows) {
+            orderProductIds = new Set(orderRows.map((o: any) => o.product_id))
+          }
+        }
         setProducts(prods.map((p: any) => ({
           id: p.id,
           name: p.name,
@@ -555,6 +569,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           is_active: p.is_active,
           is_draft: p.is_draft,
           category: p.category || 'other',
+          has_orders: orderProductIds.has(p.id),
         })))
       }
       setProductsLoading(false)
@@ -722,14 +737,25 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
     setZipInput('')
   }
 
-  const handleDeleteProduct = async (productId: string, productName: string) => {
-    if (!confirm(`Delete "${productName}"? This will remove it from your booth.`)) return
+  const handleDeleteProduct = async (productId: string) => {
     const { error } = await supabase
       .from('market_products')
       .update({ is_deleted: true, is_active: false })
       .eq('id', productId)
     if (!error) {
       setProducts(prev => prev.filter(p => p.id !== productId))
+      setConfirmDeleteId(null)
+    }
+  }
+
+  const handleArchiveProduct = async (productId: string) => {
+    const { error } = await supabase
+      .from('market_products')
+      .update({ is_active: false, expires_at: new Date().toISOString() })
+      .eq('id', productId)
+    if (!error) {
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_active: false } : p))
+      setConfirmDeleteId(null)
     }
   }
 
@@ -782,7 +808,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         pickup_state: editOffersPickup ? (editPickupAddr.state.trim() || null) : null,
         pickup_zip: editOffersPickup ? (editPickupAddr.zip.trim() || null) : null,
         pickup_address: editOffersPickup ? (pickupFullAddr || null) : null, // keep legacy column in sync
-        delivery_radius_miles: editOffersDelivery ? (parseInt(editDeliveryRadius) || 5) : null,
+        delivery_radius_miles: editOffersDelivery ? (parseInt(editDeliveryRadius) || 0) : null,
         offers_pickup: editOffersPickup,
         offers_delivery: editOffersDelivery,
         decorative_theme: editTheme,
@@ -980,7 +1006,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
               )}
               {stand.offers_delivery && (
                 <span className={styles.fulfillmentChip}>
-                  🚗 Delivery ({stand.delivery_radius_miles || 5} mi)
+                  🚗 Delivery {stand.delivery_radius_miles ? `(${stand.delivery_radius_miles} mi)` : '(Zip only)'}
                 </span>
               )}
               {!stand.offers_pickup && !stand.offers_delivery && (
@@ -1001,7 +1027,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
               {stand.delivery_radius_miles && (
                 <div className={styles.settingItem}>
                   <span className={styles.settingLabel}>Delivery Radius</span>
-                  <span className={styles.settingValue}>{stand.delivery_radius_miles} miles from base address</span>
+                  <span className={styles.settingValue}>{stand.delivery_radius_miles ? `${stand.delivery_radius_miles} miles from base address` : 'Zip codes only'}</span>
                 </div>
               )}
               {stand.delivery_zipcodes && stand.delivery_zipcodes.length > 0 && (
@@ -1127,26 +1153,60 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                     display: 'flex', gap: 4, padding: '6px 8px',
                     borderTop: '1px solid var(--gray-100, #f3f4f6)',
                   }}>
-                    <Link
-                      href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
-                      style={{
-                        flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        textAlign: 'center', background: 'var(--gray-50, #f9fafb)', color: '#374151',
-                        border: '1px solid var(--gray-200, #e5e7eb)', textDecoration: 'none',
-                      }}
-                    >
-                      ✏️ Edit
-                    </Link>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteProduct(product.id, product.name) }}
-                      style={{
-                        flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🗑️ Delete
-                    </button>
+                    {confirmDeleteId === product.id ? (
+                      /* Inline delete/archive confirmation */
+                      <>
+                        <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: product.has_orders ? '#d97706' : '#dc2626', display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                          {product.has_orders ? 'Archive this listing?' : 'Delete this listing?'}
+                        </span>
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); product.has_orders ? handleArchiveProduct(product.id) : handleDeleteProduct(product.id) }}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: product.has_orders ? '#d97706' : '#dc2626', color: 'white', border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {product.has_orders ? 'Yes, archive' : 'Yes, delete'}
+                        </button>
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(null) }}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            background: 'var(--gray-50, #f9fafb)', color: '#374151',
+                            border: '1px solid var(--gray-200, #e5e7eb)', cursor: 'pointer',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      /* Normal action buttons */
+                      <>
+                        <Link
+                          href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
+                          style={{
+                            flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            textAlign: 'center', background: 'var(--gray-50, #f9fafb)', color: '#374151',
+                            border: '1px solid var(--gray-200, #e5e7eb)', textDecoration: 'none',
+                          }}
+                        >
+                          ✏️ Edit
+                        </Link>
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(product.id) }}
+                          style={{
+                            flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            background: product.has_orders ? '#fffbeb' : '#fef2f2',
+                            color: product.has_orders ? '#d97706' : '#dc2626',
+                            border: `1px solid ${product.has_orders ? '#fde68a' : '#fecaca'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {product.has_orders ? '📦 Archive' : '🗑️ Delete'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1523,13 +1583,13 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                     <label className="label">🚗 Delivery Radius</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <input
-                        type="range" min={1} max={25}
-                        value={parseInt(editDeliveryRadius) || 5}
+                        type="range" min={0} max={25}
+                        value={parseInt(editDeliveryRadius) || 0}
                         onChange={e => setEditDeliveryRadius(e.target.value)}
                         style={{ flex: 1, accentColor: '#16a34a' }}
                       />
                       <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
-                        {editDeliveryRadius || 5} mi
+                        {parseInt(editDeliveryRadius) === 0 ? 'Zip only' : `${editDeliveryRadius} mi`}
                       </span>
                     </div>
                   </div>
@@ -2036,12 +2096,25 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                           .eq('is_deleted', false)
                           .order('created_at', { ascending: false })
                         if (prods) {
+                          // Check which products have associated orders
+                          const prodIds = prods.map((p: any) => p.id)
+                          let orderProductIds = new Set<string>()
+                          if (prodIds.length > 0) {
+                            const { data: orderRows } = await supabase
+                              .from('market_orders')
+                              .select('product_id')
+                              .in('product_id', prodIds)
+                            if (orderRows) {
+                              orderProductIds = new Set(orderRows.map((o: any) => o.product_id))
+                            }
+                          }
                           setProducts(prods.map((p: any) => ({
                             id: p.id, name: p.name, description: p.description,
                             photos: p.photos || [], price_usd: p.price_usd,
                             unit: p.unit || 'each', inventory: p.inventory,
                             is_active: p.is_active, is_draft: p.is_draft,
                             category: p.category || 'other',
+                            has_orders: orderProductIds.has(p.id),
                           })))
                         }
                         // Update catalog item allocated count

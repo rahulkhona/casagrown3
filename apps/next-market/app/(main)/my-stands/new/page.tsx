@@ -539,11 +539,11 @@ export default function NewStandPage() {
                 <div className={styles.sliderWrap}>
                   <input
                     className={styles.slider}
-                    type="range" min="1" max="25"
+                    type="range" min="0" max="25"
                     value={deliveryRadius}
                     onChange={e => setDeliveryRadius(parseInt(e.target.value))}
                   />
-                  <span className={styles.sliderValue}>{deliveryRadius} mi</span>
+                  <span className={styles.sliderValue}>{deliveryRadius === 0 ? 'Zip only' : `${deliveryRadius} mi`}</span>
                 </div>
               </div>
 

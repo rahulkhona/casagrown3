@@ -391,25 +391,51 @@ function NewProductPageInner() {
       if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
       setBoothOffersPickup(booth.offers_pickup ?? true)
 
-      // Parse booth weekly windows and apply today/tomorrow defaults
+      // Parse booth weekly windows
       const weeklyDw = (booth.weekly_delivery_windows || {}) as Record<string, Array<{id: string}>>
       const weeklyPw = (booth.weekly_pickup_windows || {}) as Record<string, Array<{id: string}>>
-      const todayDwDefaults = (weeklyDw[todayDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
-      const todayPwDefaults = (weeklyPw[todayDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
-      const tomorrowDwDefaults = (weeklyDw[tomorrowDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
-      const tomorrowPwDefaults = (weeklyPw[tomorrowDayKey] || []).map(w => w.id).filter(id => !id.startsWith('custom-'))
+      const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+      const hasWeeklyWindows = Object.keys(weeklyDw).length > 0 || Object.keys(weeklyPw).length > 0
 
-      // If no weekly windows, fall back to flat windows for today
-      if (todayDwDefaults.length === 0 && tomorrowDwDefaults.length === 0) {
+      if (hasWeeklyWindows) {
+        // Build dates for the next 7 days based on which days have booth windows
+        const upcomingDates: string[] = []
+        const dwMap: Record<string, string[]> = {}
+        const pwMap: Record<string, string[]> = {}
+
+        for (let offset = 0; offset < 7; offset++) {
+          const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+          const dayKey = DAY_NAMES[d.getDay()]
+          const dayDw = (weeklyDw[dayKey] || []).map(w => w.id || w).filter((id: string) => typeof id === 'string' && !id.startsWith('custom-'))
+          const dayPw = (weeklyPw[dayKey] || []).map(w => w.id || w).filter((id: string) => typeof id === 'string' && !id.startsWith('custom-'))
+
+          if (dayDw.length > 0 || dayPw.length > 0) {
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+            upcomingDates.push(dateStr)
+            dwMap[dateStr] = dayDw as string[]
+            pwMap[dateStr] = dayPw as string[]
+          }
+        }
+
+        if (upcomingDates.length > 0) {
+          setSelectedDates(upcomingDates)
+          setProductDeliveryWindows(dwMap)
+          setProductPickupWindows(pwMap)
+        } else {
+          // Booth has weekly windows but none for the next 7 days — default to today/tomorrow
+          setSelectedDates([todayStr, tomorrowStr])
+          setProductDeliveryWindows({ [todayStr]: [], [tomorrowStr]: [] })
+          setProductPickupWindows({ [todayStr]: [], [tomorrowStr]: [] })
+        }
+      } else {
+        // No weekly windows — fall back to flat windows for today/tomorrow
         const flatDw = (booth.delivery_windows || []) as Array<{id: string}>
         const flatPw = (booth.pickup_windows || []) as Array<{id: string}>
         const flatDwIds = flatDw.map(w => w.id).filter(id => !id.startsWith('custom-'))
         const flatPwIds = flatPw.map(w => w.id).filter(id => !id.startsWith('custom-'))
+        setSelectedDates([todayStr, tomorrowStr])
         setProductDeliveryWindows({ [todayStr]: flatDwIds, [tomorrowStr]: flatDwIds })
         setProductPickupWindows({ [todayStr]: flatPwIds, [tomorrowStr]: flatPwIds })
-      } else {
-        setProductDeliveryWindows({ [todayStr]: todayDwDefaults, [tomorrowStr]: tomorrowDwDefaults })
-        setProductPickupWindows({ [todayStr]: todayPwDefaults, [tomorrowStr]: tomorrowPwDefaults })
       }
       setBoothDefaultsLoaded(true)
     }
@@ -1260,7 +1286,8 @@ function NewProductPageInner() {
       // Check for API-level errors returned in the response body
       if (data?.error) {
         console.warn('AI autofill API error:', data.error)
-        setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : 'AI analysis failed'} — please fill in manually.`)
+        const errorDetail = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+        setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : `AI analysis failed: ${errorDetail.slice(0, 120)}`} — please fill in manually.`)
         setAiAnalyzing(false)
         setTimeout(() => setAiToast(null), 5000)
         return
@@ -1823,34 +1850,47 @@ function NewProductPageInner() {
               </div>
             )}
 
-            {/* Day selectors — separate row */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {[{ date: todayStr, label: todayLabel }, { date: tomorrowStr, label: tomorrowLabel }].map(opt => {
-                const isActive = selectedDates.includes(opt.date)
-                return (
-                  <button
-                    key={opt.date}
-                    type="button"
-                    className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                    style={{ padding: '8px 14px', fontSize: 13 }}
-                    onClick={() => {
-                      setSelectedDates(prev =>
-                        prev.includes(opt.date)
-                          ? prev.filter(d => d !== opt.date)
-                          : [...prev, opt.date]
-                      )
-                    }}
-                  >
-                    {isActive ? '✅' : '📅'} {opt.label}
-                  </button>
-                )
-              })}
+            {/* Day selectors — all 7 upcoming days; booth-window days pre-selected */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+              {(() => {
+                const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                const dayOptions: { date: string; label: string }[] = []
+                for (let offset = 0; offset < 7; offset++) {
+                  const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+                  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  const label = offset === 0 ? todayLabel : offset === 1 ? tomorrowLabel : `${DAY_SHORT[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`
+                  dayOptions.push({ date: dateStr, label })
+                }
+                return dayOptions.map(opt => {
+                  const isActive = selectedDates.includes(opt.date)
+                  return (
+                    <button
+                      key={opt.date}
+                      type="button"
+                      className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
+                      style={{ padding: '8px 14px', fontSize: 13 }}
+                      onClick={() => {
+                        setSelectedDates(prev =>
+                          prev.includes(opt.date)
+                            ? prev.filter(d => d !== opt.date)
+                            : [...prev, opt.date]
+                        )
+                      }}
+                    >
+                      {isActive ? '✅' : '📅'} {opt.label}
+                    </button>
+                  )
+                })
+              })()}
             </div>
 
             {/* Window cards for each selected date */}
             {selectedDates.map(dateStr => {
+              const dateObj = new Date(dateStr + 'T12:00:00')
               const isToday = dateStr === todayStr
-              const dateLabel = isToday ? todayLabel : tomorrowLabel
+              const isTomorrow = dateStr === tomorrowStr
+              const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+              const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
               const dwIds = productDeliveryWindows[dateStr] || []
               const pwIds = productPickupWindows[dateStr] || []
               const now = new Date()
