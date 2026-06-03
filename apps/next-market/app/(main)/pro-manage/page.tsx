@@ -42,6 +42,10 @@ function ProManagePageInner() {
   const [connectError, setConnectError] = useState('')
   const [disconnecting, setDisconnecting] = useState('')
 
+  // Catalog sync
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
+
   // WhatsApp phone
   const [waPhoneInput, setWaPhoneInput] = useState('')
   const [waSaving, setWaSaving] = useState(false)
@@ -268,9 +272,46 @@ function ProManagePageInner() {
             {/* Toggles */}
             <ToggleRow label="📦 Sync product catalog" desc="Sync your CasaGrown inventory to your Facebook Page shop — never your personal profile." value={!!fbConn.auto_sync_enabled} saving={savingField === 'auto_sync_enabled'} onToggle={() => toggleFbField('auto_sync_enabled', !!fbConn.auto_sync_enabled)} />
             {fbConn.auto_sync_enabled && (
-              <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
-                Your products appear in your <strong>Facebook Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability and prices.
-              </div>
+              <>
+                <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
+                  Your products appear in your <strong>Facebook Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability and prices.
+                  {fbConn.last_sync_at && (
+                    <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
+                      Last sync: {new Date(fbConn.last_sync_at).toLocaleString()} · {fbConn.last_sync_product_count || 0} products synced
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginLeft: 54, marginBottom: 8 }}>
+                  <button
+                    onClick={async () => {
+                      setSyncing(true)
+                      setSyncResult(null)
+                      try {
+                        const { data, error } = await supabase.functions.invoke('sync-facebook-catalog', { body: {} })
+                        if (error) throw error
+                        setSyncResult({ ok: true, message: `Synced ${data?.synced ?? 0} products to Facebook` })
+                        // Refresh connection data to show updated last_sync_at
+                        const { data: updated } = await supabase.from('seller_fb_connections').select('*').eq('user_id', user!.id).maybeSingle()
+                        if (updated) setFbConn(updated)
+                      } catch (err: any) {
+                        setSyncResult({ ok: false, message: err.message || 'Sync failed' })
+                      } finally {
+                        setSyncing(false)
+                        setTimeout(() => setSyncResult(null), 5000)
+                      }
+                    }}
+                    disabled={syncing}
+                    style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid #bfdbfe', background: syncing ? '#f3f4f6' : 'white', color: syncing ? '#9ca3af' : '#1e40af', fontSize: 12, fontWeight: 600, cursor: syncing ? 'wait' : 'pointer' }}
+                  >
+                    {syncing ? '⏳ Syncing…' : '🔄 Sync Now'}
+                  </button>
+                  {syncResult && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: syncResult.ok ? '#059669' : '#dc2626' }}>
+                      {syncResult.ok ? '✅' : '⚠️'} {syncResult.message}
+                    </span>
+                  )}
+                </div>
+              </>
             )}
             <ToggleRow label="📣 Post daily listings" desc="GrowBot posts your available products to your Facebook Page — never to your personal profile." value={!!fbConn.auto_post_enabled} saving={savingField === 'auto_post_enabled'} onToggle={() => toggleFbField('auto_post_enabled', !!fbConn.auto_post_enabled)} />
             {fbConn.auto_post_enabled && (

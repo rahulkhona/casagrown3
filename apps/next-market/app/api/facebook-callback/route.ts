@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code')
   const stateRaw = url.searchParams.get('state') || ''
   const error = url.searchParams.get('error')
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${url.protocol}//${url.host}`
 
   // Detect WhatsApp Embedded Signup flow (state starts with "wa:")
   const isWhatsApp = stateRaw.startsWith('wa:')
