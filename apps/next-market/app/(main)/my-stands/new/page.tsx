@@ -232,7 +232,7 @@ export default function NewStandPage() {
         })))
       }
 
-      // Default booth address from profile
+      // Default booth address and pickup address from profile
       if (!boothAddress.street && profile?.street_address) {
         let street = profile.street_address || ''
         let city = profile.city || ''
@@ -254,7 +254,9 @@ export default function NewStandPage() {
           }
         }
 
-        setBoothAddress({ street, city, state, zip })
+        const profileAddr = { street, city, state, zip }
+        setBoothAddress(profileAddr)
+        setPickupAddress(profileAddr)
       }
     }
     load()

@@ -67,13 +67,21 @@ export default function MyStandsPage() {
         .maybeSingle()
 
       const planName = subData?.plan === 'free' || !subData?.plan ? 'lite' : (subData.plan as 'lite' | 'pro' | 'elite')
-      setActivePlan(planName)
+
+      // Check if user is a pro tester — treat as 'elite'
+      const { data: testerRow } = await supabase
+        .from('pro_testers')
+        .select('email')
+        .eq('email', user.email)
+        .maybeSingle()
+      const effectivePlan = testerRow ? 'elite' : planName
+      setActivePlan(effectivePlan)
 
       // 2. Fetch Tier Limits
       const { data: tierData } = await supabase
         .from('subscription_tiers')
         .select('max_booths')
-        .eq('tier_name', planName)
+        .eq('tier_name', effectivePlan)
         .maybeSingle()
 
       setMaxBooths(tierData?.max_booths ?? 1)
@@ -280,11 +288,9 @@ export default function MyStandsPage() {
             <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>
               🔒 You have reached the booth limit of <strong>{maxBooths}</strong> for your plan tier.
             </p>
-            <div style={{ marginTop: 6 }}>
-              <Link href="/pro" style={{ fontSize: 13, color: 'var(--green-700)', fontWeight: 700, textDecoration: 'underline' }}>
-                Upgrade to Pro or Elite to launch more stands! →
-              </Link>
-            </div>
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af' }}>
+              Manage your plan from the Features page.
+            </p>
           </div>
         )}
       </div>

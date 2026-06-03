@@ -431,6 +431,37 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       setEditDeliveryZipcodes(standData.delivery_zipcodes || [])
       setEditIsOpen(standData.is_active)
       setEditBoothAddr(standData.booth_addr)
+
+      // If booth/pickup address is empty, pre-fill from profile
+      if (!standData.booth_addr.street) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('street_address, city, state_code, zip_code')
+          .eq('id', user.id)
+          .single()
+        if (profile?.street_address) {
+          let street = profile.street_address || ''
+          let city = profile.city || ''
+          let state = profile.state_code || ''
+          let zip = profile.zip_code || ''
+          if ((!city || !state) && street.includes(',')) {
+            const parts = street.split(',').map((s: string) => s.trim())
+            if (parts.length >= 3) {
+              const stateZip = parts[parts.length - 1].split(/\s+/)
+              street = parts.slice(0, -2).join(', ')
+              city = city || parts[parts.length - 2]
+              state = state || stateZip[0] || ''
+              zip = zip || stateZip.slice(1).join('') || ''
+            } else if (parts.length === 2) {
+              street = parts[0]
+              city = city || parts[1]
+            }
+          }
+          const profileAddr = { street, city, state, zip }
+          setEditBoothAddr(profileAddr)
+          if (!standData.pickup_addr.street) setEditPickupAddr(profileAddr)
+        }
+      }
       // Convert fulfillment windows to WeeklyWindows for the editor
       const delWin: WeeklyWindows = {}
       const pickWin: WeeklyWindows = {}
