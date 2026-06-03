@@ -289,6 +289,7 @@ function ProManagePageInner() {
                       try {
                         const { data, error } = await supabase.functions.invoke('sync-facebook-catalog', { body: {} })
                         if (error) throw error
+                        console.log('[SYNC RESULT]', data)
                         setSyncResult({ ok: true, message: `Synced ${data?.synced ?? 0} products to Facebook` })
                         // Refresh connection data to show updated last_sync_at
                         const { data: updated } = await supabase.from('seller_fb_connections').select('*').eq('user_id', user!.id).maybeSingle()

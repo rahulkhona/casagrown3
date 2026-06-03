@@ -26,8 +26,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       id, user_id, fb_page_id, fb_page_access_token, fb_page_name, status,
       auto_post_enabled, casagrown_post_enabled,
       ig_business_account_id, ig_username, ig_access_token, ig_auto_post_enabled,
-      wa_phone_number_id, wa_display_phone, wa_auto_reply_enabled,
-      seller_subscriptions!inner(plan, status)
+      wa_phone_number_id, wa_display_phone, wa_auto_reply_enabled
     `)
     .eq('status', 'connected')
 
@@ -61,11 +60,21 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   // POST TYPE 3: Seller Daily Menu (auto-post to seller's FB page)
   // ═══════════════════════════════════════════════════════════════
   for (const conn of connections) {
-    const sub = (conn as any).seller_subscriptions
-    if (!sub || !['active', 'trialing'].includes(sub.status)) continue
+    // Check subscription access
+    const { data: sub } = await supabase.from('seller_subscriptions').select('plan, status').eq('user_id', conn.user_id).maybeSingle()
+    let hasAccess = sub && ['active', 'trialing'].includes(sub.status)
+    let sellerPlan = sub?.plan || 'pro'
+    if (!hasAccess) {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('id', conn.user_id).single()
+      if (profile?.email) {
+        const { data: tester } = await supabase.from('pro_testers').select('email').ilike('email', profile.email).maybeSingle()
+        if (tester) { hasAccess = true; sellerPlan = 'elite' }
+      }
+    }
+    if (!hasAccess) continue
     if (!conn.fb_page_access_token || !conn.fb_page_id) continue
 
-    const features = tierFeatures[sub.plan] || {}
+    const features = tierFeatures[sellerPlan] || {}
     if (!features.facebook_posts) continue
 
     const autoPostEnabled = (conn as any).auto_post_enabled === true
@@ -325,12 +334,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   // Get all new listings from the past 24 hours across all Pro sellers
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
-  const proSellerIds = connections
-    .filter((c: any) => {
-      const sub = (c as any).seller_subscriptions
-      return sub && ['active', 'trialing'].includes(sub.status) && (c as any).casagrown_post_enabled
-    })
-    .map((c: any) => c.user_id)
+  const proSellerIds: string[] = []
+  for (const c of connections) {
+    if (!(c as any).casagrown_post_enabled) continue
+    const { data: sub } = await supabase.from('seller_subscriptions').select('status').eq('user_id', c.user_id).maybeSingle()
+    let ok = sub && ['active', 'trialing'].includes(sub.status)
+    if (!ok) {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('id', c.user_id).single()
+      if (profile?.email) {
+        const { data: tester } = await supabase.from('pro_testers').select('email').ilike('email', profile.email).maybeSingle()
+        if (tester) ok = true
+      }
+    }
+    if (ok) proSellerIds.push(c.user_id)
+  }
 
   if (proSellerIds.length > 0) {
     const { data: newListings } = await supabase

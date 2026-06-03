@@ -5,7 +5,7 @@
  * GET:  OAuth callback from Facebook (no auth — state param has user_id)
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { exchangeForLongLivedToken, getUserPages } from '../_shared/facebook.ts'
+import { exchangeForLongLivedToken, getUserPages, getInstagramBusinessAccount } from '../_shared/facebook.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const FACEBOOK_APP_ID = env('FACEBOOK_APP_ID', true)!
@@ -56,6 +56,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       // Store connection
       const expiresAt = new Date(Date.now() + longLived.expires_in * 1000).toISOString()
 
+      // Auto-detect linked Instagram Business Account
+      let igData: { id: string; username?: string } | null = null
+      if (pages.length === 1 && pages[0].access_token) {
+        igData = await getInstagramBusinessAccount(pages[0].id, pages[0].access_token)
+        if (igData) console.log(`[CONNECT-FB] Detected IG Business Account: ${igData.id} (@${igData.username})`)
+      }
+
       await supabase
         .from('seller_fb_connections')
         .upsert({
@@ -69,6 +76,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             fb_page_id: pages[0].id,
             fb_page_name: pages[0].name,
             fb_page_access_token: pages[0].access_token,
+          } : {}),
+          // Store IG Business Account if detected
+          ...(igData ? {
+            ig_business_account_id: igData.id,
+            ig_username: igData.username || null,
           } : {}),
         }, { onConflict: 'user_id' })
 
@@ -100,7 +112,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const stateParam = `${userId}:${encodeURIComponent(return_path || '/profile')}`
 
   const redirectUri = `${siteUrl}/api/facebook-callback`
-  const scopes = 'pages_show_list,catalog_management'
+  const scopes = [
+    'pages_show_list',
+    'pages_manage_posts',
+    'pages_messaging',
+    'pages_read_engagement',
+    'catalog_management',
+    'instagram_basic',
+    'instagram_manage_messages',
+  ].join(',')
   const fbAuthUrl =
     `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +

@@ -81,14 +81,35 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   if (auth instanceof Response) return auth
   const userId = auth
 
-  // ── Verify Elite subscription ──
+  // ── Verify Elite subscription or pro_tester ──
   const { data: sub } = await supabase
     .from('seller_subscriptions')
     .select('plan, status')
     .eq('user_id', userId)
     .single()
 
-  if (!sub || sub.plan !== 'elite' || sub.status !== 'active') {
+  let isElite = sub && sub.plan === 'elite' && (sub.status === 'active' || sub.status === 'trialing')
+
+  // Also check pro_testers table (for test/demo accounts)
+  if (!isElite) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single()
+    if (profile?.email) {
+      const { data: tester } = await supabase
+        .from('pro_testers')
+        .select('email')
+        .ilike('email', profile.email)
+        .maybeSingle()
+      if (tester) {
+        isElite = true
+      }
+    }
+  }
+
+  if (!isElite) {
     return jsonError('WhatsApp provisioning requires an active Elite subscription.', corsHeaders, 403)
   }
 
