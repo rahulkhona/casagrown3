@@ -430,6 +430,9 @@ function NewProductPageInner() {
           }
         }
 
+        console.log('[BOOTH-DEFAULTS] weeklyDw=', JSON.stringify(weeklyDw))
+        console.log('[BOOTH-DEFAULTS] weeklyPw=', JSON.stringify(weeklyPw))
+
         // Map weekly schedule → next 7 calendar days
         const dates: string[] = []
         const dwMap: Record<string, string[]> = {}
@@ -439,6 +442,7 @@ function NewProductPageInner() {
           const dayKey = DAY_NAMES[d.getDay()]
           const dw = weeklyDw[dayKey] || []
           const pw = weeklyPw[dayKey] || []
+          console.log('[BOOTH-DEFAULTS] day', i, dayKey, 'dw=', dw.length, 'pw=', pw.length)
           if (dw.length > 0 || pw.length > 0) {
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
             dates.push(dateStr)
@@ -446,6 +450,7 @@ function NewProductPageInner() {
             pwMap[dateStr] = pw
           }
         }
+        console.log('[BOOTH-DEFAULTS] final dates=', dates)
         if (dates.length > 0) {
           setSelectedDates(dates)
           setProductDeliveryWindows(dwMap)
