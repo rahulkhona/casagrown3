@@ -138,16 +138,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         // ── Auto-create Facebook catalog if none exists ──
         if (!fbCatalogId) {
           try {
-            // First, check if the Page already has a catalog we can use
+            // First, check if the Page already has a product catalog we can use
             const existingRes = await fetch(
-              `https://graph.facebook.com/v21.0/${conn.fb_page_id}/owned_product_catalogs?access_token=${conn.fb_page_access_token}`
+              `https://graph.facebook.com/v21.0/${conn.fb_page_id}/product_catalogs?fields=id,name,vertical,product_count&access_token=${conn.fb_page_access_token}`
             )
             const existingData = await existingRes.json()
 
-            if (existingData?.data?.length > 0) {
-              // Use the first existing catalog
-              fbCatalogId = existingData.data[0].id
-              debugLog.push(`  → Using existing FB catalog: ${fbCatalogId}`)
+            // Find an actual product catalog (not promo/offer catalogs)
+            const productCatalog = existingData?.data?.find((c: any) => 
+              c.vertical === 'commerce' || c.vertical === 'products' || !c.vertical
+            ) || existingData?.data?.[0]
+
+            if (productCatalog) {
+              fbCatalogId = productCatalog.id
+              debugLog.push(`  → Using existing FB catalog "${productCatalog.name}": ${fbCatalogId}`)
             } else {
               // Create a new catalog via the Page
               const catalogName = `${booth.name || 'CasaGrown'} Products`
