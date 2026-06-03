@@ -137,8 +137,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_read_engagement',
     'catalog_management',
     'business_management',
-    'instagram_basic',
-    'instagram_manage_messages',
   ].join(',')
   const fbAuthUrl =
     `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}` +
