@@ -118,6 +118,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_messaging',
     'pages_read_engagement',
     'catalog_management',
+    'business_management',
     'instagram_basic',
     'instagram_manage_messages',
   ].join(',')

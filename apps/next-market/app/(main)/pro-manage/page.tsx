@@ -41,6 +41,7 @@ function ProManagePageInner() {
   const [connecting, setConnecting] = useState('')
   const [connectError, setConnectError] = useState('')
   const [disconnecting, setDisconnecting] = useState('')
+  const [disconnectTarget, setDisconnectTarget] = useState<'fb' | 'google' | 'instagram' | 'whatsapp' | null>(null)
 
   // Catalog sync
   const [syncing, setSyncing] = useState(false)
@@ -139,11 +140,11 @@ function ProManagePageInner() {
   }
 
   const handleFbDisconnect = async () => {
-    if (!confirm('Disconnect Facebook? Catalogs and posting will stop.')) return
     setDisconnecting('fb')
     await supabase.from('seller_fb_connections').update({ status: 'disconnected', auto_sync_enabled: false }).eq('user_id', user!.id)
     setFbConn(null)
     setDisconnecting('')
+    setDisconnectTarget(null)
   }
 
   const handleGoogleConnect = async () => {
@@ -157,11 +158,70 @@ function ProManagePageInner() {
   }
 
   const handleGoogleDisconnect = async () => {
-    if (!confirm('Disconnect Google Business? Syncing and auto-posting will stop.')) return
     setDisconnecting('google')
     await supabase.from('seller_google_connections').delete().eq('user_id', user!.id)
     setGoogleConn(null)
     setDisconnecting('')
+    setDisconnectTarget(null)
+  }
+
+  const handleIgConnect = async () => {
+    if (!fbConn?.fb_page_id || !fbConn?.fb_page_access_token) {
+      setConnectError('Connect Facebook first to link your Instagram.')
+      return
+    }
+    setConnecting('instagram')
+    setConnectError('')
+    try {
+      // Fetch IG Business Account linked to the FB Page
+      const res = await fetch(`https://graph.facebook.com/v21.0/${fbConn.fb_page_id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${fbConn.fb_page_access_token}`)
+      const data = await res.json()
+      if (data?.instagram_business_account?.id) {
+        const igId = data.instagram_business_account.id
+        const igUsername = data.instagram_business_account.username || ''
+        await supabase.from('seller_fb_connections').update({
+          ig_business_account_id: igId,
+          ig_username: igUsername,
+          ig_messenger_enabled: true,
+          ig_auto_post_enabled: true,
+        }).eq('user_id', user!.id)
+        setFbConn((prev: any) => prev ? { ...prev, ig_business_account_id: igId, ig_username: igUsername, ig_messenger_enabled: true, ig_auto_post_enabled: true } : prev)
+      } else {
+        setConnectError('No Instagram Business account found on your Facebook Page. Make sure your Instagram is linked in Facebook Page Settings → Linked Accounts.')
+      }
+    } catch (err: any) {
+      setConnectError('Failed to fetch Instagram account: ' + (err.message || 'Unknown error'))
+    } finally {
+      setConnecting('')
+    }
+  }
+
+  const handleIgDisconnect = async () => {
+    setDisconnecting('instagram')
+    await supabase.from('seller_fb_connections').update({
+      ig_business_account_id: null,
+      ig_username: null,
+      ig_access_token: null,
+      ig_messenger_enabled: false,
+      ig_auto_post_enabled: false,
+    }).eq('user_id', user!.id)
+    setFbConn((prev: any) => prev ? { ...prev, ig_business_account_id: null, ig_username: null, ig_messenger_enabled: false, ig_auto_post_enabled: false } : prev)
+    setDisconnecting('')
+    setDisconnectTarget(null)
+  }
+
+  const handleWaDisconnect = async () => {
+    setDisconnecting('whatsapp')
+    await supabase.from('seller_fb_connections').update({
+      wa_display_phone: null,
+      wa_phone_number_id: null,
+      wa_business_account_id: null,
+      wa_auto_reply_enabled: false,
+      wa_number_source: 'twilio_provisioned',
+    }).eq('user_id', user!.id)
+    setFbConn((prev: any) => prev ? { ...prev, wa_display_phone: null, wa_phone_number_id: null, wa_auto_reply_enabled: false } : prev)
+    setDisconnecting('')
+    setDisconnectTarget(null)
   }
 
   const handleWaSavePhone = async () => {
@@ -263,7 +323,7 @@ function ProManagePageInner() {
               <span style={{ fontWeight: 600, fontSize: 14 }}>{fbConn.fb_page_name || 'Facebook Page'}</span>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <StatusBadge connected />
-                <button onClick={handleFbDisconnect} disabled={disconnecting === 'fb'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+                <button onClick={() => setDisconnectTarget('fb')} disabled={disconnecting === 'fb'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
               </div>
             </div>
 
@@ -354,14 +414,23 @@ function ProManagePageInner() {
           <SectionCard>
             {!igConnected ? (
               <div style={{ padding: '8px 0', textAlign: 'center' }}>
-                <p style={{ margin: '0 0 4px', fontSize: 14, color: '#6b7280' }}>Instagram connects through your Facebook Page.</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>{fbConnected ? 'No Instagram Business account detected on your Facebook Page.' : 'Connect Facebook first — Instagram will be detected automatically.'}</p>
+                <p style={{ margin: '0 0 8px', fontSize: 14, color: '#6b7280' }}>{fbConnected ? 'Link your Instagram Business account to sync products and enable auto-replies.' : 'Connect Facebook first, then link Instagram.'}</p>
+                <button
+                  onClick={handleIgConnect}
+                  disabled={!fbConnected || connecting === 'instagram'}
+                  style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: !fbConnected ? '#d1d5db' : 'linear-gradient(135deg, #E1306C, #C13584)', color: 'white', fontSize: 14, fontWeight: 600, cursor: !fbConnected ? 'not-allowed' : 'pointer' }}
+                >
+                  {connecting === 'instagram' ? '⏳ Connecting…' : '📸 Connect Instagram'}
+                </button>
               </div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>@{fbConn.ig_username || 'Instagram'}</span>
-                  <StatusBadge connected />
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <StatusBadge connected />
+                    <button onClick={() => setDisconnectTarget('instagram')} disabled={disconnecting === 'instagram'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+                  </div>
                 </div>
                 <Divider />
                 <ToggleRow label="📦 Sync product catalog" desc="Sync your catalog to your Instagram Business or Creator account — not your personal profile." value={!!fbConn.ig_messenger_enabled} saving={savingField === 'ig_messenger_enabled'} onToggle={() => toggleFbField('ig_messenger_enabled', !!fbConn.ig_messenger_enabled)} />
@@ -406,6 +475,19 @@ function ProManagePageInner() {
         <>
           <SectionHeader emoji="📱" title="WhatsApp" />
           <SectionCard>
+            {/* Connected status + disconnect */}
+            {fbConn?.wa_display_phone && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{fbConn.wa_display_phone}</span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <StatusBadge connected />
+                    <button onClick={() => setDisconnectTarget('whatsapp')} disabled={disconnecting === 'whatsapp'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+                  </div>
+                </div>
+                <Divider />
+              </>
+            )}
             {/* Phone number config */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>WhatsApp Number</div>
@@ -603,7 +685,7 @@ function ProManagePageInner() {
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{googleConn.google_location_name || 'Google Business'}</span>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <StatusBadge connected />
-                    <button onClick={handleGoogleDisconnect} disabled={disconnecting === 'google'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
+                    <button onClick={() => setDisconnectTarget('google')} disabled={disconnecting === 'google'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
                   </div>
                 </div>
                 <Divider />
@@ -722,6 +804,53 @@ function BotChannelToggle({ icon, label, desc, config, onToggle, onDelay, hasDel
         </div>
       )}
     </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {disconnectTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setDisconnectTarget(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '90%', maxWidth: 400, background: '#fff', borderRadius: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>
+                {disconnectTarget === 'fb' ? '📘' : disconnectTarget === 'instagram' ? '📸' : disconnectTarget === 'whatsapp' ? '📱' : '🔍'}
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
+                Disconnect {disconnectTarget === 'fb' ? 'Facebook' : disconnectTarget === 'instagram' ? 'Instagram' : disconnectTarget === 'whatsapp' ? 'WhatsApp' : 'Google Business'}?
+              </h3>
+              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
+                {disconnectTarget === 'fb' && 'Catalog sync, auto-posting, and Messenger auto-replies will stop. You can reconnect anytime.'}
+                {disconnectTarget === 'instagram' && 'Instagram catalog sync, auto-posting, and DM auto-replies will be disabled. You can reconnect anytime.'}
+                {disconnectTarget === 'whatsapp' && 'Your WhatsApp number will be released and auto-replies will stop. You can provision a new number anytime.'}
+                {disconnectTarget === 'google' && 'Google Business syncing and auto-posting will stop. You can reconnect anytime.'}
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setDisconnectTarget(null)}
+                  disabled={!!disconnecting}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >Cancel</button>
+                <button
+                  onClick={() => {
+                    if (disconnectTarget === 'fb') handleFbDisconnect()
+                    else if (disconnectTarget === 'instagram') handleIgDisconnect()
+                    else if (disconnectTarget === 'whatsapp') handleWaDisconnect()
+                    else if (disconnectTarget === 'google') handleGoogleDisconnect()
+                  }}
+                  disabled={!!disconnecting}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 600, cursor: disconnecting ? 'not-allowed' : 'pointer', opacity: disconnecting ? 0.7 : 1 }}
+                >{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

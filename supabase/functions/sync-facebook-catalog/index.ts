@@ -1,12 +1,31 @@
 /**
- * sync-facebook-catalog — Syncs active products to Facebook catalogs
+ * sync-facebook-catalog — Syncs active products to Facebook Commerce Catalogs
  *
  * POST /functions/v1/sync-facebook-catalog
  * Auth: service_role (cron) or user JWT (manual trigger)
  * Body: { user_id?: string } (optional, for single-user sync)
+ *
+ * Flow:
+ *   1. Get all connected seller_fb_connections with auto_sync_enabled
+ *   2. Verify subscription (or pro_tester fallback)
+ *   3. For each connection, discover booths via owner_id (matching my-stands page)
+ *   4. For each booth, get products (matching booth detail page: is_deleted=false)
+ *   5. Enrich with full seller profile, catalog_items metadata, fulfillment details
+ *   6. Batch upsert to Facebook Commerce Catalog via Catalog Batch API
+ *   7. Sync to Google Business Profile for Elite sellers
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { publishPagePost } from '../_shared/facebook.ts'
+import { upsertCatalogProducts } from '../_shared/facebook.ts'
+import { getGoogleAccessToken, syncProductToGoogleCatalog, updateGoogleBusinessProfile } from '../_shared/google.ts'
+
+// Business type labels (same as generate-fb-posts)
+const bizTypeLabels: Record<string, string> = {
+  hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+  cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+  homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+  gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+  commercial: '🏢 Commercial / Licensed',
+}
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -15,7 +34,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const body = await req.json().catch(() => ({}))
   const targetUserId = body.user_id
 
-  // Get all active FB connections
+  // ── 1. Get all active FB connections ──
   let query = supabase
     .from('seller_fb_connections')
     .select('id, user_id, fb_page_access_token, fb_page_id, status, auto_sync_enabled, wa_display_phone, wa_auto_reply_enabled')
@@ -34,7 +53,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   }
 
   if (!connections || connections.length === 0) {
-    return jsonOk({ synced: 0, message: 'No active connections found', debug: { filter: 'status=connected, auto_sync_enabled=true' } }, corsHeaders)
+    return jsonOk({ synced: 0, message: 'No active connections found' }, corsHeaders)
   }
 
   let totalSynced = 0
@@ -42,9 +61,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const debugLog: string[] = []
 
   for (const conn of connections) {
-    debugLog.push(`Connection ${conn.id}: user=${conn.user_id}, status=${conn.status}, auto_sync=${conn.auto_sync_enabled}`)
+    debugLog.push(`Connection ${conn.id}: user=${conn.user_id}`)
 
-    // Verify Pro/Elite subscription is active (or pro_tester)
+    // ── 2. Verify subscription access ──
     const { data: sub } = await supabase
       .from('seller_subscriptions')
       .select('plan, status')
@@ -52,13 +71,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       .maybeSingle()
 
     let hasAccess = sub && ['active', 'trialing'].includes(sub.status)
+    let sellerPlan = sub?.plan || 'pro'
 
     // Fallback: check pro_testers
     if (!hasAccess) {
       const { data: profile } = await supabase.from('profiles').select('email').eq('id', conn.user_id).single()
       if (profile?.email) {
         const { data: tester } = await supabase.from('pro_testers').select('email').ilike('email', profile.email).maybeSingle()
-        if (tester) hasAccess = true
+        if (tester) { hasAccess = true; sellerPlan = 'elite' }
       }
     }
 
@@ -66,111 +86,315 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     if (!conn.fb_page_access_token || !conn.fb_page_id) { debugLog.push('  → SKIPPED: missing page token or page ID'); continue }
 
     try {
-      // Get all booths owned by this seller
+      // ── 3. Get all booths (matching my-stands page: owner_id, no status filter) ──
       const { data: booths } = await supabase
         .from('market_booths')
-        .select('id, name, offers_pickup, offers_delivery, pickup_address, delivery_radius_miles, delivery_zipcodes')
-        .eq('seller_id', conn.user_id)
-        .eq('status', 'published')
+        .select('*')
+        .eq('owner_id', conn.user_id)
 
       if (!booths || booths.length === 0) {
-        debugLog.push('  → SKIPPED: no published booths')
+        debugLog.push('  → SKIPPED: no booths found')
         continue
       }
 
-      debugLog.push(`  → Found ${booths.length} booths`)
+      debugLog.push(`  → Found ${booths.length} booth(s)`)
+
+      // ── Get full seller profile ──
+      const { data: sellerProfile } = await supabase
+        .from('profiles')
+        .select('full_name, farm_name, business_type, seller_bio, city, state_code, zip_code, business_license, food_handler_permit, cottage_food_permit, insurance_provider, business_logo_url')
+        .eq('id', conn.user_id)
+        .single()
+
+      const waPhone = conn.wa_display_phone || null
+
       let connectionProductCount = 0
 
       for (const booth of booths) {
-        // Get active products for this booth
+        // ── Auto-create booth_fb_catalogs entry if missing ──
+        const { data: existingCatalog } = await supabase
+          .from('booth_fb_catalogs')
+          .select('id, fb_catalog_id, sync_enabled')
+          .eq('booth_id', booth.id)
+          .maybeSingle()
+
+        if (!existingCatalog) {
+          // Auto-create entry for this booth
+          await supabase.from('booth_fb_catalogs').insert({
+            booth_id: booth.id,
+            connection_id: conn.id,
+            sync_enabled: true,
+          })
+          debugLog.push(`  → Auto-created booth_fb_catalogs for "${booth.name}"`)
+        }
+
+        if (existingCatalog && !existingCatalog.sync_enabled) {
+          debugLog.push(`  → Booth "${booth.name}": sync disabled`)
+          continue
+        }
+
+        const fbCatalogId = existingCatalog?.fb_catalog_id || null
+
+        // ── 4. Get products (matching booth detail page: is_deleted=false) ──
         const { data: products } = await supabase
           .from('market_products')
-          .select('id, name, description, price_usd, unit, inventory, category, photos, seller_id')
+          .select('*')
           .eq('booth_id', booth.id)
-          .eq('is_active', true)
           .eq('is_deleted', false)
 
-        if (!products || products.length === 0) { debugLog.push(`  → Booth ${booth.name}: 0 active products`); continue }
-        debugLog.push(`  → Booth ${booth.name}: ${products.length} active products`)
+        if (!products || products.length === 0) {
+          debugLog.push(`  → Booth "${booth.name}": 0 products`)
+          continue
+        }
 
-        // Get timings from booth_fulfillment_windows
+        debugLog.push(`  → Booth "${booth.name}": ${products.length} products`)
+
+        // ── Get fulfillment windows (grouped by day) ──
         const { data: windows } = await supabase
           .from('booth_fulfillment_windows')
           .select('window_type, day_of_week, start_time, end_time')
           .eq('booth_id', booth.id)
 
         let fulfillmentDesc = ''
+
         if (booth.offers_pickup) {
-          fulfillmentDesc += `\n📍 Pickup: Available near ${booth.pickup_address || 'our neighborhood'}`
+          fulfillmentDesc += `\n📍 Pickup: ${booth.pickup_address || booth.pickup_street || 'Available'}`
+          if (booth.pickup_city) fulfillmentDesc += `, ${booth.pickup_city}`
+          if (booth.pickup_state) fulfillmentDesc += ` ${booth.pickup_state}`
           const pickupWindows = windows?.filter(w => w.window_type === 'pickup')
           if (pickupWindows && pickupWindows.length > 0) {
-            fulfillmentDesc += '\n🕒 Pickup timings:'
+            fulfillmentDesc += '\n🕒 Pickup hours:'
             const grouped = groupByDay(pickupWindows)
             for (const [day, times] of Object.entries(grouped)) {
               fulfillmentDesc += `\n  • ${day}: ${times.join(', ')}`
             }
           }
         }
+
         if (booth.offers_delivery) {
           fulfillmentDesc += '\n🚗 Delivery: Available'
-          if (booth.delivery_radius_miles) fulfillmentDesc += ` within ${booth.delivery_radius_miles} miles`
+          if (booth.delivery_radius_miles) {
+            fulfillmentDesc += ` within ${booth.delivery_radius_miles} miles`
+          }
+          if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+            fulfillmentDesc += ` (Zip codes: ${booth.delivery_zipcodes.join(', ')})`
+          }
+          const deliveryWindows = windows?.filter(w => w.window_type === 'delivery')
+          if (deliveryWindows && deliveryWindows.length > 0) {
+            fulfillmentDesc += '\n🕒 Delivery hours:'
+            const grouped = groupByDay(deliveryWindows)
+            for (const [day, times] of Object.entries(grouped)) {
+              fulfillmentDesc += `\n  • ${day}: ${times.join(', ')}`
+            }
+          }
         }
 
-        // Get seller profile
-        const { data: sellerProfile } = await supabase
-          .from('profiles')
-          .select('full_name, city, zip_code, farm_name, seller_bio')
-          .eq('id', conn.user_id)
-          .single()
+        // ── Get linked catalog_items for enrichment ──
+        const catalogItemIds = products.map(p => p.catalog_item_id).filter(Boolean)
+        let catalogItemMap: Record<string, any> = {}
+        if (catalogItemIds.length > 0) {
+          const { data: catItems } = await supabase
+            .from('catalog_items')
+            .select('id, certifications, growing_method, variety, allergens, geographical_origin, shelf_life_days, storage_instructions')
+            .in('id', catalogItemIds)
+          if (catItems) {
+            for (const ci of catItems) catalogItemMap[ci.id] = ci
+          }
+        }
 
-        const waPhone = conn.wa_display_phone || null
+        // ── 5. Build enriched product payloads ──
+        const productPayloads = []
 
         for (const product of products) {
-          // Check if content changed using hash
+          // Only sync active products to the catalog
+          if (!product.is_active) continue
+
           const hash = await computeContentHash(product)
+
+          // Check if content changed
           const { data: syncRecord } = await supabase
             .from('product_fb_sync')
             .select('content_hash')
             .eq('product_id', product.id)
             .maybeSingle()
 
-          if (syncRecord?.content_hash === hash) {
-            connectionProductCount++ // Already synced, count it
-            continue
-          }
+          if (syncRecord?.content_hash === hash) continue // No change
 
           const photoUrl = product.photos?.[0] || `${siteUrl}/logo.png`
-          let desc = `🛒 ${product.name}\n💰 $${product.price_usd}/${product.unit}\n\n${product.description || ''}`
-          if (sellerProfile?.seller_bio) desc += `\n\n🌱 ${sellerProfile.seller_bio.substring(0, 200)}`
-          if (fulfillmentDesc) desc += `\n\n📦 Fulfillment:${fulfillmentDesc}`
-          if (waPhone) desc += `\n\n📱 WhatsApp: wa.me/${waPhone.replace(/\D/g, '')}`
-          desc += `\n\n🛍️ Order now: ${siteUrl}/market/product/${product.id}`
+          const catalogItem = product.catalog_item_id ? catalogItemMap[product.catalog_item_id] : null
 
-          // Post as a Page post
+          // Build enriched description
+          let enrichedDesc = product.description || product.name
+
+          // Business type
+          if (sellerProfile?.business_type && bizTypeLabels[sellerProfile.business_type]) {
+            enrichedDesc += `\n\n${bizTypeLabels[sellerProfile.business_type]}`
+          }
+
+          // Seller bio
+          if (sellerProfile?.seller_bio) {
+            enrichedDesc += `\n\n🌱 About: ${sellerProfile.seller_bio.substring(0, 300)}`
+          }
+
+          // Catalog item enrichment
+          if (catalogItem) {
+            if (catalogItem.certifications?.length > 0) {
+              enrichedDesc += `\n🏅 Certifications: ${catalogItem.certifications.join(', ')}`
+            }
+            if (catalogItem.growing_method) {
+              enrichedDesc += `\n🌿 Growing method: ${catalogItem.growing_method}`
+            }
+            if (catalogItem.variety) {
+              enrichedDesc += `\n🌾 Variety: ${catalogItem.variety}`
+            }
+            if (catalogItem.allergens?.length > 0) {
+              enrichedDesc += `\n⚠️ Allergens: ${catalogItem.allergens.join(', ')}`
+            }
+            if (catalogItem.geographical_origin) {
+              enrichedDesc += `\n📍 Origin: ${catalogItem.geographical_origin}`
+            }
+            if (catalogItem.shelf_life_days) {
+              enrichedDesc += `\n📅 Shelf life: ${catalogItem.shelf_life_days} days`
+            }
+            if (catalogItem.storage_instructions) {
+              enrichedDesc += `\n🧊 Storage: ${catalogItem.storage_instructions}`
+            }
+          }
+
+          // Trust badges
+          const badges = []
+          if (sellerProfile?.business_license) badges.push('✓ Licensed')
+          if (sellerProfile?.food_handler_permit) badges.push('✓ Food Handler')
+          if (sellerProfile?.cottage_food_permit) badges.push('✓ Cottage Food')
+          if (sellerProfile?.insurance_provider) badges.push('✓ Insured')
+          if (badges.length > 0) enrichedDesc += `\n\n${badges.join(' · ')}`
+
+          // Fulfillment
+          if (fulfillmentDesc) enrichedDesc += `\n\n📦 Fulfillment Options:${fulfillmentDesc}`
+
+          // Links
+          const productUrl = `${siteUrl}/market/booth/${booth.id}/product/${product.id}`
+          const waUrl = waPhone ? `https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! I'd like to order ${product.name} from CasaGrown: ${productUrl}`)}` : null
+
+          enrichedDesc += `\n\n🛍️ Order on CasaGrown: ${productUrl}`
+          if (waUrl) enrichedDesc += `\n📱 Order via WhatsApp: ${waUrl}`
+
+          productPayloads.push({
+            retailer_id: product.id,
+            name: `${product.name}${sellerProfile?.city ? ` · ${sellerProfile.city}` : ''}${sellerProfile?.zip_code ? ` ${sellerProfile.zip_code}` : ''}`.trim(),
+            description: enrichedDesc.substring(0, 5000),
+            price: Number(product.price_usd),
+            currency: 'USD',
+            url: productUrl,
+            image_url: photoUrl,
+            availability: product.inventory > 0 ? 'in stock' : 'out of stock',
+            brand: sellerProfile?.farm_name || sellerProfile?.full_name || 'CasaGrown Seller',
+            condition: 'new',
+            category: product.category || 'Food, Beverages & Tobacco',
+          })
+
+          // Upsert sync record as pending
+          await supabase
+            .from('product_fb_sync')
+            .upsert({
+              product_id: product.id,
+              content_hash: hash,
+              seller_sync_status: 'pending',
+              last_inventory_synced: product.inventory,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'product_id' })
+        }
+
+        // ── 6. Batch upsert to Facebook Catalog ──
+        if (productPayloads.length > 0 && fbCatalogId) {
           try {
-            await publishPagePost(conn.fb_page_access_token, conn.fb_page_id, {
-              message: desc,
-              link: `${siteUrl}/market/product/${product.id}`,
-            })
+            await upsertCatalogProducts(
+              fbCatalogId,
+              productPayloads,
+              conn.fb_page_access_token,
+            )
 
-            // Record sync
-            await supabase
-              .from('product_fb_sync')
-              .upsert({
-                product_id: product.id,
-                content_hash: hash,
-                seller_sync_status: 'synced',
-                seller_synced_at: new Date().toISOString(),
-                last_inventory_synced: product.inventory,
-                seller_error: null,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'product_id' })
+            // Mark as synced
+            for (const p of productPayloads) {
+              await supabase
+                .from('product_fb_sync')
+                .update({
+                  seller_sync_status: 'synced',
+                  seller_synced_at: new Date().toISOString(),
+                  seller_error: null,
+                })
+                .eq('product_id', p.retailer_id)
+            }
 
-            connectionProductCount++
-          } catch (postErr: any) {
-            console.error(`[SYNC] Failed to post product ${product.id}:`, postErr.message)
+            debugLog.push(`  → Synced ${productPayloads.length} products to FB Catalog ${fbCatalogId}`)
+
+            // ── 7. Google Business Profile sync (Elite only) ──
+            if (sellerPlan === 'elite') {
+              const { data: googleConn } = await supabase
+                .from('seller_google_connections')
+                .select('google_refresh_token, google_location_id, google_location_name, auto_sync_catalog')
+                .eq('user_id', conn.user_id)
+                .maybeSingle()
+
+              if (googleConn?.auto_sync_catalog && googleConn?.google_location_id && googleConn?.google_refresh_token) {
+                try {
+                  const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+                  for (const p of productPayloads) {
+                    await syncProductToGoogleCatalog(googleConn.google_location_id, googleAccessToken, {
+                      retailer_id: p.retailer_id,
+                      name: p.name,
+                      description: p.description,
+                      price: p.price,
+                      image_url: p.image_url,
+                      url: p.url,
+                    })
+                  }
+                  console.log(`[GBP-CATALOG] ✅ Synced ${productPayloads.length} products to Google Maps`)
+
+                  try {
+                    await updateGoogleBusinessProfile(googleConn.google_location_id, googleAccessToken, {
+                      description: sellerProfile?.seller_bio || undefined,
+                      additionalPhone: waPhone,
+                    })
+                  } catch (gbpMetaErr: any) {
+                    console.warn(`[GBP] Profile metadata update failed: ${gbpMetaErr.message}`)
+                  }
+                } catch (gbpErr: any) {
+                  console.error(`[GBP-CATALOG] ❌ Google sync failed: ${gbpErr.message}`)
+                }
+              }
+            }
+
+            connectionProductCount += productPayloads.length
+          } catch (fbErr: any) {
+            console.error(`FB catalog sync error:`, fbErr.message)
+            debugLog.push(`  → ERROR syncing to FB Catalog: ${fbErr.message}`)
+
+            for (const p of productPayloads) {
+              await supabase
+                .from('product_fb_sync')
+                .update({ seller_sync_status: 'error', seller_error: fbErr.message })
+                .eq('product_id', p.retailer_id)
+            }
             totalErrors++
           }
+        } else if (productPayloads.length > 0 && !fbCatalogId) {
+          // No FB Catalog ID yet — products are tracked but not pushed
+          debugLog.push(`  → ${productPayloads.length} products ready but no fb_catalog_id set — create a catalog in Facebook Commerce Manager`)
+          connectionProductCount += productPayloads.length
+        }
+
+        // Update catalog stats
+        const catalogId = existingCatalog?.id
+        if (catalogId) {
+          await supabase
+            .from('booth_fb_catalogs')
+            .update({
+              last_sync_at: new Date().toISOString(),
+              last_sync_count: productPayloads.length,
+              last_error: null,
+            })
+            .eq('id', catalogId)
         }
       }
 
@@ -187,6 +411,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       totalSynced += connectionProductCount
     } catch (err: any) {
       console.error(`Sync failed for connection ${conn.id}:`, err.message)
+      debugLog.push(`  → FATAL ERROR: ${err.message}`)
       await supabase
         .from('seller_fb_connections')
         .update({ last_error: err.message })
@@ -227,7 +452,7 @@ function groupByDay(windows: any[]): Record<string, string[]> {
     fri: 'Friday', sat: 'Saturday', sun: 'Sunday'
   }
   const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-  
+
   const sorted = [...windows].sort((a, b) => {
     const dayDiff = order.indexOf(a.day_of_week) - order.indexOf(b.day_of_week)
     if (dayDiff !== 0) return dayDiff
