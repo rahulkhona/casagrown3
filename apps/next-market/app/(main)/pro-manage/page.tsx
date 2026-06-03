@@ -212,14 +212,12 @@ function ProManagePageInner() {
 
   const handleWaDisconnect = async () => {
     setDisconnecting('whatsapp')
+    // Only disable features — keep the number for reconnecting later
+    // Number is only released on subscription downgrade/cancellation
     await supabase.from('seller_fb_connections').update({
-      wa_display_phone: null,
-      wa_phone_number_id: null,
-      wa_business_account_id: null,
       wa_auto_reply_enabled: false,
-      wa_number_source: 'twilio_provisioned',
     }).eq('user_id', user!.id)
-    setFbConn((prev: any) => prev ? { ...prev, wa_display_phone: null, wa_phone_number_id: null, wa_auto_reply_enabled: false } : prev)
+    setFbConn((prev: any) => prev ? { ...prev, wa_auto_reply_enabled: false } : prev)
     setDisconnecting('')
     setDisconnectTarget(null)
   }
