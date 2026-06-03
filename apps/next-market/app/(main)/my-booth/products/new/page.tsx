@@ -406,8 +406,8 @@ function NewProductPageInner() {
         for (let offset = 0; offset < 7; offset++) {
           const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
           const dayKey = DAY_NAMES[d.getDay()]
-          const dayDw = (weeklyDw[dayKey] || []).map(w => w.id || w).filter((id: string) => typeof id === 'string' && !id.startsWith('custom-'))
-          const dayPw = (weeklyPw[dayKey] || []).map(w => w.id || w).filter((id: string) => typeof id === 'string' && !id.startsWith('custom-'))
+          const dayDw = (weeklyDw[dayKey] || []).map(w => (w as any).id || w).filter((id: any) => typeof id === 'string' && !id.startsWith('custom-')) as string[]
+          const dayPw = (weeklyPw[dayKey] || []).map(w => (w as any).id || w).filter((id: any) => typeof id === 'string' && !id.startsWith('custom-')) as string[]
 
           if (dayDw.length > 0 || dayPw.length > 0) {
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
