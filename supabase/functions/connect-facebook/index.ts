@@ -63,6 +63,29 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         if (igData) console.log(`[CONNECT-FB] Detected IG Business Account: ${igData.id} (@${igData.username})`)
       }
 
+      // Auto-detect WhatsApp Business Account
+      let wabaData: { id: string; name?: string } | null = null
+      try {
+        const wabaRes = await fetch(
+          `https://graph.facebook.com/v21.0/me/businesses?access_token=${longLived.access_token}`
+        )
+        const wabaJson = await wabaRes.json()
+        if (wabaJson?.data?.length > 0) {
+          // Get WABA for the first business
+          const bizId = wabaJson.data[0].id
+          const wabaListRes = await fetch(
+            `https://graph.facebook.com/v21.0/${bizId}/owned_whatsapp_business_accounts?access_token=${longLived.access_token}`
+          )
+          const wabaList = await wabaListRes.json()
+          if (wabaList?.data?.length > 0) {
+            wabaData = { id: wabaList.data[0].id, name: wabaList.data[0].name }
+            console.log(`[CONNECT-FB] Detected WABA: ${wabaData.id} (${wabaData.name})`)
+          }
+        }
+      } catch (e) {
+        console.log('[CONNECT-FB] WABA detection skipped (no whatsapp_business_management scope yet)')
+      }
+
       // Build connection data (only FB-specific fields — preserve WA/IG fields on reconnect)
       const fbFields: Record<string, unknown> = {
         fb_access_token: longLived.access_token,
@@ -81,6 +104,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       if (igData) {
         fbFields.ig_business_account_id = igData.id
         fbFields.ig_username = igData.username || null
+      }
+      // Store WhatsApp Business Account if detected
+      if (wabaData) {
+        fbFields.wa_business_account_id = wabaData.id
       }
 
       // Try update first to preserve existing WA/IG fields on reconnect
@@ -125,7 +152,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   if (auth instanceof Response) return auth
   const userId = auth
 
-  const { return_path, include_instagram } = await req.json().catch(() => ({ return_path: '/profile', include_instagram: false }))
+  const { return_path, include_instagram, include_whatsapp } = await req.json().catch(() => ({ return_path: '/profile', include_instagram: false, include_whatsapp: false }))
   const stateParam = `${userId}:${encodeURIComponent(return_path || '/profile')}`
 
   const redirectUri = `${siteUrl}/api/facebook-callback`
@@ -137,6 +164,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'catalog_management',
     // Instagram scopes — only requested when user clicks "Connect Instagram"
     ...(include_instagram ? ['instagram_basic', 'instagram_manage_messages'] : []),
+    // WhatsApp scopes — only requested when user clicks "Connect WhatsApp"
+    ...(include_whatsapp ? ['whatsapp_business_management', 'whatsapp_business_messaging', 'business_management'] : []),
   ].join(',')
   const fbAuthUrl =
     `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}` +
