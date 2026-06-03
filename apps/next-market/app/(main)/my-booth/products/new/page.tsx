@@ -1342,9 +1342,9 @@ function NewProductPageInner() {
     setAiToast(null)
 
     const tryInvoke = async (): Promise<{ data: any; error: any }> => {
-      // 15s timeout to prevent hanging on slow/unreachable edge functions
+      // 45s timeout to prevent hanging on slow/unreachable edge functions
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 15000)
+      const timeout = setTimeout(() => controller.abort(), 45000)
       try {
         const res = await supabase.functions.invoke('analyze-product-photo', {
           body: { image: photos[0] },
