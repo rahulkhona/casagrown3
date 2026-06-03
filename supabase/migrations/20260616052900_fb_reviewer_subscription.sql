@@ -23,13 +23,18 @@ INSERT INTO auth.identities (
   id, user_id, provider_id, provider,
   identity_data, last_sign_in_at,
   created_at, updated_at
-) VALUES (
+)
+SELECT 
   'a0000000-0000-0000-0000-00000000000c',
   'a0000000-0000-0000-0000-00000000000c',
   'reviewer@test.local', 'email',
   jsonb_build_object('sub', 'a0000000-0000-0000-0000-00000000000c', 'email', 'reviewer@test.local'),
   now(), now(), now()
-) ON CONFLICT (provider_id, provider) DO NOTHING;
+WHERE NOT EXISTS (
+  SELECT 1 FROM auth.identities 
+  WHERE id = 'a0000000-0000-0000-0000-00000000000c'
+     OR (provider_id = 'reviewer@test.local' AND provider = 'email')
+);
 
 INSERT INTO public.profiles (
   id, email, full_name, avatar_url, home_community_h3_index
