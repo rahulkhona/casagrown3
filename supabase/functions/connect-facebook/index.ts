@@ -63,26 +63,44 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         if (igData) console.log(`[CONNECT-FB] Detected IG Business Account: ${igData.id} (@${igData.username})`)
       }
 
-      await supabase
+      // Build connection data (only FB-specific fields — preserve WA/IG fields on reconnect)
+      const fbFields: Record<string, unknown> = {
+        fb_access_token: longLived.access_token,
+        fb_token_expires_at: expiresAt,
+        status: 'connected',
+        auto_sync_enabled: true,
+        updated_at: new Date().toISOString(),
+        granted_scopes: tokenData.granted_scopes || null,
+      }
+      // If only one page, auto-select it
+      if (pages.length === 1) {
+        fbFields.fb_page_id = pages[0].id
+        fbFields.fb_page_name = pages[0].name
+        fbFields.fb_page_access_token = pages[0].access_token
+      }
+      // Store IG Business Account if detected (don't overwrite with null if not detected)
+      if (igData) {
+        fbFields.ig_business_account_id = igData.id
+        fbFields.ig_username = igData.username || null
+      }
+
+      // Try update first to preserve existing WA/IG fields on reconnect
+      const { data: existingConn } = await supabase
         .from('seller_fb_connections')
-        .upsert({
-          user_id: userId,
-          fb_access_token: longLived.access_token,
-          fb_token_expires_at: expiresAt,
-          status: 'connected',
-          updated_at: new Date().toISOString(),
-          // If only one page, auto-select it
-          ...(pages.length === 1 ? {
-            fb_page_id: pages[0].id,
-            fb_page_name: pages[0].name,
-            fb_page_access_token: pages[0].access_token,
-          } : {}),
-          // Store IG Business Account if detected
-          ...(igData ? {
-            ig_business_account_id: igData.id,
-            ig_username: igData.username || null,
-          } : {}),
-        }, { onConflict: 'user_id' })
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (existingConn) {
+        await supabase
+          .from('seller_fb_connections')
+          .update(fbFields)
+          .eq('user_id', userId)
+      } else {
+        await supabase
+          .from('seller_fb_connections')
+          .insert({ user_id: userId, ...fbFields })
+      }
 
       // Redirect back to profile with page info
       const pagesParam = encodeURIComponent(

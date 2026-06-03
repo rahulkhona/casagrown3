@@ -476,8 +476,7 @@ function ProManagePageInner() {
         <>
           <SectionHeader emoji="📱" title="WhatsApp" />
           <SectionCard>
-            {/* Connected status + disconnect */}
-            {fbConn?.wa_display_phone && (
+            {fbConn?.wa_display_phone ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{fbConn.wa_display_phone}</span>
@@ -488,6 +487,10 @@ function ProManagePageInner() {
                 </div>
                 <Divider />
               </>
+            ) : (
+              <div style={{ padding: '8px 0 12px', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 14, color: '#6b7280' }}>Set up WhatsApp Business for auto-replies and order notifications.</p>
+              </div>
             )}
             {/* Phone number config */}
             <div style={{ marginBottom: 14 }}>
