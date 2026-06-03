@@ -722,6 +722,17 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
     setZipInput('')
   }
 
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!confirm(`Delete "${productName}"? This will remove it from your booth.`)) return
+    const { error } = await supabase
+      .from('market_products')
+      .update({ is_deleted: true, is_active: false })
+      .eq('id', productId)
+    if (!error) {
+      setProducts(prev => prev.filter(p => p.id !== productId))
+    }
+  }
+
   const handleZipKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
@@ -1084,28 +1095,61 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         ) : (
           <div className={styles.listingsGrid}>
             {products.map(product => (
-              <Link
+              <div
                 key={product.id}
-                href={`/my-booth/products/${product.id}`}
                 className={styles.listingCard}
+                style={{ position: 'relative' }}
               >
-                <div className={styles.listingImage}>
-                  {product.photos[0] ? (
-                    <img src={product.photos[0]} alt={product.name} />
-                  ) : (
-                    <span className={styles.listingEmoji}>🥬</span>
-                  )}
-                </div>
-                <div className={styles.listingInfo}>
-                  <strong>{product.name}</strong>
-                  <span className={styles.listingPrice}>
-                    {product.price_usd === 0 ? 'Free' : `${formatUsd(product.price_usd)}/${product.unit}`}
-                  </span>
-                  <span className={styles.listingStock}>
-                    {product.inventory > 0 ? `${product.inventory} in stock` : 'Sold out'}
-                  </span>
-                </div>
-              </Link>
+                <Link
+                  href={`/my-booth/products/${product.id}`}
+                  style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                >
+                  <div className={styles.listingImage}>
+                    {product.photos[0] ? (
+                      <img src={product.photos[0]} alt={product.name} />
+                    ) : (
+                      <span className={styles.listingEmoji}>🥬</span>
+                    )}
+                  </div>
+                  <div className={styles.listingInfo}>
+                    <strong>{product.name}</strong>
+                    <span className={styles.listingPrice}>
+                      {product.price_usd === 0 ? 'Free' : `${formatUsd(product.price_usd)}/${product.unit}`}
+                    </span>
+                    <span className={styles.listingStock}>
+                      {product.inventory > 0 ? `${product.inventory} in stock` : 'Sold out'}
+                    </span>
+                  </div>
+                </Link>
+                {/* Product action buttons */}
+                {!isHelperView && (
+                  <div style={{
+                    display: 'flex', gap: 4, padding: '6px 8px',
+                    borderTop: '1px solid var(--gray-100, #f3f4f6)',
+                  }}>
+                    <Link
+                      href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
+                      style={{
+                        flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        textAlign: 'center', background: 'var(--gray-50, #f9fafb)', color: '#374151',
+                        border: '1px solid var(--gray-200, #e5e7eb)', textDecoration: 'none',
+                      }}
+                    >
+                      ✏️ Edit
+                    </Link>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteProduct(product.id, product.name) }}
+                      style={{
+                        flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
             {/* Add listing card */}
             <Link
