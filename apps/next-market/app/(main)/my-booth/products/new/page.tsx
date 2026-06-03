@@ -379,40 +379,39 @@ function NewProductPageInner() {
   useEffect(() => {
     if (!authUser?.id || boothDefaultsLoaded || !boothId) return
     const loadBoothDefaults = async () => {
+      const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+      const ALL_SLOT_IDS = PRODUCT_TIME_WINDOWS.map(w => w.id)
+
+      // 1. Load booth settings
       const { data: booth } = await supabase
         .from('market_booths')
-        .select('offers_delivery, offers_pickup, weekly_delivery_windows, weekly_pickup_windows, delivery_windows, pickup_windows, delivery_radius_miles, pickup_address, delivery_zipcodes')
+        .select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes')
         .eq('id', boothId)
         .single()
-      if (!booth) return
-      // If booth has explicit settings, use them; if null (never configured), default to true
-      const boothDel = booth.offers_delivery != null ? booth.offers_delivery : true
-      const boothPick = booth.offers_pickup != null ? booth.offers_pickup : true
-      setBoothOffersDelivery(boothDel)
-      setBoothOffersPickup(boothPick)
-      // Mirror booth settings to product-level toggles
-      setProductOffersDelivery(boothDel)
-      setProductOffersPickup(boothPick)
-      // Pre-fill product-level overrides from booth defaults
-      if (booth.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
-      if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
 
-      // Read from booth_fulfillment_windows table (source of truth), fall back to JSONB
-      const { data: tableWindows, error: twError } = await supabase
+      // 2. Load fulfillment windows from table (same source as booth page)
+      const { data: windows } = await supabase
         .from('booth_fulfillment_windows')
         .select('*')
         .eq('booth_id', boothId)
 
-      console.log('[BOOTH DEFAULTS] boothId:', boothId)
-      console.log('[BOOTH DEFAULTS] booth:', JSON.stringify({ offers_delivery: booth.offers_delivery, offers_pickup: booth.offers_pickup, radius: booth.delivery_radius_miles, zipcodes: booth.delivery_zipcodes }))
-      console.log('[BOOTH DEFAULTS] tableWindows:', tableWindows?.length, 'error:', twError?.message, 'data:', JSON.stringify(tableWindows?.slice(0, 3)))
+      const hasBoothWindows = windows && windows.length > 0
 
-      let weeklyDw: Record<string, string[]> = {}
-      let weeklyPw: Record<string, string[]> = {}
+      if (hasBoothWindows) {
+        // ── Booth HAS fulfillment defaults → use them ──
+        const del = booth?.offers_delivery ?? false
+        const pick = booth?.offers_pickup ?? false
+        setBoothOffersDelivery(del)
+        setBoothOffersPickup(pick)
+        setProductOffersDelivery(del)
+        setProductOffersPickup(pick)
+        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+        if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
 
-      if (tableWindows && tableWindows.length > 0) {
-        // Build from table rows
-        for (const w of tableWindows) {
+        // Build weekly schedule from table rows (same logic as booth page)
+        const weeklyDw: Record<string, string[]> = {}
+        const weeklyPw: Record<string, string[]> = {}
+        for (const w of windows) {
           const startH = parseInt(w.start_time.split(':')[0])
           const endH = parseInt(w.end_time.split(':')[0])
           const slotId = `${startH}-${endH}`
@@ -424,61 +423,53 @@ function NewProductPageInner() {
             weeklyPw[w.day_of_week].push(slotId)
           }
         }
-      } else {
-        // Fall back to JSONB columns
-        const jsonDw = (booth.weekly_delivery_windows || {}) as Record<string, any[]>
-        const jsonPw = (booth.weekly_pickup_windows || {}) as Record<string, any[]>
-        for (const [day, slots] of Object.entries(jsonDw)) {
-          weeklyDw[day] = (slots || []).map((w: any) => typeof w === 'string' ? w : w.id).filter((id: string) => id && !id.startsWith('custom-'))
-        }
-        for (const [day, slots] of Object.entries(jsonPw)) {
-          weeklyPw[day] = (slots || []).map((w: any) => typeof w === 'string' ? w : w.id).filter((id: string) => id && !id.startsWith('custom-'))
-        }
-      }
 
-      const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
-      const hasWeeklyWindows = Object.keys(weeklyDw).length > 0 || Object.keys(weeklyPw).length > 0
-
-      if (hasWeeklyWindows) {
-        // Build dates for the next 7 days based on which days have booth windows
-        const upcomingDates: string[] = []
+        // Map weekly schedule → next 7 calendar days
+        const dates: string[] = []
         const dwMap: Record<string, string[]> = {}
         const pwMap: Record<string, string[]> = {}
-
-        for (let offset = 0; offset < 7; offset++) {
-          const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
           const dayKey = DAY_NAMES[d.getDay()]
-          const dayDw = (weeklyDw[dayKey] || []).filter(id => !id.startsWith('custom-'))
-          const dayPw = (weeklyPw[dayKey] || []).filter(id => !id.startsWith('custom-'))
-
-          if (dayDw.length > 0 || dayPw.length > 0) {
+          const dw = weeklyDw[dayKey] || []
+          const pw = weeklyPw[dayKey] || []
+          if (dw.length > 0 || pw.length > 0) {
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-            upcomingDates.push(dateStr)
-            dwMap[dateStr] = dayDw
-            pwMap[dateStr] = dayPw
+            dates.push(dateStr)
+            dwMap[dateStr] = dw
+            pwMap[dateStr] = pw
           }
         }
-
-        if (upcomingDates.length > 0) {
-          setSelectedDates(upcomingDates)
+        if (dates.length > 0) {
+          setSelectedDates(dates)
           setProductDeliveryWindows(dwMap)
           setProductPickupWindows(pwMap)
-        } else {
-          // Booth has weekly windows but none for the next 7 days — default to today/tomorrow
-          setSelectedDates([todayStr, tomorrowStr])
-          setProductDeliveryWindows({ [todayStr]: [], [tomorrowStr]: [] })
-          setProductPickupWindows({ [todayStr]: [], [tomorrowStr]: [] })
         }
       } else {
-        // No weekly windows — fall back to flat windows for today/tomorrow
-        const flatDw = (booth.delivery_windows || []) as Array<{id: string}>
-        const flatPw = (booth.pickup_windows || []) as Array<{id: string}>
-        const flatDwIds = flatDw.map(w => w.id).filter(id => !id.startsWith('custom-'))
-        const flatPwIds = flatPw.map(w => w.id).filter(id => !id.startsWith('custom-'))
+        // ── Booth has NO fulfillment defaults → sensible defaults ──
+        setBoothOffersDelivery(true)
+        setBoothOffersPickup(true)
+        setProductOffersDelivery(true)
+        setProductOffersPickup(true)
+        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+
+        // Default to today + tomorrow with all time slots selected
         setSelectedDates([todayStr, tomorrowStr])
-        setProductDeliveryWindows({ [todayStr]: flatDwIds, [tomorrowStr]: flatDwIds })
-        setProductPickupWindows({ [todayStr]: flatPwIds, [tomorrowStr]: flatPwIds })
+        setProductDeliveryWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
+        setProductPickupWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
+
+        // Use profile address as pickup address fallback
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('street_address, city, state_code')
+          .eq('id', authUser.id)
+          .single()
+        if (profile?.street_address) {
+          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+          setInlinePickupAddress(addr)
+        }
       }
+
       setBoothDefaultsLoaded(true)
     }
     loadBoothDefaults()
