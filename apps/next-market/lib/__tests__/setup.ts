@@ -1,4 +1,7 @@
 import '@testing-library/jest-dom'
+import * as matchers from '@testing-library/jest-dom/matchers'
+import { expect } from 'vitest'
+expect.extend(matchers)
 import { vi } from 'vitest'
 import React from 'react'
 
@@ -183,3 +186,11 @@ if (typeof Element !== 'undefined') {
   Element.prototype.setPointerCapture = Element.prototype.setPointerCapture || vi.fn()
   Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture || vi.fn()
 }
+
+// Global DOM cleanup after each test
+import { afterEach } from 'vitest'
+import { cleanup } from '@testing-library/react'
+
+afterEach(() => {
+  cleanup()
+})

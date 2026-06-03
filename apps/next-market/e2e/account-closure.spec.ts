@@ -203,7 +203,12 @@ test('delete account page discloses consequences', async ({ page }) => {
     await expect(page.getByText('no activity history')).toBeVisible({ timeout: 5_000 })
   } else {
     await expect(page.getByText('anonymized').first()).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByText('permanently locked')).toBeVisible({ timeout: 5_000 })
+    const hasRegulatoryNotice = await page.getByText('Regulatory & Traceability Retention').isVisible({ timeout: 2_000 }).catch(() => false)
+    if (hasRegulatoryNotice) {
+      await expect(page.getByText('Regulatory & Traceability Retention')).toBeVisible({ timeout: 5_000 })
+    } else {
+      await expect(page.getByText('permanently locked')).toBeVisible({ timeout: 5_000 })
+    }
     await expect(page.getByText('Deleted User').first()).toBeVisible({ timeout: 5_000 })
   }
 })

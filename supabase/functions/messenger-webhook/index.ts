@@ -5,13 +5,13 @@
  * POST: Handle incoming messages → AI-powered reply with multi-booth routing
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { sendMessengerMessage, getFbUserProfile } from '../_shared/facebook.ts'
+import { sendMessengerMessage, getFbUserProfile, publishComment } from '../_shared/facebook.ts'
 import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
   type BoothSummary,
 } from '../_shared/growbot-seller.ts'
-import { extractMessengerReferral, lookupProductById, buildProductContextPrompt } from '../_shared/product-context.ts'
+import { extractMessengerReferral, lookupProductById, buildProductContextPrompt, lookupProductByFbPostId } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
@@ -39,6 +39,206 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const entries = body.entry || []
 
     for (const entry of entries) {
+      // 1. Process Page comment/feed events (changes)
+      const changes = entry.changes || []
+      for (const change of changes) {
+        if (change.field === 'feed' && change.value?.item === 'comment' && change.value?.verb === 'add') {
+          const commentId = change.value.comment_id
+          const postId = change.value.post_id
+          const message = change.value.message
+          const senderId = change.value.sender_id
+          const pageId = entry.id
+
+          if (!commentId || !postId || !message || !senderId) continue
+          if (senderId === pageId) {
+            console.log(`[MESSENGER] Comment by page itself (${senderId}), skipping loop.`)
+            continue
+          }
+
+          console.log(`[MESSENGER] Comment on post ${postId} from ${senderId}: "${message.slice(0, 100)}"`)
+
+          try {
+            // Find seller connection for this page
+            const { data: conn } = await supabase
+              .from('seller_fb_connections')
+              .select('user_id, fb_page_access_token, fb_page_id')
+              .eq('fb_page_id', pageId)
+              .eq('status', 'connected')
+              .single()
+
+            if (!conn || !conn.fb_page_access_token) {
+              console.warn(`[MESSENGER] No connected page for page ${pageId}`)
+              continue
+            }
+
+            // Verify seller has active Pro/Elite subscription
+            const { data: sub } = await supabase
+              .from('seller_subscriptions')
+              .select('plan, status')
+              .eq('user_id', conn.user_id)
+              .single()
+
+            if (!sub || !['active', 'trialing'].includes(sub.status)) {
+              console.warn(`[MESSENGER] Seller ${conn.user_id} does not have active subscription for comments`)
+              continue
+            }
+
+            // Check if Facebook Auto-Responder is enabled in subscription tier features
+            const { data: tier } = await supabase
+              .from('subscription_tiers')
+              .select('features')
+              .eq('tier_name', sub.plan)
+              .single()
+
+            if (!tier?.features?.facebook_chat) {
+              console.warn(`[MESSENGER] Seller ${conn.user_id} does not have Facebook Auto-Responder enabled in tier`)
+              continue
+            }
+
+            // Check if Messenger auto-reply is enabled in bot_channels
+            const { data: sellerProfile } = await supabase
+              .from('profiles')
+              .select('bot_channels')
+              .eq('id', conn.user_id)
+              .single()
+
+            const messengerConfig = (sellerProfile?.bot_channels as Record<string, any>)?.messenger
+            if (messengerConfig?.enabled === false) {
+              console.log(`[MESSENGER] Messenger auto-reply disabled for seller ${conn.user_id}`)
+              continue
+            }
+
+            // Look up product by FB post ID
+            const productCtx = await lookupProductByFbPostId(supabase, postId)
+            let boothId = productCtx?.boothId || null
+
+            if (!boothId) {
+              // Fallback to default booth
+              const { data: defaultBooth } = await supabase
+                .from('market_booths')
+                .select('id')
+                .eq('owner_id', conn.user_id)
+                .eq('is_default', true)
+                .single()
+              boothId = defaultBooth?.id || null
+            }
+
+            if (!boothId) {
+              console.warn(`[MESSENGER] No booth found for comments on page ${pageId}`)
+              continue
+            }
+
+            const ctx = await loadBoothContext(supabase, boothId)
+            if (!ctx) continue
+
+            const sellerRules = await loadSellerBotRules(supabase)
+            let systemPrompt = `You are GrowBot 🤖, a friendly AI sales assistant answering comments on behalf of ${ctx.sellerName} for their farm stand "${ctx.boothName}" on CasaGrown.\n` +
+              `Keep your response short, friendly, and direct. Since this is a public comment on a social media post, write a concise reply (1-2 sentences).\n` +
+              `If someone is asking a question about a product, pricing, pickup/delivery, answer using the context provided below.\n` +
+              `Always guide them to check out the full menu or place an order using the link provided.`
+
+            systemPrompt += '\n\n' + buildSellerSystemPrompt(ctx, sellerRules)
+
+            if (productCtx) {
+              systemPrompt += buildProductContextPrompt(productCtx)
+            }
+
+            const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+            const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+
+            if (!AI_KEY) continue
+
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: systemPrompt }] },
+                  contents: [{ role: 'user', parts: [{ text: message }] }],
+                  generationConfig: { temperature: 0.3, maxOutputTokens: 256 },
+                }),
+              },
+            )
+
+            if (!geminiRes.ok) throw new Error(`Gemini API error: ${geminiRes.status}`)
+
+            const geminiData = await geminiRes.json()
+            const rawReply = geminiData.candidates?.[0]?.content?.parts
+              ?.filter((p: any) => p.text && p.thought !== true)
+              ?.map((p: any) => p.text)
+              ?.join('') || ''
+
+            if (!rawReply) continue
+
+            const escalation = detectEscalation(rawReply)
+            const replyText = cleanBotReply(rawReply)
+
+            if (escalation.escalate) {
+              console.log(`[MESSENGER] Comment escalated. Skipping reply, notifying seller.`)
+              const msgPreview = message.slice(0, 80)
+              const linkUrl = `https://facebook.com/${postId}`
+
+              const { data: seller } = await supabase
+                .from('profiles')
+                .select('phone_number, phone_verified')
+                .eq('id', conn.user_id)
+                .single()
+
+              if (seller?.phone_verified && seller?.phone_number) {
+                try {
+                  await supabase.functions.invoke('send-sms-notification', {
+                    body: {
+                      userId: conn.user_id,
+                      message: `🔔 Facebook Comment: A customer needs help on your post — "${msgPreview}"`,
+                      linkUrl,
+                    },
+                  })
+                } catch (smsErr: any) {
+                  console.error('[MESSENGER] SMS comment escalation failed:', smsErr.message)
+                }
+              }
+
+              try {
+                await supabase.functions.invoke('send-notification-email', {
+                  body: {
+                    type: 'chat_initiated',
+                    userId: conn.user_id,
+                    data: {
+                      buyerName: 'A Facebook user in comments',
+                      productName: 'Facebook Comment',
+                      message: msgPreview,
+                      actionUrl: linkUrl,
+                    },
+                  },
+                })
+              } catch (emailErr: any) {
+                console.error('[MESSENGER] Email comment escalation failed:', emailErr.message)
+              }
+
+              try {
+                await supabase.functions.invoke('send-push-notification', {
+                  body: {
+                    userId: conn.user_id,
+                    title: '🔔 Facebook Comment: Attention needed',
+                    body: `"${msgPreview}"`,
+                    data: { url: linkUrl },
+                  },
+                })
+              } catch (pushErr: any) {
+                console.error('[MESSENGER] Push comment escalation failed:', pushErr.message)
+              }
+            } else {
+              await publishComment(commentId, replyText, conn.fb_page_access_token)
+              console.log(`[MESSENGER] Comment reply published: "${replyText}"`)
+            }
+          } catch (err: any) {
+            console.error('[MESSENGER] Error processing feed comment change:', err.message)
+          }
+        }
+      }
+
+      // 2. Process Messenger DM events (messaging)
       const messaging = entry.messaging || []
 
       for (const event of messaging) {

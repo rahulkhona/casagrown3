@@ -251,45 +251,30 @@ export default function MyStandsPage() {
       <div className={styles.header}>
         <h1 className={styles.title}>My Booths</h1>
         <p className={styles.subtitle}>
-          Manage your booths and listings ({stands.length} {maxBooths < 0 ? 'active' : `/ ${maxBooths} active`})
+          Manage your booths and listings{activePlan !== 'lite' ? ` (${stands.length} ${maxBooths < 0 ? 'active' : `/ ${maxBooths} active`})` : ''}
         </p>
       </div>
 
       {/* Action Row — Gated dynamically by booth limits */}
       <div style={{ marginBottom: 24 }}>
         <div className={styles.actionRow}>
-          {activePlan !== 'lite' ? (
+          {activePlan !== 'lite' && (
             <Link href="/my-stands/catalog" className={styles.actionBtnOutline}>
               📦 Manage Product Catalog
             </Link>
-          ) : (
-            <button className={styles.actionBtnOutline} disabled style={{
-              opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.5)', pointerEvents: 'none'
-            }}>
-              📦 Manage Product Catalog 🔒
-            </button>
           )}
 
-          {maxBooths < 0 || stands.length < maxBooths ? (
+          {(maxBooths < 0 || stands.length < maxBooths) && (
             <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
               + Add New Booth
             </Link>
-          ) : (
-            <button className={styles.actionBtnPrimary} disabled style={{
-              opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(0.5)', pointerEvents: 'none'
-            }}>
-              + Add New Booth 🔒
-            </button>
           )}
         </div>
 
-        {maxBooths >= 0 && stands.length >= maxBooths && (
+        {activePlan !== 'lite' && maxBooths >= 0 && stands.length >= maxBooths && (
           <div style={{ margin: '12px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
             <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>
-              🔒 You have reached the booth limit of <strong>{maxBooths}</strong> for your plan tier.
-            </p>
-            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af' }}>
-              Manage your plan from the Features page.
+              You have reached the booth limit of <strong>{maxBooths}</strong> for your plan tier.
             </p>
           </div>
         )}

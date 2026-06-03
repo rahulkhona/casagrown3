@@ -244,7 +244,7 @@ test.describe('Messages Inbox', () => {
     await page.goto('/messages')
     await page.waitForTimeout(3000)
 
-    const growbotLink = page.locator('a[href="/growbot"]')
+    const growbotLink = page.locator('a[href="/messages/growbot"]')
     await expect(growbotLink).toBeVisible()
 
     // GrowBot should show "Pinned" label

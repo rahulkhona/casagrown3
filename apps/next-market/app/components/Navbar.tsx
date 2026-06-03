@@ -369,6 +369,7 @@ export function Navbar() {
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
     { href: '/quarantines', label: 'Quarantine Info', icon: '⚠️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
+    { href: '/delete-account', label: 'Delete Account', icon: '🗑️', section: 'account' },
   ]
 
   // Close menu on outside click
@@ -688,25 +689,17 @@ export function Navbar() {
                   <div className={styles.menuSection}>
                     <div className={styles.menuSectionLabel}>Account</div>
                     {accountItems.map(item => (
-                      <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}
+                        style={item.href === '/delete-account' ? { color: 'var(--red-600)' } : undefined}
+                      >
                         <span className={styles.menuItemIcon}>{item.icon}</span>
                         <span>{item.label}</span>
                       </Link>
                     ))}
-                    {/* Pro menu item */}
-                    {!subLoading && proEnabled && (
-                      isPro ? (
-                        <Link href="/pro-manage" className={`${styles.menuItem} ${pathname === '/pro-manage' ? styles.menuItemActive : ''}`}>
-                          <span className={styles.menuItemIcon}>🚜</span>
-                          <span>Manage Features</span>
-                        </Link>
-                      ) : (
-                        <Link href="/pro-manage" className={styles.menuItem}>
-                          <span className={styles.menuItemIcon}>🚜</span>
-                          <span>Manage Features</span>
-                        </Link>
-                      )
-                    )}
+                    {/* Pro menu item removed */}
                     {!isNotificationsEnabled() && (
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); showPrompt(true); }}>
                         <span className={styles.menuItemIcon}>🔔</span>

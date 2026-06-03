@@ -300,7 +300,6 @@ Deno.test({
     // Elite features
     assert(html.includes("WhatsApp"), "Elite should mention WhatsApp auto-responder");
     assert(html.includes("Google Maps") || html.includes("Local search"), "Elite should mention Google Maps sync");
-    assert(html.includes("Veo") || html.includes("video") || html.includes("Video"), "Elite should mention AI video reels");
     assert(html.includes("Unlimited") || html.includes("unlimited"), "Elite should mention unlimited stands");
     assert(html.includes("2%"), "Elite should show 2% transaction fee");
 
@@ -328,7 +327,7 @@ Deno.test({
     assert(html.includes("Stripe Connect") || html.includes("bank account"), "Should have Stripe Connect CTA");
     assert(html.includes("App Store") || html.includes("Google Play"), "Should have app download links");
 
-    console.log("✅ Elite signup email verified: WhatsApp, Google Maps, Veo, unified inbox, all links");
+    console.log("✅ Elite signup email verified: WhatsApp, Google Maps, unified inbox, all links");
   },
 });
 

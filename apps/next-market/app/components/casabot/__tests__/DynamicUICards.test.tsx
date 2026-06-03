@@ -5,9 +5,13 @@
  *
  * Run: cd apps/next-market && npx vitest run app/components/casabot/__tests__/DynamicUICards.test.tsx
  */
-import { describe, test, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, test, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import React from 'react'
+
+afterEach(() => {
+  cleanup()
+})
 import {
   ActionChips,
   SellerWizardCard,
@@ -81,18 +85,18 @@ describe('SellerWizardCard', () => {
 // ══════════════════════════════════════════════════════════════
 describe('DiagnosisCard', () => {
   test('renders diagnosis, urgency, remedy plan, share button', () => {
-    render(<DiagnosisCard data={{
+    const { getByText } = render(<DiagnosisCard data={{
       diagnosis: 'Powdery Mildew',
       urgency: 'High',
       remedy_plan: 'Spray neem oil weekly',
       suggested_next_actions: ['Buy neem oil'],
     }} />)
     
-    expect(screen.getByText('Powdery Mildew')).toBeDefined()
-    expect(screen.getByText('High')).toBeDefined()
-    expect(screen.getByText('Spray neem oil weekly')).toBeDefined()
-    expect(screen.getByText(/Share/)).toBeDefined()
-    expect(screen.getByText('Buy neem oil')).toBeDefined()
+    expect(getByText('Powdery Mildew')).toBeDefined()
+    expect(getByText('High')).toBeDefined()
+    expect(getByText('Spray neem oil weekly')).toBeDefined()
+    expect(getByText(/Share/)).toBeDefined()
+    expect(getByText('Buy neem oil')).toBeDefined()
   })
 })
 
@@ -120,7 +124,7 @@ describe('PlantGuideCard', () => {
 // ══════════════════════════════════════════════════════════════
 describe('RecipeCard', () => {
   test('renders dish name, ingredients list, instructions, share button', () => {
-    render(<RecipeCard data={{
+    const { getByText } = render(<RecipeCard data={{
       dish_name: 'Tomato Soup',
       ingredients: ['Tomatoes', 'Basil', 'Garlic'],
       instructions: 'Blend and simmer for 20 minutes.',
@@ -128,13 +132,13 @@ describe('RecipeCard', () => {
       serving_size: '4 servings',
     }} />)
     
-    expect(screen.getByText('Tomato Soup')).toBeDefined()
-    expect(screen.getByText('• Tomatoes')).toBeDefined()
-    expect(screen.getByText('• Basil')).toBeDefined()
-    expect(screen.getByText('• Garlic')).toBeDefined()
-    expect(screen.getByText('Blend and simmer for 20 minutes.')).toBeDefined()
-    expect(screen.getByText('30 min · 4 servings')).toBeDefined()
-    expect(screen.getByText(/Share/)).toBeDefined()
+    expect(getByText('Tomato Soup')).toBeDefined()
+    expect(getByText('• Tomatoes')).toBeDefined()
+    expect(getByText('• Basil')).toBeDefined()
+    expect(getByText('• Garlic')).toBeDefined()
+    expect(getByText('Blend and simmer for 20 minutes.')).toBeDefined()
+    expect(getByText('30 min · 4 servings')).toBeDefined()
+    expect(getByText(/Share/)).toBeDefined()
   })
 })
 

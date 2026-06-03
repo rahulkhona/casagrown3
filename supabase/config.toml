@@ -366,6 +366,7 @@ RELOADLY_CLIENT_ID = "env(RELOADLY_CLIENT_ID)"
 RELOADLY_CLIENT_SECRET = "env(RELOADLY_CLIENT_SECRET)"
 RELOADLY_SANDBOX = "env(RELOADLY_SANDBOX)"
 GEMINI_API_KEY = "env(GEMINI_API_KEY)"
+VEO_API_KEY = "env(VEO_API_KEY)"
 GLOBALGIVING_API_KEY = "env(GLOBALGIVING_API_KEY)"
 PAYPAL_CLIENT_ID = "env(PAYPAL_CLIENT_ID)"
 PAYPAL_SECRET = "env(PAYPAL_SECRET)"
@@ -854,12 +855,12 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/whatsapp-webhook/index.ts"
 
-[functions.generate-video-post]
-enabled = true
-verify_jwt = true
-entrypoint = "./functions/generate-video-post/index.ts"
-
 [functions.connect-google]
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/connect-google/index.ts"
+
+[functions.publish-fb-post]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/publish-fb-post/index.ts"

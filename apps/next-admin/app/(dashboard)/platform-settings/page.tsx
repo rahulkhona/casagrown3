@@ -39,13 +39,11 @@ export default function PlatformSettingsPage() {
     facebook_posts: false,
     instagram_posts: false,
     instagram_sync: false,
-    whatsapp_sync: false,
     growbot_copilot: false,
     facebook_chat: false,
     facebook_comments: false,
     instagram_chat: false,
     instagram_comments: false,
-    whatsapp_chat: false,
     video_posts: false,
     google_places: false
   })
@@ -207,13 +205,11 @@ export default function PlatformSettingsPage() {
         facebook_posts: false,
         instagram_posts: false,
         instagram_sync: false,
-        whatsapp_sync: false,
         growbot_copilot: false,
         facebook_chat: false,
         facebook_comments: false,
         instagram_chat: false,
         instagram_comments: false,
-        whatsapp_chat: false,
         video_posts: false,
         google_places: false
       })
@@ -686,10 +682,7 @@ export default function PlatformSettingsPage() {
                   />
                 </XStack>
                 <YStack gap="$2" style={{ textAlign: 'left' }}>
-                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>CATALOG SYNCS</Text>
-                  {renderNewTierFeatureToggle('facebook_sync', 'Facebook Catalog Sync')}
-                  {renderNewTierFeatureToggle('instagram_sync', 'Instagram Catalog Sync')}
-                  {renderNewTierFeatureToggle('whatsapp_sync', 'WhatsApp Catalog Sync')}
+
 
                   <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
                   {renderNewTierFeatureToggle('facebook_posts', 'Facebook Auto-Posting')}
@@ -701,7 +694,6 @@ export default function PlatformSettingsPage() {
                   {renderNewTierFeatureToggle('facebook_comments', 'Facebook Comment Auto-Replies')}
                   {renderNewTierFeatureToggle('instagram_chat', 'Instagram DM Auto-Replies')}
                   {renderNewTierFeatureToggle('instagram_comments', 'Instagram Comment Auto-Replies')}
-                  {renderNewTierFeatureToggle('whatsapp_chat', 'WhatsApp DM Auto-Replies')}
 
                   <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
                   {renderNewTierFeatureToggle('video_posts', 'Video Auto-Posting (FB & IG)')}
@@ -875,10 +867,7 @@ export default function PlatformSettingsPage() {
                         />
                       </XStack>
 
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>CATALOG SYNCS</Text>
-                      {renderFeatureToggle(tier, 'facebook_sync', 'Facebook Catalog Sync')}
-                      {renderFeatureToggle(tier, 'instagram_sync', 'Instagram Catalog Sync')}
-                      {renderFeatureToggle(tier, 'whatsapp_sync', 'WhatsApp Catalog Sync')}
+
 
                       <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
                       {renderFeatureToggle(tier, 'facebook_posts', 'Facebook Auto-Posting')}
@@ -890,7 +879,6 @@ export default function PlatformSettingsPage() {
                       {renderFeatureToggle(tier, 'facebook_comments', 'Facebook Comment Auto-Replies')}
                       {renderFeatureToggle(tier, 'instagram_chat', 'Instagram DM Auto-Replies')}
                       {renderFeatureToggle(tier, 'instagram_comments', 'Instagram Comment Auto-Replies')}
-                      {renderFeatureToggle(tier, 'whatsapp_chat', 'WhatsApp DM Auto-Replies')}
 
                       <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
                       {renderFeatureToggle(tier, 'video_posts', 'Video Auto-Posting (FB & IG)')}

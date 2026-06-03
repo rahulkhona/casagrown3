@@ -10,6 +10,53 @@
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
 
+async function deleteUserStorage(userId: string, supabase: any) {
+  const buckets = [
+    'avatars',
+    'product-photos',
+    'chat-media',
+    'feedback-media',
+    'feedback-screenshots',
+    'community-chat-media',
+    'order-evidence'
+  ]
+
+  for (const bucket of buckets) {
+    try {
+      // List all files recursively under the user's ID prefix
+      const { data: files, error: listError } = await supabase.storage
+        .from(bucket)
+        .list(userId, { recursive: true })
+
+      if (listError) {
+        console.error(`[storage cleanup] Error listing files in ${bucket}:`, listError.message)
+        continue
+      }
+
+      if (files && files.length > 0) {
+        // Build relative file paths for deletion
+        const filePaths = files
+          .filter((f: any) => f.id !== null) // skip virtual folder placeholders
+          .map((f: any) => `${userId}/${f.name}`)
+
+        if (filePaths.length > 0) {
+          const { error: removeError } = await supabase.storage
+            .from(bucket)
+            .remove(filePaths)
+
+          if (removeError) {
+            console.error(`[storage cleanup] Error removing files from ${bucket}:`, removeError.message)
+          } else {
+            console.log(`[storage cleanup] Deleted ${filePaths.length} files from bucket ${bucket}`)
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`[storage cleanup] Unexpected error for bucket ${bucket}:`, err.message || err)
+    }
+  }
+}
+
 serveWithCors(async (req, { supabase, corsHeaders }) => {
   // 1. Authenticate user
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -40,6 +87,9 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   const { data: isEligible } = await supabase.rpc('check_fast_path_eligible', {
     p_user_id: userId
   })
+
+  // Delete all user-uploaded files from Supabase Storage buckets
+  await deleteUserStorage(userId, supabase)
 
   if (isEligible) {
     // Fast-path: immediate hard delete

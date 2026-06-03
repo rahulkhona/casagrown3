@@ -135,6 +135,27 @@ BEGIN
         )
       );
     END IF;
+
+    -- Inventory changed → queue comments/GBP description update
+    IF NEW.is_active = true AND NEW.inventory > 0
+       AND (NEW.facebook_post_id IS NOT NULL OR NEW.instagram_post_id IS NOT NULL OR NEW.google_post_id IS NOT NULL)
+       AND (OLD.inventory IS DISTINCT FROM NEW.inventory) THEN
+      PERFORM net.http_post(
+        url := v_edge_url || '/sync-listing-posts',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || v_service_key
+        ),
+        body := jsonb_build_object(
+          'action', 'update_inventory',
+          'product_id', NEW.id,
+          'seller_id', NEW.seller_id,
+          'facebook_post_id', NEW.facebook_post_id,
+          'instagram_post_id', NEW.instagram_post_id,
+          'google_post_id', NEW.google_post_id
+        )
+      );
+    END IF;
   END IF;
 
   -- ── DELETE: Listing removed → queue post deletion ──

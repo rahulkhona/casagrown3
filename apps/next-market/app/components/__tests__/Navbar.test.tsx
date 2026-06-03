@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
-import { render } from '@testing-library/react'
+import { render, cleanup } from '@testing-library/react'
+
+afterEach(() => {
+  cleanup()
+})
 
 // Mock Next.js navigation
 const mockPathname = vi.fn(() => '/market')
@@ -64,6 +68,11 @@ vi.mock('../../../lib/useQuickSetup', () => ({
 // Mock useProEnabled
 vi.mock('../../../lib/useProEnabled', () => ({
   useProEnabled: () => false,
+}))
+
+// Mock useBootstrap
+vi.mock('../../../lib/useBootstrap', () => ({
+  useBootstrap: () => ({ data: { badges: {} }, loading: false }),
 }))
 
 import { Navbar } from '../Navbar'

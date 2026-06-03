@@ -250,7 +250,7 @@ export default function MessagesInboxPage() {
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {/* Pinned GrowBot */}
         <li style={{ borderBottom: '4px solid #f3f4f6' }}>
-          <Link href="/growbot" style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: '#fdfce8', transition: 'background 0.2s' }}>
+          <Link href="/messages/growbot" style={{ display: 'flex', padding: '16px', textDecoration: 'none', color: 'inherit', alignItems: 'center', background: '#fdfce8', transition: 'background 0.2s' }}>
             <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#fef08a', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginRight: 16 }}>
               <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.2)' }} />
             </div>

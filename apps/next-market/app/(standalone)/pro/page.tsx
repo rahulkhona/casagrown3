@@ -10,7 +10,7 @@ import { StripeCheckoutModal } from '../../components/StripeCheckoutModal'
 import { FacebookStatus } from '../../components/FacebookStatus'
 import { InstagramSettings } from '../../components/InstagramSettings'
 import { GooglePlacesSettings } from '../../components/GooglePlacesSettings'
-import { WhatsAppSettings } from '../../components/WhatsAppSettings'
+
 
 type PromotionDetails = {
   id: string
@@ -1670,7 +1670,7 @@ function ProContent() {
                                 <p className="tier-card-callout">GrowBot engages buyers, answers questions, and closes sales while you&apos;re at the farm, driving, or asleep</p>
                               )}
                               {tierKey === 'elite' && (
-                                <p className="tier-card-callout">Post your inventory to Facebook, Instagram, WhatsApp &amp; Google Maps — generate pre-purchased orders that drive foot traffic to your booth</p>
+                                <p className="tier-card-callout">Post your inventory to Facebook, Instagram &amp; Google Maps — generate pre-purchased orders that drive foot traffic to your booth</p>
                               )}
                             </div>
                             <div className="tier-card-benefits">
@@ -1711,15 +1711,13 @@ function ProContent() {
                               {tierKey === 'elite' && (
                                 <>
                                   <div className="tier-benefits-section">
-                                    <div className="tier-benefit-item">📣 <strong>Sell everywhere</strong> — post inventory to Facebook + Instagram + WhatsApp + Google Maps automatically</div>
+                                    <div className="tier-benefit-item">📣 <strong>Sell everywhere</strong> — post inventory to Facebook + Instagram + Google Maps automatically</div>
                                     <div className="tier-benefit-item">🛒 <strong>Pre-purchased orders</strong> — more channels = more pre-sales = more foot traffic to your booths</div>
                                     <div className="tier-benefit-item">🤖 <strong>AI on every channel</strong> — GrowBot closes sales in DMs and comments across all platforms</div>
-                                    <div className="tier-benefit-item">📱 <strong>WhatsApp without the chaos</strong> — right now, your WhatsApp groups expose every customer&apos;s phone number to each other, you&apos;re tracking orders in Google Sheets, and there&apos;s no way to sync payments. With your own WhatsApp Business line, all of that is gone: customers browse your catalog, ask questions (answered automatically by GrowBot), and place &amp; pay for orders — all inside WhatsApp, all synced to your CasaGrown dashboard. Your personal number stays completely private</div>
                                   </div>
                                   <div className="tier-features-compact">
                                     <span>✓ Everything in Pro</span>
                                     <span>✓ Instagram auto-post &amp; Reels</span>
-                                    <span>✓ WhatsApp Business phone (provisioned)</span>
                                     <span>✓ Google Maps listing</span>
                                     <span>✓ Unlimited booths</span>
                                     <span>✓ Premium branding</span>
@@ -2088,7 +2086,7 @@ function ProContent() {
                   <div className="fade-in-up">
                     <h2 className="form-heading">⚡ Manage Your Features — Step 2 of 3</h2>
                     <p className="form-subheading" style={{ marginBottom: '8px' }}>
-                      This is the power of {selectedPlan === 'elite' ? 'Elite' : 'Pro'} — connect once, and every listing you create automatically posts to your {selectedPlan === 'elite' ? 'Facebook, Instagram, Google Business Profile, and WhatsApp' : 'Facebook, Instagram, and Google Business Profile'}. No more copy-pasting!
+                      This is the power of {selectedPlan === 'elite' ? 'Elite' : 'Pro'} — connect once, and every listing you create automatically posts to your Facebook, Instagram, and Google Business Profile. No more copy-pasting!
                     </p>
                     <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, marginBottom: '24px' }}>
                       ➡️ Next: Create your first listing and watch it go live everywhere.
@@ -2110,12 +2108,7 @@ function ProContent() {
                         <GooglePlacesSettings />
                       </div>
 
-                      {selectedPlan === 'elite' && (
-                        <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>💬 WhatsApp Business</h3>
-                          <WhatsAppSettings />
-                        </div>
-                      )}
+
                     </div>
 
                     <button

@@ -601,6 +601,22 @@ function ProfileSetupPageInner() {
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={saving}>
             {saving ? 'Saving...' : 'Continue →'}
           </button>
+          
+          {userId && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{
+                width: '100%',
+                marginTop: 12,
+                color: 'var(--red-600)',
+                borderColor: 'var(--red-200)',
+              }}
+              onClick={() => window.location.assign('/delete-account')}
+            >
+              🗑️ Delete Account
+            </button>
+          )}
         </form>
       </div>
     </div>

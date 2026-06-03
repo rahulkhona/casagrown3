@@ -108,24 +108,37 @@ Deno.test({
 // ══════════════════════════════════════════════════════════════
 
 Deno.test({
-  name: "sync-facebook-catalog: returns structured response with no connections",
+  name: "sync-facebook-catalog: empty connection list returns synced=0",
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { status, data } = await callSync();
+    const raw = await sqlExec("SELECT string_agg(user_id || ':' || auto_sync_enabled, ',') FROM seller_fb_connections");
+    const original = raw.split(",").filter(Boolean).map(x => {
+      const [user_id, val] = x.split(":");
+      return { user_id, val: val.trim() };
+    });
 
-    assert(
-      [200, 400, 500].includes(status),
-      `Expected structured response, got ${status}: ${JSON.stringify(data)}`,
-    );
-    assertExists(data);
+    await sqlExec("UPDATE seller_fb_connections SET auto_sync_enabled = false");
+    try {
+      const { status, data } = await callSync();
 
-    if (status === 200) {
-      assertEquals(data.synced, 0, "Should sync 0 products with no connections");
       assert(
-        data.message === "No active connections" || data.connections === 0,
-        "Should indicate no active connections",
+        [200, 400, 500].includes(status),
+        `Expected structured response, got ${status}: ${JSON.stringify(data)}`,
       );
+      assertExists(data);
+
+      if (status === 200) {
+        assertEquals(data.synced, 0, "Should sync 0 products with no connections");
+        assert(
+          data.message === "No active connections" || data.connections === 0 || data.message === "No active connections found",
+          "Should indicate no active connections",
+        );
+      }
+    } finally {
+      for (const item of original) {
+        await sqlExec(`UPDATE seller_fb_connections SET auto_sync_enabled = ${item.val} WHERE user_id = '${item.user_id}'`);
+      }
     }
   },
 });
@@ -243,12 +256,25 @@ Deno.test({
     // an active subscription won't appear in the query results.
     // Verify the inner join exists by checking the function responds
     // with synced=0 when there are no Pro sellers.
-    const { status, data } = await callSync();
-    if (status === 200) {
-      assertEquals(data.synced, 0, "No products should sync without Pro sellers");
+    const raw = await sqlExec("SELECT string_agg(user_id || ':' || status, ',') FROM seller_subscriptions");
+    const original = raw.split(",").filter(Boolean).map(x => {
+      const [user_id, val] = x.split(":");
+      return { user_id, val: val.trim() };
+    });
+
+    await sqlExec("UPDATE seller_subscriptions SET status = 'canceled'");
+    try {
+      const { status, data } = await callSync();
+      if (status === 200) {
+        assertEquals(data.synced, 0, "No products should sync without Pro sellers");
+      }
+      // Function at minimum should not crash
+      assert([200, 400, 500].includes(status));
+    } finally {
+      for (const item of original) {
+        await sqlExec(`UPDATE seller_subscriptions SET status = '${item.val}' WHERE user_id = '${item.user_id}'`);
+      }
     }
-    // Function at minimum should not crash
-    assert([200, 400, 500].includes(status));
   },
 });
 

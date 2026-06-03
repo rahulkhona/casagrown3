@@ -33,15 +33,7 @@ const CHANNELS = [
     hasDelay: true,
     requiresElite: true,
   },
-  {
-    key: 'whatsapp',
-    icon: '🟢',
-    label: 'WhatsApp Business',
-    desc: 'Auto-reply to buyers messaging your WhatsApp number',
-    note: 'Requires Elite tier. Pauses when you reply. Resumes if you stop replying.',
-    hasDelay: true,
-    requiresElite: true,
-  },
+
   {
     key: 'comments',
     icon: '🚜',
@@ -61,7 +53,7 @@ const CHANNELS = [
   },
 ] as const
 
-type ChannelKey = 'messenger' | 'dm' | 'orders' | 'instagram' | 'whatsapp' | 'comments'
+type ChannelKey = 'messenger' | 'dm' | 'orders' | 'instagram' | 'comments'
 
 export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
   const router = useRouter()
@@ -74,7 +66,6 @@ export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
   const [configs, setConfigs] = useState<Record<ChannelKey, ChannelConfig>>({
     messenger: { enabled: true, delayMinutes: 0 },
     instagram: { enabled: true, delayMinutes: 0 },
-    whatsapp: { enabled: true, delayMinutes: 0 },
     comments: { enabled: true, delayMinutes: 0 },
     dm: { enabled: true, delayMinutes: 5 },
     orders: { enabled: true, delayMinutes: 5 },
@@ -98,7 +89,6 @@ export function GrowBotSettings({ userId, isPro, plan }: GrowBotSettingsProps) {
           setConfigs((prev) => ({
             messenger: { ...prev.messenger, ...bc.messenger },
             instagram: { ...prev.instagram, ...bc.instagram },
-            whatsapp: { ...prev.whatsapp, ...bc.whatsapp },
             comments: { ...prev.comments, ...bc.comments },
             dm: { ...prev.dm, ...bc.dm },
             orders: { ...prev.orders, ...bc.orders },

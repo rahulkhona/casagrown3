@@ -10,7 +10,7 @@ import { StripeCheckoutModal } from '../../../components/StripeCheckoutModal'
 import { FacebookStatus } from '../../../components/FacebookStatus'
 import { InstagramSettings } from '../../../components/InstagramSettings'
 import { GooglePlacesSettings } from '../../../components/GooglePlacesSettings'
-import { WhatsAppSettings } from '../../../components/WhatsAppSettings'
+
 
 type PromotionDetails = {
   id: string
@@ -1496,12 +1496,8 @@ function PromoContent() {
                                 <div className="tier-extra-feats" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem', color: '#1e3a8a', borderTop: '1px dashed #e5e7eb', paddingTop: '8px', textAlign: 'left' }}>
                                   <div style={{ fontWeight: 600 }}>✓ Everything in Pro</div>
                                   <div>✓ Instagram Auto-Posting</div>
-                                  <div>✓ Instagram Catalog Sync</div>
                                   <div>✓ Instagram DM Auto-Replies</div>
                                   <div>✓ Instagram Comment Auto-Replies</div>
-                                  <div>✓ WhatsApp Catalog Sync</div>
-                                  <div>✓ WhatsApp DM Auto-Replies</div>
-                                  <div>✓ WhatsApp business phone provisioned</div>
                                   <div>✓ Video Auto-Posts (Insta & FB)</div>
                                   <div>✓ Post to Google Maps / Places</div>
                                   <div>✓ Custom premium branding</div>
@@ -1866,7 +1862,7 @@ function PromoContent() {
                   <div className="fade-in-up">
                     <h2 className="form-heading">⚡ Manage Your Features — Step 2 of 3</h2>
                     <p className="form-subheading" style={{ marginBottom: '8px' }}>
-                      This is the power of {selectedPlan === 'elite' ? 'Elite' : 'Pro'} — connect once, and every listing you create automatically posts to your {selectedPlan === 'elite' ? 'Facebook, Instagram, Google Business Profile, and WhatsApp' : 'Facebook, Instagram, and Google Business Profile'}. No more copy-pasting!
+                      This is the power of {selectedPlan === 'elite' ? 'Elite' : 'Pro'} — connect once, and every listing you create automatically posts to your Facebook, Instagram, and Google Business Profile. No more copy-pasting!
                     </p>
                     <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600, marginBottom: '24px' }}>
                       ➡️ Next: Create your first listing and watch it go live everywhere.
@@ -1888,12 +1884,7 @@ function PromoContent() {
                         <GooglePlacesSettings />
                       </div>
 
-                      {selectedPlan === 'elite' && (
-                        <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', border: '1px solid #e2e8f0' }}>
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>💬 WhatsApp Business</h3>
-                          <WhatsAppSettings />
-                        </div>
-                      )}
+
                     </div>
 
                     <button

@@ -93,13 +93,16 @@ async function dbUpdate(
 }
 
 async function dbDelete(table: string, query: string) {
-  await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
     method: "DELETE",
     headers: {
       apikey: SERVICE_ROLE_KEY,
       Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
     },
   });
+  if (!res.ok) {
+    console.error(`  [DB-DELETE] Failed for ${table}?${query}:`, res.status, await res.text());
+  }
 }
 
 async function callManageSubscription(
@@ -113,11 +116,16 @@ async function callManageSubscription(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        Origin: "http://localhost:3001",
       },
       body: JSON.stringify({ action, user_id: TEST_SELLER_ID, ...extra }),
     },
   );
-  return res.json();
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    console.error(`  [callManageSubscription] Error for ${action}:`, res.status, data);
+  }
+  return data;
 }
 
 // ═══════════════════════════════════════════════════════════════

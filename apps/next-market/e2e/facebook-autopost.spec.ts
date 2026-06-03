@@ -2,7 +2,7 @@
  * Facebook Auto-Post Settings E2E Tests
  *
  * Tests the Facebook connection section and auto-post toggle controls
- * on the /profile page for a Pro seller with FB connected (seller@test.local).
+ * on the /profile page for a Pro seller with FB connected.
  *
  * Run: cd apps/next-market && npx playwright test e2e/facebook-autopost.spec.ts
  */
@@ -10,12 +10,11 @@ import { test, expect } from '@playwright/test'
 import {
   loginAsUser,
   navigateTo,
-  assertPageHealthy,
 } from './scenarios/scenario-helpers'
 
 test.describe('Facebook Auto-Post Settings', () => {
   test('Facebook connection section is visible for Pro seller', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -34,7 +33,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('auto-sync toggle is visible and checked by default', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -59,7 +58,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('auto-post toggle is visible with correct label', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -83,7 +82,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('casagrown-post toggle is visible with correct label', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -106,7 +105,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('toggling auto-post persists state', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -137,7 +136,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('toggles show description text', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -162,7 +161,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('disconnect button is visible and enabled', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')
     await page.waitForTimeout(3000)
 
@@ -185,7 +184,7 @@ test.describe('Facebook Auto-Post Settings', () => {
   })
 
   test('profile page loads without JS errors', async ({ browser }) => {
-    const page = await loginAsUser(browser, 'sam')
+    const page = await loginAsUser(browser, 'maria')
     const jsErrors: string[] = []
     page.on('pageerror', (err: Error) => jsErrors.push(err.message))
 

@@ -399,14 +399,14 @@ Deno.test({
 // ══════════════════════════════════════════════════════════════
 
 Deno.test({
-  name: "fb-posts: generate-fb-posts cron is scheduled daily at 13:00 UTC",
+  name: "fb-posts: generate-fb-posts cron is unscheduled/retired",
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
     const schedule = await sqlExec(`
       SELECT schedule FROM cron.job WHERE jobname = 'generate-fb-posts'
     `);
-    assertEquals(schedule, "0 13 * * *", "Should run daily at 13:00 UTC");
+    assertEquals(schedule, "", "Should not be scheduled (retired in favor of real-time sync)");
   },
 });
 

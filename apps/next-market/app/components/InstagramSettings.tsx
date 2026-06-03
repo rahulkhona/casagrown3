@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/useAuth'
 /**
  * InstagramSettings — Elite-only Instagram Business settings.
  * Instagram connects via the same Facebook OAuth flow.
- * Three controls: catalog sync, posting, video posts.
+ * Controls: posting, video posts.
  */
 export function InstagramSettings() {
   const { user } = useAuth()
@@ -103,9 +103,6 @@ export function InstagramSettings() {
 
       {/* Feature toggles */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Catalog Sync */}
-        {renderToggle('ig_messenger_enabled', '📦 Sync product catalog to Instagram Shop', 'Share your product catalog with your Instagram Shop for customers to browse.')}
-
         {/* Daily Posting */}
         {renderToggle('ig_auto_post_enabled', '📣 Post daily listings to Instagram', 'GrowBot will post a daily update of your available products to your Instagram Business account.')}
 

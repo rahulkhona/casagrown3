@@ -1,3 +1,19 @@
+-- Create pro_testers table if it does not exist
+CREATE TABLE IF NOT EXISTS public.pro_testers (
+  email TEXT PRIMARY KEY,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Enable RLS and grants
+ALTER TABLE public.pro_testers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Everyone can read pro_testers" ON public.pro_testers;
+CREATE POLICY "Everyone can read pro_testers" ON public.pro_testers FOR SELECT TO public USING (true);
+
+GRANT SELECT ON public.pro_testers TO anon, authenticated;
+GRANT ALL ON public.pro_testers TO service_role;
+
 -- Update get_client_bootstrap to dynamically check pro_testers table
 CREATE OR REPLACE FUNCTION public.get_client_bootstrap(p_user_id uuid DEFAULT NULL)
 RETURNS jsonb

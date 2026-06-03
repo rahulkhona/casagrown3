@@ -34,6 +34,8 @@ export function useSubscription(): SubscriptionInfo {
       return
     }
 
+    setSub((prev) => (prev.loading ? prev : { ...prev, loading: true }))
+
     const supabase = createClient()
 
     // Check both subscription status and pro_testers override in parallel

@@ -27,6 +27,7 @@ export default function DeleteAccountPage() {
   const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [hasPastOrders, setHasPastOrders] = useState(false)
 
   useEffect(() => {
     if (authLoading) return // still hydrating
@@ -48,6 +49,16 @@ export default function DeleteAccountPage() {
         setError('Failed to check account status')
       } else {
         setPreflight(data)
+        
+        // Query to check if the user has past orders/financial transactions
+        const { count, error: orderError } = await supabase
+          .from('market_orders')
+          .select('*', { count: 'exact', head: true })
+          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        
+        if (!orderError && count && count > 0) {
+          setHasPastOrders(true)
+        }
       }
       setLoading(false)
     }
@@ -197,11 +208,29 @@ export default function DeleteAccountPage() {
               <li>Your profile and all associated data will be permanently removed</li>
               <li>You will be signed out immediately</li>
             </>
-          ) : (
+          ) : !hasPastOrders ? (
             <>
               <li>Your profile will be anonymized to &ldquo;Deleted User&rdquo;</li>
               <li>Your products will be removed from the marketplace</li>
               <li>Your community posts will remain but show as &ldquo;Deleted User&rdquo;</li>
+              <li>Your DM conversations will become read-only for the other party</li>
+              {preflight?.has_pending_business && (
+                <>
+                  {(preflight.open_orders > 0) && <li>Open orders will be cancelled</li>}
+                  {(preflight.active_disputes > 0) && <li>Active disputes will be escalated to staff</li>}
+                  {(preflight.available_usd > 0 || preflight.pending_usd > 0) && <li>Your remaining balance will be paid out</li>}
+                </>
+              )}
+              <li>Your helper relationships will be terminated</li>
+            </>
+          ) : (
+            <>
+              <li>Your public profile name is anonymized to &ldquo;Deleted User&rdquo;</li>
+              <li>Your contact details (email and phone number) are retained so we can contact you regarding past transactions</li>
+              <li>Your address (street, city, state, zip) is retained for sales tax audit and reporting compliance</li>
+              <li>Past order history, product specifications, and transaction logs are retained to satisfy food safety and source traceability requirements</li>
+              <li>Your products will be removed from active marketplace search</li>
+              <li>Your community posts will remain but display under &ldquo;Deleted User&rdquo;</li>
               <li>Your DM conversations will become read-only for the other party</li>
               {preflight?.has_pending_business && (
                 <>
@@ -223,7 +252,9 @@ export default function DeleteAccountPage() {
         }}>
           {preflight?.is_fast_path
             ? '💡 Since your account has no activity history, it will be fully removed. You are welcome to re-register with the same email address at any time.'
-            : '⚠️ This is permanent. Your data will be anonymized and your email address will be permanently locked — it cannot be used to create a new account.'}
+            : !hasPastOrders
+            ? '⚠️ This is permanent. Your data will be anonymized and your email address will be permanently locked — it cannot be used to create a new account.'
+            : '⚠️ Regulatory & Traceability Retention: Because your account has past order or financial transaction history, your contact info (email, phone), address, and transaction logs are retained for sales tax audits, food safety traceability, and compliance. All other non-essential profile data is anonymized or deleted.'}
         </div>
       </div>
 

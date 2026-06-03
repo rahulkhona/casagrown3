@@ -1048,7 +1048,7 @@ test.describe('Group 5: Post-Payment Wizard (Pro/Elite)', () => {
     await expect(page.locator('h3:has-text("Google Business Profile")')).toBeVisible()
   })
 
-  test('30. Elite users see WhatsApp section on manage_features', async ({ page }) => {
+  test.skip('30. Elite users see WhatsApp section on manage_features', async ({ page }) => {
     // Use Elite plan for this test
     await installAuthenticatedProMocks(page, { plan: 'elite', hasBooth: false })
 

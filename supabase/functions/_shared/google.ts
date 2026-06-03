@@ -77,7 +77,7 @@ export async function getGoogleLocations(
   return data.locations || [];
 }
 
-/** Publish a Local Post ("What's New") to Google Maps */
+/** Publish a Local Post (Standard Update or Event) to Google Maps */
 export async function publishGoogleLocalPost(
   locationId: string,
   accessToken: string,
@@ -85,6 +85,9 @@ export async function publishGoogleLocalPost(
     caption: string;
     photoUrl?: string;
     buttonUrl?: string;
+    eventTitle?: string;
+    eventStartDate?: string;
+    eventEndDate?: string;
   },
 ): Promise<{ name: string }> {
   if (accessToken.startsWith('mock_')) {
@@ -100,6 +103,40 @@ export async function publishGoogleLocalPost(
     summary: options.caption,
     topicType: 'STANDARD',
   };
+
+  // Add Event fields if provided
+  if (options.eventTitle) {
+    body.topicType = 'EVENT';
+    const startStr = options.eventStartDate || new Date().toISOString().split('T')[0] || '';
+    const endStr = options.eventEndDate || startStr || '';
+    
+    const [sYear, sMonth, sDay] = startStr.split('-').map(Number);
+    const [eYear, eMonth, eDay] = endStr.split('-').map(Number);
+
+    body.event = {
+      title: options.eventTitle,
+      schedule: {
+        startDate: {
+          year: sYear,
+          month: sMonth,
+          day: sDay
+        },
+        startTime: {
+          hours: 9,
+          minutes: 0
+        },
+        endDate: {
+          year: eYear,
+          month: eMonth,
+          day: eDay
+        },
+        endTime: {
+          hours: 17,
+          minutes: 0
+        }
+      }
+    };
+  }
 
   // Add Call to Action Button
   if (options.buttonUrl) {
@@ -133,6 +170,59 @@ export async function publishGoogleLocalPost(
   }
 
   return res.json();
+}
+
+/** Update an existing local post summary (e.g. update stock in the post body) */
+export async function updateGoogleLocalPost(
+  postId: string,
+  accessToken: string,
+  options: {
+    caption: string;
+  },
+): Promise<void> {
+  if (accessToken.startsWith('mock_')) {
+    console.log(`[MOCK GOOGLE POST] Updated local post ${postId}:`, options);
+    return;
+  }
+  
+  // The postId passed is the full name, e.g. "locations/XXX/localPosts/YYY"
+  const url = `https://mybusinesslocalpost.googleapis.com/v1/${postId}?updateMask=summary`;
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      summary: options.caption,
+    }),
+  });
+
+  if (!res.ok) {
+    console.warn(`[GBP] Local post update failed: ${await res.text()}`);
+  }
+}
+
+/** Delete a Google local post */
+export async function deleteGoogleLocalPost(
+  postId: string,
+  accessToken: string,
+): Promise<void> {
+  if (accessToken.startsWith('mock_')) {
+    console.log(`[MOCK GOOGLE POST] Deleted local post ${postId}`);
+    return;
+  }
+  const url = `https://mybusinesslocalpost.googleapis.com/v1/${postId}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    console.warn(`[GBP] Local post delete failed: ${await res.text()}`);
+  }
 }
 
 /** Add or update a product in the Google Merchant/Maps Catalog */

@@ -2018,7 +2018,7 @@ function getUserGuideHtml(plan: string, waNumber?: string | null): string {
             <div style="margin-top: 24px; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
                 <h4 style="margin: 0 0 12px; font-size: 16px; color: #1e293b; font-weight: 700;">👑 Your CasaGrown Elite User's Guide</h4>
                 <p style="margin: 0 0 16px; font-size: 13px; color: #475569; line-height: 1.6;">
-                    Welcome to the Elite tier! You now have our full multi-channel sync, native AI cinematic video generation (Google Veo 3.1), and GrowBot copilot across all major channels.
+                    Welcome to the Elite tier! You now have our full multi-channel sync and GrowBot copilot across all major channels.
                 </p>
 
                 <!-- WhatsApp number display -->
@@ -2057,11 +2057,6 @@ function getUserGuideHtml(plan: string, waNumber?: string | null): string {
                     <tr style="border-bottom: 1px solid #e2e8f0;">
                         <td><strong>Google Maps Sync & catalog:</strong></td>
                         <td style="color: #059669;">✔️ Included (Local search sync)</td>
-                        <td>❌ Not included</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
-                        <td><strong>Vertex AI Video Reels (Veo):</strong></td>
-                        <td style="color: #059669;">✔️ Included (Slideshow reels)</td>
                         <td>❌ Not included</td>
                     </tr>
                 </table>

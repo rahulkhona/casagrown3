@@ -689,7 +689,7 @@ test.describe('Pro Wizard Steps — Post-Payment Onboarding', () => {
   })
 
   // ─── 9. Elite signup shows WhatsApp card on manage_features ───
-  test('Elite signup shows WhatsApp card on manage_features', async ({ page }) => {
+  test.skip('Elite signup shows WhatsApp card on manage_features', async ({ page }) => {
     await installBaseMocks(page)
 
     // Override pro_testers to make Elite visible

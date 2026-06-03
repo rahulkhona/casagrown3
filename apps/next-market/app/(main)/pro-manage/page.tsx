@@ -15,7 +15,7 @@ import { useProEnabled } from '../../../lib/useProEnabled'
    Types
    ─────────────────────────────────────────────────────── */
 interface ChannelConfig { enabled: boolean; delayMinutes: number }
-type ChannelKey = 'messenger' | 'dm' | 'instagram' | 'whatsapp' | 'comments'
+type ChannelKey = 'messenger' | 'dm' | 'instagram' | 'comments'
 
 /* ───────────────────────────────────────────────────────
    Inner page component
@@ -41,19 +41,13 @@ function ProManagePageInner() {
   const [connecting, setConnecting] = useState('')
   const [connectError, setConnectError] = useState('')
   const [disconnecting, setDisconnecting] = useState('')
-  const [disconnectTarget, setDisconnectTarget] = useState<'fb' | 'google' | 'instagram' | 'whatsapp' | null>(null)
+  const [disconnectTarget, setDisconnectTarget] = useState<'fb' | 'google' | 'instagram' | null>(null)
 
   // Catalog sync
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
 
-  // WhatsApp phone
-  const [waPhoneInput, setWaPhoneInput] = useState('')
-  const [waSaving, setWaSaving] = useState(false)
-  const [waCopied, setWaCopied] = useState(false)
-  const [waZipCode, setWaZipCode] = useState('')
-  const [waProvisioning, setWaProvisioning] = useState(false)
-  const [waProvisionError, setWaProvisionError] = useState('')
+
 
   // FB Catalog selector
   const [fbCatalogs, setFbCatalogs] = useState<Array<{ id: string; name: string; product_count?: number }>>([])
@@ -65,7 +59,6 @@ function ProManagePageInner() {
   const [botChannels, setBotChannels] = useState<Record<ChannelKey, ChannelConfig>>({
     messenger: { enabled: true, delayMinutes: 0 },
     instagram: { enabled: true, delayMinutes: 0 },
-    whatsapp: { enabled: true, delayMinutes: 0 },
     comments: { enabled: true, delayMinutes: 0 },
     dm: { enabled: true, delayMinutes: 5 },
   })
@@ -84,16 +77,13 @@ function ProManagePageInner() {
       ])
       setFbConn(fbRes.data)
       setGoogleConn(googleRes.data)
-      if (fbRes.data?.wa_display_phone) setWaPhoneInput(fbRes.data.wa_display_phone)
       if (profileRes.data) {
         setBotInstructions(profileRes.data.bot_instructions || '')
-        if (profileRes.data.zip_code) setWaZipCode(profileRes.data.zip_code)
         if (profileRes.data.bot_channels) {
           const bc = profileRes.data.bot_channels as Record<string, any>
           setBotChannels(prev => ({
             messenger: { ...prev.messenger, ...bc.messenger },
             instagram: { ...prev.instagram, ...bc.instagram },
-            whatsapp: { ...prev.whatsapp, ...bc.whatsapp },
             comments: { ...prev.comments, ...bc.comments },
             dm: { ...prev.dm, ...bc.dm },
           }))
@@ -228,35 +218,12 @@ function ProManagePageInner() {
     setDisconnectTarget(null)
   }
 
-  const handleWaDisconnect = async () => {
-    setDisconnecting('whatsapp')
-    // Only disable features — keep the number for reconnecting later
-    // Number is only released on subscription downgrade/cancellation
-    await supabase.from('seller_fb_connections').update({
-      wa_auto_reply_enabled: false,
-    }).eq('user_id', user!.id)
-    setFbConn((prev: any) => prev ? { ...prev, wa_auto_reply_enabled: false } : prev)
-    setDisconnecting('')
-    setDisconnectTarget(null)
-  }
 
-  const handleWaSavePhone = async () => {
-    if (!waPhoneInput.trim()) return
-    setWaSaving(true)
-    await supabase.from('seller_fb_connections').update({ wa_display_phone: waPhoneInput.trim(), wa_number_source: 'seller_provided' }).eq('user_id', user!.id)
-    setFbConn((prev: any) => ({ ...prev, wa_display_phone: waPhoneInput.trim(), wa_number_source: 'seller_provided' }))
-    setWaSaving(false)
-  }
-
-  const handleWaSourceChange = async (source: string) => {
-    setFbConn((prev: any) => ({ ...prev, wa_number_source: source }))
-    await supabase.from('seller_fb_connections').update({ wa_number_source: source }).eq('user_id', user!.id)
-  }
 
   /* ── Auth guard ── */
   const proEnabled = useProEnabled()
   if (authLoading || subLoading) return <LoadingSpinner message="Loading…" />
-  if (!proEnabled) { router.replace('/'); return <LoadingSpinner message="Redirecting…" /> }
+  if (!proEnabled || !isPro) { router.replace('/'); return <LoadingSpinner message="Redirecting…" /> }
   if (!isAuthenticated || !user) { router.replace('/login?redirect=/pro-manage'); return <LoadingSpinner message="Redirecting…" /> }
 
   /* ── Lite view ── */
@@ -283,9 +250,7 @@ function ProManagePageInner() {
 
   const fbConnected = fbConn && fbConn.status === 'connected'
   const igConnected = !!fbConn?.ig_business_account_id
-  const waConnected = !!fbConn?.wa_phone_number_id || !!fbConn?.wa_display_phone
   const googleConnected = !!googleConn?.google_location_id
-  const isWaSellerProvided = fbConn?.wa_number_source === 'seller_provided'
 
   return (
     <>
@@ -346,94 +311,7 @@ function ProManagePageInner() {
 
             <Divider />
 
-            {/* Toggles */}
-            <ToggleRow label="📦 Sync product catalog" desc="Sync your CasaGrown inventory to your Facebook catalog — products stay updated daily." value={!!fbConn.auto_sync_enabled} saving={savingField === 'auto_sync_enabled'} onToggle={() => toggleFbField('auto_sync_enabled', !!fbConn.auto_sync_enabled)} />
-            {fbConn.auto_sync_enabled && (
-              <>
-                {/* Catalog selector */}
-                <div style={{ marginLeft: 54, marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Select Catalog</div>
-                  {catalogsLoading ? (
-                    <div style={{ fontSize: 12, color: '#9ca3af', padding: '8px 0' }}>Loading catalogs…</div>
-                  ) : fbCatalogs.length === 0 ? (
-                    <div style={{ padding: '8px 12px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
-                      No catalogs found on your Facebook Page. Create one in <a href="https://business.facebook.com/commerce/" target="_blank" rel="noopener" style={{ color: '#1e40af', textDecoration: 'underline' }}>Commerce Manager</a> first.
-                    </div>
-                  ) : (
-                    <select
-                      value={selectedCatalogId || ''}
-                      onChange={async (e) => {
-                        const catalogId = e.target.value
-                        setSelectedCatalogId(catalogId)
-                        setCatalogSaving(true)
-                        // Get booth ID for this user
-                        const { data: booths } = await supabase.from('market_booths').select('id').eq('owner_id', user!.id).limit(1)
-                        const boothId = booths?.[0]?.id
-                        if (boothId) {
-                          await supabase.from('booth_fb_catalogs').upsert({
-                            booth_id: boothId,
-                            connection_id: fbConn.id,
-                            fb_catalog_id: catalogId || null,
-                            sync_enabled: true,
-                          }, { onConflict: 'booth_id' })
-                        }
-                        setCatalogSaving(false)
-                      }}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, color: '#111827', background: '#fff', cursor: 'pointer' }}
-                    >
-                      <option value="">Choose a catalog…</option>
-                      {fbCatalogs.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}{c.product_count != null ? ` (${c.product_count} items)` : ''}</option>
-                      ))}
-                    </select>
-                  )}
-                  {catalogSaving && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>Saving…</div>}
-                </div>
 
-                {/* Sync info */}
-                <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
-                  {selectedCatalogId
-                    ? <>Your products sync to <strong>{fbCatalogs.find(c => c.id === selectedCatalogId)?.name || 'your catalog'}</strong> and are <strong>updated daily</strong>.{fbConn.last_sync_at && (
-                        <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
-                          Last sync: {new Date(fbConn.last_sync_at).toLocaleString()} · {fbConn.last_sync_product_count || 0} products synced
-                        </div>
-                      )}</>
-                    : 'Select a catalog above to start syncing products.'
-                  }
-                </div>
-                <div style={{ marginLeft: 54, marginBottom: 8 }}>
-                  <button
-                    onClick={async () => {
-                      setSyncing(true)
-                      setSyncResult(null)
-                      try {
-                        const { data, error } = await supabase.functions.invoke('sync-facebook-catalog', { body: {} })
-                        if (error) throw error
-                        console.log('[SYNC RESULT]', data)
-                        setSyncResult({ ok: true, message: `Synced ${data?.synced ?? 0} products to Facebook` })
-                        // Refresh connection data to show updated last_sync_at
-                        const { data: updated } = await supabase.from('seller_fb_connections').select('*').eq('user_id', user!.id).maybeSingle()
-                        if (updated) setFbConn(updated)
-                      } catch (err: any) {
-                        setSyncResult({ ok: false, message: err.message || 'Sync failed' })
-                      } finally {
-                        setSyncing(false)
-                        setTimeout(() => setSyncResult(null), 5000)
-                      }
-                    }}
-                    disabled={syncing}
-                    style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid #bfdbfe', background: syncing ? '#f3f4f6' : 'white', color: syncing ? '#9ca3af' : '#1e40af', fontSize: 12, fontWeight: 600, cursor: syncing ? 'wait' : 'pointer' }}
-                  >
-                    {syncing ? '⏳ Syncing…' : '🔄 Sync Now'}
-                  </button>
-                  {syncResult && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: syncResult.ok ? '#059669' : '#dc2626' }}>
-                      {syncResult.ok ? '✅' : '⚠️'} {syncResult.message}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
             <ToggleRow label="📣 Post daily listings" desc="GrowBot posts your available products to your Facebook Page — never to your personal profile." value={!!fbConn.auto_post_enabled} saving={savingField === 'auto_post_enabled'} onToggle={() => toggleFbField('auto_post_enabled', !!fbConn.auto_post_enabled)} />
             {fbConn.auto_post_enabled && (
               <div style={{ marginLeft: 54 }}>
@@ -493,12 +371,7 @@ function ProManagePageInner() {
                   </div>
                 </div>
                 <Divider />
-                <ToggleRow label="📦 Sync product catalog" desc="Sync your catalog to your Instagram Business or Creator account — not your personal profile." value={!!fbConn.ig_messenger_enabled} saving={savingField === 'ig_messenger_enabled'} onToggle={() => toggleFbField('ig_messenger_enabled', !!fbConn.ig_messenger_enabled)} />
-                {fbConn.ig_messenger_enabled && (
-                  <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
-                    Your products appear in your <strong>Instagram Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability.
-                  </div>
-                )}
+
                 <ToggleRow label="📣 Post daily listings" desc="GrowBot posts daily to your Instagram Business or Creator account — never to your personal feed." value={!!fbConn.ig_auto_post_enabled} saving={savingField === 'ig_auto_post_enabled'} onToggle={() => toggleFbField('ig_auto_post_enabled', !!fbConn.ig_auto_post_enabled)} />
                 {fbConn.ig_auto_post_enabled && (
                   <div style={{ marginLeft: 54 }}>
@@ -528,177 +401,7 @@ function ProManagePageInner() {
         </>
       )}
 
-      {/* ═══════════════════════════════════════════
-          SECTION 4: WhatsApp (Elite only)
-         ═══════════════════════════════════════════ */}
-      {isElite && (
-        <>
-          <SectionHeader emoji="📱" title="WhatsApp" />
-          <SectionCard>
-            {fbConn?.wa_display_phone ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{fbConn.wa_display_phone}</span>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <StatusBadge connected />
-                    <button onClick={() => setDisconnectTarget('whatsapp')} disabled={disconnecting === 'whatsapp'} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Disconnect</button>
-                  </div>
-                </div>
-                <Divider />
-              </>
-            ) : (
-              <div style={{ padding: '8px 0 12px', textAlign: 'center' }}>
-                <p style={{ margin: '0 0 8px', fontSize: 14, color: '#6b7280' }}>Set up WhatsApp Business for auto-replies and order notifications.</p>
-              </div>
-            )}
-            {/* Phone number config */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>WhatsApp Number</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', border: !isWaSellerProvided ? '2px solid #059669' : '1px solid #e5e7eb', background: !isWaSellerProvided ? '#f0fdf4' : '#fff' }}>
-                  <input type="radio" name="wa_src" checked={!isWaSellerProvided} onChange={() => handleWaSourceChange('twilio_provisioned')} style={{ accentColor: '#059669' }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>Use CasaGrown-provisioned number</div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>We assign a dedicated WhatsApp number for your business</div>
-                  </div>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', border: isWaSellerProvided ? '2px solid #059669' : '1px solid #e5e7eb', background: isWaSellerProvided ? '#f0fdf4' : '#fff' }}>
-                  <input type="radio" name="wa_src" checked={isWaSellerProvided} onChange={() => handleWaSourceChange('seller_provided')} style={{ accentColor: '#059669' }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>Use my own WhatsApp Business number</div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>Connect your existing WhatsApp Business number</div>
-                  </div>
-                </label>
-              </div>
-            </div>
 
-            {/* Provisioned number — request flow or display */}
-            {!isWaSellerProvided && (
-              fbConn?.wa_display_phone ? (
-                /* Number already provisioned — show it */
-                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, background: 'linear-gradient(135deg, #065f46, #059669)', color: 'white' }}>
-                  <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Your Local WhatsApp Business Number</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>{fbConn.wa_display_phone}</span>
-                    <button onClick={() => { navigator.clipboard.writeText(fbConn.wa_display_phone); setWaCopied(true); setTimeout(() => setWaCopied(false), 2000) }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 12, cursor: 'pointer' }}>
-                      {waCopied ? '✓ Copied!' : '📋 Copy'}
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>No separate login needed — this number was set up for you by CasaGrown.</div>
-                </div>
-              ) : (
-                /* No number yet — request provisioning with zip code */
-                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, border: '1px solid #d1fae5', background: '#f0fdf4' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 6 }}>📞 Get a Local WhatsApp Number</div>
-                  <div style={{ fontSize: 12, color: '#065f46', marginBottom: 10, lineHeight: 1.5 }}>
-                    We&apos;ll provision a local phone number based on your area so customers see a familiar area code.
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                    <input type="text" value={waZipCode} onChange={(e) => setWaZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))} placeholder="Enter your zip code" maxLength={5} style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14, background: 'white', textAlign: 'center', letterSpacing: 2, fontWeight: 600 }} />
-                    <button onClick={async () => {
-                      if (waZipCode.length < 5) return
-                      setWaProvisioning(true)
-                      setWaProvisionError('')
-                      try {
-                        const { data, error } = await supabase.functions.invoke('provision-wa-number', { body: { zipCode: waZipCode } })
-                        if (error) throw error
-                        if (data?.phoneNumber) {
-                          setFbConn((prev: any) => ({ ...prev, wa_display_phone: data.phoneNumber, wa_phone_number_id: data.phoneNumberId || 'provisioned' }))
-                        }
-                      } catch (err: any) {
-                        setWaProvisionError(err.message || 'Failed to provision number. Please try again.')
-                      } finally {
-                        setWaProvisioning(false)
-                      }
-                    }} disabled={waProvisioning || waZipCode.length < 5} style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: waProvisioning || waZipCode.length < 5 ? '#9ca3af' : '#059669', color: 'white', fontSize: 13, fontWeight: 600, cursor: waProvisioning || waZipCode.length < 5 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-                      {waProvisioning ? '⏳ Provisioning…' : 'Get My Number'}
-                    </button>
-                  </div>
-                  {waProvisionError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>⚠️ {waProvisionError}</div>}
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>We&apos;ll assign a number with your local area code. No separate login or verification needed.</div>
-                </div>
-              )
-            )}
-
-            {/* Own number — Embedded Signup */}
-            {isWaSellerProvided && (
-              fbConn?.wa_business_account_id && fbConn?.wa_phone_number_id ? (
-                /* Already connected via Embedded Signup — show connected number */
-                <div style={{ padding: '14px 16px', borderRadius: 12, marginBottom: 10, background: 'linear-gradient(135deg, #065f46, #059669)', color: 'white' }}>
-                  <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Your Connected WhatsApp Business Number</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>{fbConn.wa_display_phone}</span>
-                    <button onClick={() => { navigator.clipboard.writeText(fbConn.wa_display_phone); setWaCopied(true); setTimeout(() => setWaCopied(false), 2000) }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 12, cursor: 'pointer' }}>
-                      {waCopied ? '✓ Copied!' : '📋 Copy'}
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 11, opacity: 0.8, marginTop: 6 }}>✅ GrowBot auto-reply is active on this number</div>
-                </div>
-              ) : (
-                /* Not connected yet — show Embedded Signup button */
-                <div style={{ marginBottom: 12, padding: '16px', borderRadius: 12, background: '#f9fafb', border: '1px dashed #d1d5db', textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
-                    Connect your WhatsApp Business account so GrowBot can auto-reply to your customers.
-                  </div>
-                  <button
-                    onClick={() => {
-                      const siteUrl = window.location.origin
-                      const state = `wa:${user!.id}:${encodeURIComponent('/pro-manage')}`
-                      const extras = JSON.stringify({ version: 'v4', sessionInfoVersion: '3', featureType: 'whatsapp_business_app_onboarding' })
-                      window.location.href = `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=1878838186137452&config_id=1015862774319265&extras=${encodeURIComponent(extras)}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/facebook-callback`)}&state=${encodeURIComponent(state)}`
-                    }}
-                    style={{
-                      padding: '10px 24px', borderRadius: 10, border: 'none',
-                      background: '#25D366', color: 'white', fontSize: 14, fontWeight: 600,
-                      cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
-                    }}
-                  >
-                    📱 Connect WhatsApp Business
-                  </button>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
-                    You&apos;ll be redirected to Meta to authorize access to your WhatsApp Business account
-                  </div>
-                </div>
-              )
-            )}
-
-            {/* How to use WhatsApp Pro — always visible */}
-            <div style={{ padding: '12px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #d1fae5', marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 8 }}>📖 How WhatsApp Pro works</div>
-              <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.7 }}>
-                <div style={{ marginBottom: 6 }}><strong>1. Share your number</strong> — Add it to your social media bios, business cards, signage, and email signature. Send it to your existing customers so they can reach you on WhatsApp too.</div>
-                <div style={{ marginBottom: 6 }}><strong>2. Customers message you</strong> — When someone texts your number, they can browse your product catalog and ask about availability, pricing, or delivery.</div>
-                <div style={{ marginBottom: 6 }}><strong>3. GrowBot handles it</strong> — GrowBot auto-replies with product info, prices, and checkout links. When something needs your attention, you get notified.</div>
-                <div style={{ marginBottom: 6 }}><strong>4. You step in when needed</strong> — For custom orders, complaints, or complex questions, GrowBot pauses and you take over the conversation.</div>
-              </div>
-            </div>
-
-            {/* Inventory visibility info */}
-            <div style={{ padding: '12px 14px', borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>📦 Where your inventory appears</div>
-              <div style={{ fontSize: 12, color: '#1e40af', lineHeight: 1.7 }}>
-                <div style={{ marginBottom: 4 }}>Your product catalog is visible to customers directly inside the WhatsApp chat when they message your number.</div>
-                <div>Your inventory is <strong>updated daily</strong> — any changes you make to your products, prices, or availability on CasaGrown are automatically synced to WhatsApp so customers always see what&apos;s currently available.</div>
-              </div>
-            </div>
-
-            <Divider />
-
-            {/* Inventory note */}
-            <ToggleRow label="📦 Share product catalog on WhatsApp" desc="Your product catalog is shared with customers when they message your WhatsApp number." value={true} onToggle={() => {}} />
-
-            {/* GrowBot — WhatsApp */}
-            <BotChannelToggle
-              icon="🟢" label="GrowBot Auto-Reply — WhatsApp"
-              desc="Auto-reply to buyers messaging your WhatsApp number"
-              config={botChannels.whatsapp}
-              onToggle={(enabled) => updateBotChannel('whatsapp', { enabled })}
-              onDelay={(d) => updateBotChannel('whatsapp', { delayMinutes: d })}
-              hasDelay
-            />
-          </SectionCard>
-        </>
-      )}
 
       {/* ═══════════════════════════════════════════
           SECTION 5: Google Places (Elite only)
@@ -801,15 +504,14 @@ function ProManagePageInner() {
           }}>
             <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>
-                {disconnectTarget === 'fb' ? '📘' : disconnectTarget === 'instagram' ? '📸' : disconnectTarget === 'whatsapp' ? '📱' : '🔍'}
+                {disconnectTarget === 'fb' ? '📘' : disconnectTarget === 'instagram' ? '📸' : '🔍'}
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
-                Disconnect {disconnectTarget === 'fb' ? 'Facebook' : disconnectTarget === 'instagram' ? 'Instagram' : disconnectTarget === 'whatsapp' ? 'WhatsApp' : 'Google Business'}?
+                Disconnect {disconnectTarget === 'fb' ? 'Facebook' : disconnectTarget === 'instagram' ? 'Instagram' : 'Google Business'}?
               </h3>
               <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
                 {disconnectTarget === 'fb' && 'Catalog sync, auto-posting, and Messenger auto-replies will stop. You can reconnect anytime.'}
                 {disconnectTarget === 'instagram' && 'Instagram catalog sync, auto-posting, and DM auto-replies will be disabled. You can reconnect anytime.'}
-                {disconnectTarget === 'whatsapp' && 'Your WhatsApp number will be released and auto-replies will stop. You can provision a new number anytime.'}
                 {disconnectTarget === 'google' && 'Google Business syncing and auto-posting will stop. You can reconnect anytime.'}
               </p>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -822,7 +524,6 @@ function ProManagePageInner() {
                   onClick={() => {
                     if (disconnectTarget === 'fb') handleFbDisconnect()
                     else if (disconnectTarget === 'instagram') handleIgDisconnect()
-                    else if (disconnectTarget === 'whatsapp') handleWaDisconnect()
                     else if (disconnectTarget === 'google') handleGoogleDisconnect()
                   }}
                   disabled={!!disconnecting}

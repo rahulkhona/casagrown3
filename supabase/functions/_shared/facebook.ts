@@ -160,6 +160,11 @@ export async function publishPagePost(
     photoUrl?: string  // If provided, creates a photo post (higher engagement)
   },
 ): Promise<{ id: string } | null> {
+  if (pageToken.startsWith('mock_')) {
+    console.log(`[MOCK FB PAGE POST] Published on page ${pageId}:`, options)
+    return { id: `mock_post_${Date.now()}` }
+  }
+
   const graphUrl = getFbGraphUrl()
 
   try {
@@ -230,6 +235,10 @@ export async function publishMultiPhotoPost(
     link?: string         // Optional link (included in message text since photo posts suppress link cards)
   },
 ): Promise<{ id: string } | null> {
+  if (pageToken.startsWith('mock_')) {
+    console.log(`[MOCK FB MULTI-PHOTO POST] Published on page ${pageId}:`, options)
+    return { id: `mock_post_multi_${Date.now()}` }
+  }
   const graphUrl = getFbGraphUrl()
 
   if (options.photoUrls.length === 0) {
@@ -376,6 +385,10 @@ export async function publishInstagramPost(
     imageUrl: string
   },
 ): Promise<{ id: string }> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK IG POST] Published on account ${igAccountId}:`, options)
+    return { id: `mock_ig_post_${Date.now()}` }
+  }
   // Step 1: Create media container
   const containerRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
     method: 'POST',
@@ -415,6 +428,10 @@ export async function publishInstagramVideoPost(
     videoUrl: string
   },
 ): Promise<{ id: string }> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK IG VIDEO POST] Published on account ${igAccountId}:`, options)
+    return { id: `mock_ig_video_${Date.now()}` }
+  }
   // Step 1: Create media container for Video/Reels
   const containerRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media`, {
     method: 'POST',
@@ -469,6 +486,10 @@ export async function publishInstagramCarousel(
     imageUrls: string[]
   },
 ): Promise<{ id: string }> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK IG CAROUSEL POST] Published on account ${igAccountId}:`, options)
+    return { id: `mock_ig_carousel_${Date.now()}` }
+  }
   if (options.imageUrls.length <= 1) {
     return publishInstagramPost(igAccountId, token, {
       caption: options.caption,
@@ -627,4 +648,114 @@ export async function sendWhatsAppTemplate(
   console.error(`WhatsApp template send failed: ${errText}`)
   return { success: false, error: errText }
 }
+
+/** Publish a comment on a Facebook/Instagram object (post/media) */
+export async function publishComment(
+  objectId: string,
+  message: string,
+  token: string,
+): Promise<{ id: string } | null> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK FB COMMENT] Published on ${objectId}: "${message}"`)
+    return { id: `mock_comment_${Date.now()}` }
+  }
+  const graphUrl = getFbGraphUrl()
+  const res = await fetch(`${graphUrl}/${objectId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      message,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error(`FB comment publish failed: ${errText}`)
+    throw new Error(errText)
+  }
+  return res.json()
+}
+
+/** Delete a comment on Facebook/Instagram */
+export async function deleteComment(
+  commentId: string,
+  token: string,
+): Promise<void> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK FB COMMENT] Deleted comment: ${commentId}`)
+    return
+  }
+  const graphUrl = getFbGraphUrl()
+  const res = await fetch(`${graphUrl}/${commentId}?access_token=${token}`, {
+    method: 'DELETE',
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    console.warn(`FB comment delete failed: ${errText}`)
+    throw new Error(errText)
+  }
+}
+
+/** Delete a post from a Facebook Page */
+export async function deletePagePost(
+  postId: string,
+  token: string,
+): Promise<void> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK FB POST] Deleted post: ${postId}`)
+    return
+  }
+  const graphUrl = getFbGraphUrl()
+  const res = await fetch(`${graphUrl}/${postId}?access_token=${token}`, {
+    method: 'DELETE',
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    console.warn(`FB post delete failed: ${errText}`)
+    throw new Error(errText)
+  }
+}
+
+/** Publish a video to a Facebook Page */
+export async function publishPageVideo(
+  pageId: string,
+  pageToken: string,
+  options: {
+    caption: string
+    videoUrl: string
+  },
+): Promise<{ id: string } | null> {
+  if (pageToken.startsWith('mock_')) {
+    console.log(`[MOCK FB VIDEO POST] Published on page ${pageId}:`, options)
+    return { id: `mock_fb_video_${Date.now()}` }
+  }
+  const graphUrl = getFbGraphUrl()
+  try {
+    const res = await fetch(`${graphUrl}/${pageId}/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: pageToken,
+        file_url: options.videoUrl,
+        description: options.caption,
+      }),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error(`FB page video post failed: ${errText}`)
+      throw new Error(errText)
+    }
+    return res.json()
+  } catch (err: any) {
+    console.error(`[FB] publishPageVideo error: ${err.message}`)
+    throw err
+  }
+}
+
+
+
 

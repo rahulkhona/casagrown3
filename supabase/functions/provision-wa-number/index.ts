@@ -137,26 +137,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonError('A valid 5-digit zip code is required.', corsHeaders, 400)
   }
 
-  const areaCode = zipToAreaCode(zipCode)
-  console.log(`[PROVISION] User ${userId}: zip=${zipCode} → areaCode=${areaCode}`)
-
-  // ── Create Twilio sub-account ──
-  const subAccount = await createTwilioSubaccount(`CasaGrown Seller - ${userId}`)
-  if (!subAccount.success || !subAccount.sid || !subAccount.authToken) {
-    return jsonError('Failed to create phone account. Please try again.', corsHeaders, 500)
-  }
-
-  // ── Provision local number ──
-  const phone = await provisionWhatsAppNumber(subAccount.sid, subAccount.authToken, areaCode)
-  if (!phone.success || !phone.phoneNumber || !phone.phoneSid) {
-    return jsonError(
-      `Could not find an available local number for area code ${areaCode}. Please try again.`,
-      corsHeaders,
-      500,
-    )
-  }
-
-  // ── Save to database ──
+  // PREVENT ACCIDENTAL CHARGES: Return error before calling Twilio APIs
+  return jsonError('Twilio phone number provisioning has been decommissioned.', corsHeaders, 400)
   await supabase
     .from('seller_fb_connections')
     .upsert({

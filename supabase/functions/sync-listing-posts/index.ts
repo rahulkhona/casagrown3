@@ -17,8 +17,50 @@
  *   Listing deleted   → posts deleted immediately
  */
 import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { publishPagePost, publishMultiPhotoPost, deletePagePost, publishInstagramPost, publishInstagramCarousel } from '../_shared/facebook.ts'
-import { getGoogleAccessToken, publishGoogleLocalPost, deleteGoogleLocalPost } from '../_shared/google.ts'
+import { publishPagePost, publishMultiPhotoPost, deletePagePost, publishInstagramPost, publishInstagramCarousel, publishComment, deleteComment } from '../_shared/facebook.ts'
+import { getGoogleAccessToken, publishGoogleLocalPost, deleteGoogleLocalPost, updateGoogleLocalPost } from '../_shared/google.ts'
+
+function anonymizeAddress(address: string | null | undefined): string {
+  if (!address) return ''
+  const trimmed = address.trim()
+  if (trimmed.toLowerCase().startsWith('near')) return trimmed
+  const stripped = trimmed.replace(/^\d+[a-zA-Z]?[-/\s]*/, '')
+  if (stripped === trimmed) return trimmed
+  return `Near ${stripped}`
+}
+
+function formatTime(timeStr: string): string {
+  const parts = timeStr.split(':')
+  if (parts.length < 2) return timeStr
+  let hours = parseInt(parts[0] || '0', 10)
+  const minutes = parseInt(parts[1] || '0', 10)
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  hours = hours % 12
+  if (hours === 0) hours = 12
+  const minStr = minutes > 0 ? `:${parts[1]}` : ''
+  return `${hours}${minStr} ${ampm}`
+}
+
+function formatWindows(windows: Array<{ window_type: string; day_of_week: string; start_time: string; end_time: string }>, type: 'pickup' | 'delivery'): string {
+  const filtered = windows.filter(w => w.window_type === type)
+  if (filtered.length === 0) return ''
+  
+  const dayNames: Record<string, string> = {
+    mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun'
+  }
+  
+  const dayOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+  filtered.sort((a, b) => {
+    const dayDiff = dayOrder.indexOf(a.day_of_week) - dayOrder.indexOf(b.day_of_week)
+    if (dayDiff !== 0) return dayDiff
+    return a.start_time.localeCompare(b.start_time)
+  })
+
+  return filtered.map(w => {
+    const day = dayNames[w.day_of_week] || w.day_of_week.toUpperCase()
+    return `${day} ${formatTime(w.start_time)}–${formatTime(w.end_time)}`
+  }).join(', ')
+}
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
@@ -42,9 +84,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       wa_catalog_item_id,
     } = body
 
+    // Fetch comment IDs from database if we need to clean them up
+    const { data: product } = await supabase
+      .from('market_products')
+      .select('facebook_comment_id, instagram_comment_id')
+      .eq('id', product_id)
+      .maybeSingle()
+
     const results: Record<string, string> = {}
 
-    // Delete Facebook post
+    // Delete Facebook post and its quantity comment
     if (facebook_post_id) {
       try {
         const { data: conn } = await supabase
@@ -55,6 +104,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           .maybeSingle()
 
         if (conn?.fb_page_access_token) {
+          if (product?.facebook_comment_id) {
+            try {
+              await deleteComment(product.facebook_comment_id, conn.fb_page_access_token)
+            } catch (err: any) {
+              console.warn(`[SYNC-POSTS] FB comment deletion failed: ${err.message}`)
+            }
+          }
           await deletePagePost(facebook_post_id, conn.fb_page_access_token)
           results.facebook = 'deleted'
         }
@@ -64,10 +120,26 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       }
     }
 
-    // Delete Instagram post (Instagram API doesn't support deletion via Graph API)
-    // Posts will naturally fall off the feed. Just clear the tracking ID.
+    // Delete Instagram comment (since post deletion is not supported)
     if (instagram_post_id) {
-      results.instagram = 'cleared (IG API does not support deletion)'
+      try {
+        const { data: conn } = await supabase
+          .from('seller_fb_connections')
+          .select('fb_page_access_token')
+          .eq('user_id', seller_id)
+          .eq('status', 'connected')
+          .maybeSingle()
+
+        if (conn?.fb_page_access_token && product?.instagram_comment_id) {
+          await deleteComment(product.instagram_comment_id, conn.fb_page_access_token)
+          results.instagram = 'comment deleted (post kept as IG does not support delete)'
+        } else {
+          results.instagram = 'cleared (IG API does not support deletion)'
+        }
+      } catch (err: any) {
+        console.error(`[SYNC-POSTS] IG comment delete failed: ${err.message}`)
+        results.instagram = `error: ${err.message}`
+      }
     }
 
     // Delete Google Business Profile post
@@ -92,12 +164,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     // Clear WhatsApp catalog item
     if (wa_catalog_item_id) {
-      // WhatsApp catalog sync is managed via the catalog API
-      // For now, just clear the tracking ID
       results.whatsapp = 'cleared'
     }
 
-    // Clear post IDs from the listing
+    // Clear post and comment IDs from the listing
     await supabase
       .from('market_products')
       .update({
@@ -105,6 +175,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         instagram_post_id: null,
         google_post_id: null,
         wa_catalog_item_id: null,
+        facebook_comment_id: null,
+        instagram_comment_id: null,
         posts_expired_at: new Date().toISOString(),
       })
       .eq('id', product_id)
@@ -120,12 +192,332 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return jsonOk({ action, results }, corsHeaders)
   }
 
-  // ── PUBLISH — Create posts on all enabled channels ──
-  if (action === 'publish') {
+  // Helper to update quantity comments and GBP description
+  const updateQuantityComments = async (
+    prod: any,
+    fbPageId: string,
+    fbPageToken: string,
+    igBusinessAccountId: string | null,
+    commentLink: string
+  ) => {
+    const commResults: Record<string, any> = {}
+    const commentText = `Stock Update: Only ${prod.inventory} left in stock! 🛒 Link: ${commentLink}`
+
+    // 1. Facebook comment update
+    if (fbPageId && fbPageToken && prod.facebook_post_id) {
+      try {
+        if (prod.facebook_comment_id) {
+          await deleteComment(prod.facebook_comment_id, fbPageToken).catch(() => {})
+        }
+        const commRes = await publishComment(prod.facebook_post_id, commentText, fbPageToken)
+        if (commRes?.id) {
+          commResults.facebook_comment_id = commRes.id
+        }
+      } catch (err: any) {
+        console.error(`[SYNC-POSTS] FB stock comment update failed: ${err.message}`)
+      }
+    }
+
+    // 2. Instagram comment update (Elite only)
+    if (igBusinessAccountId && fbPageToken && prod.instagram_post_id) {
+      try {
+        if (prod.instagram_comment_id) {
+          await deleteComment(prod.instagram_comment_id, fbPageToken).catch(() => {})
+        }
+        const commRes = await publishComment(prod.instagram_post_id, commentText, fbPageToken)
+        if (commRes?.id) {
+          commResults.instagram_comment_id = commRes.id
+        }
+      } catch (err: any) {
+        console.error(`[SYNC-POSTS] IG stock comment update failed: ${err.message}`)
+      }
+    }
+
+    if (Object.keys(commResults).length > 0) {
+      await supabase
+        .from('market_products')
+        .update(commResults)
+        .eq('id', prod.id)
+    }
+
+    return commResults
+  }
+
+  // ── UPDATE — Delete old posts first, then fall through to publish ──
+  if (action === 'update') {
+    const { data: product } = await supabase
+      .from('market_products')
+      .select('facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id')
+      .eq('id', product_id)
+      .maybeSingle()
+
+    if (product) {
+      const { data: conn } = await supabase
+        .from('seller_fb_connections')
+        .select('fb_page_access_token')
+        .eq('user_id', seller_id)
+        .eq('status', 'connected')
+        .maybeSingle()
+
+      if (conn?.fb_page_access_token) {
+        if (product.facebook_post_id) {
+          if (product.facebook_comment_id) {
+            await deleteComment(product.facebook_comment_id, conn.fb_page_access_token).catch(() => {})
+          }
+          await deletePagePost(product.facebook_post_id, conn.fb_page_access_token).catch(() => {})
+        }
+        if (product.instagram_post_id && product.instagram_comment_id) {
+          await deleteComment(product.instagram_comment_id, conn.fb_page_access_token).catch(() => {})
+        }
+      }
+
+      if (product.google_post_id) {
+        try {
+          const { data: googleConn } = await supabase
+            .from('seller_google_connections')
+            .select('google_refresh_token')
+            .eq('user_id', seller_id)
+            .maybeSingle()
+
+          if (googleConn?.google_refresh_token) {
+            const accessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+            await deleteGoogleLocalPost(product.google_post_id, accessToken).catch(() => {})
+          }
+        } catch (e) {}
+      }
+
+      await supabase
+        .from('market_products')
+        .update({
+          facebook_post_id: null,
+          instagram_post_id: null,
+          google_post_id: null,
+          facebook_comment_id: null,
+          instagram_comment_id: null,
+        })
+        .eq('id', product_id)
+    }
+  }
+
+  // ── UPDATE_INVENTORY — Just update quantity comments & Google description ──
+  if (action === 'update_inventory') {
+    const { data: product, error: productErr } = await supabase
+      .from('market_products')
+      .select(`
+        id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
+        facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id
+      `)
+      .eq('id', product_id)
+      .single()
+
+    if (productErr || !product) {
+      return jsonError('Product not found', corsHeaders)
+    }
+
+    if (!product.is_active || product.inventory <= 0) {
+      return jsonOk({ action, skipped: true, reason: 'inactive_or_out_of_stock' }, corsHeaders)
+    }
+
+    const { data: conn } = await supabase
+      .from('seller_fb_connections')
+      .select(`
+        fb_page_id, fb_page_access_token, fb_page_name, status,
+        auto_post_enabled,
+        ig_business_account_id, ig_access_token, ig_auto_post_enabled,
+        wa_phone_number_id, wa_display_phone,
+        seller_subscriptions!inner(plan, status)
+      `)
+      .eq('user_id', seller_id)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (!conn) {
+      return jsonOk({ action, skipped: true, reason: 'no_active_connection' }, corsHeaders)
+    }
+
+    const sub = (conn as any).seller_subscriptions
+    if (!sub || !['active', 'trialing'].includes(sub.status)) {
+      return jsonOk({ action, skipped: true, reason: 'no_active_subscription' }, corsHeaders)
+    }
+
+    const { data: tierData } = await supabase
+      .from('subscription_tiers')
+      .select('features')
+      .eq('tier_name', sub.plan)
+      .single()
+
+    const features = tierData?.features || {}
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, farm_name, dm_short_code, business_type, seller_bio, business_license, cottage_food_permit, food_handler_permit')
+      .eq('id', seller_id)
+      .single()
+
+    const sellerName = profile?.farm_name || profile?.full_name || 'Local Grower'
+
+    const { data: booth } = await supabase
+      .from('market_booths')
+      .select('id, name, short_code, pickup_address, offers_pickup, offers_delivery, booth_address, delivery_radius_miles, delivery_zipcodes')
+      .eq('id', product.booth_id || booth_id)
+      .single()
+
+    const { data: windows } = await supabase
+      .from('booth_fulfillment_windows')
+      .select('window_type, day_of_week, start_time, end_time')
+      .eq('booth_id', booth?.id || product.booth_id || booth_id)
+
+    const price = Number(product.price_usd).toFixed(2)
+    const boothIdVal = booth?.id || product.booth_id
+    const productLink = `${siteUrl}/market/booth/${boothIdVal}/product/${product.id}`
+
+    const boothShortCode = booth?.short_code
+    const dmShortCode = profile?.dm_short_code
+
+    const boothUrl = (ch: string) =>
+      boothShortCode
+        ? `${siteUrl}/b/${boothShortCode}?ref=${ch}`
+        : `${siteUrl}/market/booth/${boothIdVal}`
+    const dmUrl = (ch: string) =>
+      dmShortCode
+        ? `${siteUrl}/dm/${dmShortCode}?ref=${ch}`
+        : null
+
+    const bizTypeLabels: Record<string, string> = {
+      hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+      cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+      homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+      gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+      commercial: '🏢 Commercial / Licensed',
+    }
+
+    const buildMessage = (ch: string) => {
+      let msg = `🌱 Just listed from ${sellerName}!\n`
+      if (profile?.business_type && bizTypeLabels[profile.business_type]) {
+        msg += `${bizTypeLabels[profile.business_type]}\n`
+      }
+      if (profile?.seller_bio) {
+        msg += `🚜 About Us: ${profile.seller_bio}\n`
+      }
+      const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
+      msg += `\n${product.name} — $${price}/${unit}\n`
+      if (product.description) {
+        msg += `${product.description}\n`
+      }
+      if (booth?.offers_pickup && booth?.pickup_address) {
+        const anonymizedPickup = anonymizeAddress(booth.pickup_address)
+        msg += `\n📍 Pickup: ${anonymizedPickup}`
+        const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
+        if (pickupWin) {
+          msg += ` (${pickupWin})`
+        }
+      }
+      if (booth?.offers_delivery) {
+        const radius = booth.delivery_radius_miles || 5
+        const anonymizedBase = anonymizeAddress(booth.booth_address || booth.pickup_address)
+        let delMsg = `\n🚗 Delivery: within ${radius} miles from our base: ${anonymizedBase}`
+        const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
+        if (deliveryWin) {
+          delMsg += ` (${deliveryWin})`
+        }
+        if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+          delMsg += `\n📦 Serving Zip Codes: ${booth.delivery_zipcodes.join(', ')}`
+        }
+        msg += delMsg
+      }
+      const permits: string[] = []
+      if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
+      if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
+      if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
+      if (permits.length > 0) {
+        msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
+      }
+
+      msg += `\n\n🛒 Order now → ${productLink}`
+      const chatUrl = dmUrl(ch)
+      if (chatUrl) {
+        msg += `\n💬 Chat with us → ${chatUrl}`
+      }
+
+      if (ch === 'instagram' && msg.length > 2200) {
+        msg = msg.substring(0, 2197) + '...'
+      } else if (ch === 'google' && msg.length > 1500) {
+        msg = msg.substring(0, 1497) + '...'
+      }
+      return msg
+    }
+
+    const commentText = `Stock Update: Only ${product.inventory} left in stock! 🛒 Link: ${productLink}`
+    const commResults: Record<string, any> = {}
+
+    // Facebook comment update
+    if (features.facebook_posts && conn.auto_post_enabled && conn.fb_page_id && conn.fb_page_access_token && product.facebook_post_id) {
+      try {
+        if (product.facebook_comment_id) {
+          await deleteComment(product.facebook_comment_id, conn.fb_page_access_token).catch(() => {})
+        }
+        const commRes = await publishComment(product.facebook_post_id, commentText, conn.fb_page_access_token)
+        if (commRes?.id) {
+          commResults.facebook_comment_id = commRes.id
+        }
+      } catch (err: any) {
+        console.error(`[SYNC-POSTS] FB stock comment update failed: ${err.message}`)
+      }
+    }
+
+    // Instagram comment update (Elite only)
+    if (features.instagram_posts && conn.ig_auto_post_enabled && conn.ig_business_account_id && product.instagram_post_id) {
+      try {
+        if (product.instagram_comment_id) {
+          await deleteComment(product.instagram_comment_id, conn.fb_page_access_token).catch(() => {})
+        }
+        const commRes = await publishComment(product.instagram_post_id, commentText, conn.fb_page_access_token)
+        if (commRes?.id) {
+          commResults.instagram_comment_id = commRes.id
+        }
+      } catch (err: any) {
+        console.error(`[SYNC-POSTS] IG stock comment update failed: ${err.message}`)
+      }
+    }
+
+    // Google Local Post body update (Elite only)
+    if (features.google_places && product.google_post_id) {
+      const { data: googleConn } = await supabase
+        .from('seller_google_connections')
+        .select('google_refresh_token, google_location_id, auto_post_specials')
+        .eq('user_id', seller_id)
+        .maybeSingle()
+
+      if (googleConn?.google_refresh_token) {
+        try {
+          const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
+          const googleMessage = buildMessage('google')
+          await updateGoogleLocalPost(product.google_post_id, googleAccessToken, { caption: googleMessage })
+        } catch (err: any) {
+          console.error(`[SYNC-POSTS] Google post body update failed: ${err.message}`)
+        }
+      }
+    }
+
+    if (Object.keys(commResults).length > 0) {
+      await supabase
+        .from('market_products')
+        .update(commResults)
+        .eq('id', product_id)
+    }
+
+    return jsonOk({ action, comment_updated: true, commResults }, corsHeaders)
+  }
+
+  // ── PUBLISH ──
+  if (action === 'publish' || action === 'update') {
     // Get the product details
     const { data: product, error: productErr } = await supabase
       .from('market_products')
-      .select('id, name, description, price_usd, photos, inventory, category, market_date, booth_id, is_active')
+      .select(`
+        id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
+        facebook_post_id, instagram_post_id, google_post_id
+      `)
       .eq('id', product_id)
       .single()
 
@@ -173,7 +565,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     // Get seller profile and booth info
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, farm_name, dm_short_code, business_type')
+      .select('full_name, farm_name, dm_short_code, business_type, seller_bio, business_license, cottage_food_permit, food_handler_permit')
       .eq('id', seller_id)
       .single()
 
@@ -181,32 +573,33 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     const { data: booth } = await supabase
       .from('market_booths')
-      .select('id, name, short_code, pickup_address, offers_pickup, offers_delivery')
+      .select('id, name, short_code, pickup_address, offers_pickup, offers_delivery, booth_address, delivery_radius_miles, delivery_zipcodes')
       .eq('id', product.booth_id || booth_id)
       .single()
 
+    // Get fulfillment windows
+    const { data: windows } = await supabase
+      .from('booth_fulfillment_windows')
+      .select('window_type, day_of_week, start_time, end_time')
+      .eq('booth_id', booth?.id || product.booth_id || booth_id)
+
     // Build the post message — uses short URLs to avoid exposing UUIDs
     const price = Number(product.price_usd).toFixed(2)
-    const boothId = booth?.id || product.booth_id
-    // Product deep link (full UUID path — only used internally in the post)
-    const productLink = `${siteUrl}/market/booth/${boothId}/product/${product.id}`
+    const boothIdVal = booth?.id || product.booth_id
+    const productLink = `${siteUrl}/market/booth/${boothIdVal}/product/${product.id}`
 
-    // Determine which channel we're building for (set per-channel below)
-    // Default links use short codes when available
     const boothShortCode = booth?.short_code
     const dmShortCode = profile?.dm_short_code
 
-    // Helper to build channel-attributed short URLs
-    const boothUrl = (channel: string) =>
+    const boothUrl = (ch: string) =>
       boothShortCode
-        ? `${siteUrl}/b/${boothShortCode}?ref=${channel}`
-        : `${siteUrl}/market/booth/${boothId}`
-    const dmUrl = (channel: string) =>
+        ? `${siteUrl}/b/${boothShortCode}?ref=${ch}`
+        : `${siteUrl}/market/booth/${boothIdVal}`
+    const dmUrl = (ch: string) =>
       dmShortCode
-        ? `${siteUrl}/dm/${dmShortCode}?ref=${channel}`
+        ? `${siteUrl}/dm/${dmShortCode}?ref=${ch}`
         : null
 
-    // Business type labels
     const bizTypeLabels: Record<string, string> = {
       hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
       cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
@@ -215,40 +608,59 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       commercial: '🏢 Commercial / Licensed',
     }
 
-    // Build base message (channel-specific links appended per platform below)
-    const buildMessage = (channel: string) => {
+    const buildMessage = (ch: string) => {
       let msg = `🌱 Just listed from ${sellerName}!\n`
       if (profile?.business_type && bizTypeLabels[profile.business_type]) {
         msg += `${bizTypeLabels[profile.business_type]}\n`
       }
-      msg += `\n${product.name} — $${price}/${product.category === 'produce' ? 'lb' : 'each'}\n`
+      if (profile?.seller_bio) {
+        msg += `🚜 About Us: ${profile.seller_bio}\n`
+      }
+      const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
+      msg += `\n${product.name} — $${price}/${unit}\n`
       if (product.description) {
         msg += `${product.description}\n`
       }
       if (booth?.offers_pickup && booth?.pickup_address) {
-        msg += `\n📍 Pickup: ${booth.pickup_address}`
+        const anonymizedPickup = anonymizeAddress(booth.pickup_address)
+        msg += `\n📍 Pickup: ${anonymizedPickup}`
+        const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
+        if (pickupWin) {
+          msg += ` (${pickupWin})`
+        }
       }
       if (booth?.offers_delivery) {
-        msg += `\n🚗 Delivery available`
+        const radius = booth.delivery_radius_miles || 5
+        const anonymizedBase = anonymizeAddress(booth.booth_address || booth.pickup_address)
+        let delMsg = `\n🚗 Delivery: within ${radius} miles from our base: ${anonymizedBase}`
+        const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
+        if (deliveryWin) {
+          delMsg += ` (${deliveryWin})`
+        }
+        if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+          delMsg += `\n📦 Serving Zip Codes: ${booth.delivery_zipcodes.join(', ')}`
+        }
+        msg += delMsg
+      }
+      const permits: string[] = []
+      if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
+      if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
+      if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
+      if (permits.length > 0) {
+        msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
       }
 
       msg += `\n\n🛒 Order now → ${productLink}`
-      msg += `\n🏪 Browse all listings → ${boothUrl(channel)}`
-
-      const dm = dmUrl(channel)
-      if (dm) {
-        msg += `\n💬 Chat with us on CasaGrown → ${dm}`
+      const chatUrl = dmUrl(ch)
+      if (chatUrl) {
+        msg += `\n💬 Chat with us → ${chatUrl}`
       }
 
-      // Add WhatsApp follow CTA for Elite sellers (Q&A only, not commerce)
-      if (features.whatsapp_chat && conn.wa_display_phone) {
-        const cleanPhone = conn.wa_display_phone.replace(/\D/g, '')
-        if (cleanPhone) {
-          const waText = encodeURIComponent(`Hi! I'm interested in ${product.name} (ref:${product.id})`)
-          msg += `\n\n📱 Ask about this on WhatsApp → https://wa.me/${cleanPhone}?text=${waText}`
-        }
+      if (ch === 'instagram' && msg.length > 2200) {
+        msg = msg.substring(0, 2197) + '...'
+      } else if (ch === 'google' && msg.length > 1500) {
+        msg = msg.substring(0, 1497) + '...'
       }
-
       return msg
     }
 
@@ -259,20 +671,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     if (features.facebook_posts && conn.auto_post_enabled && conn.fb_page_id && conn.fb_page_access_token) {
       try {
         const fbMessage = buildMessage('facebook')
-        const fbResult = product.photos?.length > 1
-          ? await publishMultiPhotoPost(conn.fb_page_id, conn.fb_page_access_token, {
-              message: fbMessage,
-              photoUrls: product.photos,
-              link: productLink,
-            })
-          : await publishPagePost(conn.fb_page_id, conn.fb_page_access_token, {
-              message: fbMessage,
-              link: productLink,
-              photoUrl,
-            })
+        const fbResult = await publishPagePost(conn.fb_page_id, conn.fb_page_access_token, {
+          message: fbMessage,
+          link: productLink,
+        })
 
         results.facebook = { post_id: fbResult?.id, status: 'published' }
-        console.log(`[SYNC-POSTS] ✅ FB post created for ${product.name}`)
+        console.log(`[SYNC-POSTS] ✅ FB link post created for ${product.name}`)
       } catch (err: any) {
         console.error(`[SYNC-POSTS] ❌ FB post failed: ${err.message}`)
         results.facebook = { status: 'error', error: err.message }
@@ -312,7 +717,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       if (googleConn?.auto_post_specials && googleConn?.google_location_id && googleConn?.google_refresh_token) {
         try {
           const googleAccessToken = await getGoogleAccessToken(googleConn.google_refresh_token)
-
           const googleMessage = buildMessage('google')
 
           // Use EVENT type post with market_date as start/end for auto-expiration
@@ -320,10 +724,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             caption: googleMessage,
             photoUrl,
             buttonUrl: productLink,
-            // Google Event posts auto-expire at the end time
             eventTitle: `${product.name} — $${price}`,
             eventStartDate: product.market_date,
-            eventEndDate: product.market_date, // Same day — expires at end of market day
+            eventEndDate: product.market_date,
           })
 
           results.google = { post_id: gbpResult?.name, status: 'published' }
@@ -352,22 +755,29 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     await supabase.from('fb_auto_post_log').insert({
       user_id: seller_id,
       product_id,
-      target: 'sync_publish',
+      target: action === 'publish' ? 'sync_publish' : 'sync_update',
       message: JSON.stringify(results),
     })
 
-    return jsonOk({ action, results }, corsHeaders)
-  }
+    // Now publish initial quantity comments!
+    const freshProduct = {
+      id: product_id,
+      inventory: product.inventory,
+      facebook_post_id: results.facebook?.post_id || null,
+      instagram_post_id: results.instagram?.post_id || null,
+      facebook_comment_id: null,
+      instagram_comment_id: null
+    }
 
-  // ── UPDATE — Update existing posts ──
-  if (action === 'update') {
-    // For now, Facebook doesn't allow editing posts via API (only comments).
-    // Google Business Posts can be updated. Instagram cannot.
-    // Best approach: delete old + create new for channels that don't support update.
-    // For MVP: just log the update request. The daily cron still handles aggregated posts.
-    console.log(`[SYNC-POSTS] Update requested for product ${product_id} — logged for future implementation`)
+    const commentRes = await updateQuantityComments(
+      freshProduct,
+      conn.fb_page_id,
+      conn.fb_page_access_token,
+      conn.ig_business_account_id,
+      productLink
+    )
 
-    return jsonOk({ action, status: 'logged', note: 'Post updates will be implemented in v2' }, corsHeaders)
+    return jsonOk({ action, results, commentRes }, corsHeaders)
   }
 
   return jsonError(`Unknown action: ${action}`, corsHeaders)

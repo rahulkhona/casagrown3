@@ -5,12 +5,12 @@
  * POST: Handle incoming messages → AI-powered reply with multi-booth routing
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { sendInstagramMessage } from '../_shared/facebook.ts'
+import { sendInstagramMessage, publishComment } from '../_shared/facebook.ts'
 import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
 } from '../_shared/growbot-seller.ts'
-import { extractInstagramReferral, lookupProductById, buildProductContextPrompt } from '../_shared/product-context.ts'
+import { extractInstagramReferral, lookupProductById, buildProductContextPrompt, lookupProductByIgPostId } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
