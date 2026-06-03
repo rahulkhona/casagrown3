@@ -4,6 +4,7 @@ import { useState, useEffect, use, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '../../../../lib/useAuth'
+import { useSubscription } from '../../../../lib/useSubscription'
 import { createClient } from '../../../../lib/supabase'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import AddressInput from '../../../components/AddressInput'
@@ -246,7 +247,8 @@ interface ProductRow {
 export default function StandDetailPage({ params }: { params: Promise<{ boothId: string }> }) {
   const unwrappedParams = use(params)
   const boothId = unwrappedParams.boothId
-  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
+  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const { isPro, isElite, loading: subLoading } = useSubscription()
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -309,17 +311,8 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Platform Sync state
-  const [hasFbConnection, setHasFbConnection] = useState(false)
-  const [editSyncEnabled, setEditSyncEnabled] = useState(true)
-  const [fbConnectionId, setFbConnectionId] = useState<string | null>(null)
-  const [hasIgConnection, setHasIgConnection] = useState(false)
-  const [editIgSyncEnabled, setEditIgSyncEnabled] = useState(true)
-  const [hasWaConnection, setHasWaConnection] = useState(false)
-  const [editWaSyncEnabled, setEditWaSyncEnabled] = useState(true)
   const [hasGoogleConnection, setHasGoogleConnection] = useState(false)
   const [editGoogleSyncEnabled, setEditGoogleSyncEnabled] = useState(true)
-  const [sellerPlan, setSellerPlan] = useState<string | null>(null)
-  const isElite = sellerPlan === 'elite'
 
   // Catalog state
   interface CatalogItem {
@@ -343,14 +336,14 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
 
   // Auth guard
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!authLoading && !subLoading && !isAuthenticated) {
       router.replace(`/login?redirect=/my-stands/${boothId}`)
     }
-  }, [authLoading, isAuthenticated, router, boothId])
+  }, [authLoading, subLoading, isAuthenticated, router, boothId])
 
   // Fetch stand data
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading || subLoading || !user) return
     const load = async () => {
       // First try as owner
       let booth: any = null
@@ -483,36 +476,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       setEditWeeklyPickupWindows(pickWin)
       setLoading(false)
 
-      // Fetch platform connections & subscription plan
-      supabase
-        .from('seller_fb_connections')
-        .select('id, status, auto_sync_enabled, ig_business_account_id, ig_messenger_enabled, wa_display_phone')
-        .eq('user_id', user.id)
-        .single()
-        .then(async ({ data: conn }: { data: any }) => {
-          if (conn && conn.status === 'connected') {
-            // Facebook
-            if (conn.auto_sync_enabled) {
-              setHasFbConnection(true)
-              setFbConnectionId(conn.id)
-              const { data: fbCat } = await supabase
-                .from('booth_fb_catalogs')
-                .select('sync_enabled')
-                .eq('booth_id', boothId)
-                .single()
-              if (fbCat) setEditSyncEnabled(fbCat.sync_enabled !== false)
-              else setEditSyncEnabled(true)
-            }
-            // Instagram
-            if (conn.ig_business_account_id && conn.ig_messenger_enabled) {
-              setHasIgConnection(true)
-            }
-            // WhatsApp
-            if (conn.wa_display_phone) {
-              setHasWaConnection(true)
-            }
-          }
-        })
+
 
       // Google connection
       supabase
@@ -526,16 +490,6 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           }
         })
 
-      // Subscription plan
-      supabase
-        .from('seller_subscriptions')
-        .select('plan')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single()
-        .then(({ data: sub }: { data: any }) => {
-          if (sub) setSellerPlan(sub.plan)
-        })
 
       // Fetch products
       const { data: prods } = await supabase
@@ -606,7 +560,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       }
     }
     load()
-  }, [user?.id, authLoading, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading, subLoading, boothId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleShare = () => {
     setShowShareModal(true)
@@ -893,18 +847,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         if (winErr) console.error('Failed to save fulfillment windows:', winErr)
       }
 
-      // Save Facebook Sync toggle state
-      if (hasFbConnection && fbConnectionId) {
-        const { error: fbErr } = await supabase
-          .from('booth_fb_catalogs')
-          .upsert({
-            booth_id: stand.id,
-            connection_id: fbConnectionId,
-            sync_enabled: editSyncEnabled,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'booth_id' })
-        if (fbErr) console.error('Failed to save Facebook sync toggle:', fbErr)
-      }
+
 
       // Navigate back to My Booths
       router.push('/my-stands')
@@ -915,7 +858,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
     }
   }
 
-  if (authLoading || !isAuthenticated) {
+  if (authLoading || subLoading || !isAuthenticated) {
     return <LoadingSpinner />
   }
 
@@ -1718,9 +1661,9 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
             </div>
 
             {/* ══════════════════════════════════════════════════════ */}
-            {/*  📡 PLATFORM INVENTORY SYNC — Per-Booth Toggles        */}
+            {/*  📡 PLATFORM INVENTORY SYNC — Google Business Sync     */}
             {/* ══════════════════════════════════════════════════════ */}
-            {(proEnabled || isPro) && (hasFbConnection || (isElite && (hasIgConnection || hasWaConnection || hasGoogleConnection))) && (
+            {isElite && hasGoogleConnection && (
               <div style={{
                 border: '1px solid #e5e7eb',
                 borderRadius: 12,
@@ -1729,111 +1672,30 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                 marginBottom: 20,
               }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>📡 Inventory Sync for this Booth</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Choose which platforms sync listings from this booth. Top-level sync must be enabled in Manage Features.</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Choose which platforms sync listings from this booth.</div>
 
-                {/* Facebook */}
-                {hasFbConnection && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                    <span style={{ fontSize: 20 }}>📘</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Facebook Shop</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Sync listings to your Facebook catalog</div>
-                    </div>
-                    <button
-                      type="button" role="switch" aria-checked={editSyncEnabled}
-                      onClick={() => setEditSyncEnabled(!editSyncEnabled)}
-                      style={{
-                        position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none',
-                        background: editSyncEnabled ? '#22c55e' : '#d1d5db',
-                        cursor: 'pointer', transition: 'background 0.2s', padding: 0,
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 2, left: editSyncEnabled ? 22 : 2,
-                        width: 20, height: 20, borderRadius: '50%', background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
-                      }} />
-                    </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
+                  <span style={{ fontSize: 20 }}>📍</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Google Business</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Sync to your Google Business Profile</div>
                   </div>
-                )}
-
-                {/* Instagram (Elite only) */}
-                {isElite && hasIgConnection && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                    <span style={{ fontSize: 20 }}>📸</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Instagram Shop</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Sync listings to your Instagram catalog</div>
-                    </div>
-                    <button
-                      type="button" role="switch" aria-checked={editIgSyncEnabled}
-                      onClick={() => setEditIgSyncEnabled(!editIgSyncEnabled)}
-                      style={{
-                        position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none',
-                        background: editIgSyncEnabled ? '#22c55e' : '#d1d5db',
-                        cursor: 'pointer', transition: 'background 0.2s', padding: 0,
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 2, left: editIgSyncEnabled ? 22 : 2,
-                        width: 20, height: 20, borderRadius: '50%', background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
-                      }} />
-                    </button>
-                  </div>
-                )}
-
-                {/* WhatsApp (Elite only) */}
-                {isElite && hasWaConnection && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                    <span style={{ fontSize: 20 }}>📱</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>WhatsApp Catalog</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Include this booth&apos;s listings in WhatsApp</div>
-                    </div>
-                    <button
-                      type="button" role="switch" aria-checked={editWaSyncEnabled}
-                      onClick={() => setEditWaSyncEnabled(!editWaSyncEnabled)}
-                      style={{
-                        position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none',
-                        background: editWaSyncEnabled ? '#22c55e' : '#d1d5db',
-                        cursor: 'pointer', transition: 'background 0.2s', padding: 0,
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 2, left: editWaSyncEnabled ? 22 : 2,
-                        width: 20, height: 20, borderRadius: '50%', background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
-                      }} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Google (Elite only) */}
-                {isElite && hasGoogleConnection && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
-                    <span style={{ fontSize: 20 }}>📍</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Google Business</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Sync to your Google Business Profile</div>
-                    </div>
-                    <button
-                      type="button" role="switch" aria-checked={editGoogleSyncEnabled}
-                      onClick={() => setEditGoogleSyncEnabled(!editGoogleSyncEnabled)}
-                      style={{
-                        position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none',
-                        background: editGoogleSyncEnabled ? '#22c55e' : '#d1d5db',
-                        cursor: 'pointer', transition: 'background 0.2s', padding: 0,
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 2, left: editGoogleSyncEnabled ? 22 : 2,
-                        width: 20, height: 20, borderRadius: '50%', background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
-                      }} />
-                    </button>
-                  </div>
-                )}
+                  <button
+                    type="button" role="switch" aria-checked={editGoogleSyncEnabled}
+                    onClick={() => setEditGoogleSyncEnabled(!editGoogleSyncEnabled)}
+                    style={{
+                      position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none',
+                      background: editGoogleSyncEnabled ? '#22c55e' : '#d1d5db',
+                      cursor: 'pointer', transition: 'background 0.2s', padding: 0,
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 2, left: editGoogleSyncEnabled ? 22 : 2,
+                      width: 20, height: 20, borderRadius: '50%', background: 'white',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
+                    }} />
+                  </button>
+                </div>
               </div>
             )}
 

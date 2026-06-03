@@ -4,6 +4,7 @@ import { useState, useEffect, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../../lib/useAuth'
+import { useSubscription } from '../../../../lib/useSubscription'
 import { createClient } from '../../../../lib/supabase'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import AddressInput from '../../../components/AddressInput'
@@ -155,7 +156,8 @@ interface ExistingStand {
 }
 
 export default function NewStandPage() {
-  const { user, loading: authLoading, isAuthenticated, isPro } = useAuth()
+  const { user, loading: authLoading, isAuthenticated } = useAuth()
+  const { isPro, isElite, loading: subLoading } = useSubscription()
   const supabase = createClient()
   const router = useRouter()
 
@@ -174,16 +176,8 @@ export default function NewStandPage() {
   const [weeklyDeliveryWindows, setWeeklyDeliveryWindows] = useState<WeeklyWindows>({})
 
   // Platform sync
-  const [hasFbConnection, setHasFbConnection] = useState(false)
-  const [fbConnectionId, setFbConnectionId] = useState<string | null>(null)
-  const [fbSyncEnabled, setFbSyncEnabled] = useState(true)
-  const [hasIgConnection, setHasIgConnection] = useState(false)
-  const [igSyncEnabled, setIgSyncEnabled] = useState(true)
-  const [hasWaConnection, setHasWaConnection] = useState(false)
-  const [waSyncEnabled, setWaSyncEnabled] = useState(true)
   const [hasGoogleConnection, setHasGoogleConnection] = useState(false)
   const [googleSyncEnabled, setGoogleSyncEnabled] = useState(true)
-  const [isElite, setIsElite] = useState(false)
 
   // Copy defaults from existing stand
   const [existingStands, setExistingStands] = useState<ExistingStand[]>([])
@@ -191,17 +185,17 @@ export default function NewStandPage() {
 
   // Auth guard
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!authLoading && !subLoading && !isAuthenticated) {
       router.replace('/login?redirect=/my-stands/new')
     }
-  }, [authLoading, isAuthenticated, router])
+  }, [authLoading, subLoading, isAuthenticated, router])
 
   // Creating additional booths is Pro-only
   useEffect(() => {
-    if (!authLoading && user && !isPro) {
+    if (!authLoading && !subLoading && user && !isPro) {
       router.replace('/my-stands')
     }
-  }, [authLoading, user, isPro, router])
+  }, [authLoading, subLoading, user, isPro, router])
 
   // Load existing stands + profile address
   useEffect(() => {
@@ -261,22 +255,7 @@ export default function NewStandPage() {
     }
     load()
 
-    // Load platform connections
-    supabase
-      .from('seller_fb_connections')
-      .select('id, status, auto_sync_enabled, ig_business_account_id, ig_messenger_enabled, wa_display_phone')
-      .eq('user_id', user.id)
-      .single()
-      .then(({ data: conn }: { data: any }) => {
-        if (conn && conn.status === 'connected') {
-          if (conn.auto_sync_enabled) {
-            setHasFbConnection(true)
-            setFbConnectionId(conn.id)
-          }
-          if (conn.ig_business_account_id && conn.ig_messenger_enabled) setHasIgConnection(true)
-          if (conn.wa_display_phone) setHasWaConnection(true)
-        }
-      })
+
     supabase
       .from('seller_google_connections')
       .select('auto_sync_catalog')
@@ -285,15 +264,7 @@ export default function NewStandPage() {
       .then(({ data: gConn }: { data: any }) => {
         if (gConn?.auto_sync_catalog) setHasGoogleConnection(true)
       })
-    supabase
-      .from('seller_subscriptions')
-      .select('plan')
-      .eq('user_id', user.id)
-      .single()
-      .then(({ data: sub }: { data: any }) => {
-        if (sub?.plan === 'elite') setIsElite(true)
-      })
-  }, [user?.id, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading, subLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCopyFrom = (standId: string) => {
     setCopyFromId(standId)
@@ -413,15 +384,7 @@ export default function NewStandPage() {
         return
       }
 
-      // Save platform sync toggles
-      if (hasFbConnection && fbConnectionId && fbSyncEnabled) {
-        await supabase.from('booth_fb_catalogs').upsert({
-          booth_id: data.id,
-          connection_id: fbConnectionId,
-          sync_enabled: fbSyncEnabled,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'booth_id' }).then(() => {})
-      }
+
 
       router.push(`/my-stands/${data.id}`)
     } catch (err: any) {
@@ -430,7 +393,7 @@ export default function NewStandPage() {
     }
   }
 
-  if (authLoading || !isAuthenticated) {
+  if (authLoading || subLoading || !isAuthenticated) {
     return <LoadingSpinner />
   }
 
@@ -620,7 +583,7 @@ export default function NewStandPage() {
           )}
         </div>
         {/* ── Platform Inventory Sync ── */}
-        {(isPro) && (hasFbConnection || (isElite && (hasIgConnection || hasWaConnection || hasGoogleConnection))) && (
+        {isElite && hasGoogleConnection && (
           <div style={{
             border: '1px solid #e5e7eb',
             borderRadius: 12,
@@ -631,61 +594,17 @@ export default function NewStandPage() {
             <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>📡 Inventory Sync for this Booth</div>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Choose which platforms sync listings from this booth.</div>
 
-            {hasFbConnection && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: 20 }}>📘</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Facebook Shop</div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>Sync listings to your Facebook catalog</div>
-                </div>
-                <button type="button" role="switch" aria-checked={fbSyncEnabled} onClick={() => setFbSyncEnabled(!fbSyncEnabled)}
-                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: fbSyncEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: fbSyncEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
+              <span style={{ fontSize: 20 }}>📍</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Google Business</div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>Sync to your Google Business Profile</div>
               </div>
-            )}
-
-            {isElite && hasIgConnection && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: 20 }}>📸</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Instagram Shop</div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>Sync listings to your Instagram catalog</div>
-                </div>
-                <button type="button" role="switch" aria-checked={igSyncEnabled} onClick={() => setIgSyncEnabled(!igSyncEnabled)}
-                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: igSyncEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: igSyncEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                </button>
-              </div>
-            )}
-
-            {isElite && hasWaConnection && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: 20 }}>📱</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>WhatsApp Catalog</div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>Include this booth&apos;s listings in WhatsApp</div>
-                </div>
-                <button type="button" role="switch" aria-checked={waSyncEnabled} onClick={() => setWaSyncEnabled(!waSyncEnabled)}
-                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: waSyncEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: waSyncEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                </button>
-              </div>
-            )}
-
-            {isElite && hasGoogleConnection && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
-                <span style={{ fontSize: 20 }}>📍</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Google Business</div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>Sync to your Google Business Profile</div>
-                </div>
-                <button type="button" role="switch" aria-checked={googleSyncEnabled} onClick={() => setGoogleSyncEnabled(!googleSyncEnabled)}
-                  style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: googleSyncEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: googleSyncEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                </button>
-              </div>
-            )}
+              <button type="button" role="switch" aria-checked={googleSyncEnabled} onClick={() => setGoogleSyncEnabled(!googleSyncEnabled)}
+                style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: googleSyncEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer', transition: 'background 0.2s', padding: 0 }}>
+                <span style={{ position: 'absolute', top: 2, left: googleSyncEnabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+              </button>
+            </div>
           </div>
         )}
       </div>

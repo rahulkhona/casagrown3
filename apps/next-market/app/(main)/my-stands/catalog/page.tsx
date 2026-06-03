@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
+import { useSubscription } from '../../../../lib/useSubscription'
 import { checkTextForViolations } from '../../../../lib/moderation'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import styles from './page.module.css'
@@ -50,7 +51,8 @@ const GROWING_METHODS = [
 ]
 
 export default function CatalogPage() {
-  const { user, loading: authLoading, isPro } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const { isPro, loading: subLoading } = useSubscription()
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -354,23 +356,23 @@ export default function CatalogPage() {
       setLoading(false)
     }
     load()
-  }, [user?.id, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading, subLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !subLoading && !user) {
       router.replace('/login?redirect=/my-stands/catalog')
     }
-  }, [authLoading, user, router])
+  }, [authLoading, subLoading, user, router])
 
   // Catalog is Pro-only — redirect free users
   useEffect(() => {
-    if (!authLoading && user && !isPro) {
+    if (!authLoading && !subLoading && user && !isPro) {
       router.replace('/my-stands')
     }
-  }, [authLoading, user, isPro, router])
+  }, [authLoading, subLoading, user, isPro, router])
 
-  if (authLoading || !user) return <LoadingSpinner />
+  if (authLoading || subLoading || !user) return <LoadingSpinner />
   if (!isPro) return <LoadingSpinner />
 
   // Filter items
