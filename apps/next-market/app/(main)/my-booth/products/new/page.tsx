@@ -379,7 +379,7 @@ function NewProductPageInner() {
   useEffect(() => {
     if (!authUser?.id || boothDefaultsLoaded || !boothId) return
     const loadBoothDefaults = async () => {
-      const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+      const DAY_NAMES = ['sun','mon','tue','wed','thu','fri','sat']
       const ALL_SLOT_IDS = PRODUCT_TIME_WINDOWS.map(w => w.id)
 
       // 1. Load booth settings
@@ -1146,7 +1146,7 @@ function NewProductPageInner() {
       const boothHasNoWindows = !hasWindows && (!existingTableWindows || existingTableWindows.length === 0)
 
       if (boothHasNoWindows && selectedDates.length > 0) {
-        const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+        const DAY_NAMES = ['sun','mon','tue','wed','thu','fri','sat']
         const newWeeklyDw: Record<string, string[]> = {}
         const newWeeklyPw: Record<string, string[]> = {}
         const tableRows: Array<{booth_id: string; day_of_week: string; window_type: string; start_time: string; end_time: string}> = []
