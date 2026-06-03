@@ -133,7 +133,62 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           continue
         }
 
-        const fbCatalogId = existingCatalog?.fb_catalog_id || null
+        let fbCatalogId = existingCatalog?.fb_catalog_id || null
+
+        // ── Auto-create Facebook catalog if none exists ──
+        if (!fbCatalogId) {
+          try {
+            // First, check if the Page already has a catalog we can use
+            const existingRes = await fetch(
+              `https://graph.facebook.com/v21.0/${conn.fb_page_id}/owned_product_catalogs?access_token=${conn.fb_page_access_token}`
+            )
+            const existingData = await existingRes.json()
+
+            if (existingData?.data?.length > 0) {
+              // Use the first existing catalog
+              fbCatalogId = existingData.data[0].id
+              debugLog.push(`  → Using existing FB catalog: ${fbCatalogId}`)
+            } else {
+              // Create a new catalog via the Page
+              const catalogName = `${booth.name || 'CasaGrown'} Products`
+              const createRes = await fetch(
+                `https://graph.facebook.com/v21.0/${conn.fb_page_id}/owned_product_catalogs`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    access_token: conn.fb_page_access_token,
+                    name: catalogName,
+                  }),
+                }
+              )
+              const createData = await createRes.json()
+              if (createData?.id) {
+                fbCatalogId = createData.id
+                debugLog.push(`  → Created new FB catalog "${catalogName}": ${fbCatalogId}`)
+              } else {
+                debugLog.push(`  → Failed to create FB catalog: ${JSON.stringify(createData)}`)
+              }
+            }
+
+            // Save catalog ID to our DB
+            if (fbCatalogId) {
+              const catalogRecordId = existingCatalog?.id
+              if (catalogRecordId) {
+                await supabase.from('booth_fb_catalogs').update({ fb_catalog_id: fbCatalogId }).eq('id', catalogRecordId)
+              } else {
+                await supabase.from('booth_fb_catalogs').upsert({
+                  booth_id: booth.id,
+                  connection_id: conn.id,
+                  fb_catalog_id: fbCatalogId,
+                  sync_enabled: true,
+                }, { onConflict: 'booth_id' })
+              }
+            }
+          } catch (catErr: any) {
+            debugLog.push(`  → Catalog creation error: ${catErr.message}`)
+          }
+        }
 
         // ── 4. Get products (matching booth detail page: is_deleted=false) ──
         const { data: products } = await supabase
