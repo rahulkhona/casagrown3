@@ -1124,16 +1124,83 @@ function NewProductPageInner() {
       const hasWeeklyPw = weeklyPw && Object.values(weeklyPw).some(arr => arr?.length > 0)
       const hasWindows = (booth.offers_delivery ? (hasFlatDw || hasWeeklyDw) : true) &&
                          (booth.offers_pickup ? (hasFlatPw || hasWeeklyPw) : true)
+
+      // ── Backfill booth defaults from first listing's windows if booth has none ──
+      const { data: existingTableWindows } = await supabase
+        .from('booth_fulfillment_windows')
+        .select('id')
+        .eq('booth_id', boothId)
+        .limit(1)
+      const boothHasNoWindows = !hasWindows && (!existingTableWindows || existingTableWindows.length === 0)
+
+      if (boothHasNoWindows && selectedDates.length > 0) {
+        const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+        const newWeeklyDw: Record<string, string[]> = {}
+        const newWeeklyPw: Record<string, string[]> = {}
+        const tableRows: Array<{booth_id: string; day_of_week: string; window_type: string; start_time: string; end_time: string}> = []
+
+        for (const dateStr of selectedDates) {
+          const d = new Date(dateStr + 'T12:00:00')
+          const dayKey = DAY_NAMES[d.getDay()]
+          const dwIds = productDeliveryWindows[dateStr] || []
+          const pwIds = productPickupWindows[dateStr] || []
+
+          if (dwIds.length > 0) {
+            if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
+            for (const slotId of dwIds) {
+              if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
+              const [startH] = slotId.split('-').map(Number)
+              const endH = startH + 2
+              tableRows.push({
+                booth_id: boothId!,
+                day_of_week: dayKey,
+                window_type: 'delivery',
+                start_time: `${String(startH).padStart(2,'0')}:00`,
+                end_time: `${String(endH).padStart(2,'0')}:00`,
+              })
+            }
+          }
+          if (pwIds.length > 0) {
+            if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
+            for (const slotId of pwIds) {
+              if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
+              const [startH] = slotId.split('-').map(Number)
+              const endH = startH + 2
+              tableRows.push({
+                booth_id: boothId!,
+                day_of_week: dayKey,
+                window_type: 'pickup',
+                start_time: `${String(startH).padStart(2,'0')}:00`,
+                end_time: `${String(endH).padStart(2,'0')}:00`,
+              })
+            }
+          }
+        }
+
+        // Write to both table and JSONB
+        if (tableRows.length > 0) {
+          await supabase.from('booth_fulfillment_windows').insert(tableRows)
+        }
+        const boothUpdate: Record<string, any> = {}
+        if (Object.keys(newWeeklyDw).length > 0) boothUpdate.weekly_delivery_windows = newWeeklyDw
+        if (Object.keys(newWeeklyPw).length > 0) boothUpdate.weekly_pickup_windows = newWeeklyPw
+        if (Object.keys(boothUpdate).length > 0) {
+          await supabase.from('market_booths').update(boothUpdate).eq('id', boothId)
+        }
+      }
+
       const hasPayment = booth.payment_method === 'manual' ||
         booth.payment_method === 'automatic' ||
         (booth.payment_method === 'venmo' && booth.venmo_handle) ||
         (booth.payment_method === 'charity' && booth.charity_name)
 
       if (!hasFulfillment) missing.push('delivery or pickup option')
-      if (hasFulfillment && !hasWindows) missing.push('delivery/pickup time windows')
+      // Re-check windows after potential backfill
+      const hasWindowsNow = boothHasNoWindows ? (selectedDates.length > 0) : hasWindows
+      if (hasFulfillment && !hasWindowsNow) missing.push('delivery/pickup time windows')
       if (!hasPayment) missing.push('payment method')
 
-      if (booth.status === 'draft' && hasFulfillment && hasWindows && hasPayment) {
+      if (booth.status === 'draft' && hasFulfillment && hasWindowsNow && hasPayment) {
         await supabase
           .from('market_booths')
           .update({ status: 'published' })
