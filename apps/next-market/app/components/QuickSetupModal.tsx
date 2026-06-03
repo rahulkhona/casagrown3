@@ -208,6 +208,16 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         } catch { /* Use user-entered address if USPS fails */ }
       }
 
+      // Bypass OTP email sending for Store/Platform Reviewers
+      const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
+      if (REVIEW_EMAILS.includes(email.trim().toLowerCase())) {
+        setStep('otp')
+        setResendCooldown(60)
+        setTimeout(() => otpRefs.current[0]?.focus(), 100)
+        setLoading(false)
+        return
+      }
+
       // Send OTP
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
@@ -243,11 +253,25 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
     setLoading(true)
 
     try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: code,
-        type: 'email',
-      })
+      // Intercept review login and sign in via email/password
+      const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
+      let data, verifyError
+      if (REVIEW_EMAILS.includes(email.trim().toLowerCase()) && code === '123456') {
+        const res = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: 'ReviewerPassword123!',
+        })
+        data = res.data
+        verifyError = res.error
+      } else {
+        const res = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: code,
+          type: 'email',
+        })
+        data = res.data
+        verifyError = res.error
+      }
       if (verifyError) { setError(verifyError.message); setLoading(false); return }
       if (!data.user) { setError('Verification failed. Please try again.'); setLoading(false); return }
 
