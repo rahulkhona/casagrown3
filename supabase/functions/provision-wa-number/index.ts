@@ -116,14 +116,15 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
   // ── Check if already provisioned ──
   const { data: fbConn } = await supabase
     .from('seller_fb_connections')
-    .select('twilio_wa_phone_sid, wa_display_phone, wa_number_source')
+    .select('twilio_wa_phone_sid, wa_display_phone, wa_number_source, twilio_sub_account_sid')
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (fbConn?.twilio_wa_phone_sid && fbConn?.wa_display_phone) {
+  // If a number already exists (even if twilio_wa_phone_sid was lost), don't re-provision
+  if (fbConn?.wa_display_phone) {
     return jsonOk({
       phoneNumber: fbConn.wa_display_phone,
-      phoneNumberId: fbConn.twilio_wa_phone_sid,
+      phoneNumberId: fbConn.twilio_wa_phone_sid || 'existing',
       alreadyProvisioned: true,
     }, corsHeaders)
   }
