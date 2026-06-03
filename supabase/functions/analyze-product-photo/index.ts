@@ -149,19 +149,40 @@ Rules:
     }
 
     const aiData = await aiRes.json();
+
+    // Parse JSON from response — robust extraction for various model output formats
     const raw = aiData.choices?.[0]?.message?.content ?? "";
 
-    // Parse JSON from response (strip markdown fences and Gemma thought tags if present)
-    const jsonStr = raw
-      .replace(/```json\n?/g, "").replace(/```\n?/g, "")
-      .replace(/<thought>[\s\S]*?<\/thought>/g, "")
-      .trim();
     let result;
-    try {
-      result = JSON.parse(jsonStr);
-    } catch {
-      console.warn("Failed to parse AI response:", raw);
-      return new Response(JSON.stringify({ error: "Could not parse AI response" }), {
+    const tryParse = (s: string) => {
+      try { return JSON.parse(s.trim()); } catch { return null; }
+    };
+
+    // 1. Try direct parse
+    result = tryParse(raw);
+
+    // 2. Strip markdown fences, thought tags, and other model artifacts
+    if (!result) {
+      const cleaned = raw
+        .replace(/```json\n?/g, "").replace(/```\n?/g, "")
+        .replace(/<thought>[\s\S]*?<\/thought>/g, "")
+        .replace(/<start_of_turn>[\s\S]*?<end_of_turn>/g, "")
+        .replace(/<[^>]+>/g, "")  // strip any remaining XML-like tags
+        .trim();
+      result = tryParse(cleaned);
+    }
+
+    // 3. Extract first JSON object {...} from anywhere in the response
+    if (!result) {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        result = tryParse(match[0]);
+      }
+    }
+
+    if (!result) {
+      console.warn("Failed to parse AI response:", raw.slice(0, 500));
+      return new Response(JSON.stringify({ error: "Could not parse AI response", raw_preview: raw.slice(0, 200) }), {
         status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
