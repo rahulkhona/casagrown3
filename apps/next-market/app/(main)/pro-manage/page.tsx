@@ -456,9 +456,9 @@ function ProManagePageInner() {
                   <button
                     onClick={() => {
                       const siteUrl = window.location.origin
-                      const state = `${user!.id}:${encodeURIComponent('/pro-manage')}`
+                      const state = `wa:${user!.id}:${encodeURIComponent('/pro-manage')}`
                       const extras = JSON.stringify({ version: 'v4', sessionInfoVersion: '3', featureType: 'whatsapp_business_app_onboarding' })
-                      window.location.href = `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=1878838186137452&config_id=1015862774319265&extras=${encodeURIComponent(extras)}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/whatsapp-callback`)}&state=${encodeURIComponent(state)}`
+                      window.location.href = `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=1878838186137452&config_id=1015862774319265&extras=${encodeURIComponent(extras)}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/facebook-callback`)}&state=${encodeURIComponent(state)}`
                     }}
                     style={{
                       padding: '10px 24px', borderRadius: 10, border: 'none',

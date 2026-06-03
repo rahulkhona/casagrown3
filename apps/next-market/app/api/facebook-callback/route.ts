@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * Facebook OAuth callback — proxies the callback to the connect-facebook edge function.
- * Facebook redirects here with ?code=...&state=... (success) or ?error=... (cancelled/denied).
+ * Facebook/WhatsApp OAuth callback — proxies callbacks to the appropriate edge function.
+ *
+ * Facebook OAuth:  state = "userId:encodedReturnPath" → connect-facebook
+ * WhatsApp Embedded Signup: state = "wa:userId:encodedReturnPath" → connect-whatsapp
  */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -11,10 +13,14 @@ export async function GET(req: NextRequest) {
   const error = url.searchParams.get('error')
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
 
+  // Detect WhatsApp Embedded Signup flow (state starts with "wa:")
+  const isWhatsApp = stateRaw.startsWith('wa:')
+  const effectiveState = isWhatsApp ? stateRaw.slice(3) : stateRaw // strip "wa:" prefix
+
   // Parse return path from state (format: userId:encodedReturnPath)
-  let returnPath = '/profile'
-  if (stateRaw) {
-    const parts = decodeURIComponent(stateRaw).split(':')
+  let returnPath = isWhatsApp ? '/pro-manage' : '/profile'
+  if (effectiveState) {
+    const parts = decodeURIComponent(effectiveState).split(':')
     if (parts[1]) {
       returnPath = decodeURIComponent(parts[1])
     }
@@ -22,12 +28,14 @@ export async function GET(req: NextRequest) {
 
   // User cancelled or denied — go back to where they came from
   if (error || !code) {
-    return NextResponse.redirect(`${baseUrl}${returnPath}`)
+    const param = isWhatsApp ? 'wa=canceled' : 'fb=canceled'
+    return NextResponse.redirect(`${baseUrl}${returnPath}?${param}`)
   }
 
-  // Forward to edge function for token exchange
+  // Forward to the appropriate edge function for token exchange
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
-  const edgeFnUrl = `${supabaseUrl}/functions/v1/connect-facebook?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateRaw)}`
+  const edgeFn = isWhatsApp ? 'connect-whatsapp' : 'connect-facebook'
+  const edgeFnUrl = `${supabaseUrl}/functions/v1/${edgeFn}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(effectiveState)}`
 
   const res = await fetch(edgeFnUrl, { redirect: 'manual' })
 
@@ -40,3 +48,4 @@ export async function GET(req: NextRequest) {
   // Fallback
   return NextResponse.redirect(`${baseUrl}${returnPath}`)
 }
+

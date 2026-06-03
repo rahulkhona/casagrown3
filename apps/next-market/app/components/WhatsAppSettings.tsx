@@ -19,8 +19,8 @@ const WA_EMBEDDED_SIGNUP_CONFIG = {
  * WhatsApp Business account and grant CasaGrown permission to send/receive messages.
  */
 function buildEmbeddedSignupUrl(userId: string, returnPath: string, siteUrl: string): string {
-  const state = `${userId}:${encodeURIComponent(returnPath)}`
-  const redirectUri = `${siteUrl}/api/whatsapp-callback`
+  const state = `wa:${userId}:${encodeURIComponent(returnPath)}`
+  const redirectUri = `${siteUrl}/api/facebook-callback`
   const extras = JSON.stringify({
     version: 'v4',
     sessionInfoVersion: '3',
