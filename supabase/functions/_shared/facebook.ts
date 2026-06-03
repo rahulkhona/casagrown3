@@ -59,6 +59,7 @@ export async function upsertCatalogProducts(
       availability: p.availability,
       brand: p.brand,
       condition: p.condition,
+      category: p.category || 'food & beverages > fresh fruits & vegetables',
     },
   }))
 

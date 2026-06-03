@@ -282,42 +282,31 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           const photoUrl = product.photos?.[0] || `${siteUrl}/logo.png`
           const catalogItem = product.catalog_item_id ? catalogItemMap[product.catalog_item_id] : null
 
-          // Build enriched description
-          let enrichedDesc = product.description || product.name
+          // Build enriched description (use line breaks for clean FB catalog display)
+          const descParts: string[] = []
+          descParts.push(product.description || product.name)
 
           // Business type
           if (sellerProfile?.business_type && bizTypeLabels[sellerProfile.business_type]) {
-            enrichedDesc += `\n\n${bizTypeLabels[sellerProfile.business_type]}`
+            descParts.push(bizTypeLabels[sellerProfile.business_type])
           }
 
           // Seller bio
           if (sellerProfile?.seller_bio) {
-            enrichedDesc += `\n\n🌱 About: ${sellerProfile.seller_bio.substring(0, 300)}`
+            descParts.push(`🌱 About: ${sellerProfile.seller_bio.substring(0, 300)}`)
           }
 
           // Catalog item enrichment
           if (catalogItem) {
-            if (catalogItem.certifications?.length > 0) {
-              enrichedDesc += `\n🏅 Certifications: ${catalogItem.certifications.join(', ')}`
-            }
-            if (catalogItem.growing_method) {
-              enrichedDesc += `\n🌿 Growing method: ${catalogItem.growing_method}`
-            }
-            if (catalogItem.variety) {
-              enrichedDesc += `\n🌾 Variety: ${catalogItem.variety}`
-            }
-            if (catalogItem.allergens?.length > 0) {
-              enrichedDesc += `\n⚠️ Allergens: ${catalogItem.allergens.join(', ')}`
-            }
-            if (catalogItem.geographical_origin) {
-              enrichedDesc += `\n📍 Origin: ${catalogItem.geographical_origin}`
-            }
-            if (catalogItem.shelf_life_days) {
-              enrichedDesc += `\n📅 Shelf life: ${catalogItem.shelf_life_days} days`
-            }
-            if (catalogItem.storage_instructions) {
-              enrichedDesc += `\n🧊 Storage: ${catalogItem.storage_instructions}`
-            }
+            const itemDetails: string[] = []
+            if (catalogItem.certifications?.length > 0) itemDetails.push(`🏅 Certifications: ${catalogItem.certifications.join(', ')}`)
+            if (catalogItem.growing_method) itemDetails.push(`🌿 Growing method: ${catalogItem.growing_method}`)
+            if (catalogItem.variety) itemDetails.push(`🌾 Variety: ${catalogItem.variety}`)
+            if (catalogItem.allergens?.length > 0) itemDetails.push(`⚠️ Allergens: ${catalogItem.allergens.join(', ')}`)
+            if (catalogItem.geographical_origin) itemDetails.push(`📍 Origin: ${catalogItem.geographical_origin}`)
+            if (catalogItem.shelf_life_days) itemDetails.push(`📅 Shelf life: ${catalogItem.shelf_life_days} days`)
+            if (catalogItem.storage_instructions) itemDetails.push(`🧊 Storage: ${catalogItem.storage_instructions}`)
+            if (itemDetails.length > 0) descParts.push(itemDetails.join(' • '))
           }
 
           // Trust badges
@@ -326,17 +315,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           if (sellerProfile?.food_handler_permit) badges.push('✓ Food Handler')
           if (sellerProfile?.cottage_food_permit) badges.push('✓ Cottage Food')
           if (sellerProfile?.insurance_provider) badges.push('✓ Insured')
-          if (badges.length > 0) enrichedDesc += `\n\n${badges.join(' · ')}`
+          if (badges.length > 0) descParts.push(badges.join(' · '))
 
-          // Fulfillment
-          if (fulfillmentDesc) enrichedDesc += `\n\n📦 Fulfillment Options:${fulfillmentDesc}`
+          // Fulfillment (compact format)
+          if (fulfillmentDesc) descParts.push(`📦 Fulfillment:${fulfillmentDesc.replace(/\n/g, ' • ')}`)
 
           // Links
           const productUrl = `${siteUrl}/market/booth/${booth.id}/product/${product.id}`
           const waUrl = waPhone ? `https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! I'd like to order ${product.name} from CasaGrown: ${productUrl}`)}` : null
 
-          enrichedDesc += `\n\n🛍️ Order on CasaGrown: ${productUrl}`
-          if (waUrl) enrichedDesc += `\n📱 Order via WhatsApp: ${waUrl}`
+          descParts.push(`🛍️ Order: ${productUrl}`)
+          if (waUrl) descParts.push(`📱 WhatsApp: ${waUrl}`)
+
+          const enrichedDesc = descParts.join('\n\n')
 
           productPayloads.push({
             retailer_id: product.id,
@@ -349,7 +340,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             availability: product.inventory > 0 ? 'in stock' : 'out of stock',
             brand: sellerProfile?.farm_name || sellerProfile?.full_name || 'CasaGrown Seller',
             condition: 'new',
-            category: product.category || 'Food, Beverages & Tobacco',
+            category: product.category || 'food & beverages > fresh fruits & vegetables',
           })
 
           // Upsert sync record as pending
