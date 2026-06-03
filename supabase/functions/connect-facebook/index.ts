@@ -136,7 +136,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_messaging',
     'pages_read_engagement',
     'catalog_management',
-    'business_management',
     // Instagram scopes — only requested when user clicks "Connect Instagram"
     ...(include_instagram ? ['instagram_basic', 'instagram_manage_messages'] : []),
   ].join(',')
