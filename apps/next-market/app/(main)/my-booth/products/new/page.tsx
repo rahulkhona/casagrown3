@@ -381,15 +381,20 @@ function NewProductPageInner() {
     const loadBoothDefaults = async () => {
       const { data: booth } = await supabase
         .from('market_booths')
-        .select('offers_delivery, offers_pickup, weekly_delivery_windows, weekly_pickup_windows, delivery_windows, pickup_windows, delivery_radius_miles, pickup_address')
+        .select('offers_delivery, offers_pickup, weekly_delivery_windows, weekly_pickup_windows, delivery_windows, pickup_windows, delivery_radius_miles, pickup_address, delivery_zipcodes')
         .eq('id', boothId)
         .single()
       if (!booth) return
-      setBoothOffersDelivery(booth.offers_delivery ?? true)
+      const boothDel = booth.offers_delivery ?? false
+      const boothPick = booth.offers_pickup ?? false
+      setBoothOffersDelivery(boothDel)
+      setBoothOffersPickup(boothPick)
+      // Mirror booth settings to product-level toggles
+      setProductOffersDelivery(boothDel)
+      setProductOffersPickup(boothPick)
       // Pre-fill product-level overrides from booth defaults
-      if (booth.delivery_radius_miles) setInlineDeliveryRadius(booth.delivery_radius_miles)
+      if (booth.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
       if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
-      setBoothOffersPickup(booth.offers_pickup ?? true)
 
       // Read from booth_fulfillment_windows table (source of truth), fall back to JSONB
       const { data: tableWindows } = await supabase
