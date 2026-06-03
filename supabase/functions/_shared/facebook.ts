@@ -47,27 +47,42 @@ export async function upsertCatalogProducts(
   token: string,
 ): Promise<void> {
   const requests = products.map((p) => ({
-    method: 'CREATE',
+    method: 'UPDATE',
     retailer_id: p.retailer_id,
     data: {
       name: p.name,
       description: p.description,
-      price: `${(p.price * 100).toFixed(0)} USD`,
+      price: Math.round(p.price * 100),
+      currency: p.currency || 'USD',
       url: p.url,
       image_url: p.image_url,
       availability: p.availability,
       brand: p.brand,
       condition: p.condition,
-      google_product_category: p.category,
     },
   }))
 
   const res = await fetch(`${getFbGraphUrl()}/${catalogId}/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: token, requests }),
+    body: JSON.stringify({ access_token: token, requests, allow_upsert: true }),
   })
-  if (!res.ok) throw new Error(`FB batch upsert failed: ${await res.text()}`)
+  const body = await res.text()
+  if (!res.ok) throw new Error(`FB batch upsert failed: ${body}`)
+  
+  // Check for validation errors in the response
+  try {
+    const parsed = JSON.parse(body)
+    if (parsed.validation_status) {
+      const errors = parsed.validation_status.filter((s: any) => s.errors?.length > 0)
+      if (errors.length > 0) {
+        console.error('[FB CATALOG] Validation errors:', JSON.stringify(errors))
+        throw new Error(`FB catalog validation errors: ${JSON.stringify(errors)}`)
+      }
+    }
+  } catch (e: any) {
+    if (e.message.includes('validation errors')) throw e
+  }
 }
 
 /** Delete a product from a catalog */
