@@ -55,6 +55,12 @@ function ProManagePageInner() {
   const [waProvisioning, setWaProvisioning] = useState(false)
   const [waProvisionError, setWaProvisionError] = useState('')
 
+  // FB Catalog selector
+  const [fbCatalogs, setFbCatalogs] = useState<Array<{ id: string; name: string; product_count?: number }>>([])
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null)
+  const [catalogsLoading, setCatalogsLoading] = useState(false)
+  const [catalogSaving, setCatalogSaving] = useState(false)
+
   // GrowBot channels
   const [botChannels, setBotChannels] = useState<Record<ChannelKey, ChannelConfig>>({
     messenger: { enabled: true, delayMinutes: 0 },
@@ -93,10 +99,36 @@ function ProManagePageInner() {
           }))
         }
       }
+      // Load selected catalog ID from booth_fb_catalogs
+      if (fbRes.data?.id) {
+        const { data: boothCatalog } = await supabase
+          .from('booth_fb_catalogs')
+          .select('fb_catalog_id')
+          .eq('connection_id', fbRes.data.id)
+          .maybeSingle()
+        if (boothCatalog?.fb_catalog_id) setSelectedCatalogId(boothCatalog.fb_catalog_id)
+      }
       setDataLoading(false)
     }
     load()
   }, [user])
+
+  // Fetch FB catalogs when connected
+  useEffect(() => {
+    if (!fbConn?.fb_page_id || !fbConn?.fb_page_access_token || fbConn?.status === 'disconnected') return
+    const fetchCatalogs = async () => {
+      setCatalogsLoading(true)
+      try {
+        const res = await fetch(
+          `https://graph.facebook.com/v21.0/${fbConn.fb_page_id}/product_catalogs?fields=id,name,product_count&access_token=${fbConn.fb_page_access_token}`
+        )
+        const data = await res.json()
+        if (data?.data) setFbCatalogs(data.data)
+      } catch (e) { console.error('Failed to fetch catalogs', e) }
+      setCatalogsLoading(false)
+    }
+    fetchCatalogs()
+  }, [fbConn?.fb_page_id])
 
   /* ── Helpers ── */
   const isElite = plan === 'elite'
@@ -315,16 +347,59 @@ function ProManagePageInner() {
             <Divider />
 
             {/* Toggles */}
-            <ToggleRow label="📦 Sync product catalog" desc="Sync your CasaGrown inventory to your Facebook Page shop — never your personal profile." value={!!fbConn.auto_sync_enabled} saving={savingField === 'auto_sync_enabled'} onToggle={() => toggleFbField('auto_sync_enabled', !!fbConn.auto_sync_enabled)} />
+            <ToggleRow label="📦 Sync product catalog" desc="Sync your CasaGrown inventory to your Facebook catalog — products stay updated daily." value={!!fbConn.auto_sync_enabled} saving={savingField === 'auto_sync_enabled'} onToggle={() => toggleFbField('auto_sync_enabled', !!fbConn.auto_sync_enabled)} />
             {fbConn.auto_sync_enabled && (
               <>
-                <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
-                  Your products appear in your <strong>Facebook Shop</strong> tab and are <strong>updated daily</strong> so customers always see current availability and prices.
-                  {fbConn.last_sync_at && (
-                    <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
-                      Last sync: {new Date(fbConn.last_sync_at).toLocaleString()} · {fbConn.last_sync_product_count || 0} products synced
+                {/* Catalog selector */}
+                <div style={{ marginLeft: 54, marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Select Catalog</div>
+                  {catalogsLoading ? (
+                    <div style={{ fontSize: 12, color: '#9ca3af', padding: '8px 0' }}>Loading catalogs…</div>
+                  ) : fbCatalogs.length === 0 ? (
+                    <div style={{ padding: '8px 12px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
+                      No catalogs found on your Facebook Page. Create one in <a href="https://business.facebook.com/commerce/" target="_blank" rel="noopener" style={{ color: '#1e40af', textDecoration: 'underline' }}>Commerce Manager</a> first.
                     </div>
+                  ) : (
+                    <select
+                      value={selectedCatalogId || ''}
+                      onChange={async (e) => {
+                        const catalogId = e.target.value
+                        setSelectedCatalogId(catalogId)
+                        setCatalogSaving(true)
+                        // Get booth ID for this user
+                        const { data: booths } = await supabase.from('market_booths').select('id').eq('owner_id', user!.id).limit(1)
+                        const boothId = booths?.[0]?.id
+                        if (boothId) {
+                          await supabase.from('booth_fb_catalogs').upsert({
+                            booth_id: boothId,
+                            connection_id: fbConn.id,
+                            fb_catalog_id: catalogId || null,
+                            sync_enabled: true,
+                          }, { onConflict: 'booth_id' })
+                        }
+                        setCatalogSaving(false)
+                      }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, color: '#111827', background: '#fff', cursor: 'pointer' }}
+                    >
+                      <option value="">Choose a catalog…</option>
+                      {fbCatalogs.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}{c.product_count != null ? ` (${c.product_count} items)` : ''}</option>
+                      ))}
+                    </select>
                   )}
+                  {catalogSaving && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>Saving…</div>}
+                </div>
+
+                {/* Sync info */}
+                <div style={{ marginLeft: 54, marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
+                  {selectedCatalogId
+                    ? <>Your products sync to <strong>{fbCatalogs.find(c => c.id === selectedCatalogId)?.name || 'your catalog'}</strong> and are <strong>updated daily</strong>.{fbConn.last_sync_at && (
+                        <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
+                          Last sync: {new Date(fbConn.last_sync_at).toLocaleString()} · {fbConn.last_sync_product_count || 0} products synced
+                        </div>
+                      )}</>
+                    : 'Select a catalog above to start syncing products.'
+                  }
                 </div>
                 <div style={{ marginLeft: 54, marginBottom: 8 }}>
                   <button
