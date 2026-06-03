@@ -1376,7 +1376,7 @@ function NewProductPageInner() {
         console.warn('AI autofill error after retry:', errMsg, res.error)
         setAiToast(`⚠️ AI analysis unavailable (${errMsg}) — please fill in manually.`)
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 6000)
+        setTimeout(() => setAiToast(null), 15000)
         return
       }
 
@@ -1388,7 +1388,7 @@ function NewProductPageInner() {
         const errorDetail = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
         setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : `AI analysis failed: ${errorDetail.slice(0, 120)}`} — please fill in manually.`)
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 5000)
+        setTimeout(() => setAiToast(null), 15000)
         return
       }
 
@@ -1396,7 +1396,7 @@ function NewProductPageInner() {
       if (!data?.name && !data?.description && !data?.category) {
         setAiToast('⚠️ AI could not identify the product — please fill in manually.')
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 5000)
+        setTimeout(() => setAiToast(null), 15000)
         return
       }
 
@@ -1411,7 +1411,7 @@ function NewProductPageInner() {
       setAiToast(`⚠️ AI analysis failed (${err?.message || 'network error'}) — please fill in manually.`)
     }
     setAiAnalyzing(false)
-    setTimeout(() => setAiToast(null), 6000)
+    setTimeout(() => setAiToast(null), 15000)
   }
 
   // Category display names
