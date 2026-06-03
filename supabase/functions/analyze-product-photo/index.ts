@@ -10,7 +10,7 @@
 
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-2.0-flash-lite";
 const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("kong:8000");
