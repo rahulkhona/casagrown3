@@ -8,7 +8,7 @@
  * Flow:
  *   1. Seller clicks "Connect WhatsApp Business" in CasaGrown settings
  *   2. Opens Meta Embedded Signup (hosted by Meta)
- *   3. Seller authorizes → Meta redirects to /api/whatsapp-callback
+ *   3. Seller authorizes → Meta redirects to /api/facebook-callback
  *   4. Next.js route forwards here with ?code=...&state=...
  *   5. We exchange code → token → fetch WABA → fetch phone number
  *   6. Save wa_phone_number_id + token to seller_fb_connections
@@ -51,7 +51,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     })
   }
 
-  const redirectUri = `${siteUrl}/api/whatsapp-callback`
+  const redirectUri = `${siteUrl}/api/facebook-callback`
 
   try {
     // ── Step 1: Exchange code for access token ──
