@@ -385,8 +385,9 @@ function NewProductPageInner() {
         .eq('id', boothId)
         .single()
       if (!booth) return
-      const boothDel = booth.offers_delivery ?? false
-      const boothPick = booth.offers_pickup ?? false
+      // If booth has explicit settings, use them; if null (never configured), default to true
+      const boothDel = booth.offers_delivery != null ? booth.offers_delivery : true
+      const boothPick = booth.offers_pickup != null ? booth.offers_pickup : true
       setBoothOffersDelivery(boothDel)
       setBoothOffersPickup(boothPick)
       // Mirror booth settings to product-level toggles
