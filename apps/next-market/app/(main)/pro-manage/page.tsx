@@ -272,6 +272,7 @@ function ProManagePageInner() {
   const isWaSellerProvided = fbConn?.wa_number_source === 'seller_provided'
 
   return (
+    <>
     <div style={{ maxWidth: 520, margin: '0 auto', padding: '40px 20px' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
