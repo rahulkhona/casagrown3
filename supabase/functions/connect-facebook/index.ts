@@ -70,7 +70,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         status: 'connected',
         auto_sync_enabled: true,
         updated_at: new Date().toISOString(),
-        granted_scopes: tokenData.granted_scopes || null,
       }
       // If only one page, auto-select it
       if (pages.length === 1) {
