@@ -115,7 +115,6 @@ Rules:
         messages: [{ role: "user", content }],
         max_tokens: 300,
         temperature: 0.3,
-        response_format: { type: "json_object" },
       }),
     });
 
@@ -139,20 +138,39 @@ Rules:
       });
     }
 
+    // If primary model fails, try backup model before giving up
     if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("Gemini API error:", aiRes.status, errText);
-      // Return 200 with error body — HTTP 500 causes supabase.functions.invoke
-      // to put response in res.error instead of res.data, hiding the actual message
-      return new Response(JSON.stringify({ error: `Gemini ${aiRes.status}: ${errText.slice(0, 200)}` }), {
-        status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      console.warn("Primary model HTTP error:", aiRes.status, "— trying backup model");
+      const BACKUP_MODEL = "gemini-3.5-flash";
+      aiRes = await fetch(AI_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${AI_KEY}`,
+          "HTTP-Referer": "https://casagrown.com",
+          "X-Title": "CasaGrown Product Analysis",
+        },
+        body: JSON.stringify({
+          model: BACKUP_MODEL,
+          messages: [{ role: "user", content }],
+          max_tokens: 300,
+          temperature: 0.3,
+        }),
       });
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error("Both models failed:", aiRes.status, errText);
+        return new Response(JSON.stringify({ error: `AI error ${aiRes.status}: ${errText.slice(0, 200)}` }), {
+          status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
     }
 
     const aiData = await aiRes.json();
 
     // Parse JSON from response — robust extraction for various model output formats
     const raw = aiData.choices?.[0]?.message?.content ?? "";
+    console.log("[AI-RESPONSE] model:", aiData.model, "raw:", raw.slice(0, 500));
 
     let result;
     const tryParse = (s: string) => {
