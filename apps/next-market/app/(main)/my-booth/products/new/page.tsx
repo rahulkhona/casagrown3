@@ -398,10 +398,14 @@ function NewProductPageInner() {
       if (booth.pickup_address) setInlinePickupAddress(booth.pickup_address)
 
       // Read from booth_fulfillment_windows table (source of truth), fall back to JSONB
-      const { data: tableWindows } = await supabase
+      const { data: tableWindows, error: twError } = await supabase
         .from('booth_fulfillment_windows')
         .select('*')
         .eq('booth_id', boothId)
+
+      console.log('[BOOTH DEFAULTS] boothId:', boothId)
+      console.log('[BOOTH DEFAULTS] booth:', JSON.stringify({ offers_delivery: booth.offers_delivery, offers_pickup: booth.offers_pickup, radius: booth.delivery_radius_miles, zipcodes: booth.delivery_zipcodes }))
+      console.log('[BOOTH DEFAULTS] tableWindows:', tableWindows?.length, 'error:', twError?.message, 'data:', JSON.stringify(tableWindows?.slice(0, 3)))
 
       let weeklyDw: Record<string, string[]> = {}
       let weeklyPw: Record<string, string[]> = {}
