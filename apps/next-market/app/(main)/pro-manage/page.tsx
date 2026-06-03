@@ -725,6 +725,53 @@ function ProManagePageInner() {
         Manage My Plan →
       </button>
     </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {disconnectTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setDisconnectTarget(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '90%', maxWidth: 400, background: '#fff', borderRadius: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>
+                {disconnectTarget === 'fb' ? '📘' : disconnectTarget === 'instagram' ? '📸' : disconnectTarget === 'whatsapp' ? '📱' : '🔍'}
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
+                Disconnect {disconnectTarget === 'fb' ? 'Facebook' : disconnectTarget === 'instagram' ? 'Instagram' : disconnectTarget === 'whatsapp' ? 'WhatsApp' : 'Google Business'}?
+              </h3>
+              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
+                {disconnectTarget === 'fb' && 'Catalog sync, auto-posting, and Messenger auto-replies will stop. You can reconnect anytime.'}
+                {disconnectTarget === 'instagram' && 'Instagram catalog sync, auto-posting, and DM auto-replies will be disabled. You can reconnect anytime.'}
+                {disconnectTarget === 'whatsapp' && 'Your WhatsApp number will be released and auto-replies will stop. You can provision a new number anytime.'}
+                {disconnectTarget === 'google' && 'Google Business syncing and auto-posting will stop. You can reconnect anytime.'}
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setDisconnectTarget(null)}
+                  disabled={!!disconnecting}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >Cancel</button>
+                <button
+                  onClick={() => {
+                    if (disconnectTarget === 'fb') handleFbDisconnect()
+                    else if (disconnectTarget === 'instagram') handleIgDisconnect()
+                    else if (disconnectTarget === 'whatsapp') handleWaDisconnect()
+                    else if (disconnectTarget === 'google') handleGoogleDisconnect()
+                  }}
+                  disabled={!!disconnecting}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 600, cursor: disconnecting ? 'not-allowed' : 'pointer', opacity: disconnecting ? 0.7 : 1 }}
+                >{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -805,53 +852,6 @@ function BotChannelToggle({ icon, label, desc, config, onToggle, onDelay, hasDel
         </div>
       )}
     </div>
-
-      {/* Disconnect Confirmation Modal */}
-      {disconnectTarget && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={() => setDisconnectTarget(null)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            width: '90%', maxWidth: 400, background: '#fff', borderRadius: 24,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden',
-          }}>
-            <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>
-                {disconnectTarget === 'fb' ? '📘' : disconnectTarget === 'instagram' ? '📸' : disconnectTarget === 'whatsapp' ? '📱' : '🔍'}
-              </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
-                Disconnect {disconnectTarget === 'fb' ? 'Facebook' : disconnectTarget === 'instagram' ? 'Instagram' : disconnectTarget === 'whatsapp' ? 'WhatsApp' : 'Google Business'}?
-              </h3>
-              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
-                {disconnectTarget === 'fb' && 'Catalog sync, auto-posting, and Messenger auto-replies will stop. You can reconnect anytime.'}
-                {disconnectTarget === 'instagram' && 'Instagram catalog sync, auto-posting, and DM auto-replies will be disabled. You can reconnect anytime.'}
-                {disconnectTarget === 'whatsapp' && 'Your WhatsApp number will be released and auto-replies will stop. You can provision a new number anytime.'}
-                {disconnectTarget === 'google' && 'Google Business syncing and auto-posting will stop. You can reconnect anytime.'}
-              </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  onClick={() => setDisconnectTarget(null)}
-                  disabled={!!disconnecting}
-                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                >Cancel</button>
-                <button
-                  onClick={() => {
-                    if (disconnectTarget === 'fb') handleFbDisconnect()
-                    else if (disconnectTarget === 'instagram') handleIgDisconnect()
-                    else if (disconnectTarget === 'whatsapp') handleWaDisconnect()
-                    else if (disconnectTarget === 'google') handleGoogleDisconnect()
-                  }}
-                  disabled={!!disconnecting}
-                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 600, cursor: disconnecting ? 'not-allowed' : 'pointer', opacity: disconnecting ? 0.7 : 1 }}
-                >{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
   )
 }
 
