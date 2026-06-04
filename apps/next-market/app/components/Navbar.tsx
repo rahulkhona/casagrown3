@@ -699,7 +699,16 @@ export function Navbar() {
                         <span>{item.label}</span>
                       </Link>
                     ))}
-                    {/* Pro menu item removed */}
+                    {proEnabled && (
+                      <Link
+                        href="/pro-manage"
+                        className={`${styles.menuItem} ${pathname === '/pro-manage' ? styles.menuItemActive : ''}`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <span className={styles.menuItemIcon}>⚡</span>
+                        <span>Manage Features</span>
+                      </Link>
+                    )}
                     {!isNotificationsEnabled() && (
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); showPrompt(true); }}>
                         <span className={styles.menuItemIcon}>🔔</span>
