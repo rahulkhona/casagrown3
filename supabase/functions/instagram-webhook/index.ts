@@ -10,7 +10,7 @@ import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
 } from '../_shared/growbot-seller.ts'
-import { extractInstagramReferral, lookupProductById, buildProductContextPrompt, lookupProductByIgPostId } from '../_shared/product-context.ts'
+import { extractInstagramReferral, lookupProductById, buildProductContextPrompt, lookupProductByIgPostId, findBestProductMatch } from '../_shared/product-context.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── GET: Webhook Verification ──
@@ -469,7 +469,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
-        const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.5-flash'
+        const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
 
         if (!AI_KEY) {
           await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
@@ -488,7 +488,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             },
           }
 
-          if (model.includes('gemini-2.5')) {
+          if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
             requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 }
           }
 
@@ -694,11 +694,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .eq('is_active', true)
             
             if (boothProds && boothProds.length > 0 && userMessage) {
-              const cleanMsg = userMessage.toLowerCase()
-              const match = boothProds.find((p: any) => {
-                const prodName = p.name.toLowerCase()
-                return cleanMsg.includes(prodName) || prodName.includes(cleanMsg)
-              })
+              const match = findBestProductMatch(userMessage, boothProds)
               if (match) {
                 matchedProdId = match.id
                 matchedProdName = match.name

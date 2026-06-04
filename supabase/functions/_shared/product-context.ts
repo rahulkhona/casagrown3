@@ -269,3 +269,78 @@ IMPORTANT: The buyer initiated this conversation specifically about this product
 - Lead with information about THIS product first, then offer to help with other items.
 - Always include the direct order link for this product in your response.`
 }
+
+/**
+ * Smart product matching helper that tokenizes user messages and product names,
+ * filters out common stop words, singularizes terms, and matches based on stem overlap.
+ */
+export function findBestProductMatch(
+  userMsg: string,
+  products: Array<{ id: string; name: string }>
+): { id: string; name: string } | null {
+  if (!userMsg || !products || products.length === 0) return null
+
+  const cleanMsg = userMsg.toLowerCase()
+
+  // 1. Direct substring check
+  for (const p of products) {
+    const prodName = p.name.toLowerCase()
+    if (cleanMsg.includes(prodName) || prodName.includes(cleanMsg)) {
+      return p
+    }
+  }
+
+  // 2. Tokenized matching with simple stemming (singularization)
+  const stopWords = new Set([
+    "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", 
+    "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", 
+    "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", 
+    "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", 
+    "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", 
+    "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", 
+    "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", 
+    "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", 
+    "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", 
+    "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", 
+    "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", 
+    "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", 
+    "fresh", "organic", "local", "ripe", "delicious", "sweet"
+  ])
+
+  const getStems = (text: string) => {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .map(w => {
+        let stem = w
+        if (w.endsWith('ies') && w.length > 3) {
+          stem = w.slice(0, -3) + 'y'
+        } else if (w.endsWith('es') && w.length > 3) {
+          stem = w.slice(0, -2)
+        } else if (w.endsWith('s') && !w.endsWith('ss') && w.length > 2) {
+          stem = w.slice(0, -1)
+        }
+        return stem
+      })
+      .filter(w => w.length > 2 && !stopWords.has(w))
+  }
+
+  const msgStems = getStems(cleanMsg)
+  if (msgStems.length === 0) return null
+
+  let bestMatch: typeof products[0] | null = null
+  let maxMatches = 0
+
+  for (const p of products) {
+    const prodStems = getStems(p.name)
+    const matches = prodStems.filter(s => msgStems.includes(s))
+    if (matches.length > maxMatches) {
+      maxMatches = matches.length
+      bestMatch = p
+    }
+  }
+
+  return bestMatch
+}
+

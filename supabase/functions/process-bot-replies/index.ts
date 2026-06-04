@@ -171,7 +171,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.5-flash'
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
@@ -191,7 +191,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                           maxOutputTokens: 512,
                         },
                       };
-                      if (model.includes('gemini-2.5')) {
+                      if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
                         bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
                       }
                       return JSON.stringify(bodyObj);
@@ -314,7 +314,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.5-flash'
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
@@ -334,7 +334,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                           maxOutputTokens: 512,
                         },
                       };
-                      if (model.includes('gemini-2.5')) {
+                      if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
                         bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
                       }
                       return JSON.stringify(bodyObj);
@@ -455,7 +455,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.5-flash'
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
@@ -475,7 +475,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                           maxOutputTokens: 512,
                         },
                       };
-                      if (model.includes('gemini-2.5')) {
+                      if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
                         bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
                       }
                       return JSON.stringify(bodyObj);

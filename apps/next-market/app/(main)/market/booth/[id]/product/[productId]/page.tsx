@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabase } from '../../../../../../../lib/supabase-server'
 import ProductDetailClient from './ProductDetailClient'
 
 /**
@@ -22,9 +22,7 @@ export async function generateMetadata(
   const defaultOgImage = `${siteUrl}/og-share.jpg`
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const supabase = await createServerSupabase()
     const { data: product } = await supabase
       .from('market_products')
       .select('name, description, photos, price_usd, unit, category')
