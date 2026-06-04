@@ -254,6 +254,44 @@ async function capture() {
       await applyZoom(page, target.name);
       await page.screenshot({ path: path.join(targetDir, '07_product_ai.png') });
 
+      // 8. Order Details Page (showing fulfillment, status, passcode)
+      console.log('Navigating to Order Details...');
+      await page.goto(`${BASE_URL}/orders/faaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`, { waitUntil: 'load', timeout: 90000 });
+      await page.waitForTimeout(4000);
+      await applyZoom(page, target.name);
+      await page.screenshot({ path: path.join(targetDir, '08_order_details.png') });
+
+      // 9. Messages Inbox (list of all conversations)
+      console.log('Navigating to Messages Inbox...');
+      await page.goto(`${BASE_URL}/messages`, { waitUntil: 'load', timeout: 90000 });
+      await page.waitForTimeout(4000);
+      await applyZoom(page, target.name);
+      await page.screenshot({ path: path.join(targetDir, '09_messages_inbox.png') });
+
+      // 10. Grower's Booth details
+      console.log('Fetching Sarah\'s booth ID...');
+      let sarahBoothId = '';
+      try {
+        const pg = require('pg');
+        const pgClient = new pg.Client('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+        await pgClient.connect();
+        const boothDbRes = await pgClient.query("SELECT id FROM market_booths WHERE owner_id = 'f1111111-1111-1111-1111-111111111111' LIMIT 1;");
+        sarahBoothId = boothDbRes.rows[0]?.id || '';
+        await pgClient.end();
+      } catch (err) {
+        console.error('Error fetching booth ID:', err);
+      }
+      
+      if (sarahBoothId) {
+        console.log(`Navigating to Grower's Booth details (ID: ${sarahBoothId})...`);
+        await page.goto(`${BASE_URL}/market/booth/${sarahBoothId}`, { waitUntil: 'load', timeout: 90000 });
+        await page.waitForTimeout(4000);
+        await applyZoom(page, target.name);
+        await page.screenshot({ path: path.join(targetDir, '10_grower_booth.png') });
+      } else {
+        console.warn('Skipping 10_grower_booth.png due to missing booth ID');
+      }
+
       // 8a. Delete Account (Standard Path - using Sarah who has transaction history)
       console.log('Navigating to Account Deletion flow for Standard Path (Sarah)...');
       await page.goto(`${BASE_URL}/delete-account`, { waitUntil: 'load', timeout: 90000 });

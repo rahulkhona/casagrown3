@@ -4,6 +4,17 @@
 -- Clean up previous marketing test data
 DELETE FROM public.market_schedule_policies;
 
+-- Enable all days as open for screenshots to prevent closed banners
+INSERT INTO public.market_schedule_policies (day_of_week, day_name, open_time, close_time, is_enabled) VALUES
+(0, 'Sunday', '00:00', '23:59', true),
+(1, 'Monday', '00:00', '23:59', true),
+(2, 'Tuesday', '00:00', '23:59', true),
+(3, 'Wednesday', '00:00', '23:59', true),
+(4, 'Thursday', '00:00', '23:59', true),
+(5, 'Friday', '00:00', '23:59', true),
+(6, 'Saturday', '00:00', '23:59', true);
+
+
 -- Delete user analytics referencing profiles by email or UUID
 DELETE FROM public.user_analytics WHERE user_id IN (
   SELECT id FROM public.profiles WHERE email IN ('sarah.m@marketing.local', 'david.c@marketing.local', 'elena.r@marketing.local', 'michael.w@marketing.local')
@@ -178,6 +189,23 @@ INSERT INTO public.market_orders (id, buyer_id, seller_id, booth_id, product_id,
   (SELECT id FROM market_products WHERE name = 'Raw Wildflower Honey' LIMIT 1),
   'Raw Wildflower Honey', 1, 12.00, 12.00, 12.00, 'pickup', 'completed', 5, 5, now() - interval '3 hours')
 ON CONFLICT (id) DO NOTHING;
+
+-- Pending Order (David buys from Sarah)
+INSERT INTO public.market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, fulfillment_type, status, buyer_rating, seller_rating, created_at, buyer_passcode, seller_passcode) VALUES 
+('f9999999-9999-9999-9999-999999999999', 'f2222222-2222-2222-2222-222222222222', 'f1111111-1111-1111-1111-111111111111', 
+  (SELECT id FROM market_booths WHERE owner_id = 'f1111111-1111-1111-1111-111111111111' LIMIT 1), 
+  (SELECT id FROM market_products WHERE name = 'Cherokee Purple Tomatoes' LIMIT 1),
+  'Cherokee Purple Tomatoes', 1, 6.50, 6.50, 6.50, 'pickup', 'pending', null, null, now() - interval '1 hour', '1234', '5678')
+ON CONFLICT (id) DO NOTHING;
+
+-- Delivered Order (Sarah buys from David)
+INSERT INTO public.market_orders (id, buyer_id, seller_id, booth_id, product_id, product_name, quantity, unit_price_usd, subtotal_usd, total_usd, fulfillment_type, status, buyer_rating, seller_rating, created_at, auto_complete_at, buyer_passcode, seller_passcode) VALUES 
+('faaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 
+  (SELECT id FROM market_booths WHERE owner_id = 'f2222222-2222-2222-2222-222222222222' LIMIT 1), 
+  (SELECT id FROM market_products WHERE name = 'Raw Wildflower Honey' LIMIT 1),
+  'Raw Wildflower Honey', 1, 12.00, 12.00, 12.00, 'pickup', 'delivered', null, null, now() - interval '2 hours', now() + interval '2 hours', '4321', '8765')
+ON CONFLICT (id) DO NOTHING;
+
 
 -- 9. Add ledger entries to give Sarah Earnings
 INSERT INTO public.market_ledger (created_at, event_type, user_id, order_id, settlement_id, amount_usd, direction, balance_after, metadata) VALUES
