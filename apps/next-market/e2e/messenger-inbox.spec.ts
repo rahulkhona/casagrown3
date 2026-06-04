@@ -252,6 +252,76 @@ test.describe('Messages Inbox', () => {
     await expect(pinned).toBeVisible()
   })
 
+  test('clicking pinned GrowBot redirects to UUID-backed thread', async ({ page }) => {
+    const mockGrowBotUuid = 'a0000000-0000-0000-0000-00000ca5ab07'
+    const mockCreatedConvId = 'growbot-conversation-uuid-123'
+    
+    await page.route('**/rest/v1/profiles*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: mockGrowBotUuid,
+          full_name: 'GrowBot',
+          avatar_url: '/growbot-avatar-v3.png'
+        })
+      })
+    })
+
+    await page.route(/\/rest\/v1\/market_conversations/, async (route) => {
+      const url = route.request().url()
+      const method = route.request().method()
+      
+      if (method === 'GET') {
+        if (url.includes('id=eq.')) {
+          // Metadata query for the chat page
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([{
+              id: mockCreatedConvId,
+              participant_a: 'test-buyer-id',
+              participant_b: mockGrowBotUuid,
+              profile_b: { id: mockGrowBotUuid, full_name: 'GrowBot', avatar_url: '/growbot-avatar-v3.png' }
+            }]),
+            headers: { 'Content-Profile': 'public' }
+          })
+        } else {
+          // Inbox list query or check-existence query
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([])
+          })
+        }
+      } else if (method === 'POST') {
+        // Conversation creation query
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: mockCreatedConvId })
+        })
+      }
+    })
+
+    await page.route(/\/rest\/v1\/market_chat_messages/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
+      })
+    })
+
+    await page.goto('/messages')
+    await page.waitForTimeout(2000)
+
+    const growbotLink = page.locator('a[href="/messages/growbot"]')
+    await growbotLink.click()
+    await page.waitForTimeout(3000)
+
+    expect(page.url()).toContain(`/messages/${mockCreatedConvId}`)
+  })
+
   test('search filter filters conversations by name', async ({ page }) => {
     await mockInboxData(page, {
       dmConversations: [
