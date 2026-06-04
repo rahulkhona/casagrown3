@@ -53,8 +53,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       // Get user's pages
       const pages = await getUserPages(longLived.access_token)
 
-      // Store connection
-      const expiresAt = new Date(Date.now() + longLived.expires_in * 1000).toISOString()
+      // Store connection (long-lived tokens usually last 60 days; fallback if expires_in is undefined)
+      const expiresIn = typeof longLived.expires_in === 'number' ? longLived.expires_in : 60 * 24 * 60 * 60
+      const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
       // Auto-detect linked Instagram Business Account
       let igData: { id: string; username?: string } | null = null
