@@ -303,7 +303,9 @@ RESPONSE GUIDELINES:
 - If the buyer asks about a specific product you have, confirm availability, share the price, and include the direct order link.
 - If the buyer asks about something you DON'T carry, say so clearly and suggest similar items if available.
 - Always include the booth link when directing buyers to order.
-- Keep responses concise but helpful.`
+- Keep responses concise but helpful.
+- DO NOT output any internal thoughts, reasoning, explanations, or '<thought>' tags in your response. Stick strictly to the final customer-facing response.
+- Keep the response brief, and ensure it is less than 2048 characters in total.`
 
   // Append admin-managed universal rules
   if (rules && rules.length > 0) {
