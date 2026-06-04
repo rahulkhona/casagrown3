@@ -163,7 +163,7 @@ function LoginPageInner() {
         .single()
 
       const redirectParam = redirectTo ? `redirect=${encodeURIComponent(redirectTo)}` : ''
-      const isGrowBotRedirect = redirectTo?.includes('/messages/a0000000-0000-0000-0000-00000ca5ab07') || redirectTo === '/messages/growbot'
+      const isGrowBotRedirect = redirectTo?.includes('/messages/a0000000-0000-0000-0000-00000ca5ab07') || redirectTo === '/messages/growbot' || redirectTo === '/growbot'
 
       if (isGrowBotRedirect) {
         // PROGRESSIVE PROFILING: Bypass ToS and Profile Setup for GrowBot
