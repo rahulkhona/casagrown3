@@ -13,13 +13,21 @@ const mockCreateClient = vi.fn(() => ({
 }))
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: (...args: any[]) => mockCreateClient(...args)
+  createClient: (url: string, key: string) => mockCreateClient(url, key)
+}))
+
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: (url: string, key: string) => mockCreateClient(url, key)
 }))
 
 // Mock next/headers
 vi.mock('next/headers', () => ({
   headers: () => Promise.resolve({
     get: () => 'localhost:3002'
+  }),
+  cookies: () => Promise.resolve({
+    getAll: () => [],
+    get: () => null,
   })
 }))
 

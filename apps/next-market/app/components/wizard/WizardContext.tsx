@@ -29,6 +29,7 @@ export interface WizardState {
   offersPickup: boolean;
   deliveryRadius: number;
   pickupAddress: string;
+  deliveryZipcodes: string[];
   selectedDates: string[]; 
   deliveryWindows: Record<string, string[]>;
   pickupWindows: Record<string, string[]>;
@@ -74,6 +75,7 @@ const defaultState: WizardState = {
   offersPickup: true,
   deliveryRadius: 5,
   pickupAddress: '',
+  deliveryZipcodes: [],
   selectedDates: [],
   deliveryWindows: {},
   pickupWindows: {},
@@ -389,6 +391,66 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Fetch existing booth defaults to resolve any missing values
+      let boothDefaults: any = null
+      if (boothId) {
+        const { data: b } = await supabase
+          .from('market_booths')
+          .select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes, booth_address, delivery_windows, pickup_windows')
+          .eq('id', boothId)
+          .single()
+        boothDefaults = b
+
+        // If booth exists but has no fulfillment settings (both offers_delivery and offers_pickup are false/null),
+        // we copy the first product's attributes to set the booth defaults.
+        const hasFulfillmentConfigured = b && (b.offers_delivery || b.offers_pickup)
+        if (!isDraft && !hasFulfillmentConfigured) {
+          const autoWeeklyDw: Record<string, any[]> = {}
+          const autoWeeklyPw: Record<string, any[]> = {}
+          const flatDw: any[] = []
+          const flatPw: any[] = []
+
+          state.selectedDates.forEach(date => {
+            if (state.offersDelivery && state.deliveryWindows[date]) {
+              const mapped = mapInlineWindows(state.deliveryWindows[date])
+              flatDw.push(...mapped)
+              const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+              autoWeeklyDw[dayKey] = autoWeeklyDw[dayKey] ? [...autoWeeklyDw[dayKey], ...mapped] : mapped
+            }
+            if (state.offersPickup && state.pickupWindows[date]) {
+              const mapped = mapInlineWindows(state.pickupWindows[date])
+              flatPw.push(...mapped)
+              const dayKey = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+              autoWeeklyPw[dayKey] = autoWeeklyPw[dayKey] ? [...autoWeeklyPw[dayKey], ...mapped] : mapped
+            }
+          })
+
+          await supabase.from('market_booths').update({
+            offers_delivery: state.offersDelivery,
+            offers_pickup: state.offersPickup,
+            delivery_radius_miles: state.deliveryRadius,
+            pickup_address: state.offersPickup ? state.pickupAddress || null : null,
+            delivery_zipcodes: state.offersDelivery && state.deliveryZipcodes?.length > 0 ? state.deliveryZipcodes : null,
+            delivery_windows: flatDw,
+            pickup_windows: flatPw,
+            weekly_delivery_windows: autoWeeklyDw,
+            weekly_pickup_windows: autoWeeklyPw
+          }).eq('id', boothId)
+        }
+      }
+
+      const resolvedRadius = state.deliveryRadius !== null && state.deliveryRadius !== undefined
+        ? state.deliveryRadius
+        : (boothDefaults?.delivery_radius_miles || 5)
+
+      const resolvedPickupAddress = state.pickupAddress
+        ? state.pickupAddress
+        : (boothDefaults?.pickup_address || boothDefaults?.booth_address || state.address || null)
+
+      const resolvedZipcodes = state.deliveryZipcodes && state.deliveryZipcodes.length > 0
+        ? state.deliveryZipcodes
+        : (boothDefaults?.delivery_zipcodes || [])
+
       // ── 2. Upload photos to storage ──
       const uploadedPhotoUrls: string[] = []
       for (let i = 0; i < state.photos.length; i++) {
@@ -429,8 +491,9 @@ export function WizardProvider({ children }: { children: ReactNode }) {
           expires_at: expiresAt,
           is_active: !isDraft,
           is_draft: isDraft,
-          delivery_radius_miles: state.deliveryRadius,
-          pickup_address: state.offersPickup ? state.pickupAddress || null : null,
+          delivery_radius_miles: resolvedRadius,
+          pickup_address: state.offersPickup ? resolvedPickupAddress : null,
+          delivery_zipcodes: state.offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
           product_delivery_windows: !state.offersDelivery ? null : (() => {
             const obj: Record<string, any[]> = {}
             for (const d of state.selectedDates) {

@@ -100,6 +100,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const [addrLabel, setAddrLabel] = useState('Your address')
   const [showShareModal, setShowShareModal] = useState(false)
 
+  // Resolve effective radius and addresses (product-level overrides with booth fallbacks)
+  const effectiveRadius = (product?.delivery_radius_miles !== undefined && product?.delivery_radius_miles !== null)
+    ? product.delivery_radius_miles
+    : booth?.delivery_radius_miles;
+
+  const effectivePickupAddress = product?.pickup_address || booth?.pickup_address;
+
+  const effectivePickupDisplayAddress = product?.pickup_address
+    ? anonymizeAddress(product.pickup_address)
+    : (booth?.pickup_display_address || (booth?.pickup_address ? anonymizeAddress(booth.pickup_address) : ''));
+
   useEffect(() => {
     const load = async () => {
       // Demo products: load from sessionStorage (cached by market page)
@@ -213,11 +224,12 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   }, [user, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!booth?.pickup_address || isDemo) return
-    geocodeAddress(booth.pickup_address).then(geo => {
+    const addr = product?.pickup_address || booth?.pickup_address
+    if (!addr || isDemo) return
+    geocodeAddress(addr).then(geo => {
       if (geo) { setSellerLat(geo.lat); setSellerLng(geo.lng) }
     })
-  }, [booth?.pickup_address, isDemo])
+  }, [product?.pickup_address, booth?.pickup_address, isDemo])
 
   useEffect(() => {
     if (buyerLat == null || buyerLng == null || sellerLat == null || sellerLng == null) return
@@ -231,7 +243,9 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         }
       }
       if (!allowed) {
-        const radius = booth.delivery_radius_miles
+        const radius = (product?.delivery_radius_miles !== undefined && product?.delivery_radius_miles !== null)
+          ? product.delivery_radius_miles
+          : booth?.delivery_radius_miles
         if (radius != null && radius > 0) {
           allowed = dist <= radius
         } else if (radius === 0) {
@@ -242,7 +256,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       }
       setWithinDelivery(allowed)
     }
-  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.offers_delivery, booth?.delivery_zipcodes, buyerZip])
+  }, [buyerLat, buyerLng, sellerLat, sellerLng, product?.delivery_radius_miles, booth?.delivery_radius_miles, booth?.offers_delivery, booth?.delivery_zipcodes, buyerZip])
 
   const handleCheckAltAddress = async () => {
     if (!altAddress.trim()) return
@@ -922,7 +936,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                               </div>
                               {/* Address */}
                               {(() => {
-                                const displayAddr = booth.pickup_display_address || anonymizeAddress(booth.pickup_address)
+                                const displayAddr = effectivePickupDisplayAddress
                                 return displayAddr ? (
                                   <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{displayAddr}</div>
                                 ) : null
@@ -998,11 +1012,11 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                                 withinDelivery ? (
                                   <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600, marginTop: 2 }}>✅ Within range ({distanceMiles} mi)</div>
                                 ) : (
-                                  <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>❌ Outside range ({distanceMiles} mi — max {booth.delivery_radius_miles} mi)</div>
+                                  <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>❌ Outside range ({distanceMiles} mi — max {effectiveRadius} mi)</div>
                                 )
                               ) : (
                                 <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
-                                  Within {booth.delivery_radius_miles || 10} miles of {booth.pickup_display_address || 'Seller location'}
+                                  Within {effectiveRadius || 10} miles of {effectivePickupDisplayAddress || 'Seller location'}
                                 </div>
                               )}
                               {/* Delivery time windows */}
@@ -1095,8 +1109,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                             name: booth.name,
                             offers_delivery: productOffersDelivery,
                             offers_pickup: productOffersPickup,
-                            pickup_address: booth.pickup_address,
-                            delivery_radius_miles: booth.delivery_radius_miles,
+                            pickup_address: effectivePickupAddress,
+                            delivery_radius_miles: effectiveRadius,
                           },
                           cartQty,
                           selectedFulfillment || (productOffersPickup ? 'pickup' : 'delivery')
@@ -1122,8 +1136,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
                             name: booth.name,
                             offers_delivery: productOffersDelivery,
                             offers_pickup: productOffersPickup,
-                            pickup_address: booth.pickup_address,
-                            delivery_radius_miles: booth.delivery_radius_miles,
+                            pickup_address: effectivePickupAddress,
+                            delivery_radius_miles: effectiveRadius,
                           },
                           cartQty,
                           selectedFulfillment || (productOffersPickup ? 'pickup' : 'delivery')
@@ -1253,7 +1267,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
         shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         shareMessage={(p) => {
           const priceText = product?.price_usd === 0 ? 'Free' : `${formatUsd(product?.price_usd || 0)} / ${product?.unit}`
-          const deliveryText = (productOffersDelivery || productOffersPickup) ? `${productOffersDelivery && productOffersPickup ? '🚗 Delivery or 📍 Pickup' : productOffersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${booth?.pickup_display_address || anonymizeAddress(booth?.pickup_address || '') || 'you'}` : '📍 Available nearby'
+          const deliveryText = (productOffersDelivery || productOffersPickup) ? `${productOffersDelivery && productOffersPickup ? '🚗 Delivery or 📍 Pickup' : productOffersDelivery ? '🚗 Delivery' : '📍 Pickup'} near ${effectivePickupDisplayAddress || 'you'}` : '📍 Available nearby'
           return getProductShareMessage(product?.name || 'produce', priceText, deliveryText, p) +
             (product?.inventory ? `\n\nOnly ${product.inventory} available!` : '')
         }}

@@ -91,14 +91,17 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
     const supabase = createClient()
 
     try {
+      // Normalize participant order to avoid duplicate conversations / unique constraint errors
+      const [pA, pB] = [userId, selectedUser.id].sort()
+
       // 1. Find or create conversation
-      const { data: existing } = await supabase
+      const { data: existingConvs } = await supabase
         .from('market_conversations')
         .select('id')
         .or(`and(participant_a.eq.${userId},participant_b.eq.${selectedUser.id}),and(participant_a.eq.${selectedUser.id},participant_b.eq.${userId})`)
-        .maybeSingle()
+        .limit(1)
 
-      let convId = existing?.id
+      let convId = existingConvs?.[0]?.id
 
       if (!convId) {
         // Check block
@@ -116,7 +119,7 @@ export function HelperDMModal({ boothName, passcode, userId, onClose, onSent }: 
 
         const { data: newConv, error: insertError } = await supabase
           .from('market_conversations')
-          .insert({ participant_a: userId, participant_b: selectedUser.id })
+          .insert({ participant_a: pA, participant_b: pB })
           .select('id')
           .single()
 

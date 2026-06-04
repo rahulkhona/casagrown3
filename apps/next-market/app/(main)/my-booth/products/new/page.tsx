@@ -21,7 +21,7 @@ import styles from './page.module.css'
 function getNextMarketDate(schedule: { dayOfWeek: number; dayName: string; openTime: string; closeTime: string }[]): {
   date: string; label: string; iso: string; dayName: string; openTime: string; closeTime: string
 } | null {
-  if (!schedule.length) return null
+  if (!schedule || !schedule.length) return null
   const now = new Date()
   for (let offset = 0; offset <= 7; offset++) {
     const d = new Date(now)
@@ -157,6 +157,7 @@ function NewProductPageInner() {
   const [inlinePickup, setInlinePickup] = useState(true)
   const [inlinePickupAddress, setInlinePickupAddress] = useState('')
   const [inlineDeliveryRadius, setInlineDeliveryRadius] = useState(2)
+  const [inlineDeliveryZipcodes, setInlineDeliveryZipcodes] = useState<string[]>([])
   const [inlineProfileName, setInlineProfileName] = useState('')
   const [inlineDeliveryWindows, setInlineDeliveryWindows] = useState<string[]>(['8-10', '10-12'])
   const [inlinePickupWindows, setInlinePickupWindows] = useState<string[]>(['8-10', '10-12', '12-14', '14-16'])
@@ -407,6 +408,7 @@ function NewProductPageInner() {
         setProductOffersPickup(pick)
         if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
         if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
+        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
         // Build weekly schedule from table rows (same logic as booth page)
         const weeklyDw: Record<string, string[]> = {}
@@ -454,6 +456,7 @@ function NewProductPageInner() {
         setProductOffersDelivery(true)
         setProductOffersPickup(true)
         if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
         // Default to today + tomorrow with all time slots selected
         setSelectedDates([todayStr, tomorrowStr])
@@ -515,6 +518,7 @@ function NewProductPageInner() {
       // Load per-product fulfillment overrides
       if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
       if (data.pickup_address) setInlinePickupAddress(data.pickup_address)
+      if (data.delivery_zipcodes) setInlineDeliveryZipcodes(data.delivery_zipcodes)
       // Detect if product is inactive — trigger relist mode automatically
       if (!data.is_active && !data.is_draft) {
         setEditingInactive(true)
@@ -689,6 +693,17 @@ function NewProductPageInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Fetch booth defaults to resolve any missing values and for validation
+    let boothDefaults: any = null
+    if (boothId) {
+      const { data: b } = await supabase
+        .from('market_booths')
+        .select('delivery_radius_miles, pickup_address, delivery_zipcodes, booth_address, offers_delivery, offers_pickup, delivery_windows, pickup_windows')
+        .eq('id', boothId)
+        .single()
+      boothDefaults = b
+    }
     
     // Evaluate if form lacks requirements to cleanly Publish
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
@@ -722,6 +737,17 @@ function NewProductPageInner() {
         })
         if (!hasAnyWindow) {
           newErrors.fulfillment = 'Set at least one delivery or pickup window'
+        }
+      }
+
+      // Pickup address validation
+      const offersPickup = hasBooth ? productOffersPickup : inlinePickup
+      if (offersPickup) {
+        const resolvedAddress = inlinePickupAddress || (hasBooth ? (boothDefaults?.pickup_address || boothDefaults?.booth_address) : null)
+        if (!resolvedAddress) {
+          newErrors.pickupAddress = 'A pickup address is required to offer pickup.'
+        } else if (!/\b\d{5}\b/.test(resolvedAddress)) {
+          newErrors.pickupAddress = 'Pickup address must include a 5-digit ZIP code.'
         }
       }
     }
@@ -875,6 +901,54 @@ function NewProductPageInner() {
       }
     }
 
+    if (boothId) {
+      // If booth exists but has no fulfillment settings (both offers_delivery and offers_pickup are false/null),
+      // we copy the first product's attributes to set the booth defaults.
+      const hasFulfillmentConfigured = boothDefaults && (boothDefaults.offers_delivery || boothDefaults.offers_pickup)
+      if (!hasFulfillmentConfigured) {
+        const autoWeeklyDw: Record<string, any[]> = {}
+        const autoWeeklyPw: Record<string, any[]> = {}
+        const flatDw = inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : []
+        const flatPw = inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : []
+
+        if (flatDw.length > 0) {
+          autoWeeklyDw[todayDayKey] = flatDw
+          autoWeeklyDw[tomorrowDayKey] = flatDw
+        }
+        if (flatPw.length > 0) {
+          autoWeeklyPw[todayDayKey] = flatPw
+          autoWeeklyPw[tomorrowDayKey] = flatPw
+        }
+
+        await supabase.from('market_booths').update({
+          offers_delivery: inlineDelivery,
+          offers_pickup: inlinePickup,
+          delivery_radius_miles: inlineDeliveryRadius,
+          pickup_address: inlinePickup ? inlinePickupAddress || null : null,
+          delivery_zipcodes: inlineDelivery && inlineDeliveryZipcodes.length > 0 ? inlineDeliveryZipcodes : null,
+          delivery_windows: flatDw,
+          pickup_windows: flatPw,
+          weekly_delivery_windows: autoWeeklyDw,
+          weekly_pickup_windows: autoWeeklyPw
+        }).eq('id', boothId)
+      }
+    }
+
+    const resolvedRadius = inlineDeliveryRadius !== null && inlineDeliveryRadius !== undefined
+      ? inlineDeliveryRadius
+      : (boothDefaults?.delivery_radius_miles || 5)
+
+    const resolvedPickupAddress = inlinePickupAddress
+      ? inlinePickupAddress
+      : (boothDefaults?.pickup_address || boothDefaults?.booth_address || null)
+
+    const resolvedZipcodes = inlineDeliveryZipcodes && inlineDeliveryZipcodes.length > 0
+      ? inlineDeliveryZipcodes
+      : (boothDefaults?.delivery_zipcodes || [])
+
+    const offersPickup = hasBooth ? productOffersPickup : inlinePickup
+    const offersDelivery = hasBooth ? productOffersDelivery : inlineDelivery
+
     // ── 3. Insert or update the product ──
     if (isEditMode) {
       // Upload any new photos (base64) to storage
@@ -912,8 +986,9 @@ function NewProductPageInner() {
           market_date: marketDate,
           is_active: !needsDraft,
           is_draft: needsDraft,
-          delivery_radius_miles: inlineDeliveryRadius,
-          pickup_address: productOffersPickup ? inlinePickupAddress || null : null,
+          delivery_radius_miles: resolvedRadius,
+          pickup_address: offersPickup ? resolvedPickupAddress : null,
+          delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
           product_delivery_windows: !productOffersDelivery ? null : (() => {
             const obj: Record<string, any[]> = {}
             for (const d of selectedDates) {
@@ -1049,8 +1124,9 @@ function NewProductPageInner() {
         expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
         is_active: !needsDraft,
         is_draft: needsDraft,
-        delivery_radius_miles: inlineDeliveryRadius,
-        pickup_address: (hasBooth ? productOffersPickup : inlinePickup) ? inlinePickupAddress || null : null,
+        delivery_radius_miles: resolvedRadius,
+        pickup_address: offersPickup ? resolvedPickupAddress : null,
+        delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
         product_delivery_windows: !productOffersDelivery ? null : (() => {
           const obj: Record<string, any[]> = {}
           for (const d of selectedDates) {
@@ -1117,26 +1193,24 @@ function NewProductPageInner() {
     let boothPublished = false
     const missing: string[] = []
     if (booth) {
-      const hasFulfillment = booth.offers_delivery || booth.offers_pickup
-      // Check both flat and weekly windows for completeness
-      const weeklyDw = booth.weekly_delivery_windows as Record<string, any[]> | null
-      const weeklyPw = booth.weekly_pickup_windows as Record<string, any[]> | null
-      const hasFlatDw = (booth.delivery_windows as any[])?.length > 0
-      const hasFlatPw = (booth.pickup_windows as any[])?.length > 0
-      const hasWeeklyDw = weeklyDw && Object.values(weeklyDw).some(arr => arr?.length > 0)
-      const hasWeeklyPw = weeklyPw && Object.values(weeklyPw).some(arr => arr?.length > 0)
-      const hasWindows = (booth.offers_delivery ? (hasFlatDw || hasWeeklyDw) : true) &&
-                         (booth.offers_pickup ? (hasFlatPw || hasWeeklyPw) : true)
+      let hasFulfillment = booth.offers_delivery || booth.offers_pickup
+      let hasWindows = false
+      if (hasFulfillment) {
+        // Check both flat and weekly windows for completeness
+        const weeklyDw = booth.weekly_delivery_windows as Record<string, any[]> | null
+        const weeklyPw = booth.weekly_pickup_windows as Record<string, any[]> | null
+        const hasFlatDw = (booth.delivery_windows as any[])?.length > 0
+        const hasFlatPw = (booth.pickup_windows as any[])?.length > 0
+        const hasWeeklyDw = !!(weeklyDw && Object.values(weeklyDw).some(arr => arr?.length > 0))
+        const hasWeeklyPw = !!(weeklyPw && Object.values(weeklyPw).some(arr => arr?.length > 0))
+        hasWindows = (!!booth.offers_delivery ? (hasFlatDw || hasWeeklyDw) : true) &&
+                     (!!booth.offers_pickup ? (hasFlatPw || hasWeeklyPw) : true)
+      }
 
-      // ── Backfill booth defaults from first listing's windows if booth has none ──
-      const { data: existingTableWindows } = await supabase
-        .from('booth_fulfillment_windows')
-        .select('id')
-        .eq('booth_id', boothId)
-        .limit(1)
-      const boothHasNoWindows = !hasWindows && (!existingTableWindows || existingTableWindows.length === 0)
-
-      if (boothHasNoWindows && selectedDates.length > 0) {
+      // If the product is being published and the booth has no fulfillment settings at all,
+      // copy all fulfillment settings from the product/form state to the booth defaults.
+      let boothHasNoWindows = false
+      if (!needsDraft && !hasFulfillment) {
         const DAY_NAMES = ['sun','mon','tue','wed','thu','fri','sat']
         const newWeeklyDw: Record<string, string[]> = {}
         const newWeeklyPw: Record<string, string[]> = {}
@@ -1148,7 +1222,7 @@ function NewProductPageInner() {
           const dwIds = productDeliveryWindows[dateStr] || []
           const pwIds = productPickupWindows[dateStr] || []
 
-          if (dwIds.length > 0) {
+          if (dwIds.length > 0 && productOffersDelivery) {
             if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
             for (const slotId of dwIds) {
               if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
@@ -1163,7 +1237,7 @@ function NewProductPageInner() {
               })
             }
           }
-          if (pwIds.length > 0) {
+          if (pwIds.length > 0 && productOffersPickup) {
             if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
             for (const slotId of pwIds) {
               if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
@@ -1180,15 +1254,87 @@ function NewProductPageInner() {
           }
         }
 
-        // Write to both table and JSONB
+        // Insert weekly windows table rows
         if (tableRows.length > 0) {
           await supabase.from('booth_fulfillment_windows').insert(tableRows)
         }
-        const boothUpdate: Record<string, any> = {}
-        if (Object.keys(newWeeklyDw).length > 0) boothUpdate.weekly_delivery_windows = newWeeklyDw
-        if (Object.keys(newWeeklyPw).length > 0) boothUpdate.weekly_pickup_windows = newWeeklyPw
-        if (Object.keys(boothUpdate).length > 0) {
-          await supabase.from('market_booths').update(boothUpdate).eq('id', boothId)
+
+        // Update the booth with the product's fulfillment defaults
+        await supabase.from('market_booths').update({
+          offers_delivery: productOffersDelivery,
+          offers_pickup: productOffersPickup,
+          delivery_radius_miles: resolvedRadius,
+          pickup_address: productOffersPickup ? resolvedPickupAddress : null,
+          delivery_zipcodes: productOffersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
+          weekly_delivery_windows: Object.keys(newWeeklyDw).length > 0 ? newWeeklyDw : null,
+          weekly_pickup_windows: Object.keys(newWeeklyPw).length > 0 ? newWeeklyPw : null,
+        }).eq('id', boothId)
+
+        // Re-evaluate hasFulfillment and hasWindows now that they are copied
+        hasFulfillment = productOffersDelivery || productOffersPickup
+        hasWindows = true
+      } else {
+        // ── Backfill booth defaults from first listing's windows if booth has none ──
+        const { data: existingTableWindows } = await supabase
+          .from('booth_fulfillment_windows')
+          .select('id')
+          .eq('booth_id', boothId)
+          .limit(1)
+        boothHasNoWindows = !hasWindows && (!existingTableWindows || existingTableWindows.length === 0)
+
+        if (boothHasNoWindows && selectedDates.length > 0) {
+          const DAY_NAMES = ['sun','mon','tue','wed','thu','fri','sat']
+          const newWeeklyDw: Record<string, string[]> = {}
+          const newWeeklyPw: Record<string, string[]> = {}
+          const tableRows: Array<{booth_id: string; day_of_week: string; window_type: string; start_time: string; end_time: string}> = []
+
+          for (const dateStr of selectedDates) {
+            const d = new Date(dateStr + 'T12:00:00')
+            const dayKey = DAY_NAMES[d.getDay()]
+            const dwIds = productDeliveryWindows[dateStr] || []
+            const pwIds = productPickupWindows[dateStr] || []
+
+            if (dwIds.length > 0) {
+              if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
+              for (const slotId of dwIds) {
+                if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
+                const [startH] = slotId.split('-').map(Number)
+                const endH = startH + 2
+                tableRows.push({
+                  booth_id: boothId!,
+                  day_of_week: dayKey,
+                  window_type: 'delivery',
+                  start_time: `${String(startH).padStart(2,'0')}:00`,
+                  end_time: `${String(endH).padStart(2,'0')}:00`,
+                })
+              }
+            }
+            if (pwIds.length > 0) {
+              if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
+              for (const slotId of pwIds) {
+                if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
+                const [startH] = slotId.split('-').map(Number)
+                const endH = startH + 2
+                tableRows.push({
+                  booth_id: boothId!,
+                  day_of_week: dayKey,
+                  window_type: 'pickup',
+                  start_time: `${String(startH).padStart(2,'0')}:00`,
+                  end_time: `${String(endH).padStart(2,'0')}:00`,
+                })
+              }
+            }
+          }
+
+          if (tableRows.length > 0) {
+            await supabase.from('booth_fulfillment_windows').insert(tableRows)
+          }
+          const boothUpdate: Record<string, any> = {}
+          if (Object.keys(newWeeklyDw).length > 0) boothUpdate.weekly_delivery_windows = newWeeklyDw
+          if (Object.keys(newWeeklyPw).length > 0) boothUpdate.weekly_pickup_windows = newWeeklyPw
+          if (Object.keys(boothUpdate).length > 0) {
+            await supabase.from('market_booths').update(boothUpdate).eq('id', boothId)
+          }
         }
       }
 
@@ -1857,11 +2003,12 @@ function NewProductPageInner() {
               <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
                 <label className={styles.label}>📍 Pickup Address <span className={styles.optional}>(optional)</span></label>
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${errors.pickupAddress ? styles.inputError : ''}`}
                   value={inlinePickupAddress}
-                  onChange={e => setInlinePickupAddress(e.target.value)}
+                  onChange={e => { setInlinePickupAddress(e.target.value); setErrors(p => ({ ...p, pickupAddress: '' })) }}
                   placeholder="Where should buyers pick up?"
                 />
+                {errors.pickupAddress && <span className={styles.error}>{errors.pickupAddress}</span>}
                 <button
                   type="button"
                   style={{
@@ -1936,20 +2083,100 @@ function NewProductPageInner() {
               </div>
             )}
             {(hasBooth ? productOffersDelivery : inlineDelivery) && (
-              <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
-                <label className={styles.label}>🚗 Delivery Radius</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="range" min={1} max={10}
-                    value={inlineDeliveryRadius}
-                    onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
-                    style={{ flex: 1 }}
-                  />
-                  <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
-                    {inlineDeliveryRadius} mi
-                  </span>
+              <>
+                <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                  <label className={styles.label}>🚗 Delivery Radius</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="range" min={1} max={10}
+                      value={inlineDeliveryRadius}
+                      onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
+                      {inlineDeliveryRadius} mi
+                    </span>
+                  </div>
                 </div>
-              </div>
+                {/* Delivery Zip Codes Overrides */}
+                <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                  <label className={styles.label}>📮 Delivery Zip Codes (Specific zones/neighborhoods)</label>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
+                    Add zip codes where you deliver, regardless of distance.
+                  </p>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    padding: '6px 8px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    background: 'white',
+                    alignItems: 'center',
+                    minHeight: 38
+                  }}>
+                    {(inlineDeliveryZipcodes || []).map((zip) => (
+                      <span key={zip} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        padding: '3px 8px',
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        {zip}
+                        <button
+                          type="button"
+                          onClick={() => setInlineDeliveryZipcodes(prev => (prev || []).filter(z => z !== zip))}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            color: '#15803d',
+                            cursor: 'pointer',
+                            padding: 0,
+                            fontSize: 14,
+                            lineHeight: 1
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={(inlineDeliveryZipcodes || []).length === 0 ? "e.g. 90210, 90211" : "Add zip..."}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                          if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
+                            setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                        if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
+                          setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        flex: 1,
+                        minWidth: 80,
+                        fontSize: 14,
+                        padding: '4px 0'
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Day selectors — all 7 upcoming days; booth-window days pre-selected */}

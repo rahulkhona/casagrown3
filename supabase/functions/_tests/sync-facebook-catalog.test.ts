@@ -262,6 +262,14 @@ Deno.test({
       return { user_id, val: val.trim() };
     });
 
+    const rawTesters = await sqlExec("SELECT string_agg(email || ':' || COALESCE(notes, ''), ';') FROM pro_testers");
+    const originalTesters = rawTesters.split(";").filter(Boolean).map(x => {
+      const idx = x.indexOf(":");
+      if (idx === -1) return { email: x, notes: "" };
+      return { email: x.substring(0, idx), notes: x.substring(idx + 1) };
+    });
+
+    await sqlExec("DELETE FROM pro_testers");
     await sqlExec("UPDATE seller_subscriptions SET status = 'canceled'");
     try {
       const { status, data } = await callSync();
@@ -273,6 +281,9 @@ Deno.test({
     } finally {
       for (const item of original) {
         await sqlExec(`UPDATE seller_subscriptions SET status = '${item.val}' WHERE user_id = '${item.user_id}'`);
+      }
+      for (const item of originalTesters) {
+        await sqlExec(`INSERT INTO pro_testers (email, notes) VALUES ('${item.email}', '${item.notes.replace(/'/g, "''")}') ON CONFLICT (email) DO NOTHING`);
       }
     }
   },

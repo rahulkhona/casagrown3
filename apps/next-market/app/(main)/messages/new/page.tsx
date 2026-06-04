@@ -57,17 +57,19 @@ function NewMessageTrafficCopInner() {
       const [pA, pB] = [user.id, targetUserId].sort()
 
       // 1. Check if a conversation already exists between these two users (either direction)
-      const { data: existing, error: fetchError } = await supabase
+      const { data: existingConvs, error: fetchError } = await supabase
         .from('market_conversations')
         .select('id')
         .or(`and(participant_a.eq.${user.id},participant_b.eq.${targetUserId}),and(participant_a.eq.${targetUserId},participant_b.eq.${user.id})`)
-        .maybeSingle()
+        .limit(1)
 
       if (fetchError) {
         console.error("Failed to check conversation:", fetchError)
         setError("Failed to initialize conversation.")
         return
       }
+
+      const existing = existingConvs?.[0]
 
       if (existing) {
         // Conversation exists! Route directly to it.
@@ -88,12 +90,13 @@ function NewMessageTrafficCopInner() {
       if (insertError) {
         // Retry: conversation may have been created concurrently (race condition)
         console.warn("Insert failed, retrying lookup:", insertError)
-        const { data: retryConv } = await supabase
+        const { data: retryConvs } = await supabase
           .from('market_conversations')
           .select('id')
           .or(`and(participant_a.eq.${user.id},participant_b.eq.${targetUserId}),and(participant_a.eq.${targetUserId},participant_b.eq.${user.id})`)
-          .maybeSingle()
+          .limit(1)
         
+        const retryConv = retryConvs?.[0]
         if (retryConv) {
           router.replace(`/messages/${retryConv.id}${productId ? `?productId=${productId}` : ''}`)
           return

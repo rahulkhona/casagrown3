@@ -13,6 +13,8 @@ interface StandOption {
   offers_delivery: boolean
   offers_pickup: boolean
   delivery_radius_miles: number
+  delivery_zipcodes?: string[]
+  pickup_address?: string
 }
 
 const PRODUCT_TIME_WINDOWS = [
@@ -179,7 +181,7 @@ export default function Step2Fulfillment() {
     const supabase = createClient()
     supabase
       .from('market_booths')
-      .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles')
+      .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, delivery_zipcodes, pickup_address')
       .eq('owner_id', user.id)
       .then(({ data }: { data: any }) => {
         const standList = data || []
@@ -197,6 +199,8 @@ export default function Step2Fulfillment() {
               offersDelivery: stand.offers_delivery,
               offersPickup: stand.offers_pickup,
               deliveryRadius: stand.delivery_radius_miles || 5,
+              deliveryZipcodes: stand.delivery_zipcodes || [],
+              pickupAddress: stand.pickup_address || '',
             })
             return
           }
@@ -210,6 +214,8 @@ export default function Step2Fulfillment() {
             offersDelivery: stand.offers_delivery,
             offersPickup: stand.offers_pickup,
             deliveryRadius: stand.delivery_radius_miles || 5,
+            deliveryZipcodes: stand.delivery_zipcodes || [],
+            pickupAddress: stand.pickup_address || '',
           })
         }
       })
@@ -223,6 +229,8 @@ export default function Step2Fulfillment() {
         offersDelivery: stand.offers_delivery,
         offersPickup: stand.offers_pickup,
         deliveryRadius: stand.delivery_radius_miles || 5,
+        deliveryZipcodes: stand.delivery_zipcodes || [],
+        pickupAddress: stand.pickup_address || '',
       })
     } else {
       updateState({ boothId: null })
@@ -460,6 +468,90 @@ export default function Step2Fulfillment() {
                     <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
                       {state.deliveryRadius || 5} mi
                     </span>
+                  </div>
+                </div>
+                {/* Delivery Zip Codes input */}
+                <div style={{ marginTop: 16 }}>
+                  <label className={styles.label}>📮 Delivery Zip Codes (Specific zones/neighborhoods)</label>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
+                    Add zip codes where you deliver, regardless of distance.
+                  </p>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    padding: '6px 8px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    background: 'white',
+                    alignItems: 'center',
+                    minHeight: 38
+                  }}>
+                    {(state.deliveryZipcodes || []).map((zip) => (
+                      <span key={zip} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        padding: '3px 8px',
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        {zip}
+                        <button
+                          type="button"
+                          onClick={() => updateState(prev => ({
+                            deliveryZipcodes: (prev.deliveryZipcodes || []).filter(z => z !== zip)
+                          }))}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            color: '#15803d',
+                            cursor: 'pointer',
+                            padding: 0,
+                            fontSize: 14,
+                            lineHeight: 1
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={(state.deliveryZipcodes || []).length === 0 ? "e.g. 90210, 90211" : "Add zip..."}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                          if (val.length === 5 && !(state.deliveryZipcodes || []).includes(val)) {
+                            updateState(prev => ({
+                              deliveryZipcodes: [...(prev.deliveryZipcodes || []), val]
+                            }));
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                        if (val.length === 5 && !(state.deliveryZipcodes || []).includes(val)) {
+                          updateState(prev => ({
+                            deliveryZipcodes: [...(prev.deliveryZipcodes || []), val]
+                          }));
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        flex: 1,
+                        minWidth: 80,
+                        fontSize: 14,
+                        padding: '4px 0'
+                      }}
+                    />
                   </div>
                 </div>
                 <WindowSelector 

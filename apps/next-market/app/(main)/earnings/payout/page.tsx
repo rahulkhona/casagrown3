@@ -285,8 +285,8 @@ export default function PayoutPage() {
 
 
 
-  // ── Method availability ──
   const isMethodAvailable = useCallback((methodName: string) => {
+    if (!activeMethods || !Array.isArray(activeMethods)) return false
     const m = activeMethods.find(m => m.method === methodName)
     if (!m?.is_active) return false
     if (m.instruments?.length > 0) return m.instruments.some(i => i.is_active)

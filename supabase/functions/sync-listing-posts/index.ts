@@ -78,13 +78,109 @@ function formatWindows(windows: Array<{ window_type: string; day_of_week: string
   return `\n  🕒 ${label}\n${lines.join('\n')}`
 }
 
+function buildMessageText({
+  product,
+  booth,
+  profile,
+  windows,
+  sellerName,
+  price,
+  productLink,
+  siteUrl,
+  ch
+}: {
+  product: any;
+  booth: any;
+  profile: any;
+  windows: any;
+  sellerName: string;
+  price: string;
+  productLink: string;
+  siteUrl: string;
+  ch: string;
+}): string {
+  const bizTypeLabels: Record<string, string> = {
+    hobby_gardener: '🌱 Hobby Gardener', small_farm: '🚜 Small Farm',
+    cottage_food: '🏠 Cottage Food Operation', urban_farm: '🏙️ Urban Farm',
+    homestead: '🌾 Homestead', community_garden: '🌻 Community Garden',
+    gardening_service: '🌿 Gardening Service', landscaping_service: '🏡 Landscaping Service',
+    commercial: '🏢 Commercial / Licensed',
+  }
+
+  let msg = `🌱 Just listed from ${sellerName}!\n`
+  if (profile?.business_type && bizTypeLabels[profile.business_type]) {
+    msg += `${bizTypeLabels[profile.business_type]}\n`
+  }
+  if (profile?.seller_bio) {
+    msg += `🚜 About Us: ${profile.seller_bio}\n`
+  }
+  const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
+  msg += `\n${product.name} — $${price}/${unit}\n`
+  if (product.description) {
+    msg += `${product.description}\n`
+  }
+
+  const offersPickup = product.product_pickup_windows !== null || (product.product_pickup_windows === null && booth?.offers_pickup)
+  const offersDelivery = product.product_delivery_windows !== null || (product.product_delivery_windows === null && booth?.offers_delivery)
+  const resolvedPickupAddress = product.pickup_address || booth?.pickup_address
+  const resolvedRadius = product.delivery_radius_miles !== null && product.delivery_radius_miles !== undefined ? product.delivery_radius_miles : (booth?.delivery_radius_miles ?? 5)
+  const resolvedZipcodes = product.delivery_zipcodes && product.delivery_zipcodes.length > 0 ? product.delivery_zipcodes : (booth?.delivery_zipcodes || [])
+
+  if (offersPickup && resolvedPickupAddress) {
+    const anonymizedPickup = anonymizeAddress(resolvedPickupAddress)
+    msg += `\n📍 Pickup: ${anonymizedPickup}`
+    const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
+    if (pickupWin) {
+      msg += pickupWin
+    }
+  }
+  if (offersDelivery) {
+    let delMsg = ''
+    if (resolvedRadius > 0) {
+      const anonymizedBase = anonymizeAddress(booth?.booth_address || resolvedPickupAddress)
+      delMsg = `\n🚗 Delivery: within ${resolvedRadius} miles from our base: ${anonymizedBase}`
+    } else {
+      delMsg = `\n🚗 Delivery: Available`
+    }
+    const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
+    if (deliveryWin) {
+      delMsg += deliveryWin
+    }
+    if (resolvedZipcodes.length > 0) {
+      const prefix = resolvedRadius > 0 ? '\n📦 Also delivering in Zip Codes: ' : '\n📦 Delivering in Zip Codes: '
+      delMsg += `${prefix}${resolvedZipcodes.join(', ')}`
+    }
+    msg += delMsg
+  }
+  const permits: string[] = []
+  if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
+  if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
+  if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
+  if (permits.length > 0) {
+    msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
+  }
+
+  msg += `\n\n🛒 Order now → ${productLink}`
+  if (profile?.dm_short_code) {
+    const chatUrl = `${siteUrl}/dm/${profile.dm_short_code}?ref=${ch}`
+    msg += `\n💬 Chat with us → ${chatUrl}`
+  }
+  msg += `\n\n[Published via CasaGrown Auto-Post]`
+
+  if (ch === 'instagram' && msg.length > 2200) {
+    msg = msg.substring(0, 2197) + '...'
+  } else if (ch === 'google' && msg.length > 1500) {
+    msg = msg.substring(0, 1497) + '...'
+  }
+  return msg
+}
+
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl }) => {
   const auth = await requireAuth(req, supabase, corsHeaders)
   if (auth instanceof Response) return auth
-
   const body = await req.json()
   const { action, product_id, seller_id, booth_id, site_url } = body
-  const siteUrl = site_url || defaultSiteUrl
+  const siteUrl = site_url || defaultSiteUrl || 'https://casagrown.com'
 
   // Helper to update quantity comments and GBP description
   const updateQuantityComments = async (
@@ -240,7 +336,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
         .from('market_products')
         .select(`
           id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
-          facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id
+          facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id,
+          product_pickup_windows, product_delivery_windows, delivery_radius_miles, pickup_address, delivery_zipcodes
         `)
         .eq('id', prod.id)
         .single()
@@ -310,68 +407,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
         commercial: '🏢 Commercial / Licensed',
       }
 
-      const buildMessage = (ch: string) => {
-        let msg = `🌱 Just listed from ${sellerName}!\n`
-        if (profile?.business_type && bizTypeLabels[profile.business_type]) {
-          msg += `${bizTypeLabels[profile.business_type]}\n`
-        }
-        if (profile?.seller_bio) {
-          msg += `🚜 About Us: ${profile.seller_bio}\n`
-        }
-        const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
-        msg += `\n${product.name} — $${price}/${unit}\n`
-        if (product.description) {
-          msg += `${product.description}\n`
-        }
-        if (booth?.offers_pickup && booth?.pickup_address) {
-          const anonymizedPickup = anonymizeAddress(booth.pickup_address)
-          msg += `\n📍 Pickup: ${anonymizedPickup}`
-          const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
-          if (pickupWin) {
-            msg += pickupWin
-          }
-        }
-        if (booth?.offers_delivery) {
-          const radius = booth.delivery_radius_miles ?? 5
-          let delMsg = ''
-          if (radius > 0) {
-            const anonymizedBase = anonymizeAddress(booth.booth_address || booth.pickup_address)
-            delMsg = `\n🚗 Delivery: within ${radius} miles from our base: ${anonymizedBase}`
-          } else {
-            delMsg = `\n🚗 Delivery: Available`
-          }
-          const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
-          if (deliveryWin) {
-            delMsg += deliveryWin
-          }
-          if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
-            const prefix = radius > 0 ? '\n📦 Also delivering in Zip Codes: ' : '\n📦 Delivering in Zip Codes: '
-            delMsg += `${prefix}${booth.delivery_zipcodes.join(', ')}`
-          }
-          msg += delMsg
-        }
-        const permits: string[] = []
-        if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
-        if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
-        if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
-        if (permits.length > 0) {
-          msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
-        }
-
-        msg += `\n\n🛒 Order now → ${productLink}`
-        const chatUrl = dmUrl(ch)
-        if (chatUrl) {
-          msg += `\n💬 Chat with us → ${chatUrl}`
-        }
-        msg += `\n\n[Published via CasaGrown Auto-Post]`
-
-        if (ch === 'instagram' && msg.length > 2200) {
-          msg = msg.substring(0, 2197) + '...'
-        } else if (ch === 'google' && msg.length > 1500) {
-          msg = msg.substring(0, 1497) + '...'
-        }
-        return msg
-      }
+      const buildMessage = (ch: string) => buildMessageText({
+        product,
+        booth,
+        profile,
+        windows,
+        sellerName,
+        price,
+        productLink,
+        siteUrl,
+        ch
+      })
 
       const photoUrl = product.photos?.[0] || undefined
       const prodResults: Record<string, any> = {}
@@ -670,7 +716,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       .from('market_products')
       .select(`
         id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
-        facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id
+        facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id,
+        product_pickup_windows, product_delivery_windows, delivery_radius_miles, pickup_address, delivery_zipcodes
       `)
       .eq('id', product_id)
       .single()
@@ -761,68 +808,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       commercial: '🏢 Commercial / Licensed',
     }
 
-    const buildMessage = (ch: string) => {
-      let msg = `🌱 Just listed from ${sellerName}!\n`
-      if (profile?.business_type && bizTypeLabels[profile.business_type]) {
-        msg += `${bizTypeLabels[profile.business_type]}\n`
-      }
-      if (profile?.seller_bio) {
-        msg += `🚜 About Us: ${profile.seller_bio}\n`
-      }
-      const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
-      msg += `\n${product.name} — $${price}/${unit}\n`
-      if (product.description) {
-        msg += `${product.description}\n`
-      }
-      if (booth?.offers_pickup && booth?.pickup_address) {
-        const anonymizedPickup = anonymizeAddress(booth.pickup_address)
-        msg += `\n📍 Pickup: ${anonymizedPickup}`
-        const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
-        if (pickupWin) {
-          msg += pickupWin
-        }
-      }
-      if (booth?.offers_delivery) {
-        const radius = booth.delivery_radius_miles ?? 5
-        let delMsg = ''
-        if (radius > 0) {
-          const anonymizedBase = anonymizeAddress(booth.booth_address || booth.pickup_address)
-          delMsg = `\n🚗 Delivery: within ${radius} miles from our base: ${anonymizedBase}`
-        } else {
-          delMsg = `\n🚗 Delivery: Available`
-        }
-        const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
-        if (deliveryWin) {
-          delMsg += deliveryWin
-        }
-        if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
-          const prefix = radius > 0 ? '\n📦 Also delivering in Zip Codes: ' : '\n📦 Delivering in Zip Codes: '
-          delMsg += `${prefix}${booth.delivery_zipcodes.join(', ')}`
-        }
-        msg += delMsg
-      }
-      const permits: string[] = []
-      if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
-      if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
-      if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
-      if (permits.length > 0) {
-        msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
-      }
-
-      msg += `\n\n🛒 Order now → ${productLink}`
-      const chatUrl = dmUrl(ch)
-      if (chatUrl) {
-        msg += `\n💬 Chat with us → ${chatUrl}`
-      }
-      msg += `\n\n[Published via CasaGrown Auto-Post]`
-
-      if (ch === 'instagram' && msg.length > 2200) {
-        msg = msg.substring(0, 2197) + '...'
-      } else if (ch === 'google' && msg.length > 1500) {
-        msg = msg.substring(0, 1497) + '...'
-      }
-      return msg
-    }
+    const buildMessage = (ch: string) => buildMessageText({
+      product,
+      booth,
+      profile,
+      windows,
+      sellerName,
+      price,
+      productLink,
+      siteUrl,
+      ch
+    })
 
     const commentText = `Stock Update: Only ${product.inventory} left in stock! 🛒 Link: ${productLink}`
     const commResults: Record<string, any> = {}
@@ -893,7 +889,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       .from('market_products')
       .select(`
         id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
-        facebook_post_id, instagram_post_id, google_post_id
+        facebook_post_id, instagram_post_id, google_post_id,
+        product_pickup_windows, product_delivery_windows, delivery_radius_miles, pickup_address, delivery_zipcodes
       `)
       .eq('id', product_id)
       .single()
@@ -990,68 +987,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       commercial: '🏢 Commercial / Licensed',
     }
 
-    const buildMessage = (ch: string) => {
-      let msg = `🌱 Just listed from ${sellerName}!\n`
-      if (profile?.business_type && bizTypeLabels[profile.business_type]) {
-        msg += `${bizTypeLabels[profile.business_type]}\n`
-      }
-      if (profile?.seller_bio) {
-        msg += `🚜 About Us: ${profile.seller_bio}\n`
-      }
-      const unit = product.unit || (product.category === 'produce' ? 'lb' : 'each')
-      msg += `\n${product.name} — $${price}/${unit}\n`
-      if (product.description) {
-        msg += `${product.description}\n`
-      }
-      if (booth?.offers_pickup && booth?.pickup_address) {
-        const anonymizedPickup = anonymizeAddress(booth.pickup_address)
-        msg += `\n📍 Pickup: ${anonymizedPickup}`
-        const pickupWin = windows ? formatWindows(windows, 'pickup') : ''
-        if (pickupWin) {
-          msg += pickupWin
-        }
-      }
-      if (booth?.offers_delivery) {
-        const radius = booth.delivery_radius_miles ?? 5
-        let delMsg = ''
-        if (radius > 0) {
-          const anonymizedBase = anonymizeAddress(booth.booth_address || booth.pickup_address)
-          delMsg = `\n🚗 Delivery: within ${radius} miles from our base: ${anonymizedBase}`
-        } else {
-          delMsg = `\n🚗 Delivery: Available`
-        }
-        const deliveryWin = windows ? formatWindows(windows, 'delivery') : ''
-        if (deliveryWin) {
-          delMsg += deliveryWin
-        }
-        if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
-          const prefix = radius > 0 ? '\n📦 Also delivering in Zip Codes: ' : '\n📦 Delivering in Zip Codes: '
-          delMsg += `${prefix}${booth.delivery_zipcodes.join(', ')}`
-        }
-        msg += delMsg
-      }
-      const permits: string[] = []
-      if (profile?.business_license) permits.push(`License: ${profile.business_license}`)
-      if (profile?.cottage_food_permit) permits.push(`Cottage Food: ${profile.cottage_food_permit}`)
-      if (profile?.food_handler_permit) permits.push(`Food Handler: ${profile.food_handler_permit}`)
-      if (permits.length > 0) {
-        msg += `\n\n📄 Permits/Licenses: ${permits.join(', ')}`
-      }
-
-      msg += `\n\n🛒 Order now → ${productLink}`
-      const chatUrl = dmUrl(ch)
-      if (chatUrl) {
-        msg += `\n💬 Chat with us → ${chatUrl}`
-      }
-      msg += `\n\n[Published via CasaGrown Auto-Post]`
-
-      if (ch === 'instagram' && msg.length > 2200) {
-        msg = msg.substring(0, 2197) + '...'
-      } else if (ch === 'google' && msg.length > 1500) {
-        msg = msg.substring(0, 1497) + '...'
-      }
-      return msg
-    }
+    const buildMessage = (ch: string) => buildMessageText({
+      product,
+      booth,
+      profile,
+      windows,
+      sellerName,
+      price,
+      productLink,
+      siteUrl,
+      ch
+    })
 
     const photoUrl = product.photos?.[0] || undefined
     const results: Record<string, any> = {}

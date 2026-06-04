@@ -53,12 +53,17 @@ export function UserSearchModal({ onClose }: UserSearchModalProps) {
     const supabase = createClient()
 
     try {
+      // Normalize participant order to avoid duplicate conversations / unique constraint errors
+      const [pA, pB] = [user.id, targetUserId].sort()
+
       // 1. Check if conversation already exists (independent of ordering)
-      const { data: existingConv, error: searchError } = await supabase
+      const { data: existingConvs, error: searchError } = await supabase
         .from('market_conversations')
         .select('id')
         .or(`and(participant_a.eq.${user.id},participant_b.eq.${targetUserId}),and(participant_a.eq.${targetUserId},participant_b.eq.${user.id})`)
-        .maybeSingle()
+        .limit(1)
+
+      const existingConv = existingConvs?.[0]
 
       if (existingConv?.id) {
         onClose()
@@ -84,8 +89,8 @@ export function UserSearchModal({ onClose }: UserSearchModalProps) {
       const { data: newConv, error: insertError } = await supabase
         .from('market_conversations')
         .insert({
-          participant_a: user.id,
-          participant_b: targetUserId
+          participant_a: pA,
+          participant_b: pB
         })
         .select('id')
         .single()

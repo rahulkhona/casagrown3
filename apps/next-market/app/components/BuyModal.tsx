@@ -31,6 +31,8 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const supabase = createClient()
   const { user } = useAuth()
   const [qty, setQty] = useState(1)
+  const [productRadius, setProductRadius] = useState<number | null>(null)
+  const [productPickupAddress, setProductPickupAddress] = useState<string | null>(null)
 
   // Fulfillment: null = seller didn't enable this for the product; non-null = enabled
   const productOffersPickup = product?.product_pickup_windows != null
@@ -87,7 +89,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     const fetchFresh = async () => {
       const { data } = await supabase
         .from('market_products')
-        .select('price_usd, inventory, window_dates, product_delivery_windows, product_pickup_windows')
+        .select('price_usd, inventory, window_dates, product_delivery_windows, product_pickup_windows, delivery_radius_miles, pickup_address')
         .eq('id', product.id)
         .single()
       if (data) {
@@ -98,10 +100,20 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         if (data.window_dates) setWindowDates(data.window_dates)
         if (data.product_delivery_windows) setDeliveryWindows(data.product_delivery_windows)
         if (data.product_pickup_windows) setPickupWindows(data.product_pickup_windows)
+        if (data.delivery_radius_miles !== undefined) setProductRadius(data.delivery_radius_miles)
+        if (data.pickup_address) setProductPickupAddress(data.pickup_address)
       }
     }
     fetchFresh()
   }, [product.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const effectiveRadius = productRadius !== null && productRadius !== undefined
+    ? productRadius
+    : booth.delivery_radius_miles;
+
+  const effectivePickupDisplay = productPickupAddress
+    ? (productPickupAddress.split(',')[0] + ', ' + (productPickupAddress.split(',')[1] || '').trim())
+    : (booth.pickup_display_address || booth.pickup_address);
 
 
   // Fetch buyer's available balance
@@ -397,10 +409,10 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
             </div>
 
             {/* Pickup address (approximate — full address shown after purchase) */}
-            {fulfillment === 'pickup' && (booth.pickup_display_address || booth.pickup_address) && (
+            {fulfillment === 'pickup' && effectivePickupDisplay && (
               <div className={styles.addressInfo}>
                 <span className={styles.addressIcon}>📍</span>
-                <span>Pickup near: <strong>{booth.pickup_display_address || booth.pickup_address}</strong></span>
+                <span>Pickup near: <strong>{effectivePickupDisplay}</strong></span>
               </div>
             )}
 
@@ -421,9 +433,9 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
                   onChange={e => setDeliveryInstructions(e.target.value)}
                   style={{ marginTop: 8 }}
                 />
-                {booth.delivery_radius_miles && (
-                  <p className={styles.deliveryNote}>Delivery available within {booth.delivery_radius_miles} miles of seller</p>
-                )}
+                {effectiveRadius ? (
+                  <p className={styles.deliveryNote}>Delivery available within {effectiveRadius} miles of seller</p>
+                ) : null}
               </>
             )}
           </div>

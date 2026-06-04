@@ -37,8 +37,17 @@ RULES:
 
 Also write a 1-sentence "intro" that bridges the seller's existing description to the suggestion. This should feel like a natural transition (e.g. "Here's what your neighbors have been making:" or "Grab a dozen and try this at home:").
 
-Output ONLY a valid JSON object: {"intro": "...", "recipes": ["...", "...", "..."]}
-Nothing else.`
+Output ONLY a valid JSON object in the following format:
+{
+  "intro": "a warm transitional intro sentence",
+  "recipes": [
+    "first description suggestion",
+    "second description suggestion",
+    "third description suggestion"
+  ]
+}
+Do not output literal dots or placeholders. Fill the values with actual, helpful suggestions for this product based on its name and category. Nothing else.
+`
 
     const supaUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const isLocal = supaUrl.includes('localhost') || supaUrl.includes('127.0.0.1') || supaUrl.includes('kong:')
