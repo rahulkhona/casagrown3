@@ -123,6 +123,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           const buyerContact = contacts.find((c: any) => c.wa_id === userPhone)
           const buyerFirstName = buyerContact?.profile?.name?.split(' ')[0] || 'Neighbor'
 
+          const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
+          if (allBooths.length === 0) {
+            await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone, 
+              "Thanks for reaching out! I'm still setting up my booth. Please check back soon!"
+            )
+            continue
+          }
+
           // Get/create conversation record
           const { data: conversation } = await supabase
             .from('wa_conversations')
@@ -137,35 +145,30 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             .select('*, buyer_zip, buyer_fulfillment_pref, matched_booth_id')
             .single()
 
+          let lockDraft: any = null
           if (conversation) {
-            await supabase
-              .from('wa_conversations')
-              .update({
-                message_count: (conversation.message_count || 0) + 1,
-                last_message_at: new Date().toISOString(),
-              })
-              .eq('id', conversation.id)
+            const triggerMessageId = message.id || `msg_${Date.now()}`
 
-            // Echo detection: for WhatsApp Cloud API, seller messages don't usually arrive on this webhook
-            // unless they are using unified Meta suite. If they have custom pause, it checks the mode_until.
-          }
+            // 1. Lock check for deduplication
+            const { data: existingDraft } = await supabase
+              .from('bot_reply_drafts')
+              .select('id')
+              .eq('trigger_message_id', triggerMessageId)
+              .limit(1)
 
-          // Check if seller has taken over (manual reply via CasaGrown → bot paused)
-          if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            // Store message for history
+            if (existingDraft && existingDraft.length > 0) {
+              console.log(`[WHATSAPP] Duplicate webhook call detected for mid ${triggerMessageId}, skipping.`)
+              continue
+            }
+
+            // 2. Log customer message immediately so seller sees it in their chat dashboard
             await supabase.from('wa_messages').insert({
-              conversation_id: conversation.id, role: 'user', content: userMessage,
+              conversation_id: conversation.id,
+              role: 'user',
+              content: userMessage,
             })
 
-            const reentryDelay = whatsappConfig?.delayMinutes ?? 0
-
-            // Cancel any pending drafts
-            await supabase
-              .from('bot_reply_drafts')
-              .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
-              .eq('conversation_ref', `whatsapp_${conversation.id}`)
-              .eq('status', 'pending')
-
+            // 3. Create locked draft to act as lock
             let sellerBoothId: string | null = conversation.matched_booth_id
             if (!sellerBoothId) {
               const { data: fb } = await supabase
@@ -176,31 +179,63 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 .single()
               sellerBoothId = fb?.id || null
             }
+            if (!sellerBoothId && allBooths.length > 0) {
+              sellerBoothId = allBooths[0].id
+            }
 
-            if (sellerBoothId) {
-              await supabase.from('bot_reply_drafts').insert({
+            const { data: insertedDraft, error: draftErr } = await supabase
+              .from('bot_reply_drafts')
+              .insert({
                 channel: 'whatsapp',
                 conversation_ref: `whatsapp_${conversation.id}`,
-                trigger_message_id: message.id || 'unknown',
+                trigger_message_id: triggerMessageId,
                 booth_id: sellerBoothId,
                 seller_id: conn.user_id,
-                suggestions: JSON.stringify([]),
-                auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
                 status: 'pending',
+                suggestions: JSON.stringify([]),
+                auto_send_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
                 buyer_message: userMessage,
               })
-              console.log(`[WHATSAPP] Seller active — draft created, bot resumes in ${reentryDelay}min if seller doesn't reply`)
+              .select()
+              .single()
+
+            if (draftErr) {
+              console.error('[WHATSAPP] Error inserting draft:', draftErr.message, draftErr.details)
             }
-            continue
+            lockDraft = insertedDraft
+
+            await supabase
+              .from('wa_conversations')
+              .update({
+                message_count: (conversation.message_count || 0) + 1,
+                last_message_at: new Date().toISOString(),
+              })
+              .eq('id', conversation.id)
           }
 
-          // ── Multi-booth routing ──
-          const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
+          // Check if seller has taken over (manual reply via CasaGrown → bot paused)
+          if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
+            const reentryDelay = whatsappConfig?.delayMinutes ?? 0
 
-          if (allBooths.length === 0) {
-            await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone, 
-              "Thanks for reaching out! I'm still setting up my booth. Please check back soon!"
-            )
+            // Cancel any pending drafts
+            await supabase
+              .from('bot_reply_drafts')
+              .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
+              .eq('conversation_ref', `whatsapp_${conversation.id}`)
+              .eq('status', 'pending')
+              .neq('id', lockDraft?.id)
+
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  status: 'pending',
+                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
+                })
+                .eq('id', lockDraft.id)
+            }
+
+            console.log(`[WHATSAPP] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
             continue
           }
 
@@ -338,7 +373,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
           const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
           const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-          const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+          const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
           if (!AI_KEY && !AI_MOCK) {
             await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone,
@@ -409,41 +444,48 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
 
             if (whatsappDelay > 0 && conversation) {
-              // Store user message first
-              await supabase.from('wa_messages').insert({
-                conversation_id: conversation.id, role: 'user', content: userMessage,
-              })
-
-              // Cancel any pending drafts
+              // Cancel any pending drafts except current lockDraft
               await supabase
                 .from('bot_reply_drafts')
                 .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
                 .eq('conversation_ref', `whatsapp_${conversation.id}`)
                 .eq('status', 'pending')
+                .neq('id', lockDraft?.id)
 
-              // Insert delayed draft
-              await supabase.from('bot_reply_drafts').insert({
-                channel: 'whatsapp',
-                conversation_ref: `whatsapp_${conversation.id}`,
-                trigger_message_id: message.id || 'unknown',
-                booth_id: boothId,
-                seller_id: conn.user_id,
-                suggestions: JSON.stringify([replyText]),
-                auto_send_at: new Date(Date.now() + whatsappDelay * 60 * 1000).toISOString(),
-                status: 'pending',
-                buyer_message: userMessage,
-              })
-
-              console.log(`[WHATSAPP] Draft created for ${userPhone}, auto-send in ${whatsappDelay}min`)
+              // Update the current lockDraft to pending with suggestions
+              if (lockDraft) {
+                await supabase
+                  .from('bot_reply_drafts')
+                  .update({
+                    suggestions: JSON.stringify([replyText]),
+                    auto_send_at: new Date(Date.now() + whatsappDelay * 60 * 1000).toISOString(),
+                    status: 'pending',
+                  })
+                  .eq('id', lockDraft.id)
+                console.log(`[WHATSAPP] Draft updated for ${userPhone}, auto-send in ${whatsappDelay}min`)
+              } else {
+                console.error(`[WHATSAPP] Failed to update draft for ${userPhone} because lockDraft is null!`)
+              }
             } else {
               // Send WhatsApp message instantly
               await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone, replyText)
 
               if (conversation) {
-                await supabase.from('wa_messages').insert([
-                  { conversation_id: conversation.id, role: 'user', content: userMessage },
-                  { conversation_id: conversation.id, role: 'bot', content: replyText },
-                ])
+                await supabase.from('wa_messages').insert({
+                  conversation_id: conversation.id, role: 'bot', content: replyText,
+                })
+              }
+
+              // Update lockDraft to sent status
+              if (lockDraft) {
+                await supabase
+                  .from('bot_reply_drafts')
+                  .update({
+                    status: 'sent',
+                    suggestions: JSON.stringify([replyText]),
+                    resolved_at: new Date().toISOString(),
+                  })
+                  .eq('id', lockDraft.id)
               }
 
               console.log(`[WHATSAPP] Replied instantly to ${userPhone}: "${replyText.slice(0, 100)}"`)
@@ -546,23 +588,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               request_path: new URL(req.url).pathname,
             }).then(() => {})
 
-            // If delayed mode, still create a draft (process-bot-replies will retry AI)
+            // If delayed mode, still create/update a draft (process-bot-replies will retry AI)
             if (whatsappDelay > 0 && conversation) {
-              await supabase.from('wa_messages').insert({
-                conversation_id: conversation.id, role: 'user', content: userMessage,
-              })
-              await supabase.from('bot_reply_drafts').insert({
-                channel: 'whatsapp',
-                conversation_ref: `whatsapp_${conversation.id}`,
-                trigger_message_id: message.id || null,
-                booth_id: boothId,
-                seller_id: conn.user_id,
-                suggestions: JSON.stringify([]),
-                auto_send_at: new Date(Date.now() + whatsappDelay * 60 * 1000).toISOString(),
-                status: 'pending',
-                buyer_message: userMessage,
-              })
-              console.log(`[WHATSAPP] AI failed but draft created for delayed processing`)
+              if (lockDraft) {
+                await supabase
+                  .from('bot_reply_drafts')
+                  .update({
+                    status: 'pending',
+                    suggestions: JSON.stringify([]),
+                    auto_send_at: new Date(Date.now() + whatsappDelay * 60 * 1000).toISOString(),
+                  })
+                  .eq('id', lockDraft.id)
+              }
+              console.log(`[WHATSAPP] AI failed but draft updated for delayed processing`)
             } else {
               // Keyword-based product matching fallback
               let matchedProdId: string | null = null
@@ -598,10 +636,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone, fallbackText)
 
               if (conversation) {
-                await supabase.from('wa_messages').insert([
-                  { conversation_id: conversation.id, role: 'user', content: userMessage },
-                  { conversation_id: conversation.id, role: 'bot', content: fallbackText },
-                ])
+                await supabase.from('wa_messages').insert({
+                  conversation_id: conversation.id, role: 'bot', content: fallbackText,
+                })
+              }
+
+              // Update lockDraft to sent status with the fallback suggestions
+              if (lockDraft) {
+                await supabase
+                  .from('bot_reply_drafts')
+                  .update({
+                    status: 'sent',
+                    suggestions: JSON.stringify([fallbackText]),
+                    resolved_at: new Date().toISOString(),
+                  })
+                  .eq('id', lockDraft.id)
+                  .then(() => {});
               }
             }
           }

@@ -171,7 +171,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+            const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
@@ -314,7 +314,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+            const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
@@ -455,7 +455,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
             const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
-            const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+            const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
             if (AI_MOCK) {
               finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`

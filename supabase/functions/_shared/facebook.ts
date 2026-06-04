@@ -756,6 +756,30 @@ export async function publishPageVideo(
   }
 }
 
+/** Send a sender_action (e.g. typing_on / typing_off / mark_seen) to Messenger/Instagram */
+export async function sendMessengerAction(
+  pageToken: string,
+  recipientId: string,
+  senderAction: 'typing_on' | 'typing_off' | 'mark_seen',
+): Promise<void> {
+  if (pageToken.startsWith('mock_')) {
+    console.log(`[MOCK FB SENDER ACTION] Sent to ${recipientId} via pageToken ${pageToken}: ${senderAction}`)
+    return
+  }
+
+  const res = await fetch(`${getFbGraphUrl()}/me/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: pageToken,
+      recipient: { id: recipientId },
+      sender_action: senderAction,
+    }),
+  })
+  if (!res.ok) console.error(`Messenger sender action failed: ${await res.text()}`)
+}
+
+
 
 
 

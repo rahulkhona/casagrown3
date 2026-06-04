@@ -144,7 +144,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             }
 
             const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
-            const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+            const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
             if (!AI_KEY) continue
 
@@ -419,6 +419,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           continue
         }
 
+        // Fetch seller's booths (needed for default routing and fallback booth context)
+        const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
+
+        if (allBooths.length === 0) {
+          await sendMessengerMessage(conn.fb_page_access_token, senderPsid, {
+            text: "Thanks for reaching out! I'm still setting up my booth. Please check back soon!",
+          })
+          continue
+        }
+
         // Get/create conversation record with buyer preferences
         const { data: conversation } = await supabase
           .from('messenger_conversations')
@@ -433,74 +443,109 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .select('*, buyer_zip, buyer_fulfillment_pref, matched_booth_id')
           .single()
 
-        // Increment message count and reset nudge timestamp
+        let lockDraft: any = null
         if (conversation) {
+          const triggerMessageId = event.message?.mid || event.postback?.mid || (event.postback ? `postback_${event.postback.payload}_${event.timestamp}` : null) || `msg_${event.timestamp}`
+
+          // 1. Lock check for deduplication
+          const { data: existingDraft } = await supabase
+            .from('bot_reply_drafts')
+            .select('id')
+            .eq('trigger_message_id', triggerMessageId)
+            .limit(1)
+
+          if (existingDraft && existingDraft.length > 0) {
+            console.log(`[MESSENGER] Duplicate webhook call detected for mid ${triggerMessageId}, skipping.`)
+            continue
+          }
+
+          // 2. Log customer message immediately so seller sees it in their chat dashboard
+          await supabase.from('messenger_messages').insert({
+            conversation_id: conversation.id,
+            role: 'user',
+            content: userMessage,
+          })
+
+          // 3. Send native typing indicator immediately
+          try {
+            const { sendMessengerAction } = await import('../_shared/facebook.ts')
+            await sendMessengerAction(conn.fb_page_access_token, senderPsid, 'typing_on')
+          } catch (typeErr: any) {
+            console.error('[MESSENGER] Failed to trigger typing indicator:', typeErr.message)
+          }
+
+          // 4. Create locked draft to act as lock
+          let sellerBoothId: string | null = conversation.matched_booth_id
+          if (!sellerBoothId) {
+            const { data: fb } = await supabase
+              .from('market_booths')
+              .select('id')
+              .eq('owner_id', conn.user_id)
+              .eq('is_default', true)
+              .single()
+            sellerBoothId = fb?.id || null
+          }
+          if (!sellerBoothId && allBooths.length > 0) {
+            sellerBoothId = allBooths[0].id
+          }
+
+          const { data: insertedDraft, error: draftErr } = await supabase
+            .from('bot_reply_drafts')
+            .insert({
+              channel: 'messenger',
+              conversation_ref: `messenger_${conversation.id}`,
+              trigger_message_id: triggerMessageId,
+              booth_id: sellerBoothId,
+              seller_id: conn.user_id,
+              status: 'pending',
+              suggestions: JSON.stringify([]),
+              auto_send_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+              buyer_message: userMessage,
+            })
+            .select()
+            .single()
+
+          if (draftErr) {
+            console.error('[MESSENGER] Error inserting draft:', draftErr.message, draftErr.details)
+          }
+
+          lockDraft = insertedDraft
+
+          // 5. Increment message count and reset nudge timestamp
           await supabase
             .from('messenger_conversations')
             .update({
               message_count: (conversation.message_count || 0) + 1,
               last_message_at: new Date().toISOString(),
-              nudge_sent_at: null, // Reset nudge tracker when user sends a message
+              nudge_sent_at: null,
             })
             .eq('id', conversation.id)
 
-          // Check if seller has taken over (echo detected → bot paused)
-          // bot_conversation_mode_until === null means seller is active
-          // Unless it's a brand new conversation (no bot_conversation_mode_until set yet)
+          // 6. Check if seller is active (paused bot mode)
           if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            // Store message for history
-            await supabase.from('messenger_messages').insert({
-              conversation_id: conversation.id, role: 'user', content: userMessage,
-            })
-
-            // Use configured delay for re-entry
             const reentryDelay = messengerConfig?.delayMinutes ?? 0
 
-            // Cancel any existing pending drafts for this conversation
+            // Cancel any existing pending drafts for this conversation (except the one we just made)
             await supabase
               .from('bot_reply_drafts')
               .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
               .eq('conversation_ref', `messenger_${conversation.id}`)
               .eq('status', 'pending')
+              .neq('id', lockDraft?.id)
 
-            // Find the seller's booth for context
-            let sellerBoothId: string | null = conversation.matched_booth_id
-            if (!sellerBoothId) {
-              const { data: fb } = await supabase
-                .from('market_booths')
-                .select('id')
-                .eq('owner_id', conn.user_id)
-                .eq('is_default', true)
-                .single()
-              sellerBoothId = fb?.id || null
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  status: 'pending',
+                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
+                })
+                .eq('id', lockDraft.id)
             }
 
-            if (sellerBoothId) {
-              await supabase.from('bot_reply_drafts').insert({
-                channel: 'messenger',
-                conversation_ref: `messenger_${conversation.id}`,
-                trigger_message_id: event.message?.mid || 'unknown',
-                booth_id: sellerBoothId,
-                seller_id: conn.user_id,
-                suggestions: JSON.stringify([]),  // Will be generated by process-bot-replies
-                auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
-                status: 'pending',
-                buyer_message: userMessage,
-              })
-              console.log(`[MESSENGER] Seller active — draft created, bot resumes in ${reentryDelay}min if seller doesn't reply`)
-            }
+            console.log(`[MESSENGER] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
             continue
           }
-        }
-
-        // ── Multi-booth routing ──
-        const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
-
-        if (allBooths.length === 0) {
-          await sendMessengerMessage(conn.fb_page_access_token, senderPsid, {
-            text: "Thanks for reaching out! I'm still setting up my booth. Please check back soon!",
-          })
-          continue
         }
 
         // Check for cross-seller memory: does this PSID have a linked CasaGrown profile?
@@ -692,7 +737,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Call Gemini API (non-streaming for Messenger)
         const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
-        const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+        const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
         if (!AI_KEY) {
           await sendMessengerMessage(conn.fb_page_access_token, senderPsid, {
@@ -761,32 +806,27 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
 
           if (messengerDelay > 0 && conversation) {
-            // Delay mode: create a draft, let process-bot-replies send it later
-            // Store buyer message in history
-            await supabase.from('messenger_messages').insert({
-              conversation_id: conversation.id, role: 'user', content: userMessage,
-            })
-
-            // Cancel any existing pending drafts for this conversation
+            // Delay mode: update the lockDraft to pending with delayed auto_send_at
+            // Cancel any existing pending drafts for this conversation (except the one we just made)
             await supabase
               .from('bot_reply_drafts')
               .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
               .eq('conversation_ref', `messenger_${conversation.id}`)
               .eq('status', 'pending')
+              .neq('id', lockDraft?.id)
 
-            await supabase.from('bot_reply_drafts').insert({
-              channel: 'messenger',
-              conversation_ref: `messenger_${conversation.id}`,
-              trigger_message_id: event.message?.mid || 'unknown',
-              booth_id: boothId,
-              seller_id: conn.user_id,
-              suggestions: JSON.stringify([replyText]),
-              auto_send_at: new Date(Date.now() + messengerDelay * 60 * 1000).toISOString(),
-              status: 'pending',
-              buyer_message: userMessage,
-            })
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  suggestions: JSON.stringify([replyText]),
+                  auto_send_at: new Date(Date.now() + messengerDelay * 60 * 1000).toISOString(),
+                  status: 'pending',
+                })
+                .eq('id', lockDraft.id)
+            }
 
-            console.log(`[MESSENGER] Draft created for ${senderPsid}, auto-send in ${messengerDelay}min`)
+            console.log(`[MESSENGER] Draft updated for ${senderPsid}, auto-send in ${messengerDelay}min`)
 
           } else {
             // Instant mode (delay = 0): send immediately
@@ -794,12 +834,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               text: replyText,
             })
 
-            // Store both messages in history
+            // Store bot reply in history (user message is already stored)
             if (conversation) {
-              await supabase.from('messenger_messages').insert([
-                { conversation_id: conversation.id, role: 'user', content: userMessage },
-                { conversation_id: conversation.id, role: 'bot', content: replyText },
-              ])
+              await supabase.from('messenger_messages').insert({
+                conversation_id: conversation.id,
+                role: 'bot',
+                content: replyText,
+              })
+            }
+
+            // Update lockDraft to sent status
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  status: 'sent',
+                  suggestions: JSON.stringify([replyText]),
+                  resolved_at: new Date().toISOString(),
+                })
+                .eq('id', lockDraft.id)
             }
 
             console.log(`[MESSENGER] Replied instantly to ${senderPsid}: "${replyText.slice(0, 100)}"`)
@@ -943,10 +996,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           })
 
           if (conversation) {
-            await supabase.from('messenger_messages').insert([
-              { conversation_id: conversation.id, role: 'user', content: userMessage },
-              { conversation_id: conversation.id, role: 'bot', content: fallbackText },
-            ])
+            await supabase.from('messenger_messages').insert({
+              conversation_id: conversation.id, role: 'bot', content: fallbackText,
+            })
+          }
+
+          // Update lockDraft to sent status with the fallback suggestions
+          if (lockDraft) {
+            await supabase
+              .from('bot_reply_drafts')
+              .update({
+                status: 'sent',
+                suggestions: JSON.stringify([fallbackText]),
+                resolved_at: new Date().toISOString(),
+              })
+              .eq('id', lockDraft.id)
+              .then(() => {});
           }
         }
       }

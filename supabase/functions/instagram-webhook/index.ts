@@ -207,6 +207,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           continue
         }
 
+        // Fetch seller's booths (needed for default routing and fallback booth context)
+        const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
+
+        if (allBooths.length === 0) {
+          await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
+            text: "Thanks for reaching out! I'm still setting up my booth. Please check back soon!",
+          })
+          continue
+        }
+
         // Get/create conversation record
         const { data: conversation } = await supabase
           .from('ig_conversations')
@@ -221,8 +231,75 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .select('*, buyer_zip, buyer_fulfillment_pref, matched_booth_id')
           .single()
 
-        // Increment message count
+        let lockDraft: any = null
         if (conversation) {
+          const triggerMessageId = event.message?.mid || `msg_${event.timestamp}`
+
+          // 1. Lock check for deduplication
+          const { data: existingDraft } = await supabase
+            .from('bot_reply_drafts')
+            .select('id')
+            .eq('trigger_message_id', triggerMessageId)
+            .limit(1)
+
+          if (existingDraft && existingDraft.length > 0) {
+            console.log(`[INSTAGRAM] Duplicate webhook call detected for mid ${triggerMessageId}, skipping.`)
+            continue
+          }
+
+          // 2. Log customer message immediately so seller sees it in their chat dashboard
+          await supabase.from('ig_messages').insert({
+            conversation_id: conversation.id,
+            role: 'user',
+            content: userMessage,
+          })
+
+          // 3. Send native typing indicator immediately
+          try {
+            const { sendMessengerAction } = await import('../_shared/facebook.ts')
+            await sendMessengerAction(conn.fb_page_access_token, senderIgsid, 'typing_on')
+          } catch (typeErr: any) {
+            console.error('[INSTAGRAM] Failed to trigger typing indicator:', typeErr.message)
+          }
+
+          // 4. Create locked draft to act as lock
+          let sellerBoothId: string | null = conversation.matched_booth_id
+          if (!sellerBoothId) {
+            const { data: fb } = await supabase
+              .from('market_booths')
+              .select('id')
+              .eq('owner_id', conn.user_id)
+              .eq('is_default', true)
+              .single()
+            sellerBoothId = fb?.id || null
+          }
+          if (!sellerBoothId && allBooths.length > 0) {
+            sellerBoothId = allBooths[0].id
+          }
+
+          const { data: insertedDraft, error: draftErr } = await supabase
+            .from('bot_reply_drafts')
+            .insert({
+              channel: 'instagram',
+              conversation_ref: `instagram_${conversation.id}`,
+              trigger_message_id: triggerMessageId,
+              booth_id: sellerBoothId,
+              seller_id: conn.user_id,
+              status: 'pending',
+              suggestions: JSON.stringify([]),
+              auto_send_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+              buyer_message: userMessage,
+            })
+            .select()
+            .single()
+
+          if (draftErr) {
+            console.error('[INSTAGRAM] Error inserting draft:', draftErr.message, draftErr.details)
+          }
+
+          lockDraft = insertedDraft
+
+          // 5. Increment message count
           await supabase
             .from('ig_conversations')
             .update({
@@ -231,59 +308,31 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             })
             .eq('id', conversation.id)
 
-          // Check if seller has taken over (echo detected → bot paused)
+          // 6. Check if seller has taken over (echo detected → bot paused)
           if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            // Store message for history
-            await supabase.from('ig_messages').insert({
-              conversation_id: conversation.id, role: 'user', content: userMessage,
-            })
-
             const reentryDelay = instagramConfig?.delayMinutes ?? 0
 
-            // Cancel any pending drafts
+            // Cancel any pending drafts (except the one we just made)
             await supabase
               .from('bot_reply_drafts')
               .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
               .eq('conversation_ref', `instagram_${conversation.id}`)
               .eq('status', 'pending')
+              .neq('id', lockDraft?.id)
 
-            let sellerBoothId: string | null = conversation.matched_booth_id
-            if (!sellerBoothId) {
-              const { data: fb } = await supabase
-                .from('market_booths')
-                .select('id')
-                .eq('owner_id', conn.user_id)
-                .eq('is_default', true)
-                .single()
-              sellerBoothId = fb?.id || null
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  status: 'pending',
+                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
+                })
+                .eq('id', lockDraft.id)
             }
 
-            if (sellerBoothId) {
-              await supabase.from('bot_reply_drafts').insert({
-                channel: 'instagram',
-                conversation_ref: `instagram_${conversation.id}`,
-                trigger_message_id: event.message?.mid || 'unknown',
-                booth_id: sellerBoothId,
-                seller_id: conn.user_id,
-                suggestions: JSON.stringify([]),
-                auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
-                status: 'pending',
-                buyer_message: userMessage,
-              })
-              console.log(`[INSTAGRAM] Seller active — draft created, bot resumes in ${reentryDelay}min if seller doesn't reply`)
-            }
+            console.log(`[INSTAGRAM] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
             continue
           }
-        }
-
-        // ── Multi-booth routing ──
-        const allBooths = await loadAllSellerBooths(supabase, conn.user_id)
-
-        if (allBooths.length === 0) {
-          await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
-            text: "Thanks for reaching out! I'm still setting up my booth. Please check back soon!",
-          })
-          continue
         }
 
         let knownBuyerZip: string | null = conversation?.buyer_zip || null
@@ -420,7 +469,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
-        const model = Deno.env.get('AI_MODEL') || 'gemini-2.5-flash'
+        const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
 
         if (!AI_KEY) {
           await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
@@ -486,40 +535,51 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
 
           if (instagramDelay > 0 && conversation) {
-            await supabase.from('ig_messages').insert({
-              conversation_id: conversation.id, role: 'user', content: userMessage,
-            })
-
+            // Cancel any existing pending drafts (except lockDraft)
             await supabase
               .from('bot_reply_drafts')
               .update({ status: 'cancelled', resolved_at: new Date().toISOString() })
               .eq('conversation_ref', `instagram_${conversation.id}`)
               .eq('status', 'pending')
+              .neq('id', lockDraft?.id)
 
-            await supabase.from('bot_reply_drafts').insert({
-              channel: 'instagram',
-              conversation_ref: `instagram_${conversation.id}`,
-              trigger_message_id: event.message?.mid || 'unknown',
-              booth_id: boothId,
-              seller_id: conn.user_id,
-              suggestions: JSON.stringify([replyText]),
-              auto_send_at: new Date(Date.now() + instagramDelay * 60 * 1000).toISOString(),
-              status: 'pending',
-              buyer_message: userMessage,
-            })
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  suggestions: JSON.stringify([replyText]),
+                  auto_send_at: new Date(Date.now() + instagramDelay * 60 * 1000).toISOString(),
+                  status: 'pending',
+                })
+                .eq('id', lockDraft.id)
+            }
 
-            console.log(`[INSTAGRAM] Draft created for ${senderIgsid}, auto-send in ${instagramDelay}min`)
+            console.log(`[INSTAGRAM] Draft updated for ${senderIgsid}, auto-send in ${instagramDelay}min`)
 
           } else {
             await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
               text: replyText,
             })
 
+            // Store bot message in history (user message is already stored)
             if (conversation) {
-              await supabase.from('ig_messages').insert([
-                { conversation_id: conversation.id, role: 'user', content: userMessage },
-                { conversation_id: conversation.id, role: 'bot', content: replyText },
-              ])
+              await supabase.from('ig_messages').insert({
+                conversation_id: conversation.id,
+                role: 'bot',
+                content: replyText,
+              })
+            }
+
+            // Update lockDraft to sent status
+            if (lockDraft) {
+              await supabase
+                .from('bot_reply_drafts')
+                .update({
+                  status: 'sent',
+                  suggestions: JSON.stringify([replyText]),
+                  resolved_at: new Date().toISOString(),
+                })
+                .eq('id', lockDraft.id)
             }
 
             console.log(`[INSTAGRAM] Replied instantly to ${senderIgsid}: "${replyText.slice(0, 100)}"`)
@@ -658,10 +718,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           })
 
           if (conversation) {
-            await supabase.from('ig_messages').insert([
-              { conversation_id: conversation.id, role: 'user', content: userMessage },
-              { conversation_id: conversation.id, role: 'bot', content: fallbackText },
-            ])
+            await supabase.from('ig_messages').insert({
+              conversation_id: conversation.id, role: 'bot', content: fallbackText,
+            })
+          }
+
+          // Update lockDraft to sent status with the fallback suggestions
+          if (lockDraft) {
+            await supabase
+              .from('bot_reply_drafts')
+              .update({
+                status: 'sent',
+                suggestions: JSON.stringify([fallbackText]),
+                resolved_at: new Date().toISOString(),
+              })
+              .eq('id', lockDraft.id)
+              .then(() => {});
           }
         }
       }
