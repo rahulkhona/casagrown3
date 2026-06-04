@@ -57,7 +57,7 @@ async function applyZoom(page: any, targetName: string) {
   if (targetName === 'ipad129') {
     const url = page.url();
     const isLayoutLocked = url.includes('/growbot') || url.includes('/messages') || url.includes('/community');
-    const zoomVal = isLayoutLocked ? '1.0' : '1.25';
+    const zoomVal = '1.25';
     await page.evaluate((zoom: string) => {
       document.documentElement.style.setProperty('zoom', zoom, 'important');
       const styleId = 'playwright-zoom-style';
@@ -109,7 +109,7 @@ async function capture() {
         const checkAndApply = () => {
           const path = window.location.pathname;
           const isLayoutLocked = path.includes('/growbot') || path.includes('/messages') || path.includes('/community');
-          const zoomVal = isLayoutLocked ? '1.0' : '1.25';
+          const zoomVal = '1.25';
           document.documentElement.style.setProperty('zoom', zoomVal, 'important');
           
           let style = document.getElementById('playwright-zoom-style');
