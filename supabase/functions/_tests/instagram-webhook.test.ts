@@ -555,6 +555,88 @@ Deno.test({
 });
 
 // ══════════════════════════════════════════════════════════════
+// Instagram Comments Webhook Test
+// ══════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "instagram-webhook: POST comment change processes and replies",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    // 1. Setup a test connection specifically for comments
+    await sqlExec(`
+      DELETE FROM seller_fb_connections WHERE ig_business_account_id = 'test_ig_account_comments_e2e'
+    `);
+    await sqlExec(`
+      INSERT INTO seller_fb_connections (
+        user_id, fb_access_token, fb_token_expires_at, fb_page_id, fb_page_name, fb_page_access_token, status, ig_business_account_id, ig_username
+      ) VALUES (
+        '${SELLER_ID}',
+        'mock_user_access_token',
+        now() + interval '60 days',
+        'test_page_id',
+        'Test Farm Page',
+        'mock_page_access_token_e2e',
+        'connected',
+        'test_ig_account_comments_e2e',
+        'test_grower_instagram'
+      )
+    `);
+
+    // Ensure SELLER_ID is elite tier and bot channels are active
+    await sqlExec(`
+      INSERT INTO seller_subscriptions (user_id, plan, status)
+      VALUES ('${SELLER_ID}', 'elite', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET plan = 'elite', status = 'active'
+    `);
+
+    await sqlExec(`
+      UPDATE profiles
+      SET bot_channels = '{"instagram": {"enabled": true, "delayMinutes": 0}, "messenger": {"enabled": true, "delayMinutes": 0}}'::jsonb
+      WHERE id = '${SELLER_ID}'
+    `);
+
+    // 2. Invoke the webhook with comment change
+    const res = await callWebhook("POST", {}, {
+      object: "instagram",
+      entry: [
+        {
+          id: "test_ig_account_comments_e2e",
+          time: Date.now(),
+          changes: [
+            {
+              field: "comments",
+              value: {
+                id: "mock_ig_comment_999",
+                text: "How much for the delicious organic honey?",
+                from: {
+                  id: "mock_buyer_ig_user_123",
+                  username: "ig_buyer_user"
+                },
+                media: {
+                  id: "mock_ig_media_post_888",
+                  media_product_type: "FEED"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    assertEquals(res.status, 200);
+
+    // Wait a brief moment for async DB ops / mock fetch requests
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Cleanup the comments test connection
+    await sqlExec(`
+      DELETE FROM seller_fb_connections WHERE ig_business_account_id = 'test_ig_account_comments_e2e'
+    `);
+  },
+});
+
+// ══════════════════════════════════════════════════════════════
 // Cleanup (must be LAST)
 // ══════════════════════════════════════════════════════════════
 
@@ -568,3 +650,4 @@ Deno.test({
     `);
   },
 });
+

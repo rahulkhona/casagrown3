@@ -29,8 +29,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       })
     }
 
-    // State format: userId:returnPath
-    const [userId, returnPath] = stateRaw.split(':')
+    // State format: userId:returnPath:extra
+    const [userId, returnPath, extra] = stateRaw.split(':')
+    const isInstagram = extra === 'instagram'
     const redirectBack = returnPath ? decodeURIComponent(returnPath) : '/profile'
     const redirectUri = `${siteUrl}/api/facebook-callback` // Your app's redirect handler
 
@@ -57,9 +58,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       const expiresIn = typeof longLived.expires_in === 'number' ? longLived.expires_in : 60 * 24 * 60 * 60
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
-      // Auto-detect linked Instagram Business Account
+      // Auto-detect linked Instagram Business Account (only if user explicitly requested Instagram integration)
       let igData: { id: string; username?: string } | null = null
-      if (pages.length === 1 && pages[0].access_token) {
+      if (isInstagram && pages.length === 1 && pages[0].access_token) {
         igData = await getInstagramBusinessAccount(pages[0].id, pages[0].access_token)
         if (igData) console.log(`[CONNECT-FB] Detected IG Business Account: ${igData.id} (@${igData.username})`)
       }
@@ -100,6 +101,32 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         fbFields.fb_page_id = pages[0].id
         fbFields.fb_page_name = pages[0].name
         fbFields.fb_page_access_token = pages[0].access_token
+
+        // Subscribe the Facebook Page to our app webhooks
+        const pageId = pages[0].id
+        const pageAccessToken = pages[0].access_token
+        if (pageAccessToken && !pageAccessToken.startsWith('mock_')) {
+          try {
+            const subscribeRes = await fetch(
+              `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  access_token: pageAccessToken,
+                  subscribed_fields: ['messages', 'messaging_postbacks', 'feed'],
+                }),
+              }
+            )
+            if (subscribeRes.ok) {
+              console.log(`[CONNECT FB] ✅ Subscribed Facebook Page ${pageId} to app webhooks`)
+            } else {
+              console.warn(`[CONNECT FB] ⚠️ Facebook Page subscribe failed: ${await subscribeRes.text()}`)
+            }
+          } catch (subErr: any) {
+            console.warn(`[CONNECT FB] ⚠️ Facebook Page subscribe error: ${subErr.message}`)
+          }
+        }
       }
       // Store IG Business Account if detected (don't overwrite with null if not detected)
       if (igData) {
@@ -154,7 +181,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const userId = auth
 
   const { return_path, include_instagram, include_whatsapp } = await req.json().catch(() => ({ return_path: '/profile', include_instagram: false, include_whatsapp: false }))
-  const stateParam = `${userId}:${encodeURIComponent(return_path || '/profile')}`
+  const stateParam = `${userId}:${encodeURIComponent(return_path || '/profile')}${include_instagram ? ':instagram' : ''}`
 
   const redirectUri = `${siteUrl}/api/facebook-callback`
   const scopes = [
@@ -163,6 +190,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_messaging',
     'pages_read_engagement',
     'pages_manage_metadata',
+    'pages_manage_engagement',
+    'pages_read_user_content',
     // Instagram scopes — only requested when user clicks "Connect Instagram"
     ...(include_instagram ? [
       'instagram_basic',

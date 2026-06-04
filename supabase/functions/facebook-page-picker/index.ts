@@ -51,6 +51,30 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError('Failed to verify Facebook page', corsHeaders)
   }
 
+  // Subscribe the Facebook Page to our app webhooks
+  if (pageAccessToken && !pageAccessToken.startsWith('mock_')) {
+    try {
+      const subscribeRes = await fetch(
+        `https://graph.facebook.com/v21.0/${page_id}/subscribed_apps`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: pageAccessToken,
+            subscribed_fields: ['messages', 'messaging_postbacks', 'feed'],
+          }),
+        }
+      )
+      if (subscribeRes.ok) {
+        console.log(`[PAGE PICKER] ✅ Subscribed Facebook Page ${page_id} to app webhooks`)
+      } else {
+        console.warn(`[PAGE PICKER] ⚠️ Facebook Page subscribe failed: ${await subscribeRes.text()}`)
+      }
+    } catch (subErr: any) {
+      console.warn(`[PAGE PICKER] ⚠️ Facebook Page subscribe error: ${subErr.message}`)
+    }
+  }
+
   // Update connection with selected page
   const { error: updateErr } = await supabase
     .from('seller_fb_connections')

@@ -30,6 +30,7 @@ export interface ProductContext {
   boothName: string | null
   photos: string[]
   inventory: number
+  harvestedAt: string | null
   siteUrl: string
 }
 
@@ -191,7 +192,7 @@ export async function lookupProductById(
 
   const { data: product } = await supabase
     .from('market_products')
-    .select('id, name, description, price_usd, unit, inventory, photos, booth_id, market_booths!inner(name)')
+    .select('id, name, description, price_usd, unit, inventory, photos, booth_id, harvested_at, market_booths!inner(name)')
     .eq('id', productId)
     .eq('is_deleted', false)
     .single()
@@ -208,6 +209,7 @@ export async function lookupProductById(
     boothName: (product as any).market_booths?.name || null,
     photos: product.photos || [],
     inventory: product.inventory,
+    harvestedAt: product.harvested_at || null,
     siteUrl,
   }
 }
@@ -219,6 +221,7 @@ export async function lookupProductByFbPostId(
   supabase: ReturnType<typeof createClient>,
   fbPostId: string,
 ): Promise<ProductContext | null> {
+  // 1. Direct local DB match
   const { data } = await supabase
     .from('market_products')
     .select('id')
@@ -226,8 +229,58 @@ export async function lookupProductByFbPostId(
     .eq('is_deleted', false)
     .maybeSingle()
 
-  if (!data) return null
-  return lookupProductById(supabase, data.id)
+  if (data) {
+    return lookupProductById(supabase, data.id)
+  }
+
+  // 2. Dynamic fallback: fetch post message from Facebook API to extract product link/name
+  try {
+    const pageId = fbPostId.split('_')[0]
+    const { data: conn } = await supabase
+      .from('seller_fb_connections')
+      .select('fb_page_access_token, user_id')
+      .eq('fb_page_id', pageId)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (conn?.fb_page_access_token) {
+      const graphUrl = Deno.env.get('FB_GRAPH_URL') || 'https://graph.facebook.com/v21.0'
+      const res = await fetch(`${graphUrl}/${fbPostId}?fields=message&access_token=${conn.fb_page_access_token}`)
+      if (res.ok) {
+        const postData = await res.json()
+        const message = postData?.message
+        if (message) {
+          // (a) Parse product ID from CasaGrown order URLs in message text
+          const regex = /product\/([a-f0-9-]+)/i
+          const match = message.match(regex)
+          if (match && match[1]) {
+            console.log(`[PRODUCT-CONTEXT] Extracted product ID ${match[1]} from FB post message URLs`)
+            return lookupProductById(supabase, match[1])
+          }
+
+          // (b) Keyword name matching fallback
+          const { data: products } = await supabase
+            .from('market_products')
+            .select('id, name')
+            .eq('is_deleted', false)
+            .eq('is_active', true)
+            .eq('owner_id', conn.user_id)
+
+          if (products && products.length > 0) {
+            const bestMatch = findBestProductMatch(message, products)
+            if (bestMatch) {
+              console.log(`[PRODUCT-CONTEXT] Matched product "${bestMatch.name}" via FB post message text keyword search`)
+              return lookupProductById(supabase, bestMatch.id)
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[PRODUCT-CONTEXT] Error in lookupProductByFbPostId dynamic post lookup:', err.message)
+  }
+
+  return null
 }
 
 /**
@@ -237,6 +290,7 @@ export async function lookupProductByIgPostId(
   supabase: ReturnType<typeof createClient>,
   igPostId: string,
 ): Promise<ProductContext | null> {
+  // 1. Direct local DB match
   const { data } = await supabase
     .from('market_products')
     .select('id')
@@ -244,8 +298,70 @@ export async function lookupProductByIgPostId(
     .eq('is_deleted', false)
     .maybeSingle()
 
-  if (!data) return null
-  return lookupProductById(supabase, data.id)
+  if (data) {
+    return lookupProductById(supabase, data.id)
+  }
+
+  // 2. Dynamic fallback: fetch Instagram media caption via Graph API
+  try {
+    // We don't know the owner directly, so query any active connection that can read Instagram
+    // First, fetch the media node to see who owns it (requires any valid Page token)
+    const { data: connections } = await supabase
+      .from('seller_fb_connections')
+      .select('fb_page_access_token, user_id, ig_business_account_id')
+      .eq('status', 'connected')
+      .limit(10)
+
+    if (connections && connections.length > 0) {
+      const graphUrl = Deno.env.get('FB_GRAPH_URL') || 'https://graph.facebook.com/v21.0'
+      
+      // Use the first available page token to get media owner
+      const firstToken = connections[0].fb_page_access_token
+      const mediaRes = await fetch(`${graphUrl}/${igPostId}?fields=caption,owner&access_token=${firstToken}`)
+      
+      if (mediaRes.ok) {
+        const mediaData = await mediaRes.json()
+        const caption = mediaData?.caption
+        const igOwnerId = mediaData?.owner?.id
+
+        if (igOwnerId) {
+          // Find the specific seller connection for this IG Business Account
+          const sellerConn = connections.find(c => c.ig_business_account_id === igOwnerId)
+          const sellerUserId = sellerConn?.user_id
+
+          if (sellerUserId && caption) {
+            // (a) Parse product ID from CasaGrown order URLs in caption
+            const regex = /product\/([a-f0-9-]+)/i
+            const match = caption.match(regex)
+            if (match && match[1]) {
+              console.log(`[PRODUCT-CONTEXT] Extracted product ID ${match[1]} from IG caption URLs`)
+              return lookupProductById(supabase, match[1])
+            }
+
+            // (b) Keyword name matching fallback
+            const { data: products } = await supabase
+              .from('market_products')
+              .select('id, name')
+              .eq('is_deleted', false)
+              .eq('is_active', true)
+              .eq('owner_id', sellerUserId)
+
+            if (products && products.length > 0) {
+              const bestMatch = findBestProductMatch(caption, products)
+              if (bestMatch) {
+                console.log(`[PRODUCT-CONTEXT] Matched product "${bestMatch.name}" via IG caption keyword search`)
+                return lookupProductById(supabase, bestMatch.id)
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[PRODUCT-CONTEXT] Error in lookupProductByIgPostId dynamic lookup:', err.message)
+  }
+
+  return null
 }
 
 // ─── Prompt Builder ───────────────────────────────────────────────────────
@@ -255,18 +371,33 @@ export async function lookupProductByIgPostId(
  * Append this to the end of the existing system prompt.
  */
 export function buildProductContextPrompt(product: ProductContext): string {
+  let harvestedStr = ''
+  if (product.harvestedAt) {
+    const d = new Date(product.harvestedAt)
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'America/Los_Angeles',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }
+    const harvestDateStr = new Intl.DateTimeFormat('en-US', options).format(d)
+    harvestedStr = `\n- Harvested Date: ${harvestDateStr} (extremely fresh and ripe!)`
+  }
+
   return `
 
 PRODUCT THE BUYER IS ASKING ABOUT:
 - Name: ${product.name}
 - Price: $${product.price.toFixed(2)}/${product.unit}
-- Available: ${product.inventory > 0 ? `Yes (${product.inventory} in stock)` : 'Out of stock'}
+- Available: ${product.inventory > 0 ? `Yes (${product.inventory} in stock)` : 'Out of stock'}${harvestedStr}
 - Description: ${product.description || 'No description provided'}
 - Direct order link: ${product.siteUrl}/market/booth/${product.boothId}/product/${product.id}
 
 IMPORTANT: The buyer initiated this conversation specifically about this product.
 - If they say "is this available?" or "how much?" — they mean THIS product.
 - Lead with information about THIS product first, then offer to help with other items.
+- If they ask about freshness, ripeness, or when it was harvested, use the Harvested Date above to explain how recently it was harvested.
 - Always include the direct order link for this product in your response.`
 }
 

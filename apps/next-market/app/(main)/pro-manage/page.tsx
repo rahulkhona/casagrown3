@@ -163,7 +163,15 @@ function ProManagePageInner() {
 
   const handleFbDisconnect = async () => {
     setDisconnecting('fb')
-    await supabase.from('seller_fb_connections').update({ status: 'disconnected', auto_sync_enabled: false }).eq('user_id', user!.id)
+    await supabase.from('seller_fb_connections').update({
+      status: 'disconnected',
+      auto_sync_enabled: false,
+      ig_business_account_id: null,
+      ig_username: null,
+      ig_access_token: null,
+      ig_messenger_enabled: false,
+      ig_auto_post_enabled: false,
+    }).eq('user_id', user!.id)
     setFbConn(null)
     setDisconnecting('')
     setDisconnectTarget(null)

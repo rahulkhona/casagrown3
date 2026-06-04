@@ -376,6 +376,52 @@ export async function getInstagramBusinessAccount(
   }
 }
 
+/** Helper to publish Instagram media containers with retry for transient processing delays */
+async function publishInstagramContainerWithRetry(
+  igAccountId: string,
+  creationId: string,
+  token: string,
+  maxRetries = 10,
+  delayMs = 5000,
+): Promise<{ id: string }> {
+  const graphUrl = getFbGraphUrl()
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const publishRes = await fetch(`${graphUrl}/${igAccountId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: token,
+        creation_id: creationId,
+      }),
+    })
+
+    const responseText = await publishRes.text()
+    if (publishRes.ok) {
+      return JSON.parse(responseText)
+    }
+
+    try {
+      const errObj = JSON.parse(responseText)
+      const errCode = errObj?.error?.code
+      const errSubcode = errObj?.error?.error_subcode
+      
+      // Code 9007 subcode 2207027 means "The media is not ready for publishing, please wait for a moment"
+      if ((errCode === 9007 || errSubcode === 2207027) && attempt < maxRetries) {
+        console.log(`[FB-IG] Media container not ready (attempt ${attempt}/${maxRetries}). Retrying in ${delayMs / 1000}s...`)
+        await new Promise((r) => setTimeout(r, delayMs))
+        continue
+      }
+    } catch {
+      // JSON parse error, ignore and throw original error
+    }
+
+    throw new Error(`IG media publish failed: ${responseText}`)
+  }
+
+  throw new Error(`IG media publish failed: Max retries reached`)
+}
+
 /** Publish a post to Instagram (Single Image) */
 export async function publishInstagramPost(
   igAccountId: string,
@@ -404,19 +450,8 @@ export async function publishInstagramPost(
   }
   const container = await containerRes.json()
 
-  // Step 2: Publish media container
-  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      access_token: token,
-      creation_id: container.id,
-    }),
-  })
-  if (!publishRes.ok) {
-    throw new Error(`IG media publish failed: ${await publishRes.text()}`)
-  }
-  return publishRes.json()
+  // Step 2: Publish media container with retry
+  return publishInstagramContainerWithRetry(igAccountId, container.id, token)
 }
 
 /** Publish a dynamic Reels/Video post to Instagram */
@@ -462,19 +497,8 @@ export async function publishInstagramVideoPost(
     }
   }
 
-  // Step 3: Publish container
-  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      access_token: token,
-      creation_id: container.id,
-    }),
-  })
-  if (!publishRes.ok) {
-    throw new Error(`IG Reels publish failed: ${await publishRes.text()}`)
-  }
-  return publishRes.json()
+  // Step 3: Publish container with retry (also uses the helper for safety)
+  return publishInstagramContainerWithRetry(igAccountId, container.id, token)
 }
 
 /** Publish a multi-image carousel post to Instagram */
@@ -535,19 +559,8 @@ export async function publishInstagramCarousel(
   }
   const container = await containerRes.json()
 
-  // Step 3: Publish carousel container
-  const publishRes = await fetch(`${getFbGraphUrl()}/${igAccountId}/media_publish`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      access_token: token,
-      creation_id: container.id,
-    }),
-  })
-  if (!publishRes.ok) {
-    throw new Error(`IG carousel publish failed: ${await publishRes.text()}`)
-  }
-  return publishRes.json()
+  // Step 3: Publish carousel container with retry
+  return publishInstagramContainerWithRetry(igAccountId, container.id, token)
 }
 
 /** Send Instagram DM reply via the Send API */
@@ -778,6 +791,35 @@ export async function sendMessengerAction(
   })
   if (!res.ok) console.error(`Messenger sender action failed: ${await res.text()}`)
 }
+
+/** Publish a reply to an Instagram comment */
+export async function publishInstagramCommentReply(
+  commentId: string,
+  message: string,
+  token: string,
+): Promise<{ id: string } | null> {
+  if (token.startsWith('mock_')) {
+    console.log(`[MOCK IG COMMENT REPLY] Published on ${commentId}: "${message}"`)
+    return { id: `mock_comment_${Date.now()}` }
+  }
+  const graphUrl = getFbGraphUrl()
+  const res = await fetch(`${graphUrl}/${commentId}/replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: token,
+      message,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error(`IG comment reply publish failed: ${errText}`)
+    throw new Error(errText)
+  }
+  return res.json()
+}
+
 
 
 

@@ -34,6 +34,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // ── POST: Handle Incoming Messages ──
   const body = await req.json()
 
+  // Debug log raw payload to DB
+  try {
+    await supabase.from('edge_function_errors').insert({
+      function_name: 'messenger-webhook-debug',
+      error_message: 'Raw Payload Received',
+      error_stack: JSON.stringify(body),
+      request_method: req.method,
+      request_path: new URL(req.url).pathname,
+    })
+  } catch (err: any) {
+    console.error('Failed to log raw payload:', err.message)
+  }
+
   // Always respond 200 to Facebook (even on errors)
   try {
     const entries = body.entry || []
@@ -46,7 +59,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           const commentId = change.value.comment_id
           const postId = change.value.post_id
           const message = change.value.message
-          const senderId = change.value.sender_id
+          const senderId = change.value.from?.id || change.value.sender_id
           const pageId = entry.id
 
           if (!commentId || !postId || !message || !senderId) continue
@@ -102,9 +115,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .eq('id', conn.user_id)
               .single()
 
-            const messengerConfig = (sellerProfile?.bot_channels as Record<string, any>)?.messenger
-            if (messengerConfig?.enabled === false) {
-              console.log(`[MESSENGER] Messenger auto-reply disabled for seller ${conn.user_id}`)
+            const commentsConfig = (sellerProfile?.bot_channels as Record<string, any>)?.comments
+            if (commentsConfig?.enabled === false) {
+              console.log(`[MESSENGER] Facebook comments auto-reply disabled for seller ${conn.user_id}`)
               continue
             }
 
@@ -137,7 +150,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               `If someone is asking a question about a product, pricing, pickup/delivery, answer using the context provided below.\n` +
               `Always guide them to check out the full menu or place an order using the link provided.`
 
-            systemPrompt += '\n\n' + buildSellerSystemPrompt(ctx, sellerRules)
+            systemPrompt += '\n\n' + buildSellerSystemPrompt(ctx, sellerRules, 'comment')
 
             if (productCtx) {
               systemPrompt += buildProductContextPrompt(productCtx)
@@ -242,6 +255,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             }
           } catch (err: any) {
             console.error('[MESSENGER] Error processing feed comment change:', err.message)
+            await supabase.from('edge_function_errors').insert({
+              function_name: 'messenger-webhook-comment-processing',
+              error_message: err.message,
+              error_stack: err.stack ?? null,
+              request_method: req.method,
+              request_path: new URL(req.url).pathname,
+            }).then(() => {});
           }
         }
       }
@@ -660,7 +680,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
         // Build system prompt with routing context
         const sellerRules = await loadSellerBotRules(supabase)
-        let systemPrompt = buildSellerSystemPrompt(ctx, sellerRules)
+        let systemPrompt = buildSellerSystemPrompt(ctx, sellerRules, 'dm')
 
         // Inject buyer personal details into Gemini system instructions so the bot knows who it is talking to
         systemPrompt += `\n\nBUYER CONTEXT:\n- Buyer's First Name: ${buyerFirstName || 'Neighbor'}`

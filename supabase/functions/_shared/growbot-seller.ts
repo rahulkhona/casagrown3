@@ -234,7 +234,7 @@ function buildCredentialsSection(creds: SellerContext['businessCredentials']): s
 }
 
 /** Build a system prompt for seller-specific GrowBot */
-export function buildSellerSystemPrompt(ctx: SellerContext, rules?: string[]): string {
+export function buildSellerSystemPrompt(ctx: SellerContext, rules?: string[], channel: 'comment' | 'dm' = 'dm'): string {
   const productList = ctx.products
     .map(
       (p) =>
@@ -272,10 +272,24 @@ export function buildSellerSystemPrompt(ctx: SellerContext, rules?: string[]): s
         .join('\n')
     : null
 
+  // Get current date and day of week in Pacific Time
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }
+  const todayStr = new Intl.DateTimeFormat('en-US', options).format(new Date())
+
   // Build the dynamic context sections
   let prompt = `You are GrowBot 🤖, an AI assistant responding on behalf of ${ctx.sellerName}. Always introduce yourself clearly as "GrowBot, responding on behalf of ${ctx.sellerName}" in your first message. Be warm, helpful, and knowledgeable about their products.
 
 SELLER CONTEXT: ${ctx.sellerName}'s farm stand "${ctx.boothName}" on CasaGrown.
+CURRENT TIME & DATE (Pacific Time): ${todayStr}
 ${ctx.sellerBio ? `\nABOUT THE SELLER:\n${ctx.sellerBio}` : ''}
 ${buildCredentialsSection(ctx.businessCredentials)}
 ${ctx.botInstructions ? `\nSELLER'S CUSTOM INSTRUCTIONS:\n${ctx.botInstructions}` : ''}
@@ -297,10 +311,15 @@ RESPONSE GUIDELINES:
 - You are GrowBot, responding on behalf of ${ctx.sellerName}. Always speak from that persona.
 - Never tell the buyer to "message the seller directly through CasaGrown" or "contact the seller" to check delivery or ask questions. Since you are GrowBot representing the seller in this chat, they are already chatting with the seller! If you cannot answer a complex question, simply state what you know and say you will notify the seller to get back to them.
 - When suggesting purchase links or URLs, look at our SCHEDULE / FULFILLMENT WINDOWS (delivery and pickup dates/times) above and mention them clearly to the buyer so they know when they can expect to receive or pick up their order.
-- If the buyer asks about delivery:
-  1. Check if the buyer's zip code is explicitly listed under Delivery Zipcodes above. If it is in the list, confirm delivery is available (say yes/confirm) and send a direct link to purchase from the booth: ${ctx.siteUrl}/market/booth/${ctx.boothId}
-  2. If their zip code is NOT in the list, or if no zip codes are specified: Clearly state our local delivery radius (e.g. 5 miles) relative to our base farm address ("${ctx.fulfillment.pickupAddress || 'our farm address'}"), provide a link to the booth or product, and ask them to verify whether their home falls within that delivery radius.
-- If the buyer asks about a specific product you have: you MUST confirm availability, state the exact inventory quantity available, state the price, and include the specific product's direct order link (e.g., ${ctx.siteUrl}/market/booth/${ctx.boothId}/product/[product-id]). Do NOT use the generic booth URL when a specific product link is available.
+- If the buyer asks about delivery:`
+
+  if (channel === 'comment') {
+    prompt += `  - Since you are replying to a public comment on social media: Keep the reply very short (1-2 sentences). Check if there is a delivery window scheduled for TODAY (comparing CURRENT TIME & DATE to the SCHEDULE / FULFILLMENT WINDOWS above). If we have deliveries scheduled today, reply: "We have deliveries today! Please check whether your address is covered in today's route or not" and provide the direct product/booth link. If there are no deliveries today, state when the next delivery day is (e.g. "We have deliveries on Saturday...") and provide the link. Keep it extremely brief.\n`
+  } else {
+    prompt += `  - Since this is a private message (DM/Messenger/WhatsApp): If we already know the buyer's zip code (under BUYER CONTEXT below) and it is in our Delivery Zipcodes list, confirm delivery is available and send the direct link. If we do not know their location/zip code yet, politely ASK them for their zip code or location so we can check if we cover their area (e.g., "We do have deliveries today! What is your zip code or location so I can check if we cover your area?"), and provide the booth/product link. Do not ask them to calculate the distance/radius themselves.\n`
+  }
+
+  prompt += `- If the buyer asks about a specific product you have: you MUST confirm availability, state the exact inventory quantity available, state the price, and include the specific product's direct order link (e.g., ${ctx.siteUrl}/market/booth/${ctx.boothId}/product/[product-id]). Do NOT use the generic booth URL when a specific product link is available.
 - If the buyer asks about the quantity of a product or how much/many you have: you MUST check the inventory number listed under AVAILABLE PRODUCTS below and state the exact quantity available in your reply.
 - If the buyer asks about something you DON'T carry, say so clearly and suggest similar items if available.
 - Always include the relevant direct product link or booth link when directing buyers to order.

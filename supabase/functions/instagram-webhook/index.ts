@@ -5,7 +5,7 @@
  * POST: Handle incoming messages → AI-powered reply with multi-booth routing
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
-import { sendInstagramMessage, publishComment } from '../_shared/facebook.ts'
+import { sendInstagramMessage, publishComment, publishInstagramCommentReply } from '../_shared/facebook.ts'
 import {
   loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules,
   loadAllSellerBooths, detectEscalation, cleanBotReply,
@@ -38,6 +38,214 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const entries = body.entry || []
 
     for (const entry of entries) {
+      // 1. Process Instagram Comments (entry.changes)
+      const changes = entry.changes || []
+      for (const change of changes) {
+        if (change.field === 'comments') {
+          const commentId = change.value.id
+          const mediaId = change.value.media?.id
+          const message = change.value.text
+          const senderId = change.value.from?.id
+          const igAccountId = entry.id
+
+          if (!commentId || !mediaId || !message || !senderId) continue
+          if (senderId === igAccountId) {
+            console.log(`[INSTAGRAM] Comment by account itself (${senderId}), skipping loop.`)
+            continue
+          }
+
+          console.log(`[INSTAGRAM] Comment on media ${mediaId} from ${senderId}: "${message.slice(0, 100)}"`)
+
+          try {
+            // Find seller connection for this IG Account
+            const { data: conn } = await supabase
+              .from('seller_fb_connections')
+              .select('user_id, fb_page_access_token, ig_business_account_id')
+              .eq('ig_business_account_id', igAccountId)
+              .eq('status', 'connected')
+              .single()
+
+            if (!conn || !conn.fb_page_access_token) {
+              console.warn(`[INSTAGRAM] No connection for IG account ${igAccountId}`)
+              continue
+            }
+
+            // Verify seller has active Elite subscription
+            const { data: sub } = await supabase
+              .from('seller_subscriptions')
+              .select('plan, status')
+              .eq('user_id', conn.user_id)
+              .single()
+
+            if (!sub || !['active', 'trialing'].includes(sub.status)) {
+              console.warn(`[INSTAGRAM] Seller ${conn.user_id} does not have active subscription for comments`)
+              continue
+            }
+
+            // Check if Instagram Auto-Responder feature is enabled in tier
+            const { data: tier } = await supabase
+              .from('subscription_tiers')
+              .select('features')
+              .eq('tier_name', sub.plan)
+              .single()
+
+            if (!tier?.features?.instagram_chat) {
+              console.warn(`[INSTAGRAM] Seller ${conn.user_id} does not have Instagram Auto-Responder enabled in subscription tier`)
+              continue
+            }
+
+            // Check if Instagram auto-reply channel is enabled
+            const { data: sellerProfile } = await supabase
+              .from('profiles')
+              .select('bot_channels')
+              .eq('id', conn.user_id)
+              .single()
+
+            const commentsConfig = (sellerProfile?.bot_channels as Record<string, any>)?.comments
+            if (commentsConfig?.enabled === false) {
+              console.log(`[INSTAGRAM] Instagram comments auto-reply disabled for seller ${conn.user_id}`)
+              continue
+            }
+
+            // Look up product by IG media/post ID
+            const productCtx = await lookupProductByIgPostId(supabase, mediaId)
+            let boothId = productCtx?.boothId || null
+
+            if (!boothId) {
+              // Fallback to default booth
+              const { data: defaultBooth } = await supabase
+                .from('market_booths')
+                .select('id')
+                .eq('owner_id', conn.user_id)
+                .eq('is_default', true)
+                .single()
+              boothId = defaultBooth?.id || null
+            }
+
+            if (!boothId) {
+              console.warn(`[INSTAGRAM] No booth found for comments on IG account ${igAccountId}`)
+              continue
+            }
+
+            const ctx = await loadBoothContext(supabase, boothId)
+            if (!ctx) continue
+
+            const sellerRules = await loadSellerBotRules(supabase)
+            let systemPrompt = `You are GrowBot 🤖, a friendly AI sales assistant answering comments on behalf of ${ctx.sellerName} for their farm stand "${ctx.boothName}" on CasaGrown.\n` +
+              `Keep your response short, friendly, and direct. Since this is a public comment on a social media post, write a concise reply (1-2 sentences).\n` +
+              `If someone is asking a question about a product, pricing, pickup/delivery, answer using the context provided below.\n` +
+              `Always guide them to check out the full menu or place an order using the link provided.`
+
+            systemPrompt += '\n\n' + buildSellerSystemPrompt(ctx, sellerRules, 'comment')
+
+            if (productCtx) {
+              systemPrompt += buildProductContextPrompt(productCtx)
+            }
+
+            const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
+
+            if (!AI_KEY) continue
+
+            const requestBody: any = {
+              system_instruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ role: 'user', parts: [{ text: message }] }],
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 256,
+              },
+            }
+            if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
+              requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 }
+            }
+
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+              },
+            )
+
+            if (!geminiRes.ok) throw new Error(`Gemini API error: ${geminiRes.status}`)
+
+            const geminiData = await geminiRes.json()
+            const rawReply = geminiData.candidates?.[0]?.content?.parts
+              ?.filter((p: any) => p.text && p.thought !== true)
+              ?.map((p: any) => p.text)
+              ?.join('') || ''
+
+            if (!rawReply) continue
+
+            const escalation = detectEscalation(rawReply)
+            const replyText = cleanBotReply(rawReply)
+
+            if (escalation.escalate) {
+              console.log(`[INSTAGRAM] Comment escalated. Skipping reply, notifying seller.`)
+              const msgPreview = message.slice(0, 80)
+              const linkUrl = `https://instagram.com/`
+
+              const { data: seller } = await supabase
+                .from('profiles')
+                .select('phone_number, phone_verified')
+                .eq('id', conn.user_id)
+                .single()
+
+              if (seller?.phone_verified && seller?.phone_number) {
+                try {
+                  await supabase.functions.invoke('send-sms-notification', {
+                    body: {
+                      userId: conn.user_id,
+                      message: `🔔 Instagram Comment: A customer needs help on your post — "${msgPreview}"`,
+                      linkUrl,
+                    },
+                  })
+                } catch (smsErr: any) {
+                  console.error('[INSTAGRAM] SMS comment escalation failed:', smsErr.message)
+                }
+              }
+
+              try {
+                await supabase.functions.invoke('send-notification-email', {
+                  body: {
+                    type: 'chat_initiated',
+                    userId: conn.user_id,
+                    data: {
+                      buyerName: 'An Instagram user in comments',
+                      productName: 'Instagram Comment',
+                      message: msgPreview,
+                      actionUrl: linkUrl,
+                    },
+                  },
+                })
+              } catch (emailErr: any) {
+                console.error('[INSTAGRAM] Email comment escalation failed:', emailErr.message)
+              }
+
+              try {
+                await supabase.functions.invoke('send-push-notification', {
+                  body: {
+                    userId: conn.user_id,
+                    title: '🔔 Instagram Comment: Attention needed',
+                    body: `"${msgPreview}"`,
+                    data: { url: linkUrl },
+                  },
+                })
+              } catch (pushErr: any) {
+                console.error('[INSTAGRAM] Push comment escalation failed:', pushErr.message)
+              }
+            } else {
+              await publishInstagramCommentReply(commentId, replyText, conn.fb_page_access_token)
+              console.log(`[INSTAGRAM] Comment reply published: "${replyText}"`)
+            }
+          } catch (err: any) {
+            console.error('[INSTAGRAM] Error processing comment change:', err.message)
+          }
+        }
+      }
+
+      // 2. Process Instagram DM events (messaging)
       const messaging = entry.messaging || []
 
       for (const event of messaging) {
@@ -402,7 +610,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         const sellerRules = await loadSellerBotRules(supabase)
-        let systemPrompt = buildSellerSystemPrompt(ctx, sellerRules)
+        let systemPrompt = buildSellerSystemPrompt(ctx, sellerRules, 'dm')
         systemPrompt += `\n\nBUYER CONTEXT:\n- Buyer's First Name: ${buyerFirstName}`
 
         if (knownBuyerZip && allBooths.length > 1) {

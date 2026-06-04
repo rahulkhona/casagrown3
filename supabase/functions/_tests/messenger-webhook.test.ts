@@ -466,6 +466,38 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "messenger-webhook: POST comment change feed processes and replies",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const res = await callWebhook("POST", {}, {
+      object: "page",
+      entry: [
+        {
+          id: "test_page_e2e",
+          time: Date.now(),
+          changes: [
+            {
+              field: "feed",
+              value: {
+                item: "comment",
+                verb: "add",
+                comment_id: "comment_test_999",
+                post_id: "post_test_999",
+                message: "Do you have fresh organic lettuce today?",
+                sender_id: "test_user_psid_999"
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    assertEquals(res.status, 200);
+  }
+});
+
 // ── Cleanup ──
 Deno.test({
   name: "messenger-webhook: cleanup test data",
