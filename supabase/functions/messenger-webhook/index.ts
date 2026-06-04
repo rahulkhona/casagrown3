@@ -707,7 +707,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             contents: cleanedContents,
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 512,
+              maxOutputTokens: 2048,
             },
           }
           if (model.includes('gemini-2.5')) {
@@ -731,7 +731,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           const rawReply = geminiData.candidates?.[0]?.content?.parts
             ?.filter((p: any) => p.text && p.thought !== true)
             ?.map((p: any) => p.text)
-            ?.join('') || `Thanks for your interest! Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to see our products.`
+            ?.join('')
+
+          if (!rawReply) {
+            await supabase.from('edge_function_errors').insert({
+              function_name: 'messenger-webhook-gemini-fallback',
+              error_message: 'Gemini returned empty response or no candidates',
+              error_stack: JSON.stringify(geminiData),
+              request_method: req.method,
+              request_path: new URL(req.url).pathname,
+            }).then(() => {});
+
+            throw new Error('Gemini returned empty response or no candidates')
+          }
 
           // Check for escalation signals
           const escalation = detectEscalation(rawReply)

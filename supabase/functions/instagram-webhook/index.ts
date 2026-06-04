@@ -435,7 +435,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             contents: cleanedContents,
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 512,
+              maxOutputTokens: 2048,
             },
           }
 
@@ -470,10 +470,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               request_method: req.method,
               request_path: new URL(req.url).pathname,
             }).then(() => {});
+
+            throw new Error('Gemini returned empty response or no candidates')
           }
 
-          const escalation = detectEscalation(rawReply || '')
-          const replyText = cleanBotReply(rawReply || `Thanks for your interest! Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to see our products.`)
+          const escalation = detectEscalation(rawReply)
+          const replyText = cleanBotReply(rawReply)
 
           let instagramDelay = instagramConfig?.delayMinutes ?? 0
           if (conversation?.bot_conversation_mode_until) {

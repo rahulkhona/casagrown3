@@ -373,7 +373,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     contents: cleanedContents,
                     generationConfig: {
                       temperature: 0.3,
-                      maxOutputTokens: 512,
+                      maxOutputTokens: 2048,
                       ...(model.includes('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
                     },
                   }),
@@ -385,10 +385,23 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               }
 
               const geminiData = await geminiRes.json()
-              rawReply = geminiData.candidates?.[0]?.content?.parts
+              const cleanReplyText = geminiData.candidates?.[0]?.content?.parts
                 ?.filter((p: any) => p.text && p.thought !== true)
                 ?.map((p: any) => p.text)
-                ?.join('') || `Thanks for your interest! Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to see our products.`
+                ?.join('')
+
+              if (!cleanReplyText) {
+                await supabase.from('edge_function_errors').insert({
+                  function_name: 'whatsapp-webhook-gemini-fallback',
+                  error_message: 'Gemini returned empty response or no candidates',
+                  error_stack: JSON.stringify(geminiData),
+                  request_method: req.method,
+                  request_path: new URL(req.url).pathname,
+                }).then(() => {});
+
+                throw new Error('Gemini returned empty response or no candidates')
+              }
+              rawReply = cleanReplyText
             }
 
             const escalation = detectEscalation(rawReply)
