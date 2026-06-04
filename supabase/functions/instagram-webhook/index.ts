@@ -469,7 +469,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
-        const model = Deno.env.get('AI_MODEL') || 'gemini-3.5-flash'
+        const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.5-flash'
 
         if (!AI_KEY) {
           await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
