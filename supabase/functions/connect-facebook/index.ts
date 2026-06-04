@@ -161,11 +161,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_manage_posts',
     'pages_messaging',
     'pages_read_engagement',
-    'catalog_management',
+    'pages_manage_metadata',
     // Instagram scopes — only requested when user clicks "Connect Instagram"
-    ...(include_instagram ? ['instagram_basic', 'instagram_manage_messages'] : []),
-    // WhatsApp scopes — only requested when user clicks "Connect WhatsApp"
-    ...(include_whatsapp ? ['whatsapp_business_management', 'whatsapp_business_messaging', 'business_management'] : []),
+    ...(include_instagram ? [
+      'instagram_basic',
+      'instagram_content_publish',
+      'instagram_manage_messages',
+      'instagram_manage_comments'
+    ] : []),
   ].join(',')
   const fbAuthUrl =
     `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FACEBOOK_APP_ID}` +
