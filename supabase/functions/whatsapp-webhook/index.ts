@@ -560,7 +560,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                   .select('id, name')
                   .eq('booth_id', boothId)
                   .eq('is_deleted', false)
-                  .eq('status', 'active')
+                  .eq('is_active', true)
                 
                 if (boothProds && boothProds.length > 0 && userMessage) {
                   const cleanMsg = userMessage.toLowerCase()

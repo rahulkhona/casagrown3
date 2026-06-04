@@ -76,11 +76,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 .eq('conversation_id', c.id)
                 .gte('created_at', fiveSecondsAgo)
                 .order('created_at', { ascending: false })
-                .limit(1)
+                .limit(5)
 
               if (recentMsgs && recentMsgs.length > 0) {
-                const latestMsg = recentMsgs[0]
-                if (latestMsg.role === 'bot' && latestMsg.content === event.message.text) {
+                const isDuplicate = recentMsgs.some(m => m.role === 'bot' && m.content === event.message.text)
+                if (isDuplicate) {
                   isDuplicateBotEcho = true
                 }
               }
@@ -629,7 +629,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .select('id, name')
               .eq('booth_id', boothId)
               .eq('is_deleted', false)
-              .eq('status', 'active')
+              .eq('is_active', true)
             
             if (boothProds && boothProds.length > 0 && userMessage) {
               const cleanMsg = userMessage.toLowerCase()

@@ -277,6 +277,31 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .eq('fb_sender_id', event.recipient?.id)
 
             for (const c of (convs || [])) {
+              // Robust Messenger echo deduplication
+              let isDuplicateBotEcho = false
+              if (event.message?.text) {
+                const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString()
+                const { data: recentMsgs } = await supabase
+                  .from('messenger_messages')
+                  .select('content, role')
+                  .eq('conversation_id', c.id)
+                  .gte('created_at', fiveSecondsAgo)
+                  .order('created_at', { ascending: false })
+                  .limit(5)
+
+                if (recentMsgs && recentMsgs.length > 0) {
+                  const isDuplicate = recentMsgs.some(m => m.role === 'bot' && m.content === event.message.text)
+                  if (isDuplicate) {
+                    isDuplicateBotEcho = true
+                  }
+                }
+              }
+
+              if (isDuplicateBotEcho) {
+                console.log(`[MESSENGER] Echo matches our recent bot message. Skipping duplicate insert and bot pause.`)
+                continue
+              }
+
               // Avoid pausing co-pilot bot on native Page automated greetings:
               // Check if the buyer has ever sent a message in this conversation.
               const { count: userMsgCount } = await supabase
@@ -879,7 +904,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               .select('id, name')
               .eq('booth_id', boothId)
               .eq('is_deleted', false)
-              .eq('status', 'active')
+              .eq('is_active', true)
             
             if (boothProds && boothProds.length > 0 && userMessage) {
               const cleanMsg = userMessage.toLowerCase()
