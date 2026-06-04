@@ -182,11 +182,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      system_instruction: { parts: [{ text: systemPrompt }] },
-                      contents,
-                      generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
-                    }),
+                    body: (() => {
+                      const bodyObj: any = {
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents,
+                        generationConfig: {
+                          temperature: 0.3,
+                          maxOutputTokens: 512,
+                        },
+                      };
+                      if (model.includes('gemini-2.5')) {
+                        bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                      }
+                      return JSON.stringify(bodyObj);
+                    })(),
                   },
                 )
                 if (geminiRes.ok) {
@@ -316,11 +325,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      system_instruction: { parts: [{ text: systemPrompt }] },
-                      contents,
-                      generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
-                    }),
+                    body: (() => {
+                      const bodyObj: any = {
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents,
+                        generationConfig: {
+                          temperature: 0.3,
+                          maxOutputTokens: 512,
+                        },
+                      };
+                      if (model.includes('gemini-2.5')) {
+                        bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                      }
+                      return JSON.stringify(bodyObj);
+                    })(),
                   },
                 )
                 if (geminiRes.ok) {
@@ -448,11 +466,20 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      system_instruction: { parts: [{ text: systemPrompt }] },
-                      contents,
-                      generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
-                    }),
+                    body: (() => {
+                      const bodyObj: any = {
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents,
+                        generationConfig: {
+                          temperature: 0.3,
+                          maxOutputTokens: 512,
+                        },
+                      };
+                      if (model.includes('gemini-2.5')) {
+                        bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                      }
+                      return JSON.stringify(bodyObj);
+                    })(),
                   },
                 )
                 if (geminiRes.ok) {

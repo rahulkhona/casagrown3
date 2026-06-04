@@ -151,7 +151,11 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemPrompt }] },
               contents,
-              generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 512,
+                ...(model.includes('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+              },
             }),
           },
         )

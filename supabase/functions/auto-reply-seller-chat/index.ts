@@ -675,7 +675,11 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemPrompt }] },
               contents: cleanedContents,
-              generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 1024,
+                ...(model.name.includes('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+              },
             }),
           },
         )

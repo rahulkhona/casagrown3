@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { createServerSupabase } from '../../../../../lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 import BoothDetailClient from './BoothDetailClient'
 
 /**
@@ -17,17 +17,34 @@ export async function generateMetadata(
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const siteUrl = `${protocol}://${host}`
 
+  const defaultTitle = 'Booth — CasaGrown Market'
+  const defaultDesc = 'Fresh, locally-grown produce from your neighbors.'
+  const defaultOgImage = `${siteUrl}/og-share.jpg`
+
   try {
-    const supabase = await createServerSupabase()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
     
     // Fetch booth
     const { data: booth } = await supabase
       .from('market_booths')
-      .select('name, description, description_html, header_image_url')
+      .select('name, description, description_html, header_image_url, owner_id')
       .eq('id', id)
       .single()
 
     if (booth) {
+      let avatarUrl: string | null = null
+      if (booth.owner_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', booth.owner_id)
+          .single()
+        avatarUrl = profile?.avatar_url || null
+      }
+
       const title = `${booth.name || 'Neighborhood Booth'} | CasaGrown Market`
       
       let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''
@@ -37,7 +54,7 @@ export async function generateMetadata(
       
       const fallbackDesc = `Browse fresh, homegrown produce from ${booth.name || 'your neighbor'} on CasaGrown \u2014 garden-to-table freshness.`
       const finalDesc = description ? `${description} \u2014 Shop local on CasaGrown.` : fallbackDesc
-      const ogImage = `${siteUrl}/api/og-booth?id=${id}`
+      const ogImage = booth.header_image_url || avatarUrl || defaultOgImage
 
       return {
         metadataBase: new URL(siteUrl),
@@ -63,11 +80,25 @@ export async function generateMetadata(
     console.warn('generateMetadata failed for booth:', err)
   }
 
-  // Fallback to default
+  // Fallback to default, returning full block to prevent layout leakage
   return {
     metadataBase: new URL(siteUrl),
-    title: 'Booth — CasaGrown Market',
-    description: 'Fresh, locally-grown produce from your neighbors.',
+    title: defaultTitle,
+    description: defaultDesc,
+    openGraph: {
+      title: defaultTitle,
+      description: defaultDesc,
+      siteName: 'CasaGrown Market',
+      type: 'website',
+      url: `/market/booth/${id}`,
+      images: [{ url: defaultOgImage, width: 1200, height: 630, alt: 'CasaGrown Market' }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: defaultTitle,
+      description: defaultDesc,
+      images: [defaultOgImage],
+    },
   }
 }
 

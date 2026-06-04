@@ -43,6 +43,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       for (const event of messaging) {
         // Detect seller echo — seller replied from Instagram inbox
         if (event.message?.is_echo) {
+          const appId = Deno.env.get('FACEBOOK_APP_ID') || ''
+          const eventAppId = String(event.message?.app_id || '')
+          if (eventAppId && eventAppId === appId) {
+            console.log(`[INSTAGRAM] Echo is from our own bot app (${appId}). Skipping duplicate insert and bot pause.`)
+            continue
+          }
+
           const igAccountId = entry.id
           
           const { data: conn } = await supabase
@@ -52,12 +59,37 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             .single()
 
           if (conn) {
-            // Set bot_conversation_mode_until to null (seller took over) and update active presence
+            // Robust Instagram echo deduplication
             const { data: convs } = await supabase
               .from('ig_conversations')
               .select('id')
               .eq('seller_id', conn.user_id)
               .eq('ig_sender_id', event.recipient?.id)
+
+            let isDuplicateBotEcho = false
+            if (convs && convs.length > 0 && event.message?.text) {
+              const c = convs[0]
+              const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString()
+              const { data: recentMsgs } = await supabase
+                .from('ig_messages')
+                .select('content, role')
+                .eq('conversation_id', c.id)
+                .gte('created_at', fiveSecondsAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+
+              if (recentMsgs && recentMsgs.length > 0) {
+                const latestMsg = recentMsgs[0]
+                if (latestMsg.role === 'bot' && latestMsg.content === event.message.text) {
+                  isDuplicateBotEcho = true
+                }
+              }
+            }
+
+            if (isDuplicateBotEcho) {
+              console.log(`[INSTAGRAM] Echo matches our recent bot message. Skipping duplicate insert and bot pause.`)
+              continue
+            }
 
             for (const c of (convs || [])) {
               // Avoid pausing co-pilot bot on native IG automated greetings:
@@ -398,16 +430,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         try {
+          const requestBody: any = {
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: cleanedContents,
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 512,
+            },
+          }
+
+          if (model.includes('gemini-2.5')) {
+            requestBody.generationConfig.thinkingConfig = { thinkingBudget: 0 }
+          }
+
           const geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: cleanedContents,
-                generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
-              }),
+              body: JSON.stringify(requestBody),
             },
           )
 
@@ -419,10 +460,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           const rawReply = geminiData.candidates?.[0]?.content?.parts
             ?.filter((p: any) => p.text && p.thought !== true)
             ?.map((p: any) => p.text)
-            ?.join('') || `Thanks for your interest! Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to see our products.`
+            ?.join('')
 
-          const escalation = detectEscalation(rawReply)
-          const replyText = cleanBotReply(rawReply)
+          if (!rawReply) {
+            await supabase.from('edge_function_errors').insert({
+              function_name: 'instagram-webhook-gemini-fallback',
+              error_message: 'Gemini returned empty response or no candidates',
+              error_stack: JSON.stringify(geminiData),
+              request_method: req.method,
+              request_path: new URL(req.url).pathname,
+            }).then(() => {});
+          }
+
+          const escalation = detectEscalation(rawReply || '')
+          const replyText = cleanBotReply(rawReply || `Thanks for your interest! Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to see our products.`)
 
           let instagramDelay = instagramConfig?.delayMinutes ?? 0
           if (conversation?.bot_conversation_mode_until) {
@@ -561,14 +612,67 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
         } catch (aiErr: any) {
           console.error('[INSTAGRAM] AI error:', aiErr.message)
+          await supabase.from('edge_function_errors').insert({
+            function_name: 'instagram-webhook-ai',
+            error_message: aiErr.message,
+            error_stack: aiErr.stack ?? null,
+            request_method: req.method,
+            request_path: new URL(req.url).pathname,
+          }).then(() => {});
+
+          // Keyword-based product matching fallback
+          let matchedProdId: string | null = null
+          let matchedProdName: string | null = null
+          try {
+            const { data: boothProds } = await supabase
+              .from('market_products')
+              .select('id, name')
+              .eq('booth_id', boothId)
+              .eq('is_deleted', false)
+              .eq('status', 'active')
+            
+            if (boothProds && boothProds.length > 0 && userMessage) {
+              const cleanMsg = userMessage.toLowerCase()
+              const match = boothProds.find((p: any) => {
+                const prodName = p.name.toLowerCase()
+                return cleanMsg.includes(prodName) || prodName.includes(cleanMsg)
+              })
+              if (match) {
+                matchedProdId = match.id
+                matchedProdName = match.name
+              }
+            }
+          } catch (prodErr: any) {
+            console.error('[INSTAGRAM] Fallback product lookup error:', prodErr.message)
+          }
+
+          const boothNameStr = ctx.boothName || 'our stand'
+          const fallbackText = matchedProdId && matchedProdName
+            ? `Thanks for reaching out! You can view and order ${matchedProdName} directly at ${ctx.siteUrl}/market/booth/${boothId}/product/${matchedProdId}`
+            : `Thanks for your interest in ${boothNameStr}! Visit ${ctx.siteUrl}/market/booth/${boothId} to browse our products and place an order.`
+
           await sendInstagramMessage(conn.fb_page_access_token, senderIgsid, {
-            text: `Thanks for reaching out! Visit ${ctx.siteUrl}/market/booth/${boothId} to browse our products and place an order.`,
+            text: fallbackText,
           })
+
+          if (conversation) {
+            await supabase.from('ig_messages').insert([
+              { conversation_id: conversation.id, role: 'user', content: userMessage },
+              { conversation_id: conversation.id, role: 'bot', content: fallbackText },
+            ])
+          }
         }
       }
     }
   } catch (err: any) {
     console.error('[INSTAGRAM] Webhook processing error:', err)
+    await supabase.from('edge_function_errors').insert({
+      function_name: 'instagram-webhook',
+      error_message: err.message,
+      error_stack: err.stack ?? null,
+      request_method: req.method,
+      request_path: new URL(req.url).pathname,
+    }).then(() => {});
   }
 
   return jsonOk({ received: true }, corsHeaders)

@@ -371,7 +371,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                   body: JSON.stringify({
                     system_instruction: { parts: [{ text: systemPrompt }] },
                     contents: cleanedContents,
-                    generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+                    generationConfig: {
+                      temperature: 0.3,
+                      maxOutputTokens: 512,
+                      ...(model.includes('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+                    },
                   }),
                 },
               )
@@ -521,6 +525,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             }
           } catch (aiErr: any) {
             console.error('[WHATSAPP] AI error:', aiErr.message)
+            await supabase.from('edge_function_errors').insert({
+              function_name: 'whatsapp-webhook-ai',
+              error_message: aiErr.message,
+              error_stack: aiErr.stack ?? null,
+              request_method: req.method,
+              request_path: new URL(req.url).pathname,
+            }).then(() => {})
 
             // If delayed mode, still create a draft (process-bot-replies will retry AI)
             if (whatsappDelay > 0 && conversation) {
@@ -540,9 +551,45 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               })
               console.log(`[WHATSAPP] AI failed but draft created for delayed processing`)
             } else {
-              await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone,
-                `Thanks for reaching out! Visit ${ctx.siteUrl}/market/booth/${boothId} to browse our products and place an order.`
-              )
+              // Keyword-based product matching fallback
+              let matchedProdId: string | null = null
+              let matchedProdName: string | null = null
+              try {
+                const { data: boothProds } = await supabase
+                  .from('market_products')
+                  .select('id, name')
+                  .eq('booth_id', boothId)
+                  .eq('is_deleted', false)
+                  .eq('status', 'active')
+                
+                if (boothProds && boothProds.length > 0 && userMessage) {
+                  const cleanMsg = userMessage.toLowerCase()
+                  const match = boothProds.find((p: any) => {
+                    const prodName = p.name.toLowerCase()
+                    return cleanMsg.includes(prodName) || prodName.includes(cleanMsg)
+                  })
+                  if (match) {
+                    matchedProdId = match.id
+                    matchedProdName = match.name
+                  }
+                }
+              } catch (prodErr: any) {
+                console.error('[WHATSAPP] Fallback product lookup error:', prodErr.message)
+              }
+
+              const boothNameStr = ctx.boothName || 'our stand'
+              const fallbackText = matchedProdId && matchedProdName
+                ? `Thanks for reaching out! You can view and order ${matchedProdName} directly at ${ctx.siteUrl}/market/booth/${boothId}/product/${matchedProdId}`
+                : `Thanks for your interest in ${boothNameStr}! Visit ${ctx.siteUrl}/market/booth/${boothId} to browse our products and place an order.`
+
+              await sendWhatsAppMessage(phoneNumberId, conn.fb_page_access_token, userPhone, fallbackText)
+
+              if (conversation) {
+                await supabase.from('wa_messages').insert([
+                  { conversation_id: conversation.id, role: 'user', content: userMessage },
+                  { conversation_id: conversation.id, role: 'bot', content: fallbackText },
+                ])
+              }
             }
           }
         }
