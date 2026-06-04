@@ -33,16 +33,18 @@ export async function generateMetadata(
 
     if (booth) {
       let avatarUrl: string | null = null
+      let sellerPersonalName: string | null = null
       if (booth.owner_id) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, full_name')
           .eq('id', booth.owner_id)
           .single()
         avatarUrl = profile?.avatar_url || null
+        sellerPersonalName = profile?.full_name || null
       }
 
-      const title = `${booth.name || 'Neighborhood Booth'} | CasaGrown Market`
+      const title = booth.name || sellerPersonalName || 'Neighborhood Booth'
       
       let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''
       if (description.length > 150) {
@@ -51,7 +53,26 @@ export async function generateMetadata(
       
       const fallbackDesc = `Browse fresh, homegrown produce from ${booth.name || 'your neighbor'} on CasaGrown \u2014 garden-to-table freshness.`
       const finalDesc = description ? `${description} \u2014 Shop local on CasaGrown.` : fallbackDesc
-      const ogImage = booth.header_image_url || avatarUrl || defaultOgImage
+
+      let firstProductPhoto: string | null = null
+      if (!booth.header_image_url && !avatarUrl) {
+        const { data: firstProduct } = await supabase
+          .from('market_products')
+          .select('photos')
+          .eq('booth_id', id)
+          .eq('is_deleted', false)
+          .eq('is_active', true)
+          .gt('inventory', 0)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (firstProduct?.photos?.[0]) {
+          firstProductPhoto = firstProduct.photos[0]
+        }
+      }
+
+      const ogImage = booth.header_image_url || avatarUrl || firstProductPhoto || defaultOgImage
 
       return {
         metadataBase: new URL(siteUrl),

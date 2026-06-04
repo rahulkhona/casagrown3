@@ -33,9 +33,11 @@ export async function generateMetadata(
       let boothHeaderUrl: string | null = null
       let avatarUrl: string | null = null
 
+      let sellerPersonalName: string | null = null
+
       const { data: booth } = await supabase
         .from('market_booths')
-        .select('header_image_url, owner_id')
+        .select('name, header_image_url, owner_id')
         .eq('id', id)
         .single()
 
@@ -44,10 +46,11 @@ export async function generateMetadata(
         if (booth.owner_id) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('avatar_url')
+            .select('avatar_url, full_name, farm_name')
             .eq('id', booth.owner_id)
             .single()
           avatarUrl = profile?.avatar_url || null
+          sellerPersonalName = profile?.farm_name || profile?.full_name || null
         }
       }
 
@@ -55,7 +58,7 @@ export async function generateMetadata(
       const ogImage = photo || boothHeaderUrl || avatarUrl || defaultOgImage
 
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
-      const title = `${product.name} — ${price} | CasaGrown Market`
+      const title = `${product.name} — ${price} | ${booth?.name || sellerPersonalName || 'Grower'}`
       const description = product.description
         ? `${product.description.slice(0, 120)} — Fresh from a neighbor's garden on CasaGrown.`
         : `Fresh ${product.name} (${price}) grown right in your neighborhood. Buy local, eat fresh, and help stop food waste on CasaGrown.`

@@ -28,7 +28,8 @@ function NewMessageTrafficCopInner() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      router.replace('/login')
+      const currentQuery = window.location.search
+      router.replace(`/login?redirect=${encodeURIComponent('/messages/new' + currentQuery)}`)
       return
     }
 
@@ -44,7 +45,7 @@ function NewMessageTrafficCopInner() {
     }
 
     if (targetUserId === user.id) {
-      router.replace('/messages')
+      setError("You cannot start a chat thread with yourself (you are currently logged in as the seller).")
       return
     }
 

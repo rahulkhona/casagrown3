@@ -48,6 +48,19 @@ export async function GET(
       })
   ).catch((err) => console.error('[DM-LINK] Click log failed:', err))
 
+  if (channel === 'facebook') {
+    const { data: conn } = await supabase
+      .from('seller_fb_connections')
+      .select('fb_page_id')
+      .eq('user_id', profile.id)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (conn?.fb_page_id) {
+      return NextResponse.redirect(`https://m.me/${conn.fb_page_id}`, { status: 302 })
+    }
+  }
+
   const dmUrl = new URL('/messages/new', siteUrl)
   dmUrl.searchParams.set('userId', profile.id)
 
