@@ -380,9 +380,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       if (features.facebook_posts && conn.auto_post_enabled && conn.fb_page_id && conn.fb_page_access_token) {
         try {
           const fbMessage = buildMessage('facebook')
-          const fbResult = await publishPagePost(conn.fb_page_id, conn.fb_page_access_token, {
+          const fbResult = await publishMultiPhotoPost(conn.fb_page_id, conn.fb_page_access_token, {
             message: fbMessage,
-            link: productLink,
+            photoUrls: product.photos || [],
           })
 
           prodResults.facebook = { post_id: fbResult?.id, status: 'published' }
@@ -1060,13 +1060,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
     if (features.facebook_posts && conn.auto_post_enabled && conn.fb_page_id && conn.fb_page_access_token) {
       try {
         const fbMessage = buildMessage('facebook')
-        const fbResult = await publishPagePost(conn.fb_page_id, conn.fb_page_access_token, {
+        const fbResult = await publishMultiPhotoPost(conn.fb_page_id, conn.fb_page_access_token, {
           message: fbMessage,
-          link: productLink,
+          photoUrls: product.photos || [],
         })
 
         results.facebook = { post_id: fbResult?.id, status: 'published' }
-        console.log(`[SYNC-POSTS] ✅ FB link post created for ${product.name}`)
+        console.log(`[SYNC-POSTS] ✅ FB photo post created for ${product.name}`)
       } catch (err: any) {
         console.error(`[SYNC-POSTS] ❌ FB post failed: ${err.message}`)
         results.facebook = { status: 'error', error: err.message }

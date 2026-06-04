@@ -73,7 +73,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     businessLicense?: string; foodHandlerPermit?: string;
     cottageFoodPermit?: string; insuranceProvider?: string;
   }>({})
-  const [waPhone, setWaPhone] = useState<string | null>(null)
+
 
 
   const cart = useCart()
@@ -149,17 +149,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           cottageFoodPermit: profileData?.cottage_food_permit || undefined,
           insuranceProvider: profileData?.insurance_provider || undefined,
         })
-        // Fetch WhatsApp phone if enabled
-        const { data: fbConn } = await supabase
-          .from('seller_fb_connections')
-          .select('wa_display_phone, wa_auto_reply_enabled')
-          .eq('user_id', boothData.owner_id)
-          .eq('status', 'connected')
-          .limit(1)
-          .maybeSingle()
-        if (fbConn?.wa_display_phone && fbConn?.wa_auto_reply_enabled) {
-          setWaPhone(fbConn.wa_display_phone)
-        }
+
         // Derive pickup address from seller profile if not set on booth
         if (!boothData.pickup_address && profileData?.street_address) {
           const fullAddr = [profileData.street_address, profileData.city, profileData.state_code, profileData.zip_plus4].filter(Boolean).join(', ')
@@ -190,22 +180,33 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     // Try localStorage first
     const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
     const savedAddr = saved.get('addr') || ''
+    const savedZip = saved.get('zip') || ''
     if (savedAddr) {
       setAddrLabel(savedAddr)
+      if (savedZip) setBuyerZip(savedZip)
       geocodeAddress(savedAddr).then(geo => {
-        if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng) }
+        if (geo) {
+          setBuyerLat(geo.lat)
+          setBuyerLng(geo.lng)
+          if (geo.zipCode) setBuyerZip(geo.zipCode)
+        }
       })
       return
     }
     // Fall back to profile address
     if (!user) return
-    supabase.from('profiles').select('street_address, city, state_code').eq('id', user.id).single()
+    supabase.from('profiles').select('street_address, city, state_code, zip_plus4').eq('id', user.id).single()
       .then(({ data: profile }: { data: any }) => {
         if (profile?.street_address) {
-          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+          const addr = [profile.street_address, profile.city, profile.state_code, profile.zip_plus4].filter(Boolean).join(', ')
           setAddrLabel(addr)
+          if (profile.zip_plus4) setBuyerZip(profile.zip_plus4.split('-')[0])
           geocodeAddress(addr).then(geo => {
-            if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng) }
+            if (geo) {
+              setBuyerLat(geo.lat)
+              setBuyerLng(geo.lng)
+              if (geo.zipCode) setBuyerZip(geo.zipCode)
+            }
           })
         }
       })
@@ -223,15 +224,36 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     const dist = metersToMiles(haversineMeters(buyerLat, buyerLng, sellerLat, sellerLng))
     setDistanceMiles(Math.round(dist * 10) / 10)
     if (booth?.offers_delivery) {
-      setWithinDelivery(dist <= (booth.delivery_radius_miles || 5))
+      let allowed = false
+      if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0 && buyerZip) {
+        if (booth.delivery_zipcodes.includes(buyerZip)) {
+          allowed = true
+        }
+      }
+      if (!allowed) {
+        const radius = booth.delivery_radius_miles
+        if (radius != null && radius > 0) {
+          allowed = dist <= radius
+        } else if (radius === 0) {
+          allowed = false
+        } else {
+          allowed = dist <= 5
+        }
+      }
+      setWithinDelivery(allowed)
     }
-  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.offers_delivery])
+  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.offers_delivery, booth?.delivery_zipcodes, buyerZip])
 
   const handleCheckAltAddress = async () => {
     if (!altAddress.trim()) return
     setCheckingAltAddr(true)
     const geo = await geocodeAddress(altAddress.trim())
-    if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng); setAddrLabel(altAddress.trim()) }
+    if (geo) {
+      setBuyerLat(geo.lat)
+      setBuyerLng(geo.lng)
+      setAddrLabel(altAddress.trim())
+      if (geo.zipCode) setBuyerZip(geo.zipCode)
+    }
     setCheckingAltAddr(false)
     setShowAltAddrInput(false)
     setAltAddress('')
@@ -654,22 +676,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
               </div>
             )}
 
-            {/* WhatsApp button */}
-            {waPhone && (
-              <a
-                href={`https://wa.me/${waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! I'm interested in your ${product.name} on CasaGrown.`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  marginTop: 8, padding: '8px 12px', borderRadius: 8,
-                  background: '#25D366', color: 'white', fontSize: 13, fontWeight: 600,
-                  textDecoration: 'none', transition: 'opacity 0.15s',
-                }}
-              >
-                💬 WhatsApp {waPhone}
-              </a>
-            )}
+
           </div>
           <p className={styles.productPrice}>
             {product.price_usd === 0 ? <span className="price price-large" style={{ color: '#16a34a' }}>Free</span> : <><span className="price price-large">{formatUsd(product.price_usd)}</span><span className={styles.unit}>/ {product.unit}</span></>}

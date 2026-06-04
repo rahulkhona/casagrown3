@@ -44,7 +44,6 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
     cottageFoodPermit?: string; insuranceProvider?: string;
   }>({})
   const [sellerFirstName, setSellerFirstName] = useState<string | null>(null)
-  const [waPhone, setWaPhone] = useState<string | null>(null)
   const [deliveryWindows, setDeliveryWindows] = useState<any[]>([])
   const [pickupWindows, setPickupWindows] = useState<any[]>([])
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
@@ -118,17 +117,6 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
           insuranceProvider: profileData?.insurance_provider || undefined,
         })
 
-        // Fetch WhatsApp connection
-        const { data: fbConn } = await supabase
-          .from('seller_fb_connections')
-          .select('wa_display_phone, wa_auto_reply_enabled')
-          .eq('user_id', boothData.owner_id)
-          .eq('status', 'connected')
-          .limit(1)
-          .maybeSingle()
-        if (fbConn?.wa_display_phone && fbConn?.wa_auto_reply_enabled) {
-          setWaPhone(fbConn.wa_display_phone)
-        }
 
         // Fetch fulfillment windows from relational table
         const { data: windows } = await supabase
@@ -390,13 +378,13 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
           </div>
         )}
         {/* Follow & Message actions */}
-        {isAuthenticated && user?.id !== booth.owner_id && (
+        {(!user || user.id !== booth.owner_id) && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button
               className={`${styles.followBtn} ${following ? styles.followBtnActive : ''}`}
               style={{ flex: 1 }}
               onClick={async () => {
-                if (profileComplete !== true) {
+                if (!isAuthenticated || profileComplete !== true) {
                   requireAuth({ trigger: 'booth_action' })
                   return
                 }
@@ -415,28 +403,22 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             </button>
 
             {/* NEW: Message Farm Action */}
-            <Link
-              href={`/messages/new?userId=${booth.owner_id}&name=${encodeURIComponent(booth.name || 'Farm')}`}
+            <button
+              onClick={() => {
+                if (!isAuthenticated) {
+                  requireAuth({
+                    trigger: 'dm_seller',
+                    onReady: () => router.push(`/messages/new?userId=${booth.owner_id}&name=${encodeURIComponent(booth.name || 'Farm')}`),
+                  })
+                  return
+                }
+                router.push(`/messages/new?userId=${booth.owner_id}&name=${encodeURIComponent(booth.name || 'Farm')}`)
+              }}
               className={styles.followBtn}
-              style={{ flex: 1, textDecoration: 'none', textAlign: 'center', background: 'transparent', color: 'var(--gray-700)', border: '1px solid var(--gray-300)' }}
+              style={{ flex: 1, textAlign: 'center', background: 'transparent', color: 'var(--gray-700)', border: '1px solid var(--gray-300)', cursor: 'pointer' }}
             >
               💬 Message Farm
-            </Link>
-            {waPhone && (
-              <a
-                href={`https://wa.me/${waPhone.replace(/[^0-9]/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.followBtn}
-                style={{
-                  flex: 1, textDecoration: 'none', textAlign: 'center',
-                  background: '#25D366', color: '#fff', border: '1px solid #1ebe57',
-                  fontWeight: 600,
-                }}
-              >
-                💬 WhatsApp
-              </a>
-            )}
+            </button>
           </div>
         )}
         {followerCount > 0 && (

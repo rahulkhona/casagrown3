@@ -50,6 +50,7 @@ interface BoothData {
   pickup_address: string | null
   pickup_display_address: string | null
   owner_id: string
+  delivery_zipcodes?: string[] | null
 }
 
 export default function ProductListingCard({ productId, messageContent, currentUserId, onShareDataLoaded }: ProductListingCardProps) {
@@ -69,6 +70,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
   const [checkingAddress, setCheckingAddress] = useState(false)
   const [showAltInput, setShowAltInput] = useState(false)
   const [addressLabel, setAddressLabel] = useState('Your address')
+  const [buyerZip, setBuyerZip] = useState('')
 
   const supabase = createClient()
 
@@ -88,7 +90,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
 
       const { data: b } = await supabase
         .from('market_booths')
-        .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, pickup_display_address, owner_id')
+        .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, pickup_display_address, owner_id, delivery_zipcodes')
         .eq('owner_id', prod.seller_id)
         .single()
       if (b && !cancelled) {
@@ -135,20 +137,45 @@ export default function ProductListingCard({ productId, messageContent, currentU
     return () => { cancelled = true }
   }, [productId, onShareDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Resolve buyer's location from profile
+  // Resolve buyer's location from profile or localStorage
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
+        const savedAddr = saved.get('addr') || ''
+        const savedZip = saved.get('zip') || ''
+        if (savedAddr) {
+          setAddressLabel(savedAddr)
+          if (savedZip) setBuyerZip(savedZip)
+          geocodeAddress(savedAddr).then(geo => {
+            if (geo) {
+              setBuyerLat(geo.lat)
+              setBuyerLng(geo.lng)
+              if (geo.zipCode) setBuyerZip(geo.zipCode)
+            }
+          })
+          return
+        }
+      } catch {}
+    }
+
     if (!currentUserId) return
     async function resolveBuyer() {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('street_address, city, state_code, zip_code')
+        .select('street_address, city, state_code, zip_plus4')
         .eq('id', currentUserId)
         .single()
       if (profile?.street_address) {
-        const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+        const addr = [profile.street_address, profile.city, profile.state_code, profile.zip_plus4].filter(Boolean).join(', ')
         setAddressLabel(addr)
+        if (profile.zip_plus4) setBuyerZip(profile.zip_plus4.split('-')[0])
         const geo = await geocodeAddress(addr)
-        if (geo) { setBuyerLat(geo.lat); setBuyerLng(geo.lng) }
+        if (geo) {
+          setBuyerLat(geo.lat)
+          setBuyerLng(geo.lng)
+          if (geo.zipCode) setBuyerZip(geo.zipCode)
+        }
       }
     }
     resolveBuyer()
@@ -160,11 +187,11 @@ export default function ProductListingCard({ productId, messageContent, currentU
     async function resolveSeller() {
       const { data: sellerProfile } = await supabase
         .from('profiles')
-        .select('street_address, city, state_code, zip_code')
+        .select('street_address, city, state_code, zip_plus4')
         .eq('id', product!.seller_id)
         .single()
       if (sellerProfile?.street_address) {
-        const addr = [sellerProfile.street_address, sellerProfile.city, sellerProfile.state_code].filter(Boolean).join(', ')
+        const addr = [sellerProfile.street_address, sellerProfile.city, sellerProfile.state_code, sellerProfile.zip_plus4].filter(Boolean).join(', ')
         const geo = await geocodeAddress(addr)
         if (geo) { setSellerLat(geo.lat); setSellerLng(geo.lng) }
       }
@@ -182,9 +209,25 @@ export default function ProductListingCard({ productId, messageContent, currentU
     const dist = metersToMiles(haversineMeters(buyerLat, buyerLng, sellerLat, sellerLng))
     setDistanceMiles(Math.round(dist * 10) / 10)
     if (productOffersDelivery) {
-      setWithinDelivery(dist <= (booth?.delivery_radius_miles || 5))
+      let allowed = false
+      if (booth?.delivery_zipcodes && booth.delivery_zipcodes.length > 0 && buyerZip) {
+        if (booth.delivery_zipcodes.includes(buyerZip)) {
+          allowed = true
+        }
+      }
+      if (!allowed) {
+        const radius = booth?.delivery_radius_miles
+        if (radius != null && radius > 0) {
+          allowed = dist <= radius
+        } else if (radius === 0) {
+          allowed = false
+        } else {
+          allowed = dist <= 5
+        }
+      }
+      setWithinDelivery(allowed)
     }
-  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, productOffersDelivery])
+  }, [buyerLat, buyerLng, sellerLat, sellerLng, booth?.delivery_radius_miles, booth?.delivery_zipcodes, buyerZip, productOffersDelivery])
 
   // Handle alternative address check
   const handleCheckAddress = async () => {
@@ -195,6 +238,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
       setBuyerLat(geo.lat)
       setBuyerLng(geo.lng)
       setAddressLabel(altAddress.trim())
+      if (geo.zipCode) setBuyerZip(geo.zipCode)
     }
     setCheckingAddress(false)
     setShowAltInput(false)
