@@ -225,6 +225,36 @@ export default function MessageThreadPage() {
 
     const fetchThread = async () => {
       if (id === 'growbot') {
+        if (user) {
+          const CASABOT_ID = 'a0000000-0000-0000-0000-00000ca5ab07'
+          const { data: existingConv } = await supabase
+            .from('market_conversations')
+            .select('id')
+            .or(`and(participant_a.eq.${user.id},participant_b.eq.${CASABOT_ID}),and(participant_a.eq.${CASABOT_ID},participant_b.eq.${user.id})`)
+            .maybeSingle()
+
+          if (existingConv?.id) {
+            router.replace(`/messages/${existingConv.id}`)
+            return
+          }
+
+          const { data: newConv, error: createErr } = await supabase
+            .from('market_conversations')
+            .insert({
+              participant_a: user.id,
+              participant_b: CASABOT_ID
+            })
+            .select('id')
+            .single()
+
+          if (createErr) {
+            console.error('Failed to create GrowBot conversation:', createErr.message)
+          } else if (newConv?.id) {
+            router.replace(`/messages/${newConv.id}`)
+            return
+          }
+        }
+
         if (isMounted) {
           setConversation(null)
           setMyRole('participant_a')
