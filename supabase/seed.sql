@@ -355,11 +355,11 @@ INSERT INTO seller_subscriptions (
   user_id, plan, status, stripe_customer_id, stripe_subscription_id,
   current_period_start, current_period_end
 ) VALUES (
-  'a1111111-1111-1111-1111-111111111111', 'pro', 'active',
+  'a1111111-1111-1111-1111-111111111111', 'elite', 'active',
   'cus_test_sam_seller', 'sub_test_sam_seller',
   now() - interval '15 days', now() + interval '15 days'
 ) ON CONFLICT (user_id) DO UPDATE SET
-  plan = 'pro', status = 'active',
+  plan = 'elite', status = 'active',
   current_period_start = now() - interval '15 days',
   current_period_end = now() + interval '15 days';
 
@@ -1879,7 +1879,8 @@ END $helpers_seed$;
 -- Used for Facebook/Apple app review testing.
 -- ═══════════════════════════════════════════════════════════════════════════
 INSERT INTO pro_testers (email, notes) VALUES
-  ('alex@test.local', 'Test account — verifies implicit Pro via pro_testers (no Stripe sub)')
+  ('alex@test.local', 'Test account — verifies implicit Pro via pro_testers (no Stripe sub)'),
+  ('seller@test.local', 'Test account — Sam Seller connected with Elite tier')
 ON CONFLICT (email) DO NOTHING;
 
 -- Make maria@test.local a Pro user (stable Pro user for facebook-autopost E2E tests)
