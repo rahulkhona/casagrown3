@@ -22,10 +22,9 @@ export async function generateMetadata(
   const defaultOgImage = `${siteUrl}/og-share.jpg`
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
     
     // Fetch booth
     const { data: booth } = await supabase

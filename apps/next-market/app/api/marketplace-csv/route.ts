@@ -7,9 +7,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing boothId' }, { status: 400 })
   }
 
-  // Auth check
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const authHeader = req.headers.get('authorization') || ''
   const cookieHeader = req.headers.get('cookie') || ''
   
