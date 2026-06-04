@@ -324,8 +324,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         fb_page_id, fb_page_access_token, fb_page_name, status,
         auto_post_enabled,
         ig_business_account_id, ig_access_token, ig_auto_post_enabled,
-        wa_phone_number_id, wa_display_phone,
-        seller_subscriptions!inner(plan, status)
+        wa_phone_number_id, wa_display_phone
       `)
       .eq('user_id', seller_id)
       .eq('status', 'connected')
@@ -335,8 +334,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       return jsonOk({ action, skipped: true, reason: 'no_active_connection' }, corsHeaders)
     }
 
-    const sub = (conn as any).seller_subscriptions
-    if (!sub || !['active', 'trialing'].includes(sub.status)) {
+    const { data: sub } = await supabase
+      .from('seller_subscriptions')
+      .select('plan, status')
+      .eq('user_id', seller_id)
+      .in('status', ['active', 'trialing'])
+      .maybeSingle()
+
+    if (!sub) {
       return jsonOk({ action, skipped: true, reason: 'no_active_subscription' }, corsHeaders)
     }
 
@@ -537,8 +542,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         fb_page_id, fb_page_access_token, fb_page_name, status,
         auto_post_enabled,
         ig_business_account_id, ig_access_token, ig_auto_post_enabled,
-        wa_phone_number_id, wa_display_phone,
-        seller_subscriptions!inner(plan, status)
+        wa_phone_number_id, wa_display_phone
       `)
       .eq('user_id', seller_id)
       .eq('status', 'connected')
@@ -548,8 +552,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       return jsonOk({ action, skipped: true, reason: 'no_active_connection' }, corsHeaders)
     }
 
-    const sub = (conn as any).seller_subscriptions
-    if (!sub || !['active', 'trialing'].includes(sub.status)) {
+    const { data: sub } = await supabase
+      .from('seller_subscriptions')
+      .select('plan, status')
+      .eq('user_id', seller_id)
+      .in('status', ['active', 'trialing'])
+      .maybeSingle()
+
+    if (!sub) {
       return jsonOk({ action, skipped: true, reason: 'no_active_subscription' }, corsHeaders)
     }
 
