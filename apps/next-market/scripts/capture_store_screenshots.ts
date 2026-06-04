@@ -75,6 +75,13 @@ async function applyZoom(page: any, targetName: string) {
     }, zoomVal);
     await page.waitForTimeout(500);
   }
+  // Scroll the window to top before taking screenshots to prevent scrollIntoView programmatic scroll issues
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.body) document.body.scrollTop = 0;
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+  });
+  await page.waitForTimeout(200);
 }
 
 async function capture() {
@@ -99,34 +106,50 @@ async function capture() {
     };
     
     const context = await browser.newContext(contextOptions);
-    await context.addInitScript((name: string) => {
+    await context.addInitScript(`
       try {
         localStorage.setItem('casagrown_alpha_ack', 'true');
         localStorage.setItem('casagrown_notif_opted_out', 'true');
       } catch {}
 
-      if (name === 'ipad129') {
+      if ('${target.name}' === 'ipad129') {
         const checkAndApply = () => {
+          if (!document.documentElement) return;
           const path = window.location.pathname;
           const isLayoutLocked = path.includes('/growbot') || path.includes('/messages') || path.includes('/community');
           const zoomVal = '1.25';
           document.documentElement.style.setProperty('zoom', zoomVal, 'important');
           
+          if (!document.head) return;
           let style = document.getElementById('playwright-zoom-style');
           if (!style) {
             style = document.createElement('style');
             style.id = 'playwright-zoom-style';
             document.head.appendChild(style);
           }
-          style.innerHTML = `html, body { zoom: ${zoomVal} !important; }`;
+          style.innerHTML = 'html, body { zoom: ' + zoomVal + ' !important; }';
         };
         checkAndApply();
         window.addEventListener('DOMContentLoaded', checkAndApply);
         window.addEventListener('popstate', checkAndApply);
       }
-    }, target.name);
+    `);
 
     const page = await context.newPage();
+    page.on('console', msg => {
+      const txt = msg.text();
+      if (msg.type() === 'error' || txt.toLowerCase().includes('error') || txt.includes('Redirect')) {
+        console.log(`[PAGE LOG ${target.name}]`, txt);
+      }
+    });
+    page.on('pageerror', err => console.error(`[PAGE ERROR ${target.name}]`, err.message));
+    page.on('response', response => {
+      if (response.status() >= 400) {
+        console.log(`[HTTP ERROR ${target.name}]`, response.status(), response.url());
+      }
+    });
+
+
 
     try {
       console.log('Clearing old emails...');
@@ -302,19 +325,21 @@ async function capture() {
       // 8b. Delete Account (Fast Path - Case A: using a brand new user with no transaction/social history)
       console.log('Navigating to Account Deletion flow for Fast Path (Case A)...');
       const fastPathContext = await browser.newContext(contextOptions);
-      await fastPathContext.addInitScript((name: string) => {
+      await fastPathContext.addInitScript(`
         try {
           localStorage.setItem('casagrown_alpha_ack', 'true');
           localStorage.setItem('casagrown_notif_opted_out', 'true');
         } catch {}
 
-        if (name === 'ipad129') {
-          document.documentElement.style.setProperty('zoom', '1.25', 'important');
-          window.addEventListener('DOMContentLoaded', () => {
+        if ('${target.name}' === 'ipad129') {
+          const checkAndApply = () => {
+            if (!document.documentElement) return;
             document.documentElement.style.setProperty('zoom', '1.25', 'important');
-          });
+          };
+          checkAndApply();
+          window.addEventListener('DOMContentLoaded', checkAndApply);
         }
-      }, target.name);
+      `);
 
       const fastPathPage = await fastPathContext.newPage();
       try {
@@ -379,19 +404,21 @@ async function capture() {
       // 8c. Delete Account (Social Path - Case B: using Elena who has products/posts but no orders)
       console.log('Navigating to Account Deletion flow for Social Path (Case B)...');
       const socialPathContext = await browser.newContext(contextOptions);
-      await socialPathContext.addInitScript((name: string) => {
+      await socialPathContext.addInitScript(`
         try {
           localStorage.setItem('casagrown_alpha_ack', 'true');
           localStorage.setItem('casagrown_notif_opted_out', 'true');
         } catch {}
 
-        if (name === 'ipad129') {
-          document.documentElement.style.setProperty('zoom', '1.25', 'important');
-          window.addEventListener('DOMContentLoaded', () => {
+        if ('${target.name}' === 'ipad129') {
+          const checkAndApply = () => {
+            if (!document.documentElement) return;
             document.documentElement.style.setProperty('zoom', '1.25', 'important');
-          });
+          };
+          checkAndApply();
+          window.addEventListener('DOMContentLoaded', checkAndApply);
         }
-      }, target.name);
+      `);
 
       const socialPathPage = await socialPathContext.newPage();
       try {

@@ -44,6 +44,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.__name = window.__name || function (target, value) {
+            return Object.defineProperty(target, 'name', { value, configurable: true });
+          };
+        ` }} />
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />

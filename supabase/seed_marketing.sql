@@ -134,6 +134,9 @@ ON CONFLICT (id) DO UPDATE SET
   phone_number = EXCLUDED.phone_number,
   home_location = EXCLUDED.home_location;
 
+-- 2.5 Delete default auto-generated booths so we don't have duplicates
+DELETE FROM public.market_booths WHERE owner_id IN ('f1111111-1111-1111-1111-111111111111', 'f2222222-2222-2222-2222-222222222222', 'f3333333-3333-3333-3333-333333333333');
+
 -- 3. Create Booths
 INSERT INTO market_booths (owner_id, name, description, decorative_theme, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows, payment_method, pickup_location) VALUES
 ('f1111111-1111-1111-1111-111111111111', 'The Heritage Harvest', 'Organically grown heirloom varieties from our family garden to your table.', 'harvest', true, true, 15, '1000 Willow Ave, San Jose, CA 95125', '[{"id":"8-12","start":"08:00","end":"12:00"}]'::jsonb, '[{"id":"9-17","start":"09:00","end":"17:00"}]'::jsonb, 'automatic', ST_SetSRID(ST_MakePoint(-121.8906, 37.3362), 4326)),
@@ -227,8 +230,22 @@ INSERT INTO public.user_balances (user_id, available_usd, pending_usd, held_bala
 ('f1111111-1111-1111-1111-111111111111', 53.50, 0, 0, 53.50)
 ON CONFLICT (user_id) DO UPDATE SET available_usd = 53.50, total_earned_usd = 53.50;
 
--- 12. Shift auto-generated product announcements into the past
-UPDATE public.community_chat_messages 
-SET created_at = created_at - interval '1 day',
-    bumped_at = COALESCE(bumped_at, created_at) - interval '1 day'
-WHERE product_listing_id IS NOT NULL;
+-- 12. Delete auto-generated product announcements that refer to non-existent products
+DELETE FROM public.community_chat_messages WHERE product_listing_id IS NOT NULL AND product_listing_id NOT IN (SELECT id FROM public.market_products);
+
+-- 13. Add active seller subscriptions for marketing sellers to prevent empty fetch states
+INSERT INTO public.seller_subscriptions (user_id, plan, status, current_period_start, current_period_end) VALUES
+('f1111111-1111-1111-1111-111111111111', 'pro', 'active', now() - interval '15 days', now() + interval '15 days'),
+('f3333333-3333-3333-3333-333333333333', 'pro', 'active', now() - interval '15 days', now() + interval '15 days')
+ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan, status = EXCLUDED.status, current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end;
+
+-- 14. Add CA tax reporting threshold to prevent 406 Not Acceptable errors on dashboard queries
+INSERT INTO public.tax_reporting_thresholds (state_code, amount, min_txns, warn_pct) VALUES
+('CA', 20000, 200, 0.75)
+ON CONFLICT (state_code) DO UPDATE SET amount = EXCLUDED.amount, min_txns = EXCLUDED.min_txns, warn_pct = EXCLUDED.warn_pct;
+
+
+
+
+
+
