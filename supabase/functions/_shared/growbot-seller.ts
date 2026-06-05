@@ -148,9 +148,8 @@ export async function loadBoothContext(
   // Fetch structured fulfillment windows
   const { data: fWindows } = await supabase
     .from('booth_fulfillment_windows')
-    .select('day_of_week, start_time, end_time, fulfillment_type, label')
+    .select('day_of_week, start_time, end_time, window_type')
     .eq('booth_id', boothId)
-    .order('day_of_week')
 
   // Fetch other booths by same seller (for cross-referral)
   const { data: otherBooths } = await supabase
@@ -195,13 +194,28 @@ export async function loadBoothContext(
       pickupAddress: booth.pickup_display_address || booth.pickup_address,
       deliveryWindows: booth.delivery_windows,
       pickupWindows: booth.pickup_windows,
-      fulfillmentWindows: (fWindows || []).map((w: any) => ({
-        day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][w.day_of_week] || `Day ${w.day_of_week}`,
-        startTime: w.start_time,
-        endTime: w.end_time,
-        type: w.fulfillment_type,
-        label: w.label,
-      })),
+      fulfillmentWindows: (fWindows || [])
+        .map((w: any) => {
+          const dayLower = String(w.day_of_week).toLowerCase()
+          const dayNames: Record<string, string> = {
+            sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday',
+            thu: 'Thursday', fri: 'Friday', sat: 'Saturday'
+          }
+          return {
+            day: dayNames[dayLower] || w.day_of_week,
+            startTime: w.start_time,
+            endTime: w.end_time,
+            type: w.window_type || 'delivery',
+            label: null,
+          }
+        })
+        .sort((a, b) => {
+          const order: Record<string, number> = {
+            'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+            'Thursday': 4, 'Friday': 5, 'Saturday': 6
+          }
+          return (order[a.day] ?? 99) - (order[b.day] ?? 99)
+        }),
     },
     otherBooths: (otherBooths || []).map((b: any) => ({ id: b.id, name: b.name })),
     siteUrl,

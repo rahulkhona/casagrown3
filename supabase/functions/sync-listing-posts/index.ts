@@ -431,7 +431,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
             photoUrls: product.photos || [],
           })
 
-          prodResults.facebook = { post_id: fbResult?.id, status: 'published' }
+          prodResults.facebook = { post_id: fbResult?.post_id || fbResult?.id, status: 'published' }
         } catch (err: any) {
           console.error(`[SYNC-POSTS] ❌ FB post failed: ${err.message}`)
           prodResults.facebook = { status: 'error', error: err.message }
@@ -1011,7 +1011,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
           photoUrls: product.photos || [],
         })
 
-        results.facebook = { post_id: fbResult?.id, status: 'published' }
+        results.facebook = { post_id: fbResult?.post_id || fbResult?.id, status: 'published' }
         console.log(`[SYNC-POSTS] ✅ FB photo post created for ${product.name}`)
       } catch (err: any) {
         console.error(`[SYNC-POSTS] ❌ FB post failed: ${err.message}`)
