@@ -627,7 +627,7 @@ test.describe('Notifications & Payouts', () => {
       
       // Teardown
       execSql(`DELETE FROM redemptions WHERE id = '${redemptionId}';`)
-      execSql(`UPDATE profiles SET admin_role = false WHERE email = 'buyer@test.local';`)
+      execSql(`DELETE FROM staff_members WHERE email = 'buyer@test.local';`)
     })
   })
 

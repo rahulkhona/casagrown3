@@ -120,7 +120,9 @@ Be enthusiastic but concise. Include 1 or 2 appropriate emojis.`
 
     // Call Gemini API
     const isLocal = (Deno.env.get('SUPABASE_URL') ?? '').includes('localhost') ||
-      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1')
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1') ||
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('kong:') ||
+      Deno.env.get('AI_MOCK') === 'true'
 
     if (isLocal) {
       // Skip Gemini in local development to preserve free tier quota

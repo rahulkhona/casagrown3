@@ -44,7 +44,7 @@ export async function generateMetadata(
         sellerPersonalName = profile?.full_name || null
       }
 
-      const title = booth.name || sellerPersonalName || 'Neighborhood Booth'
+      const title = `${booth.name || sellerPersonalName || 'Neighborhood Booth'} — CasaGrown Market`
       
       let description = booth.description || booth.about_html?.replace(/<[^>]+>/g, '') || ''
       if (description.length > 150) {

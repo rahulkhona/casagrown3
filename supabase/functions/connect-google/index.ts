@@ -8,8 +8,8 @@ import { serveWithCors, requireAuth, jsonOk, jsonError } from '../_shared/serve-
 import { getGoogleLocations } from '../_shared/google.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
-  const GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', true) || 'mock_google_client_id'
-  const GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', true) || 'mock_google_client_secret'
+  const GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', false) || 'mock_google_client_id'
+  const GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET', false) || 'mock_google_client_secret'
 
   if (req.method === 'GET') {
     // ── OAuth Callback ──
@@ -63,12 +63,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       const locations = await getGoogleLocations(accessToken)
 
       // Store Google Connection
-      await supabase
+      const { error: upsertErr } = await supabase
         .from('seller_google_connections')
         .upsert({
           user_id: userId,
           google_refresh_token: refreshToken,
-          status: 'connected',
           updated_at: new Date().toISOString(),
           // Auto-select if only one location verified
           ...(locations.length === 1 ? {
@@ -78,6 +77,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             auto_post_specials: true,
           } : {}),
         }, { onConflict: 'user_id' })
+
+      if (upsertErr) {
+        throw new Error(`Google connection upsert failed: ${upsertErr.message}`)
+      }
 
       const locationsParam = encodeURIComponent(
         JSON.stringify(locations.map((l) => ({ id: l.name, name: l.title }))),
@@ -109,14 +112,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
   const redirectUri = `${siteUrl}/api/google-callback`
   const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage')
   
-  const googleAuthUrl = 
-    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&response_type=code` +
-    `&scope=${scope}` +
-    `&access_type=offline` +
-    `&prompt=consent` +
-    `&state=${encodeURIComponent(stateParam)}`
+  const isMockMode = GOOGLE_CLIENT_ID === 'mock_google_client_id'
+  
+  const googleAuthUrl = isMockMode
+    ? `${redirectUri}?code=mock_code_123&state=${encodeURIComponent(stateParam)}`
+    : `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code` +
+      `&scope=${scope}` +
+      `&access_type=offline` +
+      `&prompt=consent` +
+      `&state=${encodeURIComponent(stateParam)}`
 
   return jsonOk({ url: googleAuthUrl }, corsHeaders)
 })

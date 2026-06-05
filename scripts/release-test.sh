@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 export PATH="$HOME/.deno/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/homebrew/Cellar/node@22/22.22.0/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:$PATH"
+export DENO_JOBS=1
 # ═══════════════════════════════════════════════════════════════════════════
 # CasaGrown — Release Readiness Test Suite
 #

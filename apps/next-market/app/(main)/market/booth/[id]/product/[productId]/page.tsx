@@ -60,7 +60,7 @@ export async function generateMetadata(
         : (boothHeaderUrl || avatarUrl || defaultOgImage)
 
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
-      const title = `${product.name} — ${price} | ${booth?.name || sellerPersonalName || 'Grower'}`
+      const title = `${product.name} — ${price} | ${booth?.name || sellerPersonalName || 'Grower'} — CasaGrown Market`
       const description = product.description
         ? `${product.description.slice(0, 120)} — Fresh from a neighbor's garden on CasaGrown.`
         : `Fresh ${product.name} (${price}) grown right in your neighborhood. Buy local, eat fresh, and help stop food waste on CasaGrown.`

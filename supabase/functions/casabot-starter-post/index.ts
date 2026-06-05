@@ -31,7 +31,8 @@ serve(async (req: Request) => {
     const isLocal = supaUrl.includes('localhost') ||
       supaUrl.includes('127.0.0.1') ||
       supaUrl.includes('kong:') ||
-      supaUrl.includes('host.docker.internal')
+      supaUrl.includes('host.docker.internal') ||
+      Deno.env.get('AI_MOCK') === 'true'
 
     if (isLocal) {
       console.log(`[LOCAL] Skipping CasaBot Gemini Starter — local environment detected.`)

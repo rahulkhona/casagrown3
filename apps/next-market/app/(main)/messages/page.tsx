@@ -25,186 +25,238 @@ export default function MessagesInboxPage() {
       return () => clearTimeout(t)
     }
 
+    const supabase = createClient()
+    let isFetching = false
+
     const fetchInbox = async () => {
-      const supabase = createClient()
+      if (isFetching) return
+      isFetching = true
 
-      // Fetch CasaGrown DMs
-      const { data } = await supabase
-        .from('market_conversations')
-        .select(`
-          id,
-          last_message_at,
-          unread_count_a,
-          unread_count_b,
-          participant_a,
-          participant_b,
-          profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url),
-          profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url),
-          market_chat_messages(content, created_at, sender_id, media)
-        `)
-        .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
-        .order('last_message_at', { ascending: false })
-        .order('created_at', { ascending: false, foreignTable: 'market_chat_messages' })
-        .limit(1, { foreignTable: 'market_chat_messages' })
+      try {
+        // Fetch CasaGrown DMs
+        const { data } = await supabase
+          .from('market_conversations')
+          .select(`
+            id,
+            last_message_at,
+            unread_count_a,
+            unread_count_b,
+            participant_a,
+            participant_b,
+            profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url),
+            profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url),
+            market_chat_messages(content, created_at, sender_id, media)
+          `)
+          .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
+          .order('last_message_at', { ascending: false })
+          .order('created_at', { ascending: false, foreignTable: 'market_chat_messages' })
+          .limit(1, { foreignTable: 'market_chat_messages' })
 
-      // Fetch Messenger conversations for this seller
-      const { data: messengerData } = await supabase
-        .from('messenger_conversations')
-        .select(`
-          id,
-          fb_sender_id,
-          last_message_at,
-          message_count,
-          messenger_messages(content, created_at, role)
-        `)
-        .eq('seller_id', user.id)
-        .order('last_message_at', { ascending: false })
-        .order('created_at', { ascending: false, foreignTable: 'messenger_messages' })
-        .limit(1, { foreignTable: 'messenger_messages' })
+        // Fetch Messenger conversations for this seller
+        const { data: messengerData } = await supabase
+          .from('messenger_conversations')
+          .select(`
+            id,
+            fb_sender_id,
+            last_message_at,
+            message_count,
+            messenger_messages(content, created_at, role)
+          `)
+          .eq('seller_id', user.id)
+          .order('last_message_at', { ascending: false })
+          .order('created_at', { ascending: false, foreignTable: 'messenger_messages' })
+          .limit(1, { foreignTable: 'messenger_messages' })
 
-      // Fetch Instagram conversations
-      const { data: igData } = await supabase
-        .from('ig_conversations')
-        .select(`
-          id,
-          ig_sender_id,
-          last_message_at,
-          message_count,
-          ig_messages(content, created_at, role)
-        `)
-        .eq('seller_id', user.id)
-        .order('last_message_at', { ascending: false })
-        .order('created_at', { ascending: false, foreignTable: 'ig_messages' })
-        .limit(1, { foreignTable: 'ig_messages' })
+        // Fetch Instagram conversations
+        const { data: igData } = await supabase
+          .from('ig_conversations')
+          .select(`
+            id,
+            ig_sender_id,
+            last_message_at,
+            message_count,
+            ig_messages(content, created_at, role)
+          `)
+          .eq('seller_id', user.id)
+          .order('last_message_at', { ascending: false })
+          .order('created_at', { ascending: false, foreignTable: 'ig_messages' })
+          .limit(1, { foreignTable: 'ig_messages' })
 
-      // Fetch WhatsApp conversations
-      const { data: waData } = await supabase
-        .from('wa_conversations')
-        .select(`
-          id,
-          wa_sender_phone,
-          last_message_at,
-          message_count,
-          wa_messages(content, created_at, role)
-        `)
-        .eq('seller_id', user.id)
-        .order('last_message_at', { ascending: false })
-        .order('created_at', { ascending: false, foreignTable: 'wa_messages' })
-        .limit(1, { foreignTable: 'wa_messages' })
+        // Fetch WhatsApp conversations
+        const { data: waData } = await supabase
+          .from('wa_conversations')
+          .select(`
+            id,
+            wa_sender_phone,
+            last_message_at,
+            message_count,
+            wa_messages(content, created_at, role)
+          `)
+          .eq('seller_id', user.id)
+          .order('last_message_at', { ascending: false })
+          .order('created_at', { ascending: false, foreignTable: 'wa_messages' })
+          .limit(1, { foreignTable: 'wa_messages' })
 
-      let gbPreview = 'Ask me anything about gardening! 🌱'
-      const allConversations: any[] = []
+        let gbPreview = 'Ask me anything about gardening! 🌱'
+        const allConversations: any[] = []
 
-      // Format CasaGrown DMs
-      if (data) {
-        for (const conv of data) {
-          const isA = conv.participant_a === user.id
-          const otherProfile = (isA ? conv.profile_b : conv.profile_a) as any
-          const unreadCount = isA ? conv.unread_count_a : conv.unread_count_b
-          
-          let messages = conv.market_chat_messages || []
-          messages.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          const lastMessage = messages.length > 0 ? messages[0] : null
-          
-          let previewText = 'No messages yet'
-          if (lastMessage) {
-              if (lastMessage.content) {
-                  previewText = lastMessage.content
-              } else if (lastMessage.media && lastMessage.media.length > 0) {
-                  previewText = '📷 Image snippet'
-              }
+        // Format CasaGrown DMs
+        if (data) {
+          for (const conv of data) {
+            const isA = conv.participant_a === user.id
+            const otherProfile = (isA ? conv.profile_b : conv.profile_a) as any
+            const unreadCount = isA ? conv.unread_count_a : conv.unread_count_b
+            
+            let messages = conv.market_chat_messages || []
+            messages.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            const lastMessage = messages.length > 0 ? messages[0] : null
+            
+            let previewText = 'No messages yet'
+            if (lastMessage) {
+                if (lastMessage.content) {
+                    previewText = lastMessage.content
+                } else if (lastMessage.media && lastMessage.media.length > 0) {
+                    previewText = '📷 Image snippet'
+                }
+            }
+
+            if (otherProfile?.id === 'a0000000-0000-0000-0000-00000ca5ab07' && previewText !== 'No messages yet') {
+               gbPreview = previewText
+            }
+
+            allConversations.push({
+              id: conv.id,
+              otherUser: otherProfile,
+              lastMessageAt: new Date(conv.last_message_at),
+              unreadCount,
+              preview: previewText,
+              channel: 'dm' as const,
+            })
           }
+        }
 
-          if (otherProfile?.id === 'a0000000-0000-0000-0000-00000ca5ab07' && previewText !== 'No messages yet') {
-             gbPreview = previewText
+        // Format Messenger conversations
+        if (messengerData) {
+          for (const mc of messengerData) {
+            const msgs = mc.messenger_messages || []
+            msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            const lastMsg = msgs.length > 0 ? msgs[0] : null
+
+            allConversations.push({
+              id: mc.id,
+              otherUser: {
+                id: mc.fb_sender_id,
+                full_name: mc.fb_sender_id ? `FB User ${mc.fb_sender_id.slice(-4)}` : 'Facebook Customer',
+                avatar_url: null,
+              },
+              lastMessageAt: new Date(mc.last_message_at),
+              unreadCount: 0,
+              preview: lastMsg?.content || 'No messages yet',
+              channel: 'messenger' as const,
+            })
           }
-
-          allConversations.push({
-            id: conv.id,
-            otherUser: otherProfile,
-            lastMessageAt: new Date(conv.last_message_at),
-            unreadCount,
-            preview: previewText,
-            channel: 'dm' as const,
-          })
         }
-      }
 
-      // Format Messenger conversations
-      if (messengerData) {
-        for (const mc of messengerData) {
-          const msgs = mc.messenger_messages || []
-          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          const lastMsg = msgs.length > 0 ? msgs[0] : null
+        // Format Instagram conversations
+        if (igData) {
+          for (const mc of igData) {
+            const msgs = mc.ig_messages || []
+            msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            const lastMsg = msgs.length > 0 ? msgs[0] : null
 
-          allConversations.push({
-            id: mc.id,
-            otherUser: {
-              id: mc.fb_sender_id,
-              full_name: mc.fb_sender_id ? `FB User ${mc.fb_sender_id.slice(-4)}` : 'Facebook Customer',
-              avatar_url: null,
-            },
-            lastMessageAt: new Date(mc.last_message_at),
-            unreadCount: 0,
-            preview: lastMsg?.content || 'No messages yet',
-            channel: 'messenger' as const,
-          })
+            allConversations.push({
+              id: mc.id,
+              otherUser: {
+                id: mc.ig_sender_id,
+                full_name: mc.ig_sender_id ? `IG User ${mc.ig_sender_id.slice(-4)}` : 'Instagram Customer',
+                avatar_url: null,
+              },
+              lastMessageAt: new Date(mc.last_message_at),
+              unreadCount: 0,
+              preview: lastMsg?.content || 'No messages yet',
+              channel: 'instagram' as const,
+            })
+          }
         }
-      }
 
-      // Format Instagram conversations
-      if (igData) {
-        for (const mc of igData) {
-          const msgs = mc.ig_messages || []
-          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          const lastMsg = msgs.length > 0 ? msgs[0] : null
+        // Format WhatsApp conversations
+        if (waData) {
+          for (const wc of waData) {
+            const msgs = wc.wa_messages || []
+            msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            const lastMsg = msgs.length > 0 ? msgs[0] : null
 
-          allConversations.push({
-            id: mc.id,
-            otherUser: {
-              id: mc.ig_sender_id,
-              full_name: mc.ig_sender_id ? `IG User ${mc.ig_sender_id.slice(-4)}` : 'Instagram Customer',
-              avatar_url: null,
-            },
-            lastMessageAt: new Date(mc.last_message_at),
-            unreadCount: 0,
-            preview: lastMsg?.content || 'No messages yet',
-            channel: 'instagram' as const,
-          })
+            allConversations.push({
+              id: wc.id,
+              otherUser: {
+                id: wc.wa_sender_phone,
+                full_name: wc.wa_sender_phone ? `WA Customer ${wc.wa_sender_phone.slice(-4)}` : 'WhatsApp Customer',
+                avatar_url: null,
+              },
+              lastMessageAt: new Date(wc.last_message_at),
+              unreadCount: 0,
+              preview: lastMsg?.content || 'No messages yet',
+              channel: 'whatsapp' as const,
+            })
+          }
         }
+
+        // Sort merged list by last_message_at DESC
+        allConversations.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
+
+        setGrowBotPreview(gbPreview)
+        setConversations(allConversations)
+        setLoading(false)
+      } catch (err) {
+        console.error('[MESSAGES] Error fetching inbox:', err)
+      } finally {
+        isFetching = false
       }
-
-      // Format WhatsApp conversations
-      if (waData) {
-        for (const wc of waData) {
-          const msgs = wc.wa_messages || []
-          msgs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          const lastMsg = msgs.length > 0 ? msgs[0] : null
-
-          allConversations.push({
-            id: wc.id,
-            otherUser: {
-              id: wc.wa_sender_phone,
-              full_name: wc.wa_sender_phone ? `WA Customer ${wc.wa_sender_phone.slice(-4)}` : 'WhatsApp Customer',
-              avatar_url: null,
-            },
-            lastMessageAt: new Date(wc.last_message_at),
-            unreadCount: 0,
-            preview: lastMsg?.content || 'No messages yet',
-            channel: 'whatsapp' as const,
-          })
-        }
-      }
-
-      // Sort merged list by last_message_at DESC
-      allConversations.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())
-
-      setGrowBotPreview(gbPreview)
-      setConversations(allConversations)
-      setLoading(false)
     }
 
     fetchInbox()
+
+    // Subscribe to Postgres changes for realtime updates
+    const channel = supabase.channel(`inbox_updates_${user.id}`)
+
+    channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'market_conversations' },
+        () => {
+          console.log('[REALTIME] market_conversations changed, refreshing inbox...')
+          fetchInbox()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messenger_conversations', filter: `seller_id=eq.${user.id}` },
+        () => {
+          console.log('[REALTIME] messenger_conversations changed, refreshing inbox...')
+          fetchInbox()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ig_conversations', filter: `seller_id=eq.${user.id}` },
+        () => {
+          console.log('[REALTIME] ig_conversations changed, refreshing inbox...')
+          fetchInbox()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'wa_conversations', filter: `seller_id=eq.${user.id}` },
+        () => {
+          console.log('[REALTIME] wa_conversations changed, refreshing inbox...')
+          fetchInbox()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [user, authLoading, router])
 
   if (authLoading || loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading inbox...</div>

@@ -33,7 +33,41 @@ export async function getUserPages(
   )
   if (!res.ok) throw new Error(`FB pages fetch failed: ${await res.text()}`)
   const data = await res.json()
-  return data.data || []
+  const rawPages: Array<{ id: string; name: string; access_token: string }> = data.data || []
+
+  // Resolve canonical Page IDs using Page Access Tokens to handle migrations/merges (e.g. NPE Page IDs starting with 615)
+  const resolvedPages: Array<{ id: string; name: string; access_token: string }> = []
+  for (const page of rawPages) {
+    if (!page.access_token || page.access_token.startsWith('mock_')) {
+      resolvedPages.push(page)
+      continue
+    }
+    try {
+      const canonicalRes = await fetch(
+        `${getFbGraphUrl()}/me?access_token=${page.access_token}&fields=id,name`,
+      )
+      if (canonicalRes.ok) {
+        const canonicalData = await canonicalRes.json()
+        if (canonicalData.id && canonicalData.id !== page.id) {
+          console.log(`[FACEBOOK-SHARED] Resolved page ID redirection: ${page.id} -> ${canonicalData.id}`)
+          resolvedPages.push({
+            id: canonicalData.id,
+            name: canonicalData.name || page.name,
+            access_token: page.access_token,
+          })
+        } else {
+          resolvedPages.push(page)
+        }
+      } else {
+        console.warn(`[FACEBOOK-SHARED] Failed to fetch /me for page ${page.id}: ${await canonicalRes.text()}`)
+        resolvedPages.push(page)
+      }
+    } catch (err: any) {
+      console.error(`[FACEBOOK-SHARED] Error resolving canonical ID for page ${page.id}:`, err.message)
+      resolvedPages.push(page)
+    }
+  }
+  return resolvedPages
 }
 
 /** Upsert products to a FB catalog via the batch API */

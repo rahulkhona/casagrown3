@@ -40,7 +40,7 @@ async function openWysiwygEditor(page: any) {
 
 // Helper: Insert an image directly into the Quill editor via JavaScript
 async function insertTestImage(page: any) {
-  const testImageUrl = 'https://placehold.co/600x400/166534/ffffff?text=CasaGrown+Test'
+  const testImageUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
   await page.evaluate((url: string) => {
     const editor = document.querySelector('.ql-editor')
     if (!editor) return
@@ -96,7 +96,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     const img = page.locator('.ql-editor img').first()
     await expect(img).toBeVisible({ timeout: 5000 })
     const src = await img.getAttribute('src')
-    expect(src).toContain('placehold.co')
+    expect(src).toContain('data:image')
     console.log('[IMG-01] ✅ Image inserted into editor:', src?.substring(0, 60))
   })
 

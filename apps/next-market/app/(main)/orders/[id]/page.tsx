@@ -136,11 +136,15 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
   const loadOrder = useCallback(async () => {
     if (!user) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('market_orders')
       .select('*, delivery_address, buyer:buyer_id(full_name, street_address, avatar_url), seller:seller_id(full_name, street_address, avatar_url), booth:booth_id(name, pickup_address)')
       .eq('id', orderId)
       .single()
+
+    if (error) {
+      console.error('[LOAD ORDER ERROR]', error)
+    }
 
     if (data) {
       setOrder({

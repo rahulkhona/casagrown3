@@ -74,6 +74,10 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
+    // Disable triggers to prevent background edge function races
+    await sqlExec(`ALTER TABLE market_chat_messages DISABLE TRIGGER trg_notify_dm_inserted`);
+    await sqlExec(`ALTER TABLE order_chat_messages DISABLE TRIGGER trg_notify_market_chat`);
+
     await sqlExec(`
       INSERT INTO seller_subscriptions (user_id, plan, status, current_period_start, current_period_end)
       VALUES ('${SELLER_ID}', 'pro', 'active', now() - interval '15 days', now() + interval '15 days')
@@ -990,6 +994,8 @@ Deno.test({
     await sqlExec(`DELETE FROM wa_messages WHERE conversation_id IN ('b0000000-0000-0000-0000-200000000001', 'b0000000-0000-0000-0000-200000000002')`);
     await sqlExec(`DELETE FROM wa_conversations WHERE id IN ('b0000000-0000-0000-0000-200000000001', 'b0000000-0000-0000-0000-200000000002')`);
     await sqlExec(`UPDATE profiles SET bot_channels = NULL WHERE id = '${SELLER_ID}'`);
+    await sqlExec(`ALTER TABLE market_chat_messages ENABLE TRIGGER trg_notify_dm_inserted`);
+    await sqlExec(`ALTER TABLE order_chat_messages ENABLE TRIGGER trg_notify_market_chat`);
   },
 });
 

@@ -57,27 +57,27 @@ test.describe('Product Fulfillment Options', () => {
     // Create 3 test products with different fulfillment configurations
     // 1. Both enabled (non-null windows)
     productBothId = extractId(execSql(
-      `INSERT INTO market_products (seller_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
+      `INSERT INTO market_products (seller_id, booth_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
         moderation_status, product_delivery_windows, product_pickup_windows)
-       VALUES ('${SELLER_ID}', CURRENT_DATE, 'FF Test Both', 'Test product with both options', 3.00, 'each', 10, true, false,
+       VALUES ('${SELLER_ID}', '${boothId}', CURRENT_DATE, 'FF Test Both', 'Test product with both options', 3.00, 'each', 10, true, false,
         'approved', '[]'::jsonb, '[]'::jsonb)
        RETURNING id`
     ))
 
     // 2. Pickup only (delivery_windows = NULL)
     productPickupOnlyId = extractId(execSql(
-      `INSERT INTO market_products (seller_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
+      `INSERT INTO market_products (seller_id, booth_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
         moderation_status, product_delivery_windows, product_pickup_windows)
-       VALUES ('${SELLER_ID}', CURRENT_DATE, 'FF Test Pickup Only', 'Test product with pickup only', 4.00, 'each', 10, true, false,
+       VALUES ('${SELLER_ID}', '${boothId}', CURRENT_DATE, 'FF Test Pickup Only', 'Test product with pickup only', 4.00, 'each', 10, true, false,
         'approved', NULL, '[]'::jsonb)
        RETURNING id`
     ))
 
     // 3. Delivery only (pickup_windows = NULL)
     productDeliveryOnlyId = extractId(execSql(
-      `INSERT INTO market_products (seller_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
+      `INSERT INTO market_products (seller_id, booth_id, market_date, name, description, price_usd, unit, inventory, is_active, is_draft,
         moderation_status, product_delivery_windows, product_pickup_windows)
-       VALUES ('${SELLER_ID}', CURRENT_DATE, 'FF Test Delivery Only', 'Test product with delivery only', 5.00, 'each', 10, true, false,
+       VALUES ('${SELLER_ID}', '${boothId}', CURRENT_DATE, 'FF Test Delivery Only', 'Test product with delivery only', 5.00, 'each', 10, true, false,
         'approved', '[]'::jsonb, NULL)
        RETURNING id`
     ))

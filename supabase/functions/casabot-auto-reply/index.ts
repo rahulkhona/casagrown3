@@ -124,7 +124,9 @@ serve(async (req: Request) => {
 
     // Call Gemini for each question
     const isLocal = (Deno.env.get('SUPABASE_URL') ?? '').includes('localhost') ||
-      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1')
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('127.0.0.1') ||
+      (Deno.env.get('SUPABASE_URL') ?? '').includes('kong:') ||
+      Deno.env.get('AI_MOCK') === 'true'
 
     if (isLocal) {
       console.log(`[LOCAL] Skipping Gemini auto-replies — ${gardeningQuestions.length} questions would be answered in production`)
