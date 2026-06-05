@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { createServerSupabase } from '../../../../../lib/supabase-server'
 import { redirect } from 'next/navigation'
 
@@ -13,6 +14,11 @@ interface ProductPageProps {
  */
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { id } = await params
+  const headersList = await headers()
+  const host = headersList.get('host') || 'localhost:3002'
+  const protocol = host.includes('localhost') ? 'http' : 'https'
+  const siteUrl = `${protocol}://${host}`
+
   const supabase = await createServerSupabase()
 
   const { data: product } = await supabase
@@ -36,13 +42,18 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
   const sellerName = seller?.full_name || 'Local Seller'
   const price = `$${parseFloat(product.price_usd).toFixed(2)}/${product.unit}`
-  const photoUrl = product.photos?.[0] || '/og-share.png'
+  
+  const photoUrl = product.photos?.[0]
+    ? `${siteUrl}/api/product-image?id=${id}`
+    : `${siteUrl}/og-share.jpg`
+
   const title = `${product.name} — ${price} | CasaGrown Market`
   const description = product.description
     ? `${product.description.slice(0, 120)} — Fresh from ${sellerName}'s garden on CasaGrown.`
     : `Fresh ${product.name} (${price}) from ${sellerName} — Grown right in your neighborhood. Buy local on CasaGrown.`
 
   return {
+    metadataBase: new URL(siteUrl),
     title: `${product.name} — CasaGrown Market`,
     description,
     openGraph: {

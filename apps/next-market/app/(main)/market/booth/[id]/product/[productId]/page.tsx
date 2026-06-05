@@ -55,7 +55,9 @@ export async function generateMetadata(
       }
 
       const photo = product.photos?.[0]
-      const ogImage = photo || boothHeaderUrl || avatarUrl || defaultOgImage
+      const ogImage = photo
+        ? `${siteUrl}/api/product-image?id=${productId}`
+        : (boothHeaderUrl || avatarUrl || defaultOgImage)
 
       const price = product.price_usd === 0 ? 'Free' : `$${Number(product.price_usd).toFixed(2)}/${product.unit}`
       const title = `${product.name} — ${price} | ${booth?.name || sellerPersonalName || 'Grower'}`

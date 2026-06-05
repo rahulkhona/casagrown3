@@ -27,7 +27,7 @@ export async function generateMetadata(
     // Fetch booth
     const { data: booth } = await supabase
       .from('market_booths')
-      .select('name, description, description_html, header_image_url, owner_id')
+      .select('name, description, about_html, header_image_url, owner_id')
       .eq('id', id)
       .single()
 
@@ -46,7 +46,7 @@ export async function generateMetadata(
 
       const title = booth.name || sellerPersonalName || 'Neighborhood Booth'
       
-      let description = booth.description || booth.description_html?.replace(/<[^>]+>/g, '') || ''
+      let description = booth.description || booth.about_html?.replace(/<[^>]+>/g, '') || ''
       if (description.length > 150) {
         description = description.slice(0, 147) + '...'
       }
