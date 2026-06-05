@@ -194,10 +194,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     'pages_read_user_content',
     // Instagram scopes — only requested when user clicks "Connect Instagram"
     ...(include_instagram ? [
-      'instagram_basic',
-      'instagram_content_publish',
-      'instagram_manage_messages',
-      'instagram_manage_comments'
+      'instagram_business_basic',
+      'instagram_business_content_publish',
+      'instagram_business_manage_messages',
+      'instagram_business_manage_comments'
     ] : []),
   ].join(',')
   const fbAuthUrl =
