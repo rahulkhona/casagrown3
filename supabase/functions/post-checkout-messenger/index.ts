@@ -32,10 +32,10 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonError('Order not found', corsHeaders, 404)
   }
 
-  // Ensure seller plan is indeed Pro
-  if (order.seller_plan !== 'pro') {
-    console.log(`[POST-CHECKOUT-MESSENGER] Seller is not on Pro plan for order ${orderId}, skipping engagement.`)
-    return jsonOk({ skipped: true, reason: 'not_pro' }, corsHeaders)
+  // Ensure seller plan is indeed Pro or Elite
+  if (order.seller_plan !== 'pro' && order.seller_plan !== 'elite') {
+    console.log(`[POST-CHECKOUT-MESSENGER] Seller is not on Pro/Elite plan for order ${orderId}, skipping engagement.`)
+    return jsonOk({ skipped: true, reason: 'not_pro_or_elite' }, corsHeaders)
   }
 
   // Extract FB parameters

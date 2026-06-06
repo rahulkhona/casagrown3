@@ -214,9 +214,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
 
           // Check if seller has taken over (manual reply via CasaGrown → bot paused)
-          if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            const reentryDelay = whatsappConfig?.delayMinutes ?? 0
+          let whatsappDelay = whatsappConfig?.delayMinutes ?? 0
+          if (conversation?.bot_conversation_mode_until) {
+            const modeUntil = new Date(conversation.bot_conversation_mode_until)
+            if (modeUntil > new Date()) {
+              whatsappDelay = 0  // Bot is active, reply instantly
+            }
+          }
 
+          if (whatsappDelay > 0 && conversation) {
             // Cancel any pending drafts
             await supabase
               .from('bot_reply_drafts')
@@ -229,13 +235,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               await supabase
                 .from('bot_reply_drafts')
                 .update({
+                  suggestions: JSON.stringify([]),
+                  auto_send_at: new Date(Date.now() + whatsappDelay * 60 * 1000).toISOString(),
                   status: 'pending',
-                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
                 })
                 .eq('id', lockDraft.id)
             }
 
-            console.log(`[WHATSAPP] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
+            console.log(`[WHATSAPP] Late-binding: created pending draft for ${userPhone} with empty suggestions, auto-send in ${whatsappDelay}min. Skipping Gemini.`)
             continue
           }
 
@@ -383,7 +390,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
 
           // Calculate delay before AI call so catch block can use it
-          let whatsappDelay = whatsappConfig?.delayMinutes ?? 0
+          whatsappDelay = whatsappConfig?.delayMinutes ?? 0
           if (conversation?.bot_conversation_mode_until) {
             const modeUntil = new Date(conversation.bot_conversation_mode_until)
             if (modeUntil > new Date()) {

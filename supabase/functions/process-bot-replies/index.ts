@@ -84,11 +84,107 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
           continue
         }
 
+        // Generate AI reply if suggestions are empty
+        let finalReply = replyText
+        if (!suggestions || suggestions.length === 0 || !suggestions[0]) {
+          const { loadBoothContext, loadSellerBotRules, cleanBotReply, buildOrderSupportSystemPrompt } = await import('../_shared/growbot-seller.ts')
+          const ctx = await loadBoothContext(supabase, draft.booth_id)
+
+          if (ctx) {
+            const sellerRules = await loadSellerBotRules(supabase)
+            const { data: order } = await supabase
+              .from('market_orders')
+              .select('product_name, quantity, unit_price_usd, total_usd, status, fulfillment_type')
+              .eq('id', convRef)
+              .single()
+
+            const { data: dispute } = await supabase
+              .from('order_disputes')
+              .select('id, status')
+              .eq('order_id', convRef)
+              .eq('status', 'open')
+              .limit(1)
+              .maybeSingle()
+
+            const hasOpenDispute = !!dispute
+
+            const systemPrompt = buildOrderSupportSystemPrompt(
+              ctx,
+              order || { product_name: 'Product', quantity: 1, total_usd: 0, status: 'unknown', fulfillment_type: 'pickup' },
+              hasOpenDispute,
+              sellerRules
+            )
+
+            // Load conversation history
+            const { data: history } = await supabase
+              .from('order_chat_messages')
+              .select('sender_id, content, is_bot')
+              .eq('order_id', convRef)
+              .order('created_at', { ascending: false })
+              .limit(30)
+
+            const sortedHistory = (history || []).reverse()
+            const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
+            for (const h of sortedHistory) {
+              const geminiRole = (h.sender_id === draft.seller_id || h.is_bot) ? 'model' : 'user'
+              const text = h.is_bot ? h.content.replace(/^🤖\s*/, '') : h.content
+              if (contents.length > 0 && contents[contents.length - 1].role === geminiRole) {
+                contents[contents.length - 1].parts[0].text += '\n' + text
+              } else {
+                contents.push({ role: geminiRole, parts: [{ text }] })
+              }
+            }
+            while (contents.length > 0 && contents[0].role !== 'user') { contents.shift() }
+
+            const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+            const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
+
+            if (AI_MOCK) {
+              finalReply = `Thanks for your patience! We are looking into your order for ${order?.product_name || 'the product'}.`
+            } else if (AI_KEY && contents.length > 0) {
+              try {
+                const geminiRes = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: (() => {
+                      const bodyObj: any = {
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents,
+                        generationConfig: {
+                          temperature: 0.3,
+                          maxOutputTokens: 512,
+                        },
+                      };
+                      if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
+                        bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                      }
+                      return JSON.stringify(bodyObj);
+                    })(),
+                  },
+                )
+                if (geminiRes.ok) {
+                  const geminiData = await geminiRes.json()
+                  const rawReply = geminiData.candidates?.[0]?.content?.parts
+                    ?.filter((p: any) => p.text && p.thought !== true)
+                    ?.map((p: any) => p.text)
+                    ?.join('') || finalReply
+                  finalReply = cleanBotReply(rawReply)
+                }
+              } catch (aiErr: any) {
+                console.error('[PROCESS-BOT] Order AI error:', aiErr.message)
+              }
+            }
+          }
+        }
+
         // Send the bot reply
         await supabase.from('order_chat_messages').insert({
           order_id: convRef,
           sender_id: draft.seller_id,
-          content: `🤖 ${replyText}`,
+          content: `🤖 ${finalReply}`,
           is_bot: true,
         })
 
@@ -111,11 +207,86 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
           continue
         }
 
+        // Generate AI reply if suggestions are empty
+        let finalReply = replyText
+        if (!suggestions || suggestions.length === 0 || !suggestions[0]) {
+          const { loadBoothContext, buildSellerSystemPrompt, loadSellerBotRules, cleanBotReply } = await import('../_shared/growbot-seller.ts')
+          const ctx = await loadBoothContext(supabase, draft.booth_id)
+
+          if (ctx) {
+            const sellerRules = await loadSellerBotRules(supabase)
+            const systemPrompt = buildSellerSystemPrompt(ctx, sellerRules)
+
+            // Load conversation history
+            const { data: history } = await supabase
+              .from('market_chat_messages')
+              .select('sender_id, content, is_bot')
+              .eq('conversation_id', convRef)
+              .order('created_at', { ascending: false })
+              .limit(30)
+
+            const sortedHistory = (history || []).reverse()
+            const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
+            for (const h of sortedHistory) {
+              const geminiRole = (h.sender_id === draft.seller_id || h.is_bot) ? 'model' : 'user'
+              const text = h.is_bot ? h.content.replace(/^🤖\s*/, '') : h.content
+              if (contents.length > 0 && contents[contents.length - 1].role === geminiRole) {
+                contents[contents.length - 1].parts[0].text += '\n' + text
+              } else {
+                contents.push({ role: geminiRole, parts: [{ text }] })
+              }
+            }
+            while (contents.length > 0 && contents[0].role !== 'user') { contents.shift() }
+
+            const AI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+            const AI_MOCK = Deno.env.get('AI_MOCK') === 'true'
+            const model = Deno.env.get('AUTO_RESPONDER_MODEL') || 'gemini-3.1-flash-lite'
+
+            if (AI_MOCK) {
+              finalReply = `Thanks for your patience! I'm here to help. Visit ${ctx.siteUrl}/market/booth/${ctx.boothId} to browse our products.`
+            } else if (AI_KEY && contents.length > 0) {
+              try {
+                const geminiRes = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: (() => {
+                      const bodyObj: any = {
+                        system_instruction: { parts: [{ text: systemPrompt }] },
+                        contents,
+                        generationConfig: {
+                          temperature: 0.3,
+                          maxOutputTokens: 512,
+                        },
+                      };
+                      if (model.includes('gemini-2.5') || model.includes('gemini-3.')) {
+                        bodyObj.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                      }
+                      return JSON.stringify(bodyObj);
+                    })(),
+                  },
+                )
+                if (geminiRes.ok) {
+                  const geminiData = await geminiRes.json()
+                  const rawReply = geminiData.candidates?.[0]?.content?.parts
+                    ?.filter((p: any) => p.text && p.thought !== true)
+                    ?.map((p: any) => p.text)
+                    ?.join('') || finalReply
+                  finalReply = cleanBotReply(rawReply)
+                }
+              } catch (aiErr: any) {
+                console.error('[PROCESS-BOT] DM AI error:', aiErr.message)
+              }
+            }
+          }
+        }
+
         // Send the bot reply
         await supabase.from('market_chat_messages').insert({
           conversation_id: convRef,
           sender_id: draft.seller_id,
-          content: `🤖 ${replyText}`,
+          content: `🤖 ${finalReply}`,
           is_bot: true,
         })
       } else if (channel === 'messenger') {

@@ -516,10 +516,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             })
             .eq('id', conversation.id)
 
-          // 6. Check if seller has taken over (echo detected → bot paused)
-          if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            const reentryDelay = instagramConfig?.delayMinutes ?? 0
+          // 6. Calculate delay early and apply late-binding if delay > 0
+          let instagramDelay = instagramConfig?.delayMinutes ?? 0
+          if (conversation?.bot_conversation_mode_until) {
+            const modeUntil = new Date(conversation.bot_conversation_mode_until)
+            if (modeUntil > new Date()) {
+              instagramDelay = 0  // Bot is active, reply instantly
+            }
+          }
 
+          if (instagramDelay > 0) {
             // Cancel any pending drafts (except the one we just made)
             await supabase
               .from('bot_reply_drafts')
@@ -532,13 +538,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               await supabase
                 .from('bot_reply_drafts')
                 .update({
+                  suggestions: JSON.stringify([]),
+                  auto_send_at: new Date(Date.now() + instagramDelay * 60 * 1000).toISOString(),
                   status: 'pending',
-                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
                 })
                 .eq('id', lockDraft.id)
             }
 
-            console.log(`[INSTAGRAM] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
+            console.log(`[INSTAGRAM] Late-binding: created pending draft for ${senderIgsid} with empty suggestions, auto-send in ${instagramDelay}min. Skipping Gemini.`)
             continue
           }
         }

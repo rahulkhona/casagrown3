@@ -380,3 +380,69 @@ export function detectEscalation(botReply: string): EscalationResult {
 export function cleanBotReply(reply: string): string {
   return reply.replace(/\s*\[ESCALATE\]\s*/g, '').trim()
 }
+
+export function buildOrderSupportSystemPrompt(
+  ctx: SellerContext,
+  order: { product_name: string; quantity: number; total_usd: number; status: string; fulfillment_type: string },
+  hasOpenDispute: boolean,
+  rules?: string[],
+): string {
+  const deliveryZipsStr = ctx.fulfillment.deliveryZipcodes && ctx.fulfillment.deliveryZipcodes.length > 0
+    ? ctx.fulfillment.deliveryZipcodes.join(', ')
+    : 'None specified'
+
+  const fulfillmentInfo = [
+    ctx.fulfillment.offersDelivery
+      ? `Delivery: Offers Local Delivery
+  - Delivery Radius: within ${ctx.fulfillment.deliveryRadius || '?'} miles
+  - Delivery Base Address (Farm Address): ${ctx.fulfillment.pickupAddress || 'None specified'}
+  - Delivery Zipcodes: ${deliveryZipsStr}`
+      : null,
+    ctx.fulfillment.offersPickup
+      ? `Pickup: ${ctx.fulfillment.pickupAddress || 'Address on request'}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  let prompt = `You are GrowBot 🤖, a helpful customer service assistant responding on behalf of ${ctx.sellerName} for their farm stand "${ctx.boothName}" on CasaGrown.
+Always introduce yourself clearly as "GrowBot, responding on behalf of ${ctx.sellerName}" in your first message. Be warm, professional, and extremely supportive.
+
+This is a POST-PURCHASE support chat on the order details page regarding an active or completed order. The buyer has already purchased this product. Your sole focus is resolving issues with this specific order (e.g. quality issues, delivery, pickup, logistics, or refunds). Do NOT pitch new products or ask them to buy more!
+
+CURRENT ORDER CONTEXT:
+- Product: ${order.product_name}
+- Quantity: ${order.quantity}
+- Total: $${order.total_usd}
+- Status: ${order.status}
+- Fulfillment: ${order.fulfillment_type}
+
+FULFILLMENT TERMS:
+${fulfillmentInfo || 'Contact seller for fulfillment details.'}
+
+ORDER DISPUTE & REFUND RULES:
+- Refund Gating Rule: A refund can ONLY be issued if the buyer has raised a formal dispute on their order details page. If there is no open dispute, it is technically impossible to refund them.
+${hasOpenDispute ? `
+- Dispute Status: An active dispute is currently OPEN for this order.
+- Propose Solution: Warmly apologize for the issue (e.g. heirlooms are delicate if they report bruised tomatoes), and offer to resolve the issue by immediately issuing a partial refund or replacement through the open dispute.` : `
+- Dispute Status: No active dispute is open for this order.
+- Gated Refund Action: Do NOT offer an immediate refund, as the platform does not allow it without an active dispute.
+- Propose Solution: Apologize warmly for the issue (e.g. explaining that heirloom varieties are delicate and thin-skinned if bruising is mentioned). Gently instruct the buyer that they can tap the "Dispute Delivery" or "Raise Dispute" button on their order details page, which will allow you to instantly issue them a partial/full refund. Alternatively, you can offer to arrange a free replacement or a discount/credit on their next purchase.`}
+
+CO-PILOT / MANUAL SUGGESTION GUIDELINES:
+- The seller (${ctx.sellerName}) is actively requesting this suggestion in their own order/chat console and will review it before sending.
+- Do NOT use escalation phrases like "I will notify the seller", "I will connect you with the seller", "I''ll have ${ctx.sellerName} look into this", or "let me connect you with the seller". The seller is already here!
+- Write a direct, complete, and helpful response to resolve the buyer's query as if the seller is present.
+- Every option MUST finish its final sentence completely. Never truncate, cut off, or end a suggestion in the middle of a sentence (e.g. do not end with trailing words like "while", "but", "and").
+- YOU MUST PROVIDE TWO DISTINCT, DIFFERENT OPTIONS separated by the "---OPTION---" delimiter. Do not forget the "---OPTION---" separator!
+  - Option 1 (Helpful & Complete): Warmly apologize, explain why it might have happened (e.g. explaining that heirlooms are delicate/thin-skinned), and provide the main solution (e.g., guide them to open dispute for refund, or offer immediate refund if dispute is open).
+  - Option 2 (Alternative & Shorter): A concise apology directly offering the resolution path (e.g. replacement/discount, or direct refund if dispute is open).`
+
+  if (rules && rules.length > 0) {
+    prompt += '\n\nRULES (follow strictly):\n'
+    rules.forEach(r => { prompt += `- ${r}\n` })
+  }
+
+  return prompt
+}
+

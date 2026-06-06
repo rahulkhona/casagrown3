@@ -502,3 +502,87 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "fb-posts: stock comment update_inventory rate-limiting (debounce)",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const sellerId = "a1111111-1111-1111-1111-111111111111"; // seller@test.local (Pro subscriber)
+    const today = new Date().toISOString().split("T")[0];
+
+    // 1. Insert temporary product
+    const productId = await sqlExec(`
+      INSERT INTO market_products (
+        seller_id, market_date, name, price_usd, inventory, category, unit,
+        is_active, moderation_status, facebook_post_id
+      ) VALUES (
+        '${sellerId}',
+        '${today}',
+        'Rate Limit Test Lettuce',
+        2.50,
+        15,
+        'produce',
+        'each',
+        true,
+        'approved',
+        'mock_fb_post_123'
+      )
+      RETURNING id
+    `);
+    assertExists(productId);
+
+    // 2. Insert temporary Facebook connection
+    await sqlExec(`
+      INSERT INTO seller_fb_connections (
+        user_id, fb_page_id, fb_access_token, fb_page_access_token, fb_page_name, status, auto_post_enabled, last_sync_product_count
+      ) VALUES (
+        '${sellerId}',
+        'mock_page_id',
+        'mock_token_user',
+        'mock_token_123',
+        'Mock Page',
+        'connected',
+        true,
+        0
+      )
+      ON CONFLICT (user_id) DO UPDATE 
+      SET status = 'connected', fb_page_access_token = 'mock_token_123', auto_post_enabled = true
+    `);
+
+    try {
+      // 3. Trigger first inventory update
+      const res1 = await callFunction("sync-listing-posts", {
+        action: "update_inventory",
+        seller_id: sellerId,
+        product_id: productId,
+      });
+
+      assertEquals(res1.status, 200);
+      assertEquals(res1.data.comment_updated, true);
+
+      // Verify that last_stock_comment_sync_at was populated
+      const lastSync = await sqlExec(`
+        SELECT last_stock_comment_sync_at FROM market_products WHERE id = '${productId}'
+      `);
+      assert(lastSync !== "", "last_stock_comment_sync_at should be populated");
+
+      // 4. Trigger second inventory update immediately
+      const res2 = await callFunction("sync-listing-posts", {
+        action: "update_inventory",
+        seller_id: sellerId,
+        product_id: productId,
+      });
+
+      assertEquals(res2.status, 200);
+      assertEquals(res2.data.skipped, true);
+      assertEquals(res2.data.reason, "rate_limited");
+
+    } finally {
+      // 5. Cleanup
+      await sqlExec(`DELETE FROM market_products WHERE id = '${productId}'`);
+      await sqlExec(`DELETE FROM seller_fb_connections WHERE user_id = '${sellerId}'`);
+    }
+  },
+});
+
+

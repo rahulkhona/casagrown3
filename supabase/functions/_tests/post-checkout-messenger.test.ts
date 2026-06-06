@@ -67,7 +67,7 @@ async function callPostCheckoutMessenger(orderId: string): Promise<{ status: num
   return { status: res.status, data };
 }
 
-const TEST_SELLER_ID = "a1111111-1111-1111-1111-111111111111";
+const TEST_SELLER_ID = "e5555555-5555-5555-5555-555555555555";
 const TEST_BUYER_ID = "b2222222-2222-2222-2222-222222222222";
 let TEST_BOOTH_ID = "";
 let TEST_PRODUCT_ID = "";
@@ -77,6 +77,9 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
+    // Disable trigger to prevent background pg_net requests from double-calling the function
+    await sqlExec(`ALTER TABLE market_orders DISABLE TRIGGER trg_market_order_checkout_messenger_engage`);
+
     // 1. Clean up stale test orders / connections / conversations
     await sqlExec(`DELETE FROM market_orders WHERE product_name IN ('Test Strawberries', 'Test Blueberries', 'Local Organic Apples')`);
     await sqlExec(`DELETE FROM messenger_messages WHERE conversation_id IN (SELECT id FROM messenger_conversations WHERE seller_id = '${TEST_SELLER_ID}')`);
@@ -159,7 +162,7 @@ Deno.test({
     const res = await callPostCheckoutMessenger(orderId);
     assertEquals(res.status, 200);
     assertEquals(res.data.skipped, true);
-    assertEquals(res.data.reason, "not_pro");
+    assertEquals(res.data.reason, "not_pro_or_elite");
 
     // Cleanup
     await sqlExec(`DELETE FROM market_orders WHERE id = '${orderId}'`);
@@ -272,15 +275,14 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
+    // Re-enable trigger
+    await sqlExec(`ALTER TABLE market_orders ENABLE TRIGGER trg_market_order_checkout_messenger_engage`);
+
     await sqlExec(`DELETE FROM market_orders WHERE product_name IN ('Test Strawberries', 'Test Blueberries', 'Local Organic Apples')`);
     await sqlExec(`DELETE FROM messenger_messages WHERE conversation_id IN (SELECT id FROM messenger_conversations WHERE seller_id = '${TEST_SELLER_ID}')`);
     await sqlExec(`DELETE FROM messenger_conversations WHERE seller_id = '${TEST_SELLER_ID}'`);
     await sqlExec(`DELETE FROM seller_fb_connections WHERE fb_page_id = 'test_page_checkout_e2e'`);
     // Restore original subscription for safety
     await sqlExec(`DELETE FROM seller_subscriptions WHERE user_id = '${TEST_SELLER_ID}'`);
-    await sqlExec(`
-      INSERT INTO seller_subscriptions (user_id, plan, status)
-      VALUES ('${TEST_SELLER_ID}', 'pro', 'active')
-    `);
   },
 });

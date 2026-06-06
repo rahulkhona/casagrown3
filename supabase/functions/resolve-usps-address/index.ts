@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { corsHeaders } from "../_shared/cors.ts"
 
 // Type Definitions
@@ -7,7 +8,7 @@ interface AddressRequest {
   secondaryAddress?: string;
   city: string;
   state: string;
-  zipCode: string; // Original 5-digit zip provided by Google Places
+  zipCode: string;
 }
 
 interface AddressResponse {
@@ -22,52 +23,6 @@ interface AddressResponse {
     county: string;
     fipsCode: string;
   };
-}
-
-// Global Cache for USPS OAuth Token (expires every 1 hour typically)
-let uspsAccessToken: string | null = null;
-let uspsTokenExpiry: number = 0;
-
-async function getUspsToken(): Promise<string> {
-  // Return cached token if still valid (with a 60-second buffer)
-  if (uspsAccessToken && Date.now() < uspsTokenExpiry - 60000) {
-    return uspsAccessToken;
-  }
-
-  const consumerKey = Deno.env.get("USPS_CONSUMER_KEY");
-  const consumerSecret = Deno.env.get("USPS_CONSUMER_SECRET");
-
-  if (!consumerKey || !consumerSecret) {
-    throw new Error("Missing USPS credentials in Deno environment.");
-  }
-
-  const tokenUrl = "https://api.usps.com/oauth2/v3/token";
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: consumerKey,
-    client_secret: consumerSecret
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("USPS Token Error Response:", errorText);
-    throw new Error(`Failed to authenticate with USPS: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  uspsAccessToken = data.access_token;
-  // Convert 'expires_in' (seconds) to absolute JS timestamp
-  uspsTokenExpiry = Date.now() + (parseInt(data.expires_in, 10) * 1000);
-
-  return uspsAccessToken as string;
 }
 
 serve(async (req) => {
@@ -86,114 +41,162 @@ serve(async (req) => {
       );
     }
 
-    // 1. Get USPS Access Token
-    const token = await getUspsToken();
+    // 1. Calculate SHA-256 hash of the normalized address fields for cache key
+    const normalizedString = `${requestData.streetAddress}|${requestData.secondaryAddress || ''}|${requestData.city}|${requestData.state}|${requestData.zipCode || ''}`;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(normalizedString);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // 2. Format requested address according to Address API v3
-    // USPS API expects query parameters for standard address validation
-    const uspsApiUrl = new URL("https://api.usps.com/addresses/v3/address");
-    uspsApiUrl.searchParams.append("streetAddress", requestData.streetAddress);
+    // 2. Initialize Supabase Client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 3. Query address_resolution_cache for a hit
+    const { data: cachedRow, error: cacheErr } = await supabase
+      .from('address_resolution_cache')
+      .select('resolved_address')
+      .eq('address_hash', hashHex)
+      .maybeSingle();
+
+    if (cacheErr) {
+      console.warn(`[ADDRESS-CACHE] Cache query error: ${cacheErr.message}`);
+    }
+
+    if (cachedRow?.resolved_address) {
+      console.log(`[ADDRESS-CACHE] Cache hit for hash: ${hashHex}`);
+      return new Response(
+        JSON.stringify(cachedRow.resolved_address),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    console.log(`[ADDRESS-CACHE] Cache miss for hash: ${hashHex}. Calling Google API.`);
+
+    // 4. Cache miss: Call Google Address Validation API
+    const googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+    if (!googleApiKey) {
+      throw new Error("Missing GOOGLE_MAPS_API_KEY in environment.");
+    }
+
+    const googleUrl = `https://addressvalidation.googleapis.com/v1:validateAddress?key=${googleApiKey}`;
+    const addressLines = [requestData.streetAddress];
     if (requestData.secondaryAddress) {
-      uspsApiUrl.searchParams.append("secondaryAddress", requestData.secondaryAddress);
-    }
-    uspsApiUrl.searchParams.append("city", requestData.city);
-    uspsApiUrl.searchParams.append("state", requestData.state);
-    if (requestData.zipCode) {
-      uspsApiUrl.searchParams.append("ZIPCode", requestData.zipCode);
+      addressLines.push(requestData.secondaryAddress);
     }
 
-    // 3. Make Address API request
-    const addressResponse = await fetch(uspsApiUrl.toString(), {
-      method: "GET",
+    const googleResponse = await fetch(googleUrl, {
+      method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/json"
-      }
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        address: {
+          addressLines,
+          locality: requestData.city,
+          administrativeArea: requestData.state,
+          postalCode: requestData.zipCode,
+        }
+      })
     });
 
-    if (!addressResponse.ok) {
-        const errorBody = await addressResponse.text();
-        console.error("USPS Address API Error Details:", errorBody);
-        
-        // Handle common USPS API errors, like "Address Not Found" based on status
-        if(addressResponse.status === 404 || addressResponse.status === 400) {
-           return new Response(
-                JSON.stringify({ error: "Address validation failed. The provided address is invalid or not found in the USPS database." }),
-                { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-            ); 
-        }
-
-        throw new Error(`USPS Address API failed: ${addressResponse.status} ${addressResponse.statusText}`);
+    if (!googleResponse.ok) {
+      const errorText = await googleResponse.text();
+      console.error("Google Address API Error Response:", errorText);
+      throw new Error(`Failed to validate address with Google: ${googleResponse.status} ${googleResponse.statusText}`);
     }
 
-    const addressData = await addressResponse.json();
+    const googleData = await googleResponse.json();
+    const result = googleData.result;
 
-    // The API might return multiple firm matches or just an address. 
-    // Usually, the first 'address' object is what we need.
-    const primaryAddress = addressData.address;
-
-    if (!primaryAddress || !primaryAddress.ZIPCode || !primaryAddress.ZIPPlus4) {
+    if (!result || !result.address) {
       return new Response(
-        JSON.stringify({ error: "USPS returned an incomplete address resolution (missing Zip+4)." }),
+        JSON.stringify({ error: "Google Address Validation API returned an incomplete response." }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    // 4. City/State/County API (To get the definitive jurisdiction details to pair with Zip+4)
-    // The base Address API often does not return the county or standardizes it differently.
-    // The "City/State API" in the Address 3.0 suite provides accurate county mappings based on ZipCode
-    // https://developer.usps.com/api/81/city-state
-    
-    // According to USPS API v3 documentation, standard address resolution includes county natively in some tiers
-    // However, if we need to explicitly query city/state data by ZIP we can do so. 
-    // Assuming the parsed standard address contains the ZIP code we need to query for county:
-    
-    const cityStateUrl = new URL(`https://api.usps.com/addresses/v3/city-state`);
-    cityStateUrl.searchParams.append("ZIPCode", primaryAddress.ZIPCode);
-
-    const cityStateResponse = await fetch(cityStateUrl.toString(), {
-         method: "GET",
-         headers: {
-           "Authorization": `Bearer ${token}`,
-           "Accept": "application/json"
-         }
-    });
-
+    // 5. Parse and map Google API response to standardized AddressResponse
+    const uspsData = result.uspsData;
+    let streetAddress = "";
+    let city = "";
+    let state = "";
+    let ZIPCode = "";
+    let ZIPPlus4 = "";
     let countyName = "Unknown";
     let fipsCode = "";
 
-    if (cityStateResponse.ok) {
-        const cityStateData = await cityStateResponse.json();
-        // The City State API returns 'county' under the city/state details array
-        // We look for the detail that explicitly matches the verified Zip code
-        if (cityStateData && cityStateData.cityStateDetails && cityStateData.cityStateDetails.length > 0) {
-            // USPS often returns multiple acceptable cities for a Zip. 
-            // The primary is usually at index 0 or matches the primaryAddress city.
-            const matchedDetail = cityStateData.cityStateDetails.find((d: any) => d.city === primaryAddress.city) || cityStateData.cityStateDetails[0];
-            
-            if (matchedDetail && matchedDetail.county) {
-                // Formatting "SANTA CLARA" -> "Santa Clara"
-                countyName = matchedDetail.county.replace(/\w\S*/g, (txt: string) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-            }
-        }
+    if (uspsData?.standardizedAddress) {
+      streetAddress = uspsData.standardizedAddress.firstAddressLine || "";
+      if (uspsData.standardizedAddress.secondAddressLine) {
+        streetAddress += ` ${uspsData.standardizedAddress.secondAddressLine}`;
+      }
+      city = uspsData.standardizedAddress.city || "";
+      state = uspsData.standardizedAddress.state || "";
+      ZIPCode = uspsData.standardizedAddress.zipCode || "";
+      if (uspsData.standardizedAddress.zipCodePlus4) {
+        ZIPPlus4 = `${ZIPCode}-${uspsData.standardizedAddress.zipCodePlus4}`;
+      } else {
+        ZIPPlus4 = ZIPCode;
+      }
+      
+      if (uspsData.county) {
+        countyName = uspsData.county.replace(/\w\S*/g, (txt: string) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+      }
+      if (uspsData.fipsCountyCode) {
+        fipsCode = uspsData.fipsCountyCode;
+      }
     } else {
-        console.warn(`Failed to resolve county for Zip ${primaryAddress.ZIPCode}: ${cityStateResponse.status}`);
+      // Fallback mapping for non-US/non-USPS matched addresses
+      const postalAddress = result.address.postalAddress;
+      streetAddress = postalAddress.addressLines?.[0] || requestData.streetAddress;
+      if (postalAddress.addressLines?.[1]) {
+        streetAddress += ` ${postalAddress.addressLines[1]}`;
+      }
+      city = postalAddress.locality || requestData.city;
+      state = postalAddress.administrativeArea || requestData.state;
+      ZIPCode = postalAddress.postalCode || requestData.zipCode || "";
+      ZIPPlus4 = ZIPCode;
+
+      // Try to find county (administrative_area_level_2) in components
+      const countyComponent = result.address.addressComponents?.find((c: any) =>
+        c.componentType === "administrative_area_level_2"
+      );
+      if (countyComponent?.componentName?.text) {
+        countyName = countyComponent.componentName.text.replace(/\w\S*/g, (txt: string) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+      }
     }
 
-    // 5. Construct Final Parsed Response
     const responsePayload: AddressResponse = {
       address: {
-        streetAddress: primaryAddress.streetAddress, // Now standardized by USPS
-        city: primaryAddress.city,
-        state: primaryAddress.state,
-        ZIPCode: primaryAddress.ZIPCode,
-        ZIPPlus4: `${primaryAddress.ZIPCode}-${primaryAddress.ZIPPlus4}` // Full 9 digit format
+        streetAddress,
+        city,
+        state,
+        ZIPCode,
+        ZIPPlus4
       },
       jurisdiction: {
         county: countyName,
-        fipsCode: fipsCode, // Left blank unless USPS exposes it in the same payload
+        fipsCode
       }
     };
+
+    // 6. Write to public.address_resolution_cache asynchronously/gracefully
+    const { error: insertErr } = await supabase
+      .from('address_resolution_cache')
+      .insert({
+        address_hash: hashHex,
+        input_address: requestData,
+        resolved_address: responsePayload
+      });
+
+    if (insertErr) {
+      console.warn(`[ADDRESS-CACHE] Failed to write cache row: ${insertErr.message}`);
+    } else {
+      console.log(`[ADDRESS-CACHE] Cached standardized address for hash: ${hashHex}`);
+    }
 
     return new Response(
       JSON.stringify(responsePayload),

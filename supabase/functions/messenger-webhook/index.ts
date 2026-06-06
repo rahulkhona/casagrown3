@@ -541,10 +541,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             })
             .eq('id', conversation.id)
 
-          // 6. Check if seller is active (paused bot mode)
-          if (conversation.bot_conversation_mode_until === null && conversation.message_count > 1) {
-            const reentryDelay = messengerConfig?.delayMinutes ?? 0
+          // 6. Calculate delay early and apply late-binding if delay > 0
+          let messengerDelay = messengerConfig?.delayMinutes ?? 0
+          if (conversation?.bot_conversation_mode_until) {
+            const modeUntil = new Date(conversation.bot_conversation_mode_until)
+            if (modeUntil > new Date()) {
+              messengerDelay = 0  // Bot is active, reply instantly
+            }
+          }
 
+          if (messengerDelay > 0) {
             // Cancel any existing pending drafts for this conversation (except the one we just made)
             await supabase
               .from('bot_reply_drafts')
@@ -557,13 +563,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
               await supabase
                 .from('bot_reply_drafts')
                 .update({
+                  suggestions: JSON.stringify([]),
+                  auto_send_at: new Date(Date.now() + messengerDelay * 60 * 1000).toISOString(),
                   status: 'pending',
-                  auto_send_at: new Date(Date.now() + reentryDelay * 60 * 1000).toISOString(),
                 })
                 .eq('id', lockDraft.id)
             }
 
-            console.log(`[MESSENGER] Seller active — draft updated, bot resumes in ${reentryDelay}min if seller doesn't reply`)
+            console.log(`[MESSENGER] Late-binding: created pending draft for ${senderPsid} with empty suggestions, auto-send in ${messengerDelay}min. Skipping Gemini.`)
             continue
           }
         }

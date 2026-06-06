@@ -717,7 +717,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       .select(`
         id, name, description, price_usd, photos, inventory, category, unit, market_date, booth_id, is_active,
         facebook_post_id, instagram_post_id, google_post_id, facebook_comment_id, instagram_comment_id,
-        product_pickup_windows, product_delivery_windows, delivery_radius_miles, pickup_address, delivery_zipcodes
+        product_pickup_windows, product_delivery_windows, delivery_radius_miles, pickup_address, delivery_zipcodes,
+        last_stock_comment_sync_at
       `)
       .eq('id', product_id)
       .single()
@@ -730,22 +731,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       return jsonOk({ action, skipped: true, reason: 'inactive_or_out_of_stock' }, corsHeaders)
     }
 
-    const { data: conn } = await supabase
-      .from('seller_fb_connections')
-      .select(`
-        fb_page_id, fb_page_access_token, fb_page_name, status,
-        auto_post_enabled,
-        ig_business_account_id, ig_access_token, ig_auto_post_enabled,
-        wa_phone_number_id, wa_display_phone
-      `)
-      .eq('user_id', seller_id)
-      .eq('status', 'connected')
-      .maybeSingle()
-
-    if (!conn) {
-      return jsonOk({ action, skipped: true, reason: 'no_active_connection' }, corsHeaders)
-    }
-
+    // 1. Verify seller subscription and Pro/Elite tier features first
     const { data: sub } = await supabase
       .from('seller_subscriptions')
       .select('plan, status')
@@ -764,6 +750,39 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       .single()
 
     const features = tierData?.features || {}
+
+    // Ensure the subscription tier supports Facebook/Instagram posts
+    if (!features.facebook_posts && !features.instagram_posts) {
+      return jsonOk({ action, skipped: true, reason: 'feature_not_supported_on_tier' }, corsHeaders)
+    }
+
+    // 2. Verify connection exists
+    const { data: conn } = await supabase
+      .from('seller_fb_connections')
+      .select(`
+        fb_page_id, fb_page_access_token, fb_page_name, status,
+        auto_post_enabled,
+        ig_business_account_id, ig_access_token, ig_auto_post_enabled,
+        wa_phone_number_id, wa_display_phone
+      `)
+      .eq('user_id', seller_id)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (!conn) {
+      return jsonOk({ action, skipped: true, reason: 'no_active_connection' }, corsHeaders)
+    }
+
+    // 3. Debounce check: limit live social comment quantity updates to once every 2 minutes
+    if (product.last_stock_comment_sync_at) {
+      const lastSync = new Date(product.last_stock_comment_sync_at).getTime()
+      const now = Date.now()
+      const twoMinutes = 2 * 60 * 1000
+      if (now - lastSync < twoMinutes) {
+        console.log(`[SYNC-POSTS] Debounced stock comment update for product ${product.id} (last sync less than 2 minutes ago). Skipping.`)
+        return jsonOk({ action, skipped: true, reason: 'rate_limited' }, corsHeaders)
+      }
+    }
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -872,12 +891,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl: defaultSiteUrl 
       }
     }
 
-    if (Object.keys(commResults).length > 0) {
-      await supabase
-        .from('market_products')
-        .update(commResults)
-        .eq('id', product_id)
+    // Always record sync tracking columns in the database
+    const finalUpdates = {
+      ...commResults,
+      last_stock_comment_sync_at: new Date().toISOString()
     }
+
+    await supabase
+      .from('market_products')
+      .update(finalUpdates)
+      .eq('id', product_id)
 
     return jsonOk({ action, comment_updated: true, commResults }, corsHeaders)
   }
