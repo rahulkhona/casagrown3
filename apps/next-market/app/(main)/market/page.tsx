@@ -214,6 +214,11 @@ function BrowseMarketPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const [showAppBanner, setShowAppBanner] = useState(false)
+  const [isNativeApp, setIsNativeApp] = useState(false)
+  const [deviceOS, setDeviceOS] = useState<'ios' | 'android' | 'desktop' | null>(null)
+
+
   // Debug helper to reset notification status from URL parameter (e.g. ?resetNotif=1)
   useEffect(() => {
     if (typeof window !== 'undefined' && searchParams.has('resetNotif')) {
@@ -226,6 +231,74 @@ function BrowseMarketPageInner() {
       window.history.replaceState({}, '', url.pathname + url.search)
     }
   }, [searchParams])
+
+  // Detect environment and show top app download banner for mobile web
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isNative = (window as any).IS_NATIVE_APP === true || 
+                       window.location.search.includes('native=true') ||
+                       sessionStorage.getItem('casagrown_is_native') === 'true'
+      
+      if (isNative) {
+        sessionStorage.setItem('casagrown_is_native', 'true')
+      }
+
+      setIsNativeApp(isNative)
+
+      const ua = navigator.userAgent || navigator.vendor || (window as any).opera
+      let os: 'ios' | 'android' | 'desktop' = 'desktop'
+      if (/android/i.test(ua)) {
+        os = 'android'
+      } else if (/iPad|iPhone|iPod/i.test(ua) && !(window as any).MSStream) {
+        os = 'ios'
+      }
+      setDeviceOS(os)
+
+      const dismissed = localStorage.getItem('casagrown_app_banner_dismissed') === 'true'
+      if (!isNative && !dismissed && (os === 'ios' || os === 'android')) {
+        setShowAppBanner(true)
+      } else {
+        setShowAppBanner(false)
+      }
+    }
+  }, [])
+
+
+  const handleDismissAppBanner = () => {
+    localStorage.setItem('casagrown_app_banner_dismissed', 'true')
+    setShowAppBanner(false)
+  }
+
+  const renderAppBanner = () => {
+    if (!showAppBanner || !deviceOS) return null
+
+    const storeUrl = deviceOS === 'ios'
+      ? 'https://apps.apple.com/app/id6774057094'
+      : 'https://play.google.com/store/apps/details?id=com.casagrown.market'
+
+    const badgeSrc = deviceOS === 'ios' ? '/app-store-badge.svg' : '/google-play-badge.svg'
+    const altText = deviceOS === 'ios' ? 'Download on the App Store' : 'Get it on Google Play'
+
+    return (
+      <div className={styles.appBanner}>
+        <button className={styles.appBannerClose} onClick={handleDismissAppBanner} aria-label="Close app banner">
+          ×
+        </button>
+        <div className={styles.appBannerLogo}>
+          <img src="/logo.png" alt="CasaGrown" />
+        </div>
+        <div className={styles.appBannerInfo}>
+          <h4 className={styles.appBannerTitle}>CasaGrown</h4>
+          <p className={styles.appBannerSubtitle}>Get our official app</p>
+        </div>
+        <a href={storeUrl} target="_blank" rel="noopener noreferrer" className={styles.appBannerBadge}>
+          <img src={badgeSrc} alt={altText} className={styles.appBannerBadgeImg} />
+        </a>
+      </div>
+    )
+  }
+
+
 
   // Restore from localStorage if URL has no params
   const saved = typeof window !== 'undefined' && !searchParams.has('lat')
@@ -936,6 +1009,7 @@ function BrowseMarketPageInner() {
   if (!addressResolved && marketIsOpen) {
     return (
       <>
+        {renderAppBanner()}
         {renderPioneerBanner()}
         <div className="container">
           {/* Market Days soft banner — consistent with STATE 3 */}
@@ -1125,6 +1199,7 @@ function BrowseMarketPageInner() {
 
   return (
     <>
+      {renderAppBanner()}
       {renderPioneerBanner()}
       <div className="container">
         {!isScheduleOpen && isGrandOpening && (

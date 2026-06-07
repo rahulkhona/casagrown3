@@ -104,6 +104,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [isHelper, setIsHelper] = useState(false)
+  const [isNativeApp, setIsNativeApp] = useState(false)
 
   // Form states
   const [showDecline, setShowDecline] = useState(false)
@@ -204,6 +205,12 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   }, [orderId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (user) loadOrder() }, [loadOrder, user])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ((window as any).IS_NATIVE_APP === true || window.location.search.includes('native=true'))) {
+      setIsNativeApp(true)
+    }
+  }, [])
 
   // Auth redirect
   useEffect(() => {
@@ -375,6 +382,28 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
         </div>
       </div>
+
+      {isBuyer && !isNativeApp && (
+        <div className={styles.downloadCard}>
+          <div className={styles.downloadCardContent}>
+            <span className={styles.downloadCardIcon}>📱</span>
+            <div className={styles.downloadCardText}>
+              <h4 className={styles.downloadCardTitle}>Track your order on the go!</h4>
+              <p className={styles.downloadCardDesc}>
+                Download the CasaGrown app for real-time delivery photos, location-based notifications, and direct chat.
+              </p>
+            </div>
+            <div className={styles.downloadCardBadges}>
+              <a href="https://apps.apple.com/app/id6774057094" target="_blank" rel="noopener noreferrer" className={styles.downloadBadge}>
+                <img src="/app-store-badge.svg" alt="Download on the App Store" />
+              </a>
+              <a href="https://play.google.com/store/apps/details?id=com.casagrown.market" target="_blank" rel="noopener noreferrer" className={styles.downloadBadge}>
+                <img src="/google-play-badge.svg" alt="Get it on Google Play" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Timeline / Status */}
       <div className={styles.section}>

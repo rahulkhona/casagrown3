@@ -245,3 +245,58 @@
   flex: 1; overflow-y: auto; padding: 24px 20px;
   max-width: 600px; width: 100%; margin: 0 auto;
 }
+
+/* Post-Action App Download Card */
+.downloadCard {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.downloadCardContent {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.downloadCardIcon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+.downloadCardText {
+  flex: 1;
+  min-width: 200px;
+}
+.downloadCardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green-800);
+  margin: 0 0 4px;
+}
+.downloadCardDesc {
+  font-size: 13px;
+  color: var(--gray-600);
+  margin: 0;
+  line-height: 1.4;
+}
+.downloadCardBadges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.downloadBadge {
+  display: inline-block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.downloadBadge:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+.downloadBadge img {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+

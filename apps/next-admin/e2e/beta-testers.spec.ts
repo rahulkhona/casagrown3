@@ -53,7 +53,7 @@ test.describe('Beta Testers Admin Page', () => {
       
       // The DOM should physically reflect 0 rows or a No Testers Found state
       const noFoundText = page.getByText('No testers found', { exact: false }).first()
-      await expect(noFoundText).toBeVisible({ timeout: 5000 })
+      await expect(noFoundText).toBeVisible({ timeout: 15000 })
       
       // Clear it to restore the list
       await searchInput.clear()

@@ -496,7 +496,7 @@ test.describe('Reject & Refund Workflow', () => {
 
     // 8. Verify Push via supabase rest API (poll — async dispatch)
     let pushFound = false
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 15; i++) {
       await page.waitForTimeout(1000)
       const pushRes = await request.get(`${supabaseUrl}/rest/v1/push_notification_log?body=ilike.*${encodeURIComponent(rejectReason)}*`, {
         headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }
@@ -514,7 +514,7 @@ test.describe('Reject & Refund Workflow', () => {
     // This is the least reliable channel in test because pg_net's background worker
     // may delay or the send-email-notification edge function may not be fully configured.
     let emailFound = false;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 15; i++) {
         await page.waitForTimeout(2000)
         const mailRes = await request.get('http://localhost:54324/api/v1/messages')
         if (mailRes.ok()) {

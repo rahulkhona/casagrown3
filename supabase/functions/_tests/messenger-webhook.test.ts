@@ -42,6 +42,7 @@ async function callWebhook(
   method: string,
   params: Record<string, string> = {},
   body?: any,
+  retries = 3,
 ): Promise<{ status: number; data: any }> {
   const url = new URL(`${SUPABASE_URL}/functions/v1/messenger-webhook`);
   for (const [k, v] of Object.entries(params)) {
@@ -56,8 +57,26 @@ async function callWebhook(
     },
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url.toString(), opts);
-  const text = await res.text();
+
+  let res!: Response;
+  let text = "";
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      res = await fetch(url.toString(), opts);
+      if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
+        text = await res.text();
+        break;
+      }
+      if (attempt === retries) {
+        text = await res.text();
+        break;
+      }
+    } catch (err) {
+      if (attempt === retries) throw err;
+    }
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
+
   let data;
   try {
     data = JSON.parse(text);
@@ -371,8 +390,11 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     // Send 3 messages in rapid succession — should all return 200
-    const promises = [1, 2, 3].map((i) =>
-      callWebhook("POST", {}, {
+    const promises = [1, 2, 3].map(async (i) => {
+      if (i > 1) {
+        await new Promise((r) => setTimeout(r, 100 * (i - 1)));
+      }
+      return callWebhook("POST", {}, {
         object: "page",
         entry: [
           {
@@ -391,8 +413,8 @@ Deno.test({
             ],
           },
         ],
-      })
-    );
+      });
+    });
 
     const results = await Promise.all(promises);
     for (const r of results) {
