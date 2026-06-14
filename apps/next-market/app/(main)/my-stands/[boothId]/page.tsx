@@ -9,6 +9,7 @@ import { createClient } from '../../../../lib/supabase'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import AddressInput from '../../../components/AddressInput'
 import { formatUsd } from '../../../../lib/store'
+import { getBoothProductShareMessage, type SharePlatformType } from '../../../../lib/shareMessages'
 import { geocodeAddress, toPostgisPoint } from '../../../../lib/geocode'
 import SocialShareModal from '../../../components/SocialShareModal'
 import { useProEnabled } from '../../../../lib/useProEnabled'
@@ -261,6 +262,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   const [isHelperView, setIsHelperView] = useState(false)
   const [showShareToast, setShowShareToast] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [shareProduct, setShareProduct] = useState<ProductRow | null>(null)
 
   // Helpers state
   interface BoothHelper {
@@ -1129,21 +1131,33 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                         <Link
                           href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
                           style={{
-                            flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                             textAlign: 'center', background: 'var(--gray-50, #f9fafb)', color: '#374151',
                             border: '1px solid var(--gray-200, #e5e7eb)', textDecoration: 'none',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           ✏️ Edit
                         </Link>
                         <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareProduct(product) }}
+                          style={{
+                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                            background: '#f0fdf4', color: '#15803d',
+                            border: '1px solid #bbf7d0',
+                            cursor: 'pointer', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          📣 Share
+                        </button>
+                        <button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(product.id) }}
                           style={{
-                            flex: 1, padding: '6px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                             background: product.has_orders ? '#fffbeb' : '#fef2f2',
                             color: product.has_orders ? '#d97706' : '#dc2626',
                             border: `1px solid ${product.has_orders ? '#fde68a' : '#fecaca'}`,
-                            cursor: 'pointer',
+                            cursor: 'pointer', whiteSpace: 'nowrap',
                           }}
                         >
                           {product.has_orders ? '📦 Archive' : '🗑️ Delete'}
@@ -1374,6 +1388,33 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           shareContext="booth_invitation"
           userId={user?.id}
           platforms={['whatsapp', 'nextdoor', 'facebook', 'sms', 'email', 'copy']}
+        />
+      )}
+
+      {/* Product Share Modal */}
+      {shareProduct && stand && (
+        <SocialShareModal
+          isOpen={!!shareProduct}
+          onClose={() => setShareProduct(null)}
+          title={`Share ${shareProduct.name}`}
+          subtitle="Share this listing with your neighbors!"
+          entityName={shareProduct.name}
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${boothId}/product/${shareProduct.id}` : ''}
+          shareMessage={(platform?: SharePlatformType) => {
+            const priceText = shareProduct.price_usd === 0
+              ? '💚 Price: Free'
+              : `💰 Price: ${formatUsd(shareProduct.price_usd)}/${shareProduct.unit}`
+            const qtyText = shareProduct.inventory > 0 ? `📦 Available Qty: ${shareProduct.inventory}` : ''
+            const modes: string[] = []
+            if (stand.offers_delivery) modes.push('🚗 Delivery')
+            if (stand.offers_pickup) modes.push('📍 Pickup')
+            const deliveryText = modes.length > 0
+              ? `${qtyText ? qtyText + '\n' : ''}${modes.join(' • ')}`
+              : qtyText
+            return getBoothProductShareMessage(shareProduct.name, priceText, deliveryText, undefined, platform)
+          }}
+          shareContext="product_share"
+          userId={user?.id}
         />
       )}
 

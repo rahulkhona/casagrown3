@@ -223,8 +223,8 @@ Deno.test({
     // Wait for Mailpit to receive
     await new Promise((r) => setTimeout(r, 2000));
 
-    // Search Mailpit
-    const messages = await searchMailpit(`to:${TEST_EMAIL} subject:Welcome`);
+    // Search Mailpit for the specific Pro welcome subject to avoid late Lite emails
+    const messages = await searchMailpit(`to:${TEST_EMAIL} "Welcome to CasaGrown Pro!"`);
 
     if (messages.length === 0) {
       console.warn("⚠️ No messages found in Mailpit — Mailpit may not be running. Skipping HTML checks.");
@@ -530,8 +530,8 @@ Deno.test({
     // Wait for async email send
     await new Promise((r) => setTimeout(r, 3000));
 
-    // Check Mailpit for the welcome email
-    const messages = await searchMailpit(`to:${TEST_EMAIL} subject:Welcome`);
+    // Check Mailpit for the specific Pro welcome email
+    const messages = await searchMailpit(`to:${TEST_EMAIL} "Welcome to CasaGrown Pro!"`);
 
     if (messages.length === 0) {
       console.warn("⚠️ Mailpit not available or email not received");

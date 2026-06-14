@@ -113,8 +113,9 @@ Rules:
       body: JSON.stringify({
         model: AI_MODEL,
         messages: [{ role: "user", content }],
-        max_tokens: 300,
+        max_tokens: 1000,
         temperature: 0.3,
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -132,8 +133,9 @@ Rules:
         body: JSON.stringify({
           model: AI_MODEL,
           messages: [{ role: "user", content }],
-          max_tokens: 300,
+          max_tokens: 1000,
           temperature: 0.3,
+          response_format: { type: "json_object" },
         }),
       });
     }
@@ -153,7 +155,7 @@ Rules:
         body: JSON.stringify({
           model: BACKUP_MODEL,
           messages: [{ role: "user", content }],
-          max_tokens: 300,
+          max_tokens: 1000,
           temperature: 0.3,
         }),
       });
@@ -214,7 +216,7 @@ Rules:
         body: JSON.stringify({
           model: BACKUP_MODEL,
           messages: [{ role: "user", content }],
-          max_tokens: 300,
+          max_tokens: 1000,
           temperature: 0.3,
           response_format: { type: "json_object" },
         }),

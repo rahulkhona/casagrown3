@@ -588,6 +588,25 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         {/* ══════════════════════════════════════════════════════════════════ */}
         {step === 'profile' && !legalView && (
           <div data-testid="quick-setup-step-1">
+            {/* Mode Switcher Tabs */}
+            <div className={styles.tabsContainer}>
+              <button
+                type="button"
+                onClick={() => { setIsReturningUser(false); setError('') }}
+                className={`${styles.tabBtn} ${!isReturningUser ? styles.tabBtnActive : ''}`}
+              >
+                Sign Up
+              </button>
+              <button
+                type="button"
+                data-testid="returning-user-toggle"
+                onClick={() => { setIsReturningUser(true); setError('') }}
+                className={`${styles.tabBtn} ${isReturningUser ? styles.tabBtnActive : ''}`}
+              >
+                Sign In
+              </button>
+            </div>
+
             {isReturningUser ? (
               <>
                 <h2 className={styles.stepTitle}>👋 Welcome Back</h2>
@@ -619,16 +638,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                   {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Send Code →'}
                 </button>
 
-                <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-500)', marginTop: 12, marginBottom: 0 }}>
-                  New here?{' '}
-                  <button
-                    type="button"
-                    onClick={() => { setIsReturningUser(false); setError('') }}
-                    style={{ background: 'none', border: 'none', color: 'var(--green-600, #16a34a)', cursor: 'pointer', fontWeight: 600, fontSize: 13, padding: 0, textDecoration: 'underline' }}
-                  >
-                    Create an account
-                  </button>
-                </p>
+
               </>
             ) : (
               <>
@@ -767,17 +777,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                   {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Continue →'}
                 </button>
 
-                <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-500)', marginTop: 12, marginBottom: 0 }}>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    data-testid="returning-user-toggle"
-                    onClick={() => { setIsReturningUser(true); setError('') }}
-                    style={{ background: 'none', border: 'none', color: 'var(--green-600, #16a34a)', cursor: 'pointer', fontWeight: 600, fontSize: 13, padding: 0, textDecoration: 'underline' }}
-                  >
-                    Sign in
-                  </button>
-                </p>
+
               </>
             )}
           </div>

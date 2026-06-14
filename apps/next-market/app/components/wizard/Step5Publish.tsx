@@ -16,6 +16,12 @@ export default function Step5Publish() {
   const [modalContent, setModalContent] = useState<'tos' | 'privacy' | null>(null)
   const [pushEnabled, setPushEnabled] = useState(false)
   
+  // Scroll to top when entering this step
+  useEffect(() => {
+    const el = document.querySelector('[class*="wizardContent"]') || document.querySelector('[class*="wizard"]')
+    if (el) el.scrollTop = 0
+    window.scrollTo(0, 0)
+  }, [])
   // SMS Verification States
   const [isSendingSmsOtp, setIsSendingSmsOtp] = useState(false)
   const [smsOtpSent, setSmsOtpSent] = useState(false)

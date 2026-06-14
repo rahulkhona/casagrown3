@@ -15,6 +15,8 @@ interface StandOption {
   delivery_radius_miles: number
   delivery_zipcodes?: string[]
   pickup_address?: string
+  weekly_delivery_windows?: Record<string, any[]>
+  weekly_pickup_windows?: Record<string, any[]>
 }
 
 const PRODUCT_TIME_WINDOWS = [
@@ -175,67 +177,37 @@ export default function Step2Fulfillment() {
   const [stands, setStands] = useState<StandOption[]>([])
   const [standsLoaded, setStandsLoaded] = useState(false)
 
-  // Load user's stands
-  useEffect(() => {
-    if (!user?.id) return
-    const supabase = createClient()
-    supabase
-      .from('market_booths')
-      .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, delivery_zipcodes, pickup_address')
-      .eq('owner_id', user.id)
-      .then(({ data }: { data: any }) => {
-        const standList = data || []
-        setStands(standList)
-        setStandsLoaded(true)
-
-        // Check URL param for pre-selected booth
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search)
-          const urlBoothId = params.get('booth')
-          if (urlBoothId && standList.some((s: any) => s.id === urlBoothId) && !state.boothId) {
-            const stand = standList.find((s: any) => s.id === urlBoothId)!
-            updateState({
-              boothId: stand.id,
-              offersDelivery: stand.offers_delivery,
-              offersPickup: stand.offers_pickup,
-              deliveryRadius: stand.delivery_radius_miles || 5,
-              deliveryZipcodes: stand.delivery_zipcodes || [],
-              pickupAddress: stand.pickup_address || '',
-            })
-            return
-          }
-        }
-
-        // Auto-select if only 1 stand and no boothId yet
-        if (standList.length === 1 && !state.boothId) {
-          const stand = standList[0]
-          updateState({
-            boothId: stand.id,
-            offersDelivery: stand.offers_delivery,
-            offersPickup: stand.offers_pickup,
-            deliveryRadius: stand.delivery_radius_miles || 5,
-            deliveryZipcodes: stand.delivery_zipcodes || [],
-            pickupAddress: stand.pickup_address || '',
-          })
-        }
-      })
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleStandChange = (standId: string) => {
-    const stand = stands.find((s: any) => s.id === standId)
-    if (stand) {
-      updateState({
-        boothId: stand.id,
-        offersDelivery: stand.offers_delivery,
-        offersPickup: stand.offers_pickup,
-        deliveryRadius: stand.delivery_radius_miles || 5,
-        deliveryZipcodes: stand.delivery_zipcodes || [],
-        pickupAddress: stand.pickup_address || '',
-      })
-    } else {
-      updateState({ boothId: null })
+  // Local structured address fields — avoids lossy string↔object round-trips that strip spaces
+  const [addressFields, setAddressFields] = useState<AddressFields>(() => {
+    const a = state.address || ''
+    if (typeof a !== 'string') return { street: '', city: '', state: '', zip: '' }
+    const parts = a.split(',').map((s: string) => s.trim())
+    if (parts.length >= 3) {
+      const sz = parts[parts.length - 1].split(/\s+/)
+      return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
     }
-  }
+    if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
+    return { street: a, city: '', state: '', zip: '' }
+  })
+
+  // Local structured pickup address fields — same pattern to avoid space-stripping
+  const [pickupAddressFields, setPickupAddressFields] = useState<AddressFields>(() => {
+    const a = state.pickupAddress || ''
+    if (typeof a !== 'string') return { street: '', city: '', state: '', zip: '' }
+    const parts = a.split(',').map((s: string) => s.trim())
+    if (parts.length >= 3) {
+      const sz = parts[parts.length - 1].split(/\s+/)
+      return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
+    }
+    if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
+    return { street: a, city: '', state: '', zip: '' }
+  })
+  // Scroll to top when entering this step
+  useEffect(() => {
+    const el = document.querySelector('[class*="wizardContent"]') || document.querySelector('[class*="wizard"]')
+    if (el) el.scrollTop = 0
+    window.scrollTo(0, 0)
+  }, [])
 
   const localToday = new Date()
   const todayStr = `${localToday.getFullYear()}-${String(localToday.getMonth()+1).padStart(2,'0')}-${String(localToday.getDate()).padStart(2,'0')}`
@@ -248,6 +220,119 @@ export default function Step2Fulfillment() {
     { id: todayStr, label: todayLabel },
     { id: tomorrowStr, label: tomorrowLabel }
   ]
+
+  const mapWeeklyWindowsToDates = (
+    weeklyWindows: Record<string, any[]> | null | undefined,
+    dates: { id: string; label: string }[]
+  ): Record<string, string[]> => {
+    const result: Record<string, string[]> = {}
+    if (!weeklyWindows) return result
+
+    dates.forEach(d => {
+      const dateObj = new Date(d.id + 'T12:00:00')
+      const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long' })
+      const windows = weeklyWindows[weekday] || weeklyWindows[weekday.toLowerCase()]
+      if (windows && Array.isArray(windows)) {
+        result[d.id] = windows.map(w => w.id).filter(Boolean)
+      }
+    })
+    return result
+  }
+
+  // Load user's stands and profile address
+  useEffect(() => {
+    if (!user?.id) return
+    const supabase = createClient()
+
+    Promise.all([
+      supabase.from('profiles').select('street_address, city, state_code, zip_code').eq('id', user.id).single(),
+      supabase.from('market_booths')
+        .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, delivery_zipcodes, pickup_address, weekly_delivery_windows, weekly_pickup_windows')
+        .eq('owner_id', user.id)
+    ]).then(([{ data: profile }, { data: booths }]) => {
+      const standList = booths || []
+      setStands(standList)
+      setStandsLoaded(true)
+
+      const profileAddress = profile && profile.street_address
+        ? [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean).join(', ')
+        : ''
+
+      // Check URL param for pre-selected booth
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        const urlBoothId = params.get('booth')
+        if (urlBoothId && standList.some((s: any) => s.id === urlBoothId) && !state.boothId) {
+          const stand = standList.find((s: any) => s.id === urlBoothId)!
+          const resolvedDeliveryWindows = mapWeeklyWindowsToDates(stand.weekly_delivery_windows, dynamicDays)
+          const resolvedPickupWindows = mapWeeklyWindowsToDates(stand.weekly_pickup_windows, dynamicDays)
+          const allDates = Array.from(new Set([...Object.keys(resolvedDeliveryWindows), ...Object.keys(resolvedPickupWindows)]))
+
+          updateState({
+            boothId: stand.id,
+            offersDelivery: stand.offers_delivery,
+            offersPickup: stand.offers_pickup,
+            deliveryRadius: stand.delivery_radius_miles || 5,
+            deliveryZipcodes: stand.delivery_zipcodes || [],
+            pickupAddress: stand.pickup_address || '',
+            deliveryWindows: resolvedDeliveryWindows,
+            pickupWindows: resolvedPickupWindows,
+            selectedDates: allDates,
+            address: state.address || profileAddress
+          })
+          return
+        }
+      }
+
+      // Auto-select if only 1 stand and no boothId yet
+      if (standList.length === 1 && !state.boothId) {
+        const stand = standList[0]
+        const resolvedDeliveryWindows = mapWeeklyWindowsToDates(stand.weekly_delivery_windows, dynamicDays)
+        const resolvedPickupWindows = mapWeeklyWindowsToDates(stand.weekly_pickup_windows, dynamicDays)
+        const allDates = Array.from(new Set([...Object.keys(resolvedDeliveryWindows), ...Object.keys(resolvedPickupWindows)]))
+
+        updateState({
+          boothId: stand.id,
+          offersDelivery: stand.offers_delivery,
+          offersPickup: stand.offers_pickup,
+          deliveryRadius: stand.delivery_radius_miles || 5,
+          deliveryZipcodes: stand.delivery_zipcodes || [],
+          pickupAddress: stand.pickup_address || '',
+          deliveryWindows: resolvedDeliveryWindows,
+          pickupWindows: resolvedPickupWindows,
+          selectedDates: allDates,
+          address: state.address || profileAddress
+        })
+      } else if (!state.address && profileAddress) {
+        updateState({ address: profileAddress })
+      }
+    })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleStandChange = (standId: string) => {
+    const stand = stands.find((s: any) => s.id === standId)
+    if (stand) {
+      const resolvedDeliveryWindows = mapWeeklyWindowsToDates(stand.weekly_delivery_windows, dynamicDays)
+      const resolvedPickupWindows = mapWeeklyWindowsToDates(stand.weekly_pickup_windows, dynamicDays)
+      const allDates = Array.from(new Set([...Object.keys(resolvedDeliveryWindows), ...Object.keys(resolvedPickupWindows)]))
+
+      updateState({
+        boothId: stand.id,
+        offersDelivery: stand.offers_delivery,
+        offersPickup: stand.offers_pickup,
+        deliveryRadius: stand.delivery_radius_miles || 5,
+        deliveryZipcodes: stand.delivery_zipcodes || [],
+        pickupAddress: stand.pickup_address || '',
+        deliveryWindows: resolvedDeliveryWindows,
+        pickupWindows: resolvedPickupWindows,
+        selectedDates: allDates
+      })
+    } else {
+      updateState({ boothId: null })
+    }
+  }
+
+
 
   const validateAndNext = () => {
     const newErrors: Record<string, string> = {}
@@ -287,6 +372,10 @@ export default function Step2Fulfillment() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      setTimeout(() => {
+        const firstError = document.querySelector(`.${styles.errorText}`)
+        firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
       return
     }
 
@@ -404,18 +493,11 @@ export default function Step2Fulfillment() {
           This is your primary location. It is used to calculate delivery distances and local taxes.
         </p>
         <AddressInput 
-          value={(() => {
-            const a = state.address || ''
-            if (typeof a !== 'string') return a
-            const parts = a.split(',').map((s: string) => s.trim())
-            if (parts.length >= 3) {
-              const sz = parts[parts.length - 1].split(/\s+/)
-              return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
-            }
-            if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
-            return { street: a, city: '', state: '', zip: '' }
-          })()}
-          onChange={(val: AddressFields) => updateState({ address: formatFullAddress(val) })}
+          value={addressFields}
+          onChange={(val: AddressFields) => {
+            setAddressFields(val)
+            updateState({ address: formatFullAddress(val) })
+          }}
         />
         {errors.address && <div className={styles.errorText}>{errors.address}</div>}
         <button 
@@ -590,18 +672,11 @@ export default function Step2Fulfillment() {
                   <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(optional)</span></label>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your Home / Farm address.</p>
                   <AddressInput
-                    value={(() => {
-                      const a = state.pickupAddress || ''
-                      if (typeof a !== 'string') return a
-                      const parts = a.split(',').map((s: string) => s.trim())
-                      if (parts.length >= 3) {
-                        const sz = parts[parts.length - 1].split(/\s+/)
-                        return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: sz[0] || '', zip: sz.slice(1).join(' ') }
-                      }
-                      if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
-                      return { street: a, city: '', state: '', zip: '' }
-                    })()}
-                    onChange={(val: AddressFields) => updateState({ pickupAddress: formatFullAddress(val) })}
+                    value={pickupAddressFields}
+                    onChange={(val: AddressFields) => {
+                      setPickupAddressFields(val)
+                      updateState({ pickupAddress: formatFullAddress(val) })
+                    }}
                     placeholderStreet="e.g. Corner Store Parking Lot"
                   />
                   {errors.pickupAddress && <span className={styles.errorText} style={{ display: 'block' }}>{errors.pickupAddress}</span>}

@@ -98,6 +98,12 @@
   font-family: inherit;
   background: #ffffff;
 }
+input[type="date"].input {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  overflow: hidden;
+}
 .input:focus {
   outline: none;
   border-color: #16a34a;
@@ -113,7 +119,12 @@ select.input {
   background-size: 20px 20px;
   padding-right: 44px;
   background-color: #ffffff;
+  font-size: 16px;
   cursor: pointer;
+}
+select.input option {
+  font-size: 16px;
+  padding: 8px 12px;
 }
 
 .bottomBar {
@@ -121,6 +132,7 @@ select.input {
   display: flex;
   justify-content: center;
   width: 100%;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 8px));
 }
 
 .bottomBarInner {

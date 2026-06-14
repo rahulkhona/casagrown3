@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
@@ -14,12 +14,23 @@ export default function Step4Verification() {
   const [isVerifying, setIsVerifying] = useState(false)
   const supabase = createClient()
 
+  // Scroll to top when entering this step
+  useEffect(() => {
+    const el = document.querySelector('[class*="wizardContent"]') || document.querySelector('[class*="wizard"]')
+    if (el) el.scrollTop = 0
+    window.scrollTo(0, 0)
+  }, [])
+
   const handleSendOtp = async () => {
     const newErrors: Record<string, string> = {}
     if (!state.fullName.trim()) newErrors.fullName = 'Full Name is required'
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      setTimeout(() => {
+        const firstError = document.querySelector(`.${styles.errorText}`)
+        firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
       return
     }
 

@@ -35,12 +35,47 @@ export default function ProductsListPage() {
   const getInviteMessage = () => {
     if (!inviteProduct) return ''
     const boothUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth.id}/product/${inviteProduct.id}` : ''
-    let msg = `Hey! 🌿 I have fresh ${inviteProduct.name} available on CasaGrown — ${formatUsd(inviteProduct.priceUsd)} per ${inviteProduct.unit}.${inviteProduct.marketDate ? ` Listed for ${inviteProduct.marketDate}.` : ''}\n\nTake a look: ${boothUrl}`
+    
+    // Format fulfillment options
+    const offersDelivery = inviteProduct.offersDelivery !== undefined ? inviteProduct.offersDelivery : myBooth.offersDelivery
+    const offersPickup = inviteProduct.offersPickup !== undefined ? inviteProduct.offersPickup : myBooth.offersPickup
+
+    const dates = inviteProduct.marketDate || 'this weekend'
+
+    const greetings = [
+      "Hey there!",
+      "Hi neighbor!",
+      "Hey neighbor!",
+      "Hello!",
+      "Hi!"
+    ]
+    const greeting = greetings[Math.floor(Math.random() * greetings.length)]
+
+    const variations = [
+      `I have fresh ${inviteProduct.name} available on CasaGrown!`,
+      `I just listed fresh ${inviteProduct.name} on my CasaGrown produce stand!`,
+      `Fresh from the garden — I have ${inviteProduct.name} available on CasaGrown if you are interested!`,
+      `I've got excess ${inviteProduct.name} from the garden this week on CasaGrown!`
+    ]
+    const body = variations[Math.floor(Math.random() * variations.length)]
+
+    let msg = `${greeting} 🌿 ${body}\n\n`
+    msg += `Available Qty: ${inviteProduct.inventory}\n`
+    msg += `Price: ${formatUsd(inviteProduct.priceUsd)} per ${inviteProduct.unit}\n`
+
+    if (offersDelivery) {
+      msg += `Delivery available on ${dates}\n`
+    }
+    if (offersPickup) {
+      msg += `Pickup available on ${dates}\n`
+    }
+
+    msg += `\n👇 Click here to view details and purchase:\n${boothUrl}`
 
     if (attachCoupon) {
       const existingCoupon = coupons.find(c => c.code === selectedCoupon)
       if (existingCoupon) {
-        msg += `\n\n🏷️ Use code ${existingCoupon.code} for ${existingCoupon.discountType === 'percent' ? `${existingCoupon.discountValue}% off` : `$${existingCoupon.discountValue} off`}!`
+        msg += `\n\n🏷️ Use code ${existingCoupon.code} for ${existingCoupon.discountType === 'percent' ? `${existingCoupon.discountValue}%` : `$${existingCoupon.discountValue}`} off!`
       } else {
         const disc = couponType === 'percent' ? `${couponValue}% off` : `$${couponValue} off`
         msg += `\n\n🏷️ Use coupon for ${disc} your first order!`

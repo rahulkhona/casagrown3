@@ -137,11 +137,34 @@ export function WizardProvider({ children }: { children: ReactNode }) {
     }
   }, [searchParams])
 
-  // Sync logged in user email if available
+  // Sync logged in user profile details if available
   useEffect(() => {
-    if (user?.email && !state.email) {
-      updateState({ email: user.email })
-    }
+    if (!user?.id) return
+
+    const supabase = createClient()
+    
+    // Fetch profile
+    supabase.from('profiles')
+      .select('full_name, street_address, city, state_code, zip_code, phone_number')
+      .eq('id', user.id)
+      .single()
+      .then((res: any) => {
+        const profile = res.data
+        if (profile) {
+          updateState(prev => {
+            const updates: Partial<WizardState> = {}
+            if (user.email && !prev.email) updates.email = user.email
+            if (profile.full_name && !prev.fullName) updates.fullName = profile.full_name
+            if (profile.street_address && !prev.address) {
+              updates.address = [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean).join(', ')
+            }
+            if (profile.city && !prev.city) updates.city = profile.city
+            if (profile.state_code && !prev.state_code) updates.state_code = profile.state_code
+            if (profile.phone_number && !prev.phoneNumber) updates.phoneNumber = profile.phone_number
+            return updates
+          })
+        }
+      })
   }, [user])
 
   // Auth is handled globally via useAuth, no local sync needed
@@ -253,35 +276,36 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       const authUser = userData.user
       if (!authUser) throw new Error('Not authenticated')
 
+      // Decompose address fields from state.address
+      let zipCode = ''
+      let stateCode = ''
+      let city = ''
+      let street = state.address || ''
+      
+      const parts = state.address?.split(',') || []
+      if (parts.length >= 3) {
+        street = parts.slice(0, -2).join(',').trim()
+        city = parts[parts.length - 2].trim()
+        const stateZip = parts[parts.length - 1].trim().split(' ')
+        if (stateZip.length >= 2) {
+          stateCode = stateZip[0]
+          zipCode = stateZip[1]
+        }
+      }
+
+      // Fallback: extract zip from anywhere in the address via regex
+      if (!zipCode && state.address) {
+        const zipMatch = state.address.match(/\b(\d{5}(?:-\d{4})?)\b/)
+        if (zipMatch) zipCode = zipMatch[1]
+      }
+      // Fallback: extract state code via regex (e.g. ", CA " or " CA ")
+      if (!stateCode && state.address) {
+        const stMatch = state.address.match(/\b([A-Z]{2})\b/)
+        if (stMatch) stateCode = stMatch[1]
+      }
+
       // Update profile if publishing so user is fully onboarded
       if (!isDraft) {
-        let zipCode = ''
-        let stateCode = ''
-        let city = ''
-        let street = state.address || ''
-        
-        const parts = state.address?.split(',') || []
-        if (parts.length >= 3) {
-          street = parts.slice(0, -2).join(',').trim()
-          city = parts[parts.length - 2].trim()
-          const stateZip = parts[parts.length - 1].trim().split(' ')
-          if (stateZip.length >= 2) {
-            stateCode = stateZip[0]
-            zipCode = stateZip[1]
-          }
-        }
-
-        // Fallback: extract zip from anywhere in the address via regex
-        if (!zipCode && state.address) {
-          const zipMatch = state.address.match(/\b(\d{5}(?:-\d{4})?)\b/)
-          if (zipMatch) zipCode = zipMatch[1]
-        }
-        // Fallback: extract state code via regex (e.g. ", CA " or " CA ")
-        if (!stateCode && state.address) {
-          const stMatch = state.address.match(/\b([A-Z]{2})\b/)
-          if (stMatch) stateCode = stMatch[1]
-        }
-
         const profileUpdate: any = {
           tos_accepted_at: state.agreedToTos ? new Date().toISOString() : undefined,
           full_name: state.fullName || undefined,
@@ -307,7 +331,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         // No stand selected in wizard — check if user has any existing stand
         const { data: existingBooth } = await supabase
           .from('market_booths')
-          .select('id')
+          .select('id, name')
           .eq('owner_id', authUser.id)
           .limit(1)
           .single()
@@ -344,6 +368,69 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             }
           })
 
+          // Decompose pickup address
+          const boothStr = state.address || ''
+          const pickupStr = state.offersPickup && state.pickupAddress ? state.pickupAddress : boothStr
+          
+          let pickupStreet = ''
+          let pickupCity = ''
+          let pickupState = ''
+          let pickupZip = ''
+          
+          const pParts = pickupStr.split(',').map((s: string) => s.trim())
+          if (pParts.length >= 3) {
+            pickupStreet = pParts.slice(0, -2).join(', ').trim()
+            pickupCity = pParts[pParts.length - 2].trim()
+            const sz = pParts[pParts.length - 1].trim().split(/\s+/)
+            pickupState = sz[0] || ''
+            pickupZip = sz.slice(1).join(' ').trim()
+          } else if (pParts.length === 2) {
+            pickupStreet = pParts[0]
+            pickupCity = pParts[1]
+          } else {
+            pickupStreet = pickupStr
+          }
+
+          let boothLocation: any = null
+          let pickupLocation: any = null
+
+          try {
+            const { geocodeAddress, toPostgisPoint } = await import('../../../lib/geocode')
+            if (boothStr) {
+              const geo = await geocodeAddress(boothStr)
+              if (geo) {
+                boothLocation = toPostgisPoint(geo.lat, geo.lng)
+                pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+              }
+            }
+            if (pickupStr && pickupStr !== boothStr) {
+              const geo = await geocodeAddress(pickupStr)
+              if (geo) {
+                pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+              }
+            }
+          } catch (err) {
+            console.warn('Geocoding failed during booth auto-creation:', err)
+          }
+
+          const boothUpdatePayload: any = {
+            offers_delivery: state.offersDelivery,
+            offers_pickup: state.offersPickup,
+            delivery_radius_miles: state.deliveryRadius,
+            booth_address: boothStr || null,
+            booth_street: street || null,
+            booth_city: city || null,
+            booth_state: stateCode || null,
+            booth_zip: zipCode ? zipCode.split('-')[0] : null,
+            pickup_address: pickupStr || null,
+            pickup_street: pickupStreet || null,
+            pickup_city: pickupCity || null,
+            pickup_state: pickupState || null,
+            pickup_zip: pickupZip ? pickupZip.split('-')[0] : null,
+          }
+          if (boothLocation) boothUpdatePayload.booth_location = boothLocation
+          if (pickupLocation) boothUpdatePayload.pickup_location = pickupLocation
+
           // Try create_stand RPC first
           let rpcWorked = false
           try {
@@ -355,12 +442,13 @@ export function WizardProvider({ children }: { children: ReactNode }) {
               rpcWorked = true
 
               // RPC only sets name — update with fulfillment options
-              await supabase.from('market_booths').update({
-                offers_delivery: state.offersDelivery,
-                offers_pickup: state.offersPickup,
-                delivery_radius_miles: state.deliveryRadius,
-                pickup_address: state.offersPickup ? state.pickupAddress || null : null,
-              }).eq('id', boothId)
+              const { data: updatedData, error: updateErr } = await supabase.from('market_booths').update(boothUpdatePayload).eq('id', boothId).select()
+              if (updateErr) {
+                throw new Error('Failed to update booth after RPC: ' + updateErr.message)
+              }
+              if (!updatedData || updatedData.length === 0) {
+                throw new Error('Failed to update booth after RPC: no rows updated for ID ' + boothId)
+              }
             }
           } catch { /* RPC may not exist yet — fallback below */ }
 
@@ -374,7 +462,18 @@ export function WizardProvider({ children }: { children: ReactNode }) {
                 offers_delivery: state.offersDelivery,
                 offers_pickup: state.offersPickup,
                 delivery_radius_miles: state.deliveryRadius,
-                pickup_address: state.offersPickup ? state.pickupAddress || null : null,
+                booth_address: boothStr || null,
+                booth_street: street || null,
+                booth_city: city || null,
+                booth_state: stateCode || null,
+                booth_zip: zipCode ? zipCode.split('-')[0] : null,
+                pickup_address: pickupStr || null,
+                pickup_street: pickupStreet || null,
+                pickup_city: pickupCity || null,
+                pickup_state: pickupState || null,
+                pickup_zip: pickupZip ? pickupZip.split('-')[0] : null,
+                booth_location: boothLocation,
+                pickup_location: pickupLocation,
                 delivery_windows: flatDw,
                 pickup_windows: flatPw,
                 weekly_delivery_windows: autoWeeklyDw,
@@ -396,15 +495,14 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       if (boothId) {
         const { data: b } = await supabase
           .from('market_booths')
-          .select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes, booth_address, delivery_windows, pickup_windows')
+          .select('name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes, booth_address, delivery_windows, pickup_windows')
           .eq('id', boothId)
           .single()
         boothDefaults = b
 
-        // If booth exists but has no fulfillment settings (both offers_delivery and offers_pickup are false/null),
-        // we copy the first product's attributes to set the booth defaults.
-        const hasFulfillmentConfigured = b && (b.offers_delivery || b.offers_pickup)
-        if (!isDraft && !hasFulfillmentConfigured) {
+        // If booth exists but has no booth_address configured, we populate all address and fulfillment fields!
+        const hasAddressConfigured = b && b.booth_address
+        if (!isDraft && !hasAddressConfigured) {
           const autoWeeklyDw: Record<string, any[]> = {}
           const autoWeeklyPw: Record<string, any[]> = {}
           const flatDw: any[] = []
@@ -425,17 +523,79 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             }
           })
 
-          await supabase.from('market_booths').update({
+          // Calculate geocoding
+          let boothLocation: any = null
+          let pickupLocation: any = null
+          const boothStr = state.address || ''
+          const pickupStr = state.offersPickup && state.pickupAddress ? state.pickupAddress : boothStr
+
+          try {
+            const { geocodeAddress, toPostgisPoint } = await import('../../../lib/geocode')
+            if (boothStr) {
+              const geo = await geocodeAddress(boothStr)
+              if (geo) {
+                boothLocation = toPostgisPoint(geo.lat, geo.lng)
+                pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+              }
+            }
+            if (pickupStr && pickupStr !== boothStr) {
+              const geo = await geocodeAddress(pickupStr)
+              if (geo) {
+                pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+              }
+            }
+          } catch (err) {
+            console.warn('Geocoding failed during booth update:', err)
+          }
+
+          let pickupStreet = ''
+          let pickupCity = ''
+          let pickupState = ''
+          let pickupZip = ''
+          const pParts = pickupStr.split(',').map((s: string) => s.trim())
+          if (pParts.length >= 3) {
+            pickupStreet = pParts.slice(0, -2).join(', ').trim()
+            pickupCity = pParts[pParts.length - 2].trim()
+            const sz = pParts[pParts.length - 1].trim().split(/\s+/)
+            pickupState = sz[0] || ''
+            pickupZip = sz.slice(1).join(' ').trim()
+          } else if (pParts.length === 2) {
+            pickupStreet = pParts[0]
+            pickupCity = pParts[1]
+          } else {
+            pickupStreet = pickupStr
+          }
+
+          const updatePayload: any = {
             offers_delivery: state.offersDelivery,
             offers_pickup: state.offersPickup,
             delivery_radius_miles: state.deliveryRadius,
-            pickup_address: state.offersPickup ? state.pickupAddress || null : null,
-            delivery_zipcodes: state.offersDelivery && state.deliveryZipcodes?.length > 0 ? state.deliveryZipcodes : null,
+            booth_address: boothStr || null,
+            booth_street: street || null,
+            booth_city: city || null,
+            booth_state: stateCode || null,
+            booth_zip: zipCode ? zipCode.split('-')[0] : null,
+            pickup_address: pickupStr || null,
+            pickup_street: pickupStreet || null,
+            pickup_city: pickupCity || null,
+            pickup_state: pickupState || null,
+            pickup_zip: pickupZip ? pickupZip.split('-')[0] : null,
             delivery_windows: flatDw,
             pickup_windows: flatPw,
             weekly_delivery_windows: autoWeeklyDw,
             weekly_pickup_windows: autoWeeklyPw
-          }).eq('id', boothId)
+          }
+          if (boothLocation) updatePayload.booth_location = boothLocation
+          if (pickupLocation) updatePayload.pickup_location = pickupLocation
+
+          // Also set the stand's name to the correct name instead of placeholder if needed
+          if (b && (b.name === "My Booth's Booth" || b.name === "My Stand's Stand" || b.name?.includes('My Booth') || b.name?.includes('My Stand'))) {
+            const boothName = state.fullName ? `${state.fullName}'s Produce Stand` : 'My Produce Stand'
+            updatePayload.name = boothName
+          }
+
+          const { error: updateErr } = await supabase.from('market_booths').update(updatePayload).eq('id', boothId)
+          if (updateErr) throw new Error('Failed to update booth address details: ' + updateErr.message)
         }
       }
 
@@ -443,7 +603,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         ? state.deliveryRadius
         : (boothDefaults?.delivery_radius_miles || 5)
 
-      const resolvedPickupAddress = state.pickupAddress
+      const resolvedPickupAddress = state.offersPickup && state.pickupAddress
         ? state.pickupAddress
         : (boothDefaults?.pickup_address || boothDefaults?.booth_address || state.address || null)
 

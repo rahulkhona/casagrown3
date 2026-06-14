@@ -5,6 +5,7 @@ import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import SocialShareModal from '../SocialShareModal'
 import { useBootstrap } from '../../../lib/useBootstrap'
+import { getBoothProductShareMessage, type SharePlatformType } from '../../../lib/shareMessages'
 
 export default function Step6Success() {
   const { state } = useWizard()
@@ -16,7 +17,27 @@ export default function Step6Success() {
   const productUrl = state.publishedProductId 
     ? `https://casagrown.com/p/${state.publishedProductId}${referralCode ? `?ref=${referralCode}` : ''}`
     : 'https://casagrown.com/p/preview'
-  const shareMessage = `Hey neighbors! I'm selling ${state.name || 'homegrown produce'} on CasaGrown:`
+
+  // Build price text
+  const priceText = state.isFree
+    ? '💚 Price: Free'
+    : state.priceUsd
+      ? `💰 Price: $${state.priceUsd}${state.unit ? ` / ${state.unit}` : ''}`
+      : ''
+
+  // Build quantity text
+  const qtyText = state.quantity ? `📦 Available Qty: ${state.quantity}` : ''
+
+  // Build fulfillment text
+  const modes: string[] = []
+  if (state.offersDelivery) modes.push('🚗 Delivery')
+  if (state.offersPickup) modes.push('📍 Pickup')
+  const deliveryText = modes.length > 0
+    ? `${qtyText ? qtyText + '\n' : ''}${modes.join(' • ')}`
+    : qtyText
+
+  const shareMessage = (platform?: SharePlatformType) =>
+    getBoothProductShareMessage(state.name || 'homegrown produce', priceText, deliveryText, undefined, platform)
 
   return (
     <div style={{ background: '#f0fdf4', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, margin: '-24px -20px -100px -20px' }}>
@@ -53,7 +74,7 @@ export default function Step6Success() {
         entityName={state.name || 'Product'}
         shareUrl={productUrl}
         shareMessage={shareMessage}
-        shareContext="onboarding_share"
+        shareContext="new_product_share"
       />
     </div>
   )

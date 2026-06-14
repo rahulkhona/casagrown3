@@ -16,6 +16,9 @@ import { ShareIcon } from '../../../../components/icons'
 import SocialShareModal from '../../../../components/SocialShareModal'
 import { getBoothProductShareMessage } from '../../../../../lib/shareMessages'
 import styles from './page.module.css'
+import AddressInput from '../../../../components/AddressInput'
+import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressComplete, buildAddress } from '../../../../../lib/address'
+import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
 
 // Compute the next upcoming market date from the schedule
 function getNextMarketDate(schedule: { dayOfWeek: number; dayName: string; openTime: string; closeTime: string }[]): {
@@ -54,6 +57,23 @@ function formatTime(t: string): string {
   const ampm = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 || 12
   return m ? `${hour}:${m.toString().padStart(2, '0')} ${ampm}` : `${hour} ${ampm}`
+}
+
+function parseLegacyAddress(addrStr: string | null | undefined): AddressFields {
+  if (!addrStr) return { street: '', city: '', state: '', zip: '' }
+  const parts = addrStr.split(',').map(s => s.trim())
+  if (parts.length >= 3) {
+    const street = parts.slice(0, -2).join(', ').trim()
+    const city = parts[parts.length - 2].trim()
+    const stateZip = parts[parts.length - 1].trim().split(/\s+/)
+    const state = stateZip[0] || ''
+    const zip = stateZip.slice(1).join(' ').trim()
+    return { street, city, state, zip }
+  } else if (parts.length === 2) {
+    return { street: parts[0], city: parts[1], state: '', zip: '' }
+  } else {
+    return { street: addrStr, city: '', state: '', zip: '' }
+  }
 }
 
 function NewProductPageInner() {
@@ -156,6 +176,8 @@ function NewProductPageInner() {
   const [inlineDelivery, setInlineDelivery] = useState(true)
   const [inlinePickup, setInlinePickup] = useState(true)
   const [inlinePickupAddress, setInlinePickupAddress] = useState('')
+  const [boothBaseAddr, setBoothBaseAddr] = useState<AddressFields>(EMPTY_ADDRESS)
+  const [productPickupAddr, setProductPickupAddr] = useState<AddressFields>(EMPTY_ADDRESS)
   const [inlineDeliveryRadius, setInlineDeliveryRadius] = useState(2)
   const [inlineDeliveryZipcodes, setInlineDeliveryZipcodes] = useState<string[]>([])
   const [inlineProfileName, setInlineProfileName] = useState('')
@@ -365,9 +387,17 @@ function NewProductPageInner() {
         setAllBooths(combined)
       } else {
         setHasBooth(false)
-        supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', authUser.id).single()
+        supabase.from('profiles').select('full_name, street_address, city, state_code, zip_code').eq('id', authUser.id).single()
           .then(({ data: profile }: { data: any }) => {
             if (profile?.full_name) setInlineProfileName(profile.full_name)
+            const profileAddr = {
+              street: profile?.street_address || '',
+              city: profile?.city || '',
+              state: profile?.state_code || '',
+              zip: profile?.zip_code || '',
+            }
+            setBoothBaseAddr(profileAddr)
+            setProductPickupAddr(profileAddr)
             if (profile?.street_address) {
               setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
             }
@@ -386,9 +416,48 @@ function NewProductPageInner() {
       // 1. Load booth settings
       const { data: booth } = await supabase
         .from('market_booths')
-        .select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes')
+        .select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_zipcodes, booth_address, booth_street, booth_city, booth_state, booth_zip, pickup_street, pickup_city, pickup_state, pickup_zip')
         .eq('id', boothId)
         .single()
+
+      if (booth) {
+        let baseAddr = buildAddress(booth.booth_street, booth.booth_city, booth.booth_state, booth.booth_zip)
+        if (!hasAddress(baseAddr) && booth.booth_address) {
+          baseAddr = parseLegacyAddress(booth.booth_address)
+        }
+
+        if (!hasAddress(baseAddr)) {
+          let pickAddr = buildAddress(booth.pickup_street, booth.pickup_city, booth.pickup_state, booth.pickup_zip)
+          if (!hasAddress(pickAddr) && booth.pickup_address) {
+            pickAddr = parseLegacyAddress(booth.pickup_address)
+          }
+          if (hasAddress(pickAddr)) {
+            baseAddr = pickAddr
+          } else {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('street_address, city, state_code, zip_code')
+              .eq('id', authUser.id)
+              .single()
+            if (profile) {
+              baseAddr = {
+                street: profile.street_address || '',
+                city: profile.city || '',
+                state: profile.state_code || '',
+                zip: profile.zip_code || '',
+              }
+            }
+          }
+        }
+        setBoothBaseAddr(baseAddr)
+
+        const pickAddr = buildAddress(booth.pickup_street, booth.pickup_city, booth.pickup_state, booth.pickup_zip)
+        if (!hasAddress(pickAddr) && booth.pickup_address) {
+          setProductPickupAddr(parseLegacyAddress(booth.pickup_address))
+        } else {
+          setProductPickupAddr(pickAddr)
+        }
+      }
 
       // 2. Load fulfillment windows from table (same source as booth page)
       const { data: windows } = await supabase
@@ -425,8 +494,6 @@ function NewProductPageInner() {
             weeklyPw[w.day_of_week].push(slotId)
           }
         }
-
-
 
         // Map weekly schedule → next 7 calendar days
         const dates: string[] = []
@@ -466,12 +533,17 @@ function NewProductPageInner() {
         // Use profile address as pickup address fallback
         const { data: profile } = await supabase
           .from('profiles')
-          .select('street_address, city, state_code')
+          .select('street_address, city, state_code, zip_code')
           .eq('id', authUser.id)
           .single()
         if (profile?.street_address) {
-          const addr = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
-          setInlinePickupAddress(addr)
+          const profileAddr = {
+            street: profile.street_address || '',
+            city: profile.city || '',
+            state: profile.state_code || '',
+            zip: profile.zip_code || '',
+          }
+          setProductPickupAddr(profileAddr)
         }
       }
 
@@ -517,7 +589,12 @@ function NewProductPageInner() {
       }
       // Load per-product fulfillment overrides
       if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
-      if (data.pickup_address) setInlinePickupAddress(data.pickup_address)
+      if (data.pickup_address) {
+        setProductPickupAddr(parseLegacyAddress(data.pickup_address))
+        setInlinePickupAddress(data.pickup_address)
+      } else {
+        setProductPickupAddr(EMPTY_ADDRESS)
+      }
       if (data.delivery_zipcodes) setInlineDeliveryZipcodes(data.delivery_zipcodes)
       // Detect if product is inactive — trigger relist mode automatically
       if (!data.is_active && !data.is_draft) {
@@ -740,14 +817,27 @@ function NewProductPageInner() {
         }
       }
 
-      // Pickup address validation
-      const offersPickup = hasBooth ? productOffersPickup : inlinePickup
-      if (offersPickup) {
-        const resolvedAddress = inlinePickupAddress || (hasBooth ? (boothDefaults?.pickup_address || boothDefaults?.booth_address) : null)
-        if (!resolvedAddress) {
-          newErrors.pickupAddress = 'A pickup address is required to offer pickup.'
-        } else if (!/\b\d{5}\b/.test(resolvedAddress)) {
-          newErrors.pickupAddress = 'Pickup address must include a 5-digit ZIP code.'
+      // Address validation
+      if (!hasBooth) {
+        // Base address is required to initialize the booth
+        if (!hasAddress(boothBaseAddr)) {
+          newErrors.boothAddress = 'Home/Farm address is required'
+        } else if (!isAddressComplete(boothBaseAddr)) {
+          newErrors.boothAddress = 'Please enter street, city, state, and ZIP code for your home/farm address.'
+        }
+
+        // If pickup is enabled, we check if they specified an alternate pickup address
+        if (inlinePickup && hasAddress(productPickupAddr)) {
+          if (!isAddressComplete(productPickupAddr)) {
+            newErrors.pickupAddress = 'Please complete all fields of the pickup address or leave it empty to use home address.'
+          }
+        }
+      } else {
+        // If hasBooth is true, pickup address is an optional override
+        if (productOffersPickup && hasAddress(productPickupAddr)) {
+          if (!isAddressComplete(productPickupAddr)) {
+            newErrors.pickupAddress = 'Please complete all fields of the pickup address or leave it empty to use booth default.'
+          }
         }
       }
     }
@@ -780,65 +870,140 @@ function NewProductPageInner() {
     trackFormSubmit(isEditMode ? 'edit_product' : 'add_product', { category, name: name.trim() })
 
     try {
+      let boothLocation: any = null
+      let pickupLocation: any = null
 
-    // ── 1. Ensure a booth exists (auto-create if needed) ──
-    let boothId: string | null = boothParam || null
-    if (!boothId) {
-    const { data: existingBooth } = await supabase
-      .from('market_booths')
-      .select('id, status')
-      .eq('owner_id', authUser.id)
-      .single()
-
-    if (existingBooth) {
-      boothId = existingBooth.id
-    } else {
-      // Auto-create a booth using inline form values — publish immediately
-      const boothName = inlineProfileName ? `${inlineProfileName}'s Produce Stand` : 'My Produce Stand'
-
-      // Build weekly windows from product's selected windows so the booth is fully configured
-      const autoWeeklyDw: Record<string, any[]> = {}
-      const autoWeeklyPw: Record<string, any[]> = {}
-      const flatDw = inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : []
-      const flatPw = inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : []
-      // Apply the product's windows to today and tomorrow's day-of-week
-      if (flatDw.length > 0) {
-        autoWeeklyDw[todayDayKey] = flatDw
-        autoWeeklyDw[tomorrowDayKey] = flatDw
-      }
-      if (flatPw.length > 0) {
-        autoWeeklyPw[todayDayKey] = flatPw
-        autoWeeklyPw[tomorrowDayKey] = flatPw
+      if (!hasBooth) {
+        try {
+          const boothStr = formatFullAddress(boothBaseAddr)
+          if (boothStr) {
+            const geo = await geocodeAddress(boothStr)
+            if (geo) {
+              boothLocation = toPostgisPoint(geo.lat, geo.lng)
+              pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+            }
+          }
+          const pickupStr = inlinePickup
+            ? (hasAddress(productPickupAddr) ? formatFullAddress(productPickupAddr) : boothStr)
+            : null
+          if (pickupStr && pickupStr !== boothStr) {
+            const geo = await geocodeAddress(pickupStr)
+            if (geo) {
+              pickupLocation = toPostgisPoint(geo.lat, geo.lng)
+            }
+          }
+        } catch (err) {
+          console.warn('Geocoding failed during booth auto-creation/update:', err)
+        }
       }
 
-      const { data: newBooth, error: boothErr } = await supabase
-        .from('market_booths')
-        .insert({
-          owner_id: authUser.id,
-          name: boothName,
-          status: 'published',
-          offers_delivery: inlineDelivery,
-          offers_pickup: inlinePickup,
-          delivery_radius_miles: inlineDeliveryRadius,
-          pickup_address: inlinePickup ? inlinePickupAddress || null : null,
-          delivery_windows: flatDw,
-          pickup_windows: flatPw,
-          weekly_delivery_windows: autoWeeklyDw,
-          weekly_pickup_windows: autoWeeklyPw,
-          payment_method: 'automatic',
-          decorative_theme: 'floral',
-        })
-        .select()
-        .single()
+      // ── 1. Ensure a booth exists (auto-create if needed) ──
+      let boothId: string | null = boothParam || null
+      if (!boothId) {
+        const { data: existingBooth } = await supabase
+          .from('market_booths')
+          .select('id, status')
+          .eq('owner_id', authUser.id)
+          .single()
 
-      if (boothErr || !newBooth) {
-        setValidating(false)
-        dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to create booth — ' + (boothErr?.message || 'unknown error'), type: 'error' } })
-        return
+        if (existingBooth) {
+          boothId = existingBooth.id
+          
+          const flatDw = inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : []
+          const flatPw = inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : []
+          const autoWeeklyDw: Record<string, any[]> = {}
+          const autoWeeklyPw: Record<string, any[]> = {}
+          if (flatDw.length > 0) {
+            autoWeeklyDw[todayDayKey] = flatDw
+            autoWeeklyDw[tomorrowDayKey] = flatDw
+          }
+          if (flatPw.length > 0) {
+            autoWeeklyPw[todayDayKey] = flatPw
+            autoWeeklyPw[tomorrowDayKey] = flatPw
+          }
+
+          const boothUpdatePayload: any = {
+            offers_delivery: inlineDelivery,
+            offers_pickup: inlinePickup,
+            delivery_radius_miles: inlineDeliveryRadius,
+            booth_address: formatFullAddress(boothBaseAddr) || null,
+            booth_street: boothBaseAddr.street || null,
+            booth_city: boothBaseAddr.city || null,
+            booth_state: boothBaseAddr.state || null,
+            booth_zip: boothBaseAddr.zip ? boothBaseAddr.zip.split('-')[0] : null,
+            pickup_address: inlinePickup ? (hasAddress(productPickupAddr) ? formatFullAddress(productPickupAddr) : formatFullAddress(boothBaseAddr)) : null,
+            pickup_street: inlinePickup ? (productPickupAddr.street || boothBaseAddr.street || null) : null,
+            pickup_city: inlinePickup ? (productPickupAddr.city || boothBaseAddr.city || null) : null,
+            pickup_state: inlinePickup ? (productPickupAddr.state || boothBaseAddr.state || null) : null,
+            pickup_zip: inlinePickup ? ((productPickupAddr.zip || boothBaseAddr.zip || '').split('-')[0] || null) : null,
+            delivery_zipcodes: inlineDelivery && inlineDeliveryZipcodes.length > 0 ? inlineDeliveryZipcodes : null,
+            delivery_windows: flatDw,
+            pickup_windows: flatPw,
+            weekly_delivery_windows: autoWeeklyDw,
+            weekly_pickup_windows: autoWeeklyPw,
+          }
+          if (boothLocation) boothUpdatePayload.booth_location = boothLocation
+          if (pickupLocation) boothUpdatePayload.pickup_location = pickupLocation
+
+          await supabase.from('market_booths').update(boothUpdatePayload).eq('id', boothId)
+        } else {
+          // Auto-create a booth using inline form values — publish immediately
+          const boothName = inlineProfileName ? `${inlineProfileName}'s Produce Stand` : 'My Produce Stand'
+
+          const autoWeeklyDw: Record<string, any[]> = {}
+          const autoWeeklyPw: Record<string, any[]> = {}
+          const flatDw = inlineDelivery ? mapInlineWindows(inlineDeliveryWindows, inlineCustomDeliverySlots) : []
+          const flatPw = inlinePickup ? mapInlineWindows(inlinePickupWindows, inlineCustomPickupSlots) : []
+          if (flatDw.length > 0) {
+            autoWeeklyDw[todayDayKey] = flatDw
+            autoWeeklyDw[tomorrowDayKey] = flatDw
+          }
+          if (flatPw.length > 0) {
+            autoWeeklyPw[todayDayKey] = flatPw
+            autoWeeklyPw[tomorrowDayKey] = flatPw
+          }
+
+          const boothInsertPayload: any = {
+            owner_id: authUser.id,
+            name: boothName,
+            status: 'published',
+            offers_delivery: inlineDelivery,
+            offers_pickup: inlinePickup,
+            delivery_radius_miles: inlineDeliveryRadius,
+            booth_address: formatFullAddress(boothBaseAddr) || null,
+            booth_street: boothBaseAddr.street || null,
+            booth_city: boothBaseAddr.city || null,
+            booth_state: boothBaseAddr.state || null,
+            booth_zip: boothBaseAddr.zip ? boothBaseAddr.zip.split('-')[0] : null,
+            pickup_address: inlinePickup ? (hasAddress(productPickupAddr) ? formatFullAddress(productPickupAddr) : formatFullAddress(boothBaseAddr)) : null,
+            pickup_street: inlinePickup ? (productPickupAddr.street || boothBaseAddr.street || null) : null,
+            pickup_city: inlinePickup ? (productPickupAddr.city || boothBaseAddr.city || null) : null,
+            pickup_state: inlinePickup ? (productPickupAddr.state || boothBaseAddr.state || null) : null,
+            pickup_zip: inlinePickup ? ((productPickupAddr.zip || boothBaseAddr.zip || '').split('-')[0] || null) : null,
+            delivery_windows: flatDw,
+            pickup_windows: flatPw,
+            weekly_delivery_windows: autoWeeklyDw,
+            weekly_pickup_windows: autoWeeklyPw,
+            payment_method: 'automatic',
+            decorative_theme: 'floral',
+          }
+          if (boothLocation) boothInsertPayload.booth_location = boothLocation
+          if (pickupLocation) boothInsertPayload.pickup_location = pickupLocation
+
+          const { data: newBooth, error: boothErr } = await supabase
+            .from('market_booths')
+            .insert(boothInsertPayload)
+            .select()
+            .single()
+
+          if (boothErr || !newBooth) {
+            setValidating(false)
+            dispatch({ type: 'ADD_TOAST', payload: { message: 'Failed to create booth — ' + (boothErr?.message || 'unknown error'), type: 'error' } })
+            return
+          }
+          boothId = newBooth.id
+        }
       }
-      boothId = newBooth.id
-    }
-    } // end if (!boothId)
 
     // ── 2. Check if product name contains blocked words ──
     const { data: allBlocked } = await supabase
@@ -924,7 +1089,16 @@ function NewProductPageInner() {
           offers_delivery: inlineDelivery,
           offers_pickup: inlinePickup,
           delivery_radius_miles: inlineDeliveryRadius,
-          pickup_address: inlinePickup ? inlinePickupAddress || null : null,
+          booth_address: formatFullAddress(boothBaseAddr) || null,
+          booth_street: boothBaseAddr.street || null,
+          booth_city: boothBaseAddr.city || null,
+          booth_state: boothBaseAddr.state || null,
+          booth_zip: boothBaseAddr.zip ? boothBaseAddr.zip.split('-')[0] : null,
+          pickup_address: inlinePickup ? (hasAddress(productPickupAddr) ? formatFullAddress(productPickupAddr) : formatFullAddress(boothBaseAddr)) : null,
+          pickup_street: inlinePickup ? (productPickupAddr.street || boothBaseAddr.street || null) : null,
+          pickup_city: inlinePickup ? (productPickupAddr.city || boothBaseAddr.city || null) : null,
+          pickup_state: inlinePickup ? (productPickupAddr.state || boothBaseAddr.state || null) : null,
+          pickup_zip: inlinePickup ? ((productPickupAddr.zip || boothBaseAddr.zip || '').split('-')[0] || null) : null,
           delivery_zipcodes: inlineDelivery && inlineDeliveryZipcodes.length > 0 ? inlineDeliveryZipcodes : null,
           delivery_windows: flatDw,
           pickup_windows: flatPw,
@@ -934,20 +1108,20 @@ function NewProductPageInner() {
       }
     }
 
+    const offersPickup = hasBooth ? productOffersPickup : inlinePickup
+    const offersDelivery = hasBooth ? productOffersDelivery : inlineDelivery
+
     const resolvedRadius = inlineDeliveryRadius !== null && inlineDeliveryRadius !== undefined
       ? inlineDeliveryRadius
       : (boothDefaults?.delivery_radius_miles || 5)
 
-    const resolvedPickupAddress = inlinePickupAddress
-      ? inlinePickupAddress
-      : (boothDefaults?.pickup_address || boothDefaults?.booth_address || null)
+    const resolvedPickupAddress = offersPickup && hasAddress(productPickupAddr)
+      ? formatFullAddress(productPickupAddr)
+      : null
 
     const resolvedZipcodes = inlineDeliveryZipcodes && inlineDeliveryZipcodes.length > 0
       ? inlineDeliveryZipcodes
       : (boothDefaults?.delivery_zipcodes || [])
-
-    const offersPickup = hasBooth ? productOffersPickup : inlinePickup
-    const offersDelivery = hasBooth ? productOffersDelivery : inlineDelivery
 
     // ── 3. Insert or update the product ──
     if (isEditMode) {
@@ -1411,7 +1585,16 @@ function NewProductPageInner() {
   }
 
   const getShareMessage = () => {
-    return getBoothProductShareMessage(addedProductName, nextMarket?.label) + getProductUrl()
+    const priceText = `💰 Price: $${priceUsd}/${unit} (Qty: ${quantity} available)`
+    let deliveryText = ''
+    if (productOffersDelivery && productOffersPickup) {
+      deliveryText = `🚗 Delivery & 📍 Pickup available`
+    } else if (productOffersDelivery) {
+      deliveryText = `🚗 Delivery available`
+    } else if (productOffersPickup) {
+      deliveryText = `📍 Pickup available`
+    }
+    return getBoothProductShareMessage(addedProductName, priceText, deliveryText, nextMarket?.label) + getProductUrl()
   }
 
   const handleShareCopy = async () => {
@@ -1999,91 +2182,73 @@ function NewProductPageInner() {
             </div>
 
             {/* Pickup address + delivery radius — always shown, pre-filled from booth defaults */}
-            {(hasBooth ? productOffersPickup : inlinePickup) && (
-              <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
-                <label className={styles.label}>📍 Pickup Address <span className={styles.optional}>(optional)</span></label>
-                <input
-                  className={`${styles.input} ${errors.pickupAddress ? styles.inputError : ''}`}
-                  value={inlinePickupAddress}
-                  onChange={e => { setInlinePickupAddress(e.target.value); setErrors(p => ({ ...p, pickupAddress: '' })) }}
-                  placeholder="Where should buyers pick up?"
+            {/* Base and Pickup Addresses */}
+            {!hasBooth && (
+              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                <label className={styles.label}>🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span></label>
+                <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
+                <AddressInput
+                  value={boothBaseAddr}
+                  onChange={val => {
+                    setBoothBaseAddr(val)
+                    setErrors(p => ({ ...p, boothAddress: '' }))
+                  }}
+                  showPrivacyNote={true}
+                  placeholderStreet="Street Address"
                 />
-                {errors.pickupAddress && <span className={styles.error}>{errors.pickupAddress}</span>}
-                <button
-                  type="button"
-                  style={{
-                    marginTop: 6, padding: '6px 14px', borderRadius: 20,
-                    border: '1px solid var(--green-300)', background: 'var(--green-50)',
-                    color: 'var(--green-700)', fontSize: 13, fontWeight: 500,
-                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+              </div>
+            )}
+
+            {!hasBooth && inlinePickup && (
+              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(leave blank to use Home/Farm Address)</span></label>
+                <AddressInput
+                  value={productPickupAddr}
+                  onChange={val => {
+                    setProductPickupAddr(val)
+                    setErrors(p => ({ ...p, pickupAddress: '' }))
                   }}
-                  onClick={async () => {
-                    if (!navigator.geolocation) {
-                      dispatch({ type: 'ADD_TOAST', payload: { message: 'Geolocation not supported', type: 'error' } })
-                      return
-                    }
-                    navigator.geolocation.getCurrentPosition(
-                      async (pos) => {
-                        try {
-                          const res = await fetch(
-                            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
-                            { headers: { 'User-Agent': 'CasaGrown/1.0' } }
-                          )
-                          const data = await res.json()
-                          if (data?.address) {
-                            const a = data.address
-                            const street = [a.house_number, a.road].filter(Boolean).join(' ')
-                            const city = a.city || a.town || a.village || ''
-                            const st = a.state || ''
-                            const zip = a.postcode || ''
-                            setInlinePickupAddress([street, city, `${st} ${zip}`.trim()].filter(Boolean).join(', '))
-                          }
-                        } catch {
-                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not determine address automatically', type: 'error' } })
-                        }
-                      },
-                      (err) => {
-                        if (err.code === 1) {
-                          setLocationDenied(true)
-                        } else {
-                          dispatch({ type: 'ADD_TOAST', payload: { message: 'Could not get location — please enter address manually', type: 'error' } })
-                        }
-                      },
-                      { enableHighAccuracy: true, timeout: 10000 }
-                    )
+                  placeholderStreet="Street Address"
+                />
+                {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+              </div>
+            )}
+
+            {hasBooth && productOffersPickup && (
+              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                <label className={styles.label}>📍 Pickup Address Override <span className={styles.optional}>(leave blank to use booth default pickup address)</span></label>
+                <AddressInput
+                  value={productPickupAddr}
+                  onChange={val => {
+                    setProductPickupAddr(val)
+                    setErrors(p => ({ ...p, pickupAddress: '' }))
                   }}
-                >
-                  📍 Use my current location
-                </button>
-                {locationDenied && (
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--amber-700, #b45309)', lineHeight: 1.4 }}>
-                    {typeof window !== 'undefined' && (window as any).IS_NATIVE_APP ? (
-                      <>
-                        🔒 Location is blocked. To enable: open your iOS/Android device <strong>Settings</strong> → <strong>Privacy &amp; Security</strong> → <strong>Location Services</strong> → find <strong>{typeof window !== 'undefined' && (window as any).NATIVE_APP_NAME ? (window as any).NATIVE_APP_NAME : 'CasaGrown'}</strong> → allow <strong>Location</strong> permissions, then restart.
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const { NativeBridge } = await import('../../../../../lib/nativeBridge')
-                            NativeBridge.openAppSettings()
-                          }}
-                          style={{
-                            background: 'none', border: 'none', padding: 0, margin: '4px 0 0',
-                            color: '#ea580c', textDecoration: 'underline', cursor: 'pointer',
-                            fontSize: 12, fontWeight: 600, display: 'block', textAlign: 'left'
-                          }}
-                        >
-                          ⚙️ Open Settings
-                        </button>
-                      </>
-                    ) : (
-                      <>🔒 Location is blocked. To enable: tap the <strong>lock icon</strong> (or ⋮) in your browser’s address bar → <strong>Site settings</strong> → set <strong>Location</strong> to Allow, then reload.</>
-                    )}
-                  </p>
-                )}
+                  placeholderStreet="Street Address"
+                />
+                {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
               </div>
             )}
             {(hasBooth ? productOffersDelivery : inlineDelivery) && (
               <>
+                {hasBooth && boothBaseAddr && hasAddress(boothBaseAddr) && (
+                  <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                    <label className={styles.label}>🏠 Your Booth Address</label>
+                    <div style={{
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: '#f3f4f6',
+                      color: '#4b5563',
+                      fontSize: 14,
+                      border: '1px solid #e5e7eb',
+                    }} data-testid="inherited-base-address">
+                      {formatFullAddress(boothBaseAddr)}
+                    </div>
+                    <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
+                      Delivery radius is computed from your stand&apos;s base address.
+                    </p>
+                  </div>
+                )}
                 <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
                   <label className={styles.label}>🚗 Delivery Radius</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

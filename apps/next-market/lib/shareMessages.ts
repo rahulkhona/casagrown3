@@ -116,7 +116,16 @@ export function getProductShareMessage(productName: string, priceText: string, d
   return `${getRandomGreeting()} ${pick(variations)}\n\n${priceText}\n\n${deliveryText}\n\n👇 Click the link below to view and purchase:\n`
 }
 
-export function getBoothProductShareMessage(productName: string, nextMarketLabel?: string, platform?: SharePlatformType): string {
+export function getBoothProductShareMessage(
+  productName: string,
+  priceText?: string,
+  deliveryText?: string,
+  nextMarketLabel?: string,
+  platform?: SharePlatformType
+): string {
+  const priceLine = priceText ? `${priceText}\n` : ''
+  const deliveryLine = deliveryText ? `${deliveryText}\n` : ''
+
   if (isCommunityPost(platform)) {
     const variations = [
       `🌱 I just listed fresh ${productName} on my CasaGrown produce stand! Grown in my garden, available for delivery or pickup.`,
@@ -124,7 +133,7 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
       `🍅 Fresh from my garden — I've got ${productName} available on my CasaGrown stand if any neighbors are interested!`,
       `🥬 I'm growing more than I can eat! I've got fresh ${productName} on CasaGrown if anyone wants some.`,
     ]
-    return `${pick(variations)}\n\n👇 View and order for this ${nextMarketLabel || 'weekend'}:\n`
+    return `${pick(variations)}\n\n${priceLine}${deliveryLine}\n👇 View and order for this ${nextMarketLabel || 'weekend'}:\n`
   }
 
   const variations = [
@@ -133,7 +142,7 @@ export function getBoothProductShareMessage(productName: string, nextMarketLabel
     `My CasaGrown produce stand is officially live! See what fresh produce I have available:`,
     `I've got excess ${productName} from the garden this week if anyone wants some! Check out my CasaGrown listing:`
   ]
-  return `${getRandomGreeting()} ${pick(variations)}\n\n👇 Click the link below to view and purchase for this ${nextMarketLabel || 'weekend'}:\n`
+  return `${getRandomGreeting()} ${pick(variations)}\n\n${priceLine}${deliveryLine}\n👇 Click the link below to view and purchase for this ${nextMarketLabel || 'weekend'}:\n`
 }
 
 export function getCommunityInviteMessage(platform?: SharePlatformType, digest?: string | null): string {

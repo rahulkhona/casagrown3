@@ -31,23 +31,56 @@ export default function Step1Basics() {
     setAiAnalyzing(true)
     setAiToast(null)
 
+    const tryInvoke = async (): Promise<{ data: any; error: any }> => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 45000)
+      try {
+        const res = await supabase.functions.invoke('analyze-product-photo', {
+          body: { image: state.photos[0] },
+        })
+        clearTimeout(timeout)
+        return res
+      } catch (err: any) {
+        clearTimeout(timeout)
+        if (err?.name === 'AbortError') {
+          return { data: null, error: { message: 'Request timed out (45s)' } }
+        }
+        throw err
+      }
+    }
+
     try {
-      const res = await supabase.functions.invoke('analyze-product-photo', {
-        body: { image: state.photos[0] },
-      })
-      
+      let res = await tryInvoke()
+
+      // Auto-retry once on invocation error (cold start, transient 503, etc.)
       if (res.error) {
-        setAiToast(`⚠️ AI analysis failed — please fill in manually.`)
+        console.warn('AI autofill first attempt failed, retrying:', res.error?.message || res.error)
+        await new Promise(r => setTimeout(r, 1500))
+        res = await tryInvoke()
+      }
+
+      if (res.error) {
+        const errMsg = res.error?.message || res.error?.name || 'Unknown error'
+        setAiToast(`⚠️ AI analysis unavailable (${errMsg}) — please fill in manually.`)
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 5000)
+        setTimeout(() => setAiToast(null), 15000)
         return
       }
 
       const data = res.data as any
+
+      if (data?.error) {
+        const errorDetail = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+        setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : `AI analysis failed: ${errorDetail.slice(0, 120)}`} — please fill in manually.`)
+        setAiAnalyzing(false)
+        setTimeout(() => setAiToast(null), 15000)
+        return
+      }
+
       if (!data?.name && !data?.description && !data?.category) {
         setAiToast('⚠️ AI could not identify the product — please fill in manually.')
         setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 5000)
+        setTimeout(() => setAiToast(null), 15000)
         return
       }
 
@@ -55,13 +88,14 @@ export default function Step1Basics() {
         name: data.name || state.name,
         category: data.category && categories.some(c => c.name === data.category) ? data.category : state.category,
         description: data.description || state.description,
+        unit: data.suggested_unit || state.unit,
       })
       setAiToast('✨ AI filled in product details — review and adjust!')
     } catch (err: any) {
       setAiToast(`⚠️ AI analysis failed — please fill in manually.`)
     }
     setAiAnalyzing(false)
-    setTimeout(() => setAiToast(null), 6000)
+    setTimeout(() => setAiToast(null), 15000)
   }
 
   useEffect(() => {
@@ -138,6 +172,10 @@ export default function Step1Basics() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      setTimeout(() => {
+        const firstError = document.querySelector(`.${styles.errorText}`)
+        firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
       return
     }
 
@@ -174,7 +212,7 @@ export default function Step1Basics() {
         if (data?.user?.id) {
           const [{ data: profile }, { data: booth }] = await Promise.all([
             supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', data.user.id).single(),
-            supabase.from('booth_settings').select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows').eq('owner_id', data.user.id).single()
+            supabase.from('market_booths').select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows').eq('owner_id', data.user.id).single()
           ])
 
           if (profile) {
@@ -373,7 +411,7 @@ export default function Step1Basics() {
         >
           <option value="">Select Category</option>
           {categories.map(c => (
-            <option key={c.name} value={c.name}>{c.name}</option>
+            <option key={c.name} value={c.name}>{c.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
           ))}
         </select>
         {errors.category && <div className={styles.errorText}>{errors.category}</div>}

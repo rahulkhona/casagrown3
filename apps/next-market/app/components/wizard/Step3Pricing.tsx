@@ -11,6 +11,13 @@ export default function Step3Pricing() {
   const [suggestingPrice, setSuggestingPrice] = useState(false)
   const supabase = createClient()
 
+  // Scroll to top when entering this step
+  useEffect(() => {
+    const el = document.querySelector('[class*="wizardContent"]') || document.querySelector('[class*="wizard"]')
+    if (el) el.scrollTop = 0
+    window.scrollTo(0, 0)
+  }, [])
+
   const handleSuggestPrice = async () => {
     if (!state.name || state.name.trim().length < 3 || state.isFree) return;
     setSuggestingPrice(true);
@@ -45,6 +52,10 @@ export default function Step3Pricing() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      setTimeout(() => {
+        const firstError = document.querySelector(`.${styles.errorText}`)
+        firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
       return
     }
 
