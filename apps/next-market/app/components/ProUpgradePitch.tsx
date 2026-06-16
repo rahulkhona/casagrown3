@@ -14,13 +14,13 @@ const SLIDES = [
   {
     icon: '📦',
     title: 'Product Catalog',
-    description: 'Create once, list everywhere. Manage your master inventory across all booths from a single catalog.',
+    description: 'Create once, list everywhere. Manage your master inventory across all stands from a single catalog.',
     gradient: 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
   },
   {
     icon: '🏪',
-    title: 'Multiple Booths',
-    description: 'Run separate booths for different markets. Saturday at the farmers market, Tuesday at the farm stand.',
+    title: 'Multiple Stands',
+    description: 'Run separate stands for different markets. Saturday at the farmers market, Tuesday at the farm stand.',
     gradient: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
   },
   {
@@ -50,7 +50,7 @@ const SLIDES = [
   {
     icon: '🛒',
     title: 'Pre-Sell for Farmers Market',
-    description: 'Take orders before market day. Customers pick up at your booth — you sell out before you arrive.',
+    description: 'Take orders before market day. Customers pick up at your stand — you sell out before you arrive.',
     gradient: 'linear-gradient(135deg, #9333ea 0%, #c084fc 100%)',
   },
   {

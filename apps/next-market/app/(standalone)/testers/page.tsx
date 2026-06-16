@@ -323,7 +323,7 @@ export default function TestersPage() {
           <div className={styles.whatCard}>
             <div className={styles.whatNumber}>1</div>
             <h3>Explore the Market</h3>
-            <p>Browse booths, search for products, set reminders, and experience the market open/close cycle.</p>
+            <p>Browse stands, search for products, set reminders, and experience the market open/close cycle.</p>
           </div>
           <div className={styles.whatCard}>
             <div className={styles.whatNumber}>2</div>

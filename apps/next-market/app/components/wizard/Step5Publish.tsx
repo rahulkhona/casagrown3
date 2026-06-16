@@ -10,6 +10,8 @@ import { useErrorToast } from '../ErrorToast'
 
 export default function Step5Publish() {
   const { state, updateState, nextStep, prevStep, saveProductToDatabase, checkQuarantine } = useWizard()
+  const { quarantineInfo } = state
+  const showQuarantineWarning = false
   const { showError } = useErrorToast()
   const [isPublishing, setIsPublishing] = useState(false)
   const [userId, setUserId] = useState<string | undefined>()
@@ -136,7 +138,21 @@ export default function Step5Publish() {
         </div>
       </div>
 
-      {state.quarantineInfo && (
+      {/* Mild agricultural guidelines reminder instead of dynamic quarantine county/pest warnings */}
+      <div style={{
+        background: 'var(--slate-50, #f8fafc)', border: '1px solid var(--slate-200, #e2e8f0)',
+        borderRadius: 24, padding: '16px 20px', marginBottom: 24, fontSize: 14,
+        color: 'var(--slate-700, #334155)', display: 'flex', gap: 12, alignItems: 'flex-start',
+      }}>
+        <div style={{ fontSize: 20, lineHeight: 1 }}>📋</div>
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Friendly reminder: Please check your local agricultural guidelines before posting fresh produce.
+          </p>
+        </div>
+      </div>
+
+      {quarantineInfo && showQuarantineWarning && (
         <div style={{
           background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-300, #fcd34d)',
           borderRadius: 24, padding: '16px 20px', marginBottom: 24, fontSize: 14,
@@ -146,14 +162,14 @@ export default function Step5Publish() {
           <div style={{ flex: 1 }}>
             <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#b45309' }}>Potential Agricultural Quarantine</h4>
             <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>
-              Based on your location, selling <strong>{state.category}</strong> may be quarantined in <strong>{state.quarantineInfo.county_name}</strong> due
-              to <strong>{state.quarantineInfo.pest_name}</strong>.
+              Based on your location, selling <strong>{state.category}</strong> may be quarantined in <strong>{quarantineInfo.county_name}</strong> due
+              to <strong>{quarantineInfo.pest_name}</strong>.
             </p>
-            {state.quarantineInfo.reason && (
-              <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>{state.quarantineInfo.reason}</p>
+            {quarantineInfo.reason && (
+              <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>{quarantineInfo.reason}</p>
             )}
-            {state.quarantineInfo.source_url && (
-              <a href={state.quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" 
+            {quarantineInfo.source_url && (
+              <a href={quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" 
                  style={{ color: '#b45309', fontWeight: 600, textDecoration: 'underline' }}>
                 Learn more at local Dept of Agriculture →
               </a>

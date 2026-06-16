@@ -1,27 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useMarket, formatUsd, type Product } from '../../../../lib/store'
 import styles from './page.module.css'
 import SocialShareModal from '../../../components/SocialShareModal'
 
-export default function ProductsListPage() {
+function ProductsListPageContent() {
   const { state, dispatch } = useMarket()
   const myBooth = state.booths.find(b => b.ownerId === state.user?.id)
   const products = state.products.filter(p => p.boothId === myBooth?.id)
   const coupons = state.coupons.filter(c => c.boothId === myBooth?.id)
 
-  // Invite modal state
+  const searchParams = useSearchParams()
+  const shareProductId = searchParams.get('share')
+
   const [inviteProduct, setInviteProduct] = useState<Product | null>(null)
   const [attachCoupon, setAttachCoupon] = useState(false)
   const [couponType, setCouponType] = useState<'percent' | 'fixed'>('percent')
   const [couponValue, setCouponValue] = useState('10')
   const [selectedCoupon, setSelectedCoupon] = useState('')
+  const [showShareModal, setShowShareModal] = useState(false)
+
+  useEffect(() => {
+    if (shareProductId && products.length > 0) {
+      const match = products.find(p => p.id === shareProductId)
+      if (match) {
+        setInviteProduct(match)
+        setShowShareModal(true)
+        setSelectedCoupon(coupons[0]?.code || '')
+      }
+    }
+  }, [shareProductId, products, coupons])
 
   if (!myBooth) return (
     <div className="container" style={{ padding: 80, textAlign: 'center' }}>
-      <h2>Create a booth first</h2>
+      <h2>Create a stand first</h2>
       <Link href="/my-booth" className="btn btn-primary" style={{ marginTop: 16 }}>Go to My Produce Stand</Link>
     </div>
   )
@@ -84,7 +99,6 @@ export default function ProductsListPage() {
     return msg
   }
 
-  const [showShareModal, setShowShareModal] = useState(false)
 
   const handleInviteShare = () => {
     setShowShareModal(true)
@@ -262,5 +276,13 @@ export default function ProductsListPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function ProductsListPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProductsListPageContent />
+    </Suspense>
   )
 }

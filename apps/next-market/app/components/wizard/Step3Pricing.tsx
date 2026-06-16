@@ -59,8 +59,8 @@ export default function Step3Pricing() {
       return
     }
 
-    // Skip Step 4 (Verification) if the user is already authenticated
-    if (state.isExistingUser && isAuthenticated) {
+    // Skip Step 4 (Verification) if the user is already authenticated or verified OTP
+    if (isAuthenticated || state.isExistingUser) {
       updateState({ currentStep: 5 })
     } else {
       nextStep()

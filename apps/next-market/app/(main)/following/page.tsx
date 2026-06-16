@@ -228,7 +228,7 @@ function PersonCard({ person, action, onClick }: { person: any, action: 'follow'
             <p style={{ margin: 0, fontSize: '13px', color: '#166534', fontWeight: 500 }}>✨ {person.reason}</p>
           ) : (
             <p style={{ margin: 0, fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Host of {person.booth_name || person.name || 'a local booth'}
+              Host of {person.booth_name || person.name || 'a local stand'}
             </p>
           )}
         </Link>

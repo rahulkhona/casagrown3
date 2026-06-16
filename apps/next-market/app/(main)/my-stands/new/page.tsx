@@ -8,7 +8,7 @@ import { useSubscription } from '../../../../lib/useSubscription'
 import { createClient } from '../../../../lib/supabase'
 import { LoadingSpinner } from '../../../components/LoadingSpinner'
 import AddressInput from '../../../components/AddressInput'
-import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, toGeocodingString } from '../../../../lib/address'
+import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, toGeocodingString, normalizeStateCode } from '../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../lib/geocode'
 
 import styles from './page.module.css'
@@ -343,12 +343,12 @@ export default function NewStandPage() {
         booth_address: boothStr || null,
         booth_street: boothAddress.street || null,
         booth_city: boothAddress.city || null,
-        booth_state: boothAddress.state || null,
+        booth_state: normalizeStateCode(boothAddress.state) || null,
         booth_zip: boothAddress.zip || null,
         pickup_address: pickupStr || boothStr || null,
         pickup_street: offersPickup ? (pickupAddress.street || boothAddress.street || null) : null,
         pickup_city: offersPickup ? (pickupAddress.city || boothAddress.city || null) : null,
-        pickup_state: offersPickup ? (pickupAddress.state || boothAddress.state || null) : null,
+        pickup_state: offersPickup ? (normalizeStateCode(pickupAddress.state || boothAddress.state) || null) : null,
         pickup_zip: offersPickup ? (pickupAddress.zip || boothAddress.zip || null) : null,
         delivery_zipcodes: deliveryZipcodes.length > 0 ? deliveryZipcodes : null,
         weekly_pickup_windows: offersPickup && Object.keys(weeklyPickupWindows).length > 0 ? weeklyPickupWindows : null,

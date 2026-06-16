@@ -6,6 +6,7 @@ import { useBootstrap } from '../../lib/useBootstrap'
 import { geocodeAddress, toPostgisPoint } from '../../lib/geocode'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../(main)/terms/page'
 import styles from './QuickSetupModal.module.css'
+import { normalizeStateCode } from '../../lib/address'
 
 // ── US State Codes ──
 const US_STATES = [
@@ -296,7 +297,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       // New user or incomplete profile — save profile data
       const finalStreet = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.street : street.trim()
       const finalCity = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.city : city.trim()
-      const finalState = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.state : state.trim().toUpperCase()
+      const finalState = normalizeStateCode(uspsCorrection && useCorrected ? uspsCorrection.correctedFields.state : state)
       const finalZip = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.zip : zip.trim()
 
       // Geocode & H3

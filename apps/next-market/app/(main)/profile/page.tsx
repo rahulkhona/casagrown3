@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import AddressInput from '../../components/AddressInput'
-import type { AddressFields } from '../../../lib/address'
+import { type AddressFields, normalizeStateCode } from '../../../lib/address'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useErrorToast } from '../../components/ErrorToast'
@@ -153,7 +153,7 @@ function ProfilePageInner() {
       // ── 1. Validate address via USPS (recompute ZIP+4 on any address change) ──
       let validatedStreet = form.street.trim()
       let validatedCity = form.city.trim()
-      let validatedState = form.state.trim().toUpperCase()
+      let validatedState = normalizeStateCode(form.state)
       let validatedZipPlus4 = form.zip.trim()
       let county: string | null = null
 
@@ -170,7 +170,7 @@ function ProfilePageInner() {
           if (!uspsError && uspsResult?.address) {
             validatedStreet = uspsResult.address.streetAddress || validatedStreet
             validatedCity = uspsResult.address.city || validatedCity
-            validatedState = uspsResult.address.state || validatedState
+            validatedState = normalizeStateCode(uspsResult.address.state || validatedState)
             validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
             county = uspsResult.jurisdiction?.county || null
             setForm(prev => ({ ...prev, street: validatedStreet, city: validatedCity, state: validatedState, zip: validatedZipPlus4.split('-')[0] }))

@@ -167,6 +167,7 @@ function NewProductPageInner() {
   const [quarantineWarning, setQuarantineWarning] = useState<{
     pest_name: string; county_name: string; source_url?: string; reason?: string; keywords: string[];
   } | null>(null)
+  const showQuarantineWarning = false
   const [quarantineChecking, setQuarantineChecking] = useState(false)
 
   // Inline booth setup (for users without a booth)
@@ -2567,7 +2568,7 @@ function NewProductPageInner() {
           {/* Inline booth setup removed — fulfillment is unified in "Available For" section above */}
 
           {/* ===== Quarantine Warning Banner ===== */}
-          {quarantineWarning && (
+          {quarantineWarning && showQuarantineWarning && (
             <div style={{
               backgroundColor: '#fffbeb', border: '2px solid #f59e0b', borderRadius: 12,
               padding: '16px 20px', marginBottom: 16,
@@ -2601,7 +2602,7 @@ function NewProductPageInner() {
 
           {/* ===== Submit ===== */}
           <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16, lineHeight: 1.4, textAlign: 'center' }}>
-            <strong>Notice:</strong> Always check your local Department of Agriculture for active plant quarantines before listing agricultural products. You are responsible for ensuring your listings comply with all local regulations.
+            Friendly reminder: Please check your local agricultural guidelines before listing fresh produce.
           </p>
           {errors.submit && (
             <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, whiteSpace: 'pre-wrap' }}>

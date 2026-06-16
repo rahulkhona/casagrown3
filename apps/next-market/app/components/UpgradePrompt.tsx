@@ -16,14 +16,14 @@ const PRO_BENEFITS = [
   {
     icon: '📘',
     title: 'Reach More Buyers',
-    desc: 'List your inventory on your Facebook page and drive traffic to your booths — reach buyers where they already are.',
+    desc: 'List your inventory on your Facebook page and drive traffic to your stands — reach buyers where they already are.',
     key: 'facebook_sync',
     image: '/images/pro/facebook-sync.png',
   },
   {
     icon: '📦',
     title: 'Guaranteed Sales',
-    desc: 'Let buyers pre-purchase and pick up from your farmers market booths and routes — guaranteed purchases and more foot traffic to your stall.',
+    desc: 'Let buyers pre-purchase and pick up from your farmers market stands and routes — guaranteed purchases and more foot traffic to your stall.',
     key: 'preorders',
     image: '/images/pro/preorders.png',
   },
@@ -37,7 +37,7 @@ const PRO_BENEFITS = [
   {
     icon: '📱',
     title: 'Engage Your Followers',
-    desc: 'Share your booths with WhatsApp followers and let them pre-purchase before your drop-off dates.',
+    desc: 'Share your stands with WhatsApp followers and let them pre-purchase before your drop-off dates.',
     key: 'whatsapp_sharing',
     image: '/images/pro/whatsapp-sharing.png',
   },
@@ -50,8 +50,8 @@ const PRO_BENEFITS = [
   },
   {
     icon: '🏪',
-    title: 'Multiple Booths',
-    desc: 'Set up booths for different days, routes, and farmers market participation — all from one account.',
+    title: 'Multiple Stands',
+    desc: 'Set up stands for different days, routes, and farmers market participation — all from one account.',
     key: 'multiple_booths',
     image: '/images/pro/multiple-booths.png',
   },

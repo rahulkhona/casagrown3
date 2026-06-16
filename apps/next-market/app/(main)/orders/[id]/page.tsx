@@ -156,7 +156,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         seller_address: (data as any).booth?.pickup_address || (data as any).seller?.street_address || undefined,
         buyer_avatar: (data as any).buyer?.avatar_url || undefined,
         seller_avatar: (data as any).seller?.avatar_url || undefined,
-        booth_name: (data as any).booth?.name || 'Unknown Booth',
+        booth_name: (data as any).booth?.name || 'Unknown Stand',
       } as OrderDetail)
 
       // Check if current user is a helper for this booth
@@ -298,7 +298,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           <div>
             <h1 className={styles.orderTitle}>{order.product_name}</h1>
             <p className={styles.orderSub}>
-              {order.booth_name && order.booth_name !== 'Unknown Booth' && <><span>🏪 {order.booth_name}</span> · </>}
+              {order.booth_name && order.booth_name !== 'Unknown Stand' && <><span>🏪 {order.booth_name}</span> · </>}
               {order.fulfillment_type === 'delivery' ? '🚗 Delivery' : '📍 Pickup'} · Order placed {new Date(order.created_at).toLocaleDateString()}
             </p>
           </div>

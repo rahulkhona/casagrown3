@@ -5,6 +5,8 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import { useSearchParams } from 'next/navigation'
 
+import { normalizeStateCode } from '../../../lib/address'
+
 export interface QuarantineInfo {
   pest_name: string;
   county_name: string;
@@ -145,7 +147,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
     
     // Fetch profile
     supabase.from('profiles')
-      .select('full_name, street_address, city, state_code, zip_code, phone_number')
+      .select('full_name, street_address, city, state_code, zip_code, phone_number, profile_completed_at, tos_accepted_at')
       .eq('id', user.id)
       .single()
       .then((res: any) => {
@@ -161,8 +163,14 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             if (profile.city && !prev.city) updates.city = profile.city
             if (profile.state_code && !prev.state_code) updates.state_code = profile.state_code
             if (profile.phone_number && !prev.phoneNumber) updates.phoneNumber = profile.phone_number
+            
+            // A user has completed setup if they have a completed profile and accepted the ToS
+            updates.isExistingUser = !!(profile.profile_completed_at && profile.tos_accepted_at)
+            
             return updates
           })
+        } else {
+          updateState({ isExistingUser: false })
         }
       })
   }, [user])
@@ -288,7 +296,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         city = parts[parts.length - 2].trim()
         const stateZip = parts[parts.length - 1].trim().split(' ')
         if (stateZip.length >= 2) {
-          stateCode = stateZip[0]
+          stateCode = normalizeStateCode(stateZip[0])
           zipCode = stateZip[1]
         }
       }
@@ -301,7 +309,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       // Fallback: extract state code via regex (e.g. ", CA " or " CA ")
       if (!stateCode && state.address) {
         const stMatch = state.address.match(/\b([A-Z]{2})\b/)
-        if (stMatch) stateCode = stMatch[1]
+        if (stMatch) stateCode = normalizeStateCode(stMatch[1])
       }
 
       // Update profile if publishing so user is fully onboarded

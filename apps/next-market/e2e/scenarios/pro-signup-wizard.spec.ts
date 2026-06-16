@@ -437,7 +437,7 @@ test.describe('Group 2: /p/[slug] Page — Promo Landing', () => {
   test.beforeAll(() => {
     // Query for an active promotion slug from the DB
     const result = execSql(
-      "SELECT slug FROM crm_promotions WHERE deleted_at IS NULL AND enrollment_deadline > now() AND slug IS NOT NULL AND slug != '' LIMIT 1",
+      "SELECT lp.slug FROM crm_landing_pages lp JOIN crm_promotions p ON p.landing_page_id = lp.id WHERE p.enrollment_deadline > now() AND lp.is_active = TRUE AND lp.slug IS NOT NULL AND lp.slug != '' LIMIT 1",
     )
     promoSlug = result?.trim() || null
   })

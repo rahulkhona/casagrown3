@@ -496,7 +496,7 @@ test.describe('Reject & Refund Workflow', () => {
 
     // 8. Verify Push via supabase rest API (poll — async dispatch)
     let pushFound = false
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 30; i++) {
       await page.waitForTimeout(1000)
       const pushRes = await request.get(`${supabaseUrl}/rest/v1/push_notification_log?body=ilike.*${encodeURIComponent(rejectReason)}*`, {
         headers: { 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }

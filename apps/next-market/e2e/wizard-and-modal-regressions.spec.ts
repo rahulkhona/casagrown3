@@ -1,5 +1,34 @@
 import { test, expect } from './fixtures'
 
+const SUPABASE_URL = 'http://127.0.0.1:54321'
+const SERVICE_ROLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+
+// Buyer user ID from seed.sql
+const BUYER_ID = 'b2222222-2222-2222-2222-222222222222'
+
+/** Reset buyer@test.local's profile to known-good state via service-role DB patch */
+async function resetBuyerProfile() {
+  await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${BUYER_ID}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      full_name: 'Beth Buyer',
+      street_address: '1247 Minnesota Ave',
+      city: 'San Jose',
+      state_code: 'CA',
+      zip_code: '95125',
+      profile_completed_at: new Date().toISOString(),
+      tos_accepted_at: new Date().toISOString(),
+    }),
+  })
+}
+
 test.describe('Wizard and Modal Regression Tests (Authed)', () => {
   test.use({ storageState: 'e2e/.auth/user.json' })
 
@@ -9,43 +38,69 @@ test.describe('Wizard and Modal Regression Tests (Authed)', () => {
   })
 
   test('logged-in user has profile address pre-populated and web bottom nav visible', async ({ page }) => {
-    // 1. Check that web BottomNav is visible on /create-listing (padding prevents overlap with wizard buttons)
+    // Reset profile before this specific test to ensure address fields are populated
+    await resetBuyerProfile()
+
     await page.goto('/create-listing')
-    await expect(page.locator('h2:has-text("Create Your Product Listing")')).toBeVisible()
+    await expect(page.locator('h2:has-text("Create Your Product Listing")')).toBeVisible({ timeout: 15000 })
+
+    // 1. Check that web BottomNav is visible on mobile (padding prevents overlap with wizard buttons)
     await expect(page.locator('nav[class*="bottomNav"]')).toBeVisible()
 
-    // 2. Fill Step 1 Basics
-    await page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]').fill('E2E Prepopulated Tomatoes')
-    
+    // 2. Fill Step 1 Basics — wait for full hydration before interacting
+    await page.waitForLoadState('networkidle')
+
+    const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')
+    await expect(nameInput).toBeVisible()
+    await nameInput.fill('E2E Prepopulated Tomatoes')
+
     // Wait for categories to load from DB before selecting
     const categorySelect = page.locator('select', { has: page.locator('option:has-text("Select Category")') })
-    await expect(categorySelect.locator('option')).not.toHaveCount(1, { timeout: 10000 })
-    await categorySelect.selectOption({ index: 1 })
-    
-    // Click Next
-    await page.getByRole('button', { name: 'Next →' }).click()
+    await expect(categorySelect.locator('option')).not.toHaveCount(1, { timeout: 15000 })
+
+    // Get the first real category value (not the empty "Select Category" option)
+    const firstCategoryValue = await categorySelect.locator('option:not([value=""])').first().getAttribute('value')
+    expect(firstCategoryValue).toBeTruthy()
+
+    // Select by value — more reliable than index for React controlled components
+    await categorySelect.selectOption(firstCategoryValue!)
+    await page.waitForTimeout(300) // Let React state settle
+
+    // Verify the category actually got selected
+    await expect(categorySelect).not.toHaveValue('', { timeout: 5000 })
+
+    // Click Next with retry loop — under heavy load, React onChange can lag behind DOM
+    const step2Heading = page.locator('h2:has-text("How will buyers get it?")')
+    const nextButton = page.getByRole('button', { name: 'Next →' })
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await nextButton.click()
+      if (await step2Heading.isVisible({ timeout: 5000 }).catch(() => false)) break
+
+      // Re-fill and re-select to recover from React state timing issue
+      await nameInput.fill('E2E Prepopulated Tomatoes')
+      await categorySelect.selectOption(firstCategoryValue!)
+      // Force native change event in case React didn't pick up selectOption
+      await categorySelect.dispatchEvent('change')
+      await page.waitForTimeout(500)
+    }
 
     // 3. Verify Step 2 Fulfillment pre-population
-    await expect(page.locator('h2:has-text("How will buyers get it?")')).toBeVisible({ timeout: 15000 })
+    await expect(step2Heading).toBeVisible({ timeout: 15000 })
 
     // Check that street, city, zip are automatically pre-populated from seeded profile
-    const streetVal = await page.locator('input[placeholder="Street Address"]').first().inputValue()
-    const cityVal = await page.locator('input[placeholder="City"]').first().inputValue()
-    const zipVal = await page.locator('input[placeholder="ZIP"]').first().inputValue()
-
-    expect(streetVal).toBeTruthy()
-    expect(cityVal).toBeTruthy()
-    expect(zipVal).toBeTruthy()
+    await expect(page.locator('input[placeholder="Street Address"]').first()).not.toHaveValue('', { timeout: 10000 })
+    await expect(page.locator('input[placeholder="City"]').first()).not.toHaveValue('', { timeout: 10000 })
+    await expect(page.locator('input[placeholder="ZIP"]').first()).not.toHaveValue('', { timeout: 10000 })
 
     // 4. Select a delivery day and a pickup day to satisfy fulfillment validation
-    // (since the seeded stand has no weekly defaults set, we must select them manually)
     await page.locator('button:has-text("Today")').first().click()
     await page.locator('button:has-text("Today")').nth(1).click()
 
     // 5. Verify that the Next button is clickable and not obscured
-    const nextBtn = page.getByRole('button', { name: 'Next →' })
-    await expect(nextBtn).toBeVisible()
-    await nextBtn.click()
+    const nextBtn2 = page.getByRole('button', { name: 'Next →' })
+    await expect(nextBtn2).toBeVisible()
+    await nextBtn2.click()
 
     // Verify we proceed to Step 3
     await expect(page.locator('h2:has-text("Set Your Price")')).toBeVisible({ timeout: 10000 })

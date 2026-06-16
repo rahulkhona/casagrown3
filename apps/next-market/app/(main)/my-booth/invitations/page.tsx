@@ -13,7 +13,7 @@ export default function InvitationsPage() {
   const [selectedCoupon, setSelectedCoupon] = useState(coupons[0]?.code || '')
   const [showShareModal, setShowShareModal] = useState(false)
 
-  if (!myBooth) return <div className="container" style={{ padding: 80, textAlign: 'center' }}><h2>Create a booth first</h2></div>
+  if (!myBooth) return <div className="container" style={{ padding: 80, textAlign: 'center' }}><h2>Create a stand first</h2></div>
 
   const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${myBooth.id}` : ''
   const coupon = coupons.find(c => c.code === selectedCoupon)
@@ -47,7 +47,7 @@ Fresh. Local. Trusted.`
         <p className={styles.previewSubtitle}>
           Fresh produce from your neighbor&apos;s backyard 🌱
         </p>
-        <div className={styles.previewBtn}>Browse Booth →</div>
+        <div className={styles.previewBtn}>Browse Stand →</div>
         {coupon && (
           <div className={styles.couponBadge}>
             <span className={styles.couponIcon}>🏷️</span>

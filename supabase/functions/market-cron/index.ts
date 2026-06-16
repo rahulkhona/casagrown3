@@ -28,6 +28,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return await handleReconcileRedemptions(supabase, env, corsHeaders)
   } else if (action === 'messenger_nudge') {
     return await handleMessengerNudge(supabase, env, corsHeaders)
+  } else if (action === 'share_nudge') {
+    return await handleShareNudge(supabase, env, corsHeaders, siteUrl)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -944,6 +946,148 @@ async function handleMessengerNudge(
     } catch (sendErr: any) {
       console.error(`[CRON-NUDGE] Failed to send nudge to PSID ${conv.fb_sender_id}:`, sendErr.message)
     }
+  }
+
+  return jsonOk({ nudged: nudgedCount }, corsHeaders)
+}
+
+// ═══════════════════════════════════════════════
+// Low-Traction Share Nudge — Listing Created 2-4 Hours ago
+// ═══════════════════════════════════════════════
+async function handleShareNudge(
+  supabase: any,
+  env: (k: string) => string | undefined,
+  corsHeaders: Record<string, string>,
+  siteUrl: string,
+) {
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+
+  // 1. Get products created 2-4 hours ago that are active and approved
+  const { data: products, error } = await supabase
+    .from('market_products')
+    .select('id, name, seller_id, created_at')
+    .eq('moderation_status', 'approved')
+    .eq('is_active', true)
+    .eq('is_deleted', false)
+    .gte('created_at', fourHoursAgo)
+    .lte('created_at', twoHoursAgo)
+
+  if (error) {
+    console.error('[CRON-SHARE-NUDGE] Error fetching products:', error.message)
+    return jsonOk({ error: error.message }, corsHeaders)
+  }
+
+  if (!products || products.length === 0) {
+    return jsonOk({ nudged: 0, message: 'No candidate products' }, corsHeaders)
+  }
+
+  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const pushUrl = (env('SUPABASE_URL') || 'http://host.docker.internal:54321') +
+    '/functions/v1/send-push-notification'
+
+  let nudgedCount = 0
+
+  for (const product of products) {
+    // A. Check if nudge was already sent (by checking notifications table)
+    const shareLink = `/my-booth/products?share=${product.id}`
+    const { data: existingNudge } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', product.seller_id)
+      .eq('link_url', shareLink)
+      .ilike('content', '%traction%')
+      .limit(1)
+
+    if (existingNudge && existingNudge.length > 0) {
+      continue // Already nudged, skip
+    }
+
+    // B. Check if the product has any orders
+    const { data: orders } = await supabase
+      .from('market_orders')
+      .select('id')
+      .eq('product_id', product.id)
+      .limit(1)
+
+    if (orders && orders.length > 0) {
+      continue // Has orders, skip
+    }
+
+    // C. Check if the product has any clicks (short_link_clicks)
+    const { data: clicks, error: clicksError } = await supabase
+      .from('short_link_clicks')
+      .select('id')
+      .eq('target_id', product.id)
+      .limit(1)
+
+    if (!clicksError && clicks && clicks.length > 0) {
+      continue // Has clicks, skip
+    }
+
+    // D. Fetch seller email & profile info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', product.seller_id)
+      .single()
+
+    let email = profile?.email
+    if (!email) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(product.seller_id)
+      email = authUser?.user?.email
+    }
+
+    if (!email) {
+      continue // No email found, skip
+    }
+
+    const sellerName = profile?.full_name ?? 'Seller'
+
+    // E. Send In-App Notification
+    await supabase.from('notifications').insert({
+      user_id: product.seller_id,
+      content: `👋 Haven't seen any traction on "${product.name}" yet? Try sharing your listing link with your neighborhood groups.`,
+      link_url: shareLink,
+    })
+
+    // F. Send Push Notification (non-blocking)
+    fetch(pushUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        userIds: [product.seller_id],
+        title: '📈 Boost your listing!',
+        body: `No views on "${product.name}" yet? Try sharing your link to let your neighbors know.`,
+        url: shareLink,
+        tag: `product-nudge-${product.id}`,
+      }),
+    }).catch(e => console.warn('[CRON-SHARE-NUDGE] Push failed:', e))
+
+    // G. Send Congrats Email Nudge
+    const { sendTransactionEmail } = await import('../_shared/postmark.ts')
+    const emailHtml = wrapInBrandedTemplate({
+      title: 'Boost your listing',
+      greeting: `Hi ${sellerName},`,
+      bodyHtml: `
+        <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
+          Your listing for <strong>"${product.name}"</strong> hasn't received any views or orders yet.
+        </p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Try sharing the link with your neighborhood WhatsApp groups, Nextdoor, or Facebook to let your neighbors know!
+        </p>
+        ${actionButton('📣 Share Listing', `${siteUrl}${shareLink}`)}
+      `,
+      footer: 'CasaGrown Market &middot; Fresh. Local. Trusted.'
+    })
+
+    await sendTransactionEmail({
+      to: email,
+      subject: `📈 Boost your listing: "${product.name}"`,
+      htmlBody: emailHtml,
+    }).catch(e => console.error('[CRON-SHARE-NUDGE] Email failed:', e))
+
+    nudgedCount++
   }
 
   return jsonOk({ nudged: nudgedCount }, corsHeaders)

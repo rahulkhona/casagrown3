@@ -90,7 +90,7 @@ function JoinBoothPageInner() {
       const ownerProfile = (boothData as any).profiles
       setBooth({
         id: boothData.id,
-        name: boothData.name || 'Unnamed Booth',
+        name: boothData.name || 'Unnamed Stand',
         ownerName: ownerProfile?.full_name || 'A seller',
         theme: boothData.decorative_theme || 'minimal',
         headerImageUrl: boothData.header_image_url || undefined,
@@ -122,7 +122,7 @@ function JoinBoothPageInner() {
 
     // Check if user is the booth owner
     if (boothData.owner_id === user?.id) {
-      setErrorMsg('You can\'t join your own booth as a helper.')
+      setErrorMsg('You can\'t join your own stand as a helper.')
       setProcessing(false)
       return
     }
@@ -130,7 +130,7 @@ function JoinBoothPageInner() {
     const ownerProfile = (boothData as any).profiles
     setBooth({
       id: boothData.id,
-      name: boothData.name || 'Unnamed Booth',
+      name: boothData.name || 'Unnamed Stand',
       ownerName: ownerProfile?.full_name || 'A seller',
       theme: boothData.decorative_theme || 'minimal',
       headerImageUrl: boothData.header_image_url || undefined,
@@ -149,9 +149,9 @@ function JoinBoothPageInner() {
 
       if (error) {
         if (error.message.includes('Cannot be helper of your own booth')) {
-          setErrorMsg('You can\'t join your own booth as a helper.')
+          setErrorMsg('You can\'t join your own stand as a helper.')
         } else if (error.message.includes('Invalid passcode')) {
-          setErrorMsg('This passcode is invalid or has expired. Ask the booth owner for a new one.')
+          setErrorMsg('This passcode is invalid or has expired. Ask the stand owner for a new one.')
         } else {
           setErrorMsg(error.message)
         }
@@ -160,7 +160,7 @@ function JoinBoothPageInner() {
       }
 
       setPageState('success')
-      dispatch({ type: 'ADD_TOAST', payload: { message: '🎉 You\'re now a booth helper!', type: 'success' } })
+      dispatch({ type: 'ADD_TOAST', payload: { message: '🎉 You\'re now a stand helper!', type: 'success' } })
       showPrompt() // Prompt for push notifications — they'll want order alerts
     } catch (err: any) {
       setErrorMsg(err.message || 'Something went wrong')
@@ -202,8 +202,8 @@ function JoinBoothPageInner() {
       <div className={styles.page}>
         <div className={styles.card}>
           <div className={styles.headerIcon}>🤝</div>
-          <h1 className={styles.title}>Join a Booth</h1>
-          <p className={styles.subtitle}>Enter the passcode shared by the booth owner to join as a helper.</p>
+          <h1 className={styles.title}>Join a Stand</h1>
+          <p className={styles.subtitle}>Enter the passcode shared by the stand owner to join as a helper.</p>
 
           {errorMsg && <div className={styles.errorBanner}>{errorMsg}</div>}
 
@@ -225,7 +225,7 @@ function JoinBoothPageInner() {
             onClick={handleLookup}
             disabled={processing || passcode.trim().length < 4}
           >
-            {processing ? 'Looking up...' : 'Find Booth →'}
+            {processing ? 'Looking up...' : 'Find Stand →'}
           </button>
 
           <button className={styles.backLink} onClick={() => router.push('/market')}>
@@ -244,10 +244,10 @@ function JoinBoothPageInner() {
           <div className={styles.headerIcon}>🤝</div>
           <h1 className={styles.title}>You&apos;re Invited!</h1>
           <p className={styles.subtitle}>
-            <strong>{booth.ownerName}</strong> has invited you to help manage their booth.
+            <strong>{booth.ownerName}</strong> has invited you to help manage their stand.
           </p>
 
-          {/* Booth preview card */}
+          {/* Stand preview card */}
           <div className={styles.boothPreview} style={{ background: tc.bg, borderColor: tc.border }}>
             {booth.headerImageUrl && (
               <div
@@ -301,14 +301,14 @@ function JoinBoothPageInner() {
           <div className={styles.successIcon}>🎉</div>
           <h1 className={styles.title}>You&apos;re In!</h1>
           <p className={styles.subtitle}>
-            You&apos;re now a helper for <strong>{booth?.name}</strong>. You can manage products and orders for this booth.
+            You&apos;re now a helper for <strong>{booth?.name}</strong>. You can manage products and orders for this stand.
           </p>
 
           <button
             className={`btn btn-primary btn-lg ${styles.actionBtn}`}
             onClick={() => router.push('/helping')}
           >
-            Go to My Helping Booths →
+            Go to My Helping Stands →
           </button>
           <button className={styles.backLink} onClick={() => router.push('/market')}>
             Browse Market

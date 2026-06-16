@@ -218,7 +218,7 @@ export default function MyStandsPage() {
   }
 
   if (loading) {
-    return <LoadingSpinner message="Loading your booths..." />
+    return <LoadingSpinner message="Loading your stands..." />
   }
 
   // 0 stands and helper stands — empty state
@@ -229,13 +229,13 @@ export default function MyStandsPage() {
           <div className={styles.emptyIcon}>
             <StandIcon size={64} color="var(--green-600)" />
           </div>
-          <h2 className={styles.emptyTitle}>Create Your First Booth</h2>
+          <h2 className={styles.emptyTitle}>Create Your First Stand</h2>
           <p className={styles.emptyText}>
-            Set up a booth to start selling your fresh, homegrown goods
+            Set up a stand to start selling your fresh, homegrown goods
             to neighbors in your area.
           </p>
           <Link href="/my-stands/new" className={styles.ctaBtn}>
-            🌱 Create My Booth
+            🌱 Create My Stand
           </Link>
         </div>
       </div>
@@ -249,9 +249,9 @@ export default function MyStandsPage() {
     <>
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>My Booths</h1>
+        <h1 className={styles.title}>My Produce Stands</h1>
         <p className={styles.subtitle}>
-          Manage your booths and listings{activePlan !== 'lite' ? ` (${stands.length} ${maxBooths < 0 ? 'active' : `/ ${maxBooths} active`})` : ''}
+          Manage your stands and listings{activePlan !== 'lite' ? ` (${stands.length} ${maxBooths < 0 ? 'active' : `/ ${maxBooths} active`})` : ''}
         </p>
       </div>
 
@@ -266,7 +266,7 @@ export default function MyStandsPage() {
 
           {(maxBooths < 0 || stands.length < maxBooths) && (
             <Link href="/my-stands/new" className={styles.actionBtnPrimary}>
-              + Add New Booth
+              + Add New Stand
             </Link>
           )}
         </div>
@@ -274,7 +274,7 @@ export default function MyStandsPage() {
         {activePlan !== 'lite' && maxBooths >= 0 && stands.length >= maxBooths && (
           <div style={{ margin: '12px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
             <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>
-              You have reached the booth limit of <strong>{maxBooths}</strong> for your plan tier.
+              You have reached the stand limit of <strong>{maxBooths}</strong> for your plan tier.
             </p>
           </div>
         )}
@@ -285,7 +285,7 @@ export default function MyStandsPage() {
         <div style={{ marginBottom: 16 }}>
           <input
             type="text"
-            placeholder="🔍 Search booths..."
+            placeholder="🔍 Search stands..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             style={{

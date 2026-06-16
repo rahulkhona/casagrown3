@@ -14,7 +14,7 @@ import { geocodeAddress, toPostgisPoint } from '../../../../lib/geocode'
 import SocialShareModal from '../../../components/SocialShareModal'
 import { useProEnabled } from '../../../../lib/useProEnabled'
 import { HelperDMModal } from '../../my-booth/components/HelperDMModal'
-import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, buildAddress, toGeocodingString } from '../../../../lib/address'
+import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, buildAddress, toGeocodingString, normalizeStateCode } from '../../../../lib/address'
 
 import styles from './page.module.css'
 
@@ -397,7 +397,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
 
       const standData: StandData = {
         id: booth.id,
-        name: booth.name || 'Unnamed Booth',
+        name: booth.name || 'Unnamed Stand',
         description: booth.description || null,
         header_image_url: booth.header_image_url || null,
         is_active: booth.is_active !== false,
@@ -621,7 +621,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   }
 
   const handleRemoveHelper = async (helperId: string) => {
-    if (!confirm('Remove this helper from your booth?')) return
+    if (!confirm('Remove this helper from your stand?')) return
     setRemovingHelper(helperId)
     await supabase.from('booth_helpers').delete().eq('id', helperId)
     setHelpers(prev => prev.filter(h => h.id !== helperId))
@@ -755,13 +755,13 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         // Decomposed booth address
         booth_street: editBoothAddr.street.trim() || null,
         booth_city: editBoothAddr.city.trim() || null,
-        booth_state: editBoothAddr.state.trim() || null,
+        booth_state: normalizeStateCode(editBoothAddr.state) || null,
         booth_zip: editBoothAddr.zip.trim() || null,
         booth_address: boothFullAddr || null, // keep legacy column in sync
         // Decomposed pickup address
         pickup_street: editOffersPickup ? (editPickupAddr.street.trim() || null) : null,
         pickup_city: editOffersPickup ? (editPickupAddr.city.trim() || null) : null,
-        pickup_state: editOffersPickup ? (editPickupAddr.state.trim() || null) : null,
+        pickup_state: editOffersPickup ? (normalizeStateCode(editPickupAddr.state) || null) : null,
         pickup_zip: editOffersPickup ? (editPickupAddr.zip.trim() || null) : null,
         pickup_address: editOffersPickup ? (pickupFullAddr || null) : null, // keep legacy column in sync
         delivery_radius_miles: editOffersDelivery ? (parseInt(editDeliveryRadius) || 0) : null,
@@ -865,18 +865,18 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
   }
 
   if (loading) {
-    return <LoadingSpinner message="Loading booth..." />
+    return <LoadingSpinner message="Loading stand..." />
   }
 
   if (!stand) {
-    return <LoadingSpinner message="Booth not found..." />
+    return <LoadingSpinner message="Stand not found..." />
   }
 
   return (
     <div className={styles.page}>
       {/* Back navigation */}
       <Link href="/my-stands" className={styles.backNav}>
-        ← Back to My Booths
+        ← Back to My Produce Stands
       </Link>
 
       {/* Stand Header */}
@@ -914,7 +914,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
             className={styles.actionBtn}
             onClick={() => setShowEditModal(true)}
           >
-            ✏️ Edit Booth
+            ✏️ Edit Stand
           </button>
         )}
         <button className={styles.actionBtn} onClick={handleShare}>
@@ -925,10 +925,10 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       {/* Settings Section — owner only */}
       {!isHelperView && (
       <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>⚙️ Booth Settings</h2>
+        <h2 className={styles.sectionTitle}>⚙️ Stand Settings</h2>
         <div className={styles.settingsGrid}>
           <div className={styles.settingItem}>
-            <span className={styles.settingLabel}>Booth Name</span>
+            <span className={styles.settingLabel}>Stand Name</span>
             <span className={styles.settingValue}>{stand.name}</span>
           </div>
           {stand.description && (
@@ -1423,7 +1423,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
         <>
           <div className={styles.modalBackdrop} onClick={() => setShowEditModal(false)} />
           <div className={styles.modal}>
-            <h2 className={styles.modalTitle}>✏️ Edit Booth</h2>
+            <h2 className={styles.modalTitle}>✏️ Edit Stand</h2>
 
 
             {/* ── Banner with Inline Theme & Photo Controls ── */}
@@ -1489,15 +1489,15 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                   className={styles.nameBarInput}
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
-                  placeholder="Name your booth..."
+                  placeholder="Name your stand..."
                   style={{ color: THEME_COLORS[editTheme]?.text || '#1f2937' }}
                 />
               </div>
             </div>
 
-            {/* About Your Booth */}
+            {/* About Your Stand */}
             <div className="form-group" style={{ marginBottom: 20 }}>
-              <label className="label">📝 About Your Booth</label>
+              <label className="label">📝 About Your Stand</label>
               <textarea
                 className="input"
                 value={editAboutHtml}
@@ -1508,9 +1508,9 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
               />
             </div>
 
-            {/* ── Booth Address (Base Location) ── */}
+            {/* ── Stand Address (Base Location) ── */}
             <div className="form-group" style={{ marginBottom: 20 }}>
-              <label className="label">🏠 Booth Address</label>
+              <label className="label">🏠 Stand Address</label>
               <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 8px' }}>
                 Your base address — delivery radius is computed from here.
               </p>
@@ -1665,7 +1665,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                   {/* Pickup Address */}
                   <div style={{ marginTop: 16 }}>
                     <label className="label">📍 Pickup Address <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: 12 }}>(optional)</span></label>
-                    <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your booth address above.</p>
+                    <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your stand address above.</p>
                     <AddressInput
                       value={editPickupAddr}
                       onChange={val => setEditPickupAddr(val)}
@@ -1712,8 +1712,8 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                 background: '#f9fafb',
                 marginBottom: 20,
               }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>📡 Inventory Sync for this Booth</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Choose which platforms sync listings from this booth.</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 4 }}>📡 Inventory Sync for this Stand</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>Choose which platforms sync listings from this stand.</div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
                   <span style={{ fontSize: 20 }}>📍</span>
@@ -1820,7 +1820,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           <div className={styles.modalContent} style={{ maxWidth: 520, padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid #e5e7eb' }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
-                {selectedCatalogItem ? '📦 Allocate to Booth' : '📦 Select from Catalog'}
+                {selectedCatalogItem ? '📦 Allocate to Stand' : '📦 Select from Catalog'}
               </h2>
               {selectedCatalogItem && (
                 <button
@@ -2028,7 +2028,7 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                         ))
                       }}
                     >
-                      {allocating ? 'Allocating...' : `List ${allocQty || 0} at this booth`}
+                      {allocating ? 'Allocating...' : `List ${allocQty || 0} at this stand`}
                     </button>
                   </div>
                 </div>

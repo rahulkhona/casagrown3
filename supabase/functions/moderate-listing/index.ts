@@ -286,17 +286,61 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
 
     await supabase.from("market_products").update(updatePayload).eq("id", product_id);
 
-    // ── 5. Notify seller if flagged ───────────────────────────────────────────
-    if (newStatus === "flagged") {
+    // ── 5. Notify seller if approved or flagged ──────────────────────────────
+    const edgeFnBase = SUPABASE_URL.replace("/rest/v1", "") + "/functions/v1";
+    const authHeader = { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}` };
+
+    if (newStatus === "approved") {
+      const isNewApproval = existing?.moderation_status !== "approved";
+      if (isNewApproval) {
+        // 5a. In-app notification
+        await supabase.from("notifications").insert({
+          user_id: seller_id,
+          content: `🎉 Your listing "${name}" is live! Share it with your neighborhood groups and let your neighbors know.`,
+          link_url: `/my-booth/products?share=${product_id}`,
+        });
+
+        // 5b. Push notification (non-blocking)
+        fetch(`${edgeFnBase}/send-push-notification`, {
+          method: "POST",
+          headers: authHeader,
+          body: JSON.stringify({
+            user_ids: [seller_id],
+            title: "🚀 Listing Live!",
+            body: `🚀 "${name}" is live! Share it with your neighborhood groups and let your neighbors know.`,
+            url: `/my-booth/products?share=${product_id}`,
+            tag: `product-approved-${product_id}`,
+          }),
+        }).catch(e => console.warn("⚠️ Push notification failed (non-blocking):", e));
+
+        // 5c. Email notification (non-blocking)
+        const { data: seller } = await supabase
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", seller_id)
+          .single();
+
+        if (seller?.email) {
+          fetch(`${edgeFnBase}/notify-product-approved`, {
+            method: "POST",
+            headers: authHeader,
+            body: JSON.stringify({
+              seller_id,
+              seller_email: seller.email,
+              seller_name: seller.full_name ?? "Seller",
+              product_name: name,
+              product_id,
+            }),
+          }).catch(e => console.warn("⚠️ Email notification failed (non-blocking):", e));
+        }
+      }
+    } else if (newStatus === "flagged") {
       // 5a. In-app notification
       await supabase.from("notifications").insert({
         user_id: seller_id,
         content: `Your listing "${name}" needs some edits before it can go live. Tap to review.`,
         link_url: `/my-booth/products/${product_id}`,
       });
-
-      const edgeFnBase = SUPABASE_URL.replace("/rest/v1", "") + "/functions/v1";
-      const authHeader = { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}` };
 
       // 5b. Push notification (non-blocking)
       fetch(`${edgeFnBase}/send-push-notification`, {

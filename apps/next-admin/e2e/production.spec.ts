@@ -1,21 +1,19 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * Production mode tests — require a production build running on port 8151.
- * These tests are skipped automatically when the production server is not available.
+ * Production mode tests — verify the production build runs without hydration errors.
+ * Uses the same server started by the release test suite (Playwright's configured baseURL).
  */
 test.describe('Production Mode', () => {
-  const PROD_URL = 'http://localhost:8151'
-
-  test.beforeEach(async ({ page }) => {
-    // Skip if production server is not running
+  test.beforeEach(async ({ page, baseURL }) => {
+    // Skip if no server is available (safety net for local dev without a running server)
     try {
-      const response = await page.goto(PROD_URL, { timeout: 3000 })
+      const response = await page.goto(baseURL || 'http://localhost:3003', { timeout: 5000 })
       if (!response || response.status() >= 400) {
-        test.skip(true, 'Production server not running on port 8151')
+        test.skip(true, 'Server not responding')
       }
     } catch {
-      test.skip(true, 'Production server not running on port 8151')
+      test.skip(true, 'Server not responding')
     }
   })
 
@@ -43,7 +41,7 @@ test.describe('Production Mode', () => {
     await page.waitForLoadState('domcontentloaded')
 
     // Check page loaded — look for CasaGrown Admin branding
-    await expect(page.getByText('CasaGrown Admin')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('CasaGrown Admin').first()).toBeVisible({ timeout: 15000 })
 
     // Verify no critical errors
     const criticalErrors = errors.filter(e =>

@@ -124,7 +124,7 @@ function OrdersContent() {
         seller_name: o.seller?.full_name || 'Unknown',
         buyer_avatar: o.buyer?.avatar_url || null,
         seller_avatar: o.seller?.avatar_url || null,
-        booth_name: o.booth?.name || 'Unknown Booth',
+        booth_name: o.booth?.name || 'Unknown Stand',
         buyer_address: o.delivery_address || o.buyer?.street_address || null,
         seller_address: o.booth?.pickup_address || o.seller?.street_address || null,
         window_dates: o.product?.window_dates || null,
@@ -281,7 +281,7 @@ function OrdersContent() {
           <div className="empty-state">
             <div className="empty-state-icon">🤝</div>
             <div className="empty-state-title">No active orders</div>
-            <div className="empty-state-text">Orders for booths you help will appear here</div>
+            <div className="empty-state-text">Orders for stands you help will appear here</div>
           </div>
         ) : (
           <div className={styles.orderList}>
@@ -367,7 +367,7 @@ function OrdersContent() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className={styles.roleLabel} data-role={roleDataAttr}>{roleLabel}</div>
                   <div className={styles.productName}>{order.product_name}</div>
-                  {order.booth_name && order.booth_name !== 'Unknown Booth' && (
+                  {order.booth_name && order.booth_name !== 'Unknown Stand' && (
                     <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>🏪 {order.booth_name}</div>
                   )}
                   <div className={styles.orderMeta}>

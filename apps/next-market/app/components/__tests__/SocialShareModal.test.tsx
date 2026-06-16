@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { describe, it, vi, beforeEach, afterAll } from 'vitest'
 import React from 'react'
 import SocialShareModal from '../SocialShareModal'
 

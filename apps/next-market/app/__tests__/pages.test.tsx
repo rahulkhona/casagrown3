@@ -83,6 +83,23 @@ const legalMock = {
   isBlockedJurisdiction: () => false,
 }
 const analyticsMock = { trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn() }
+const bootstrapMock = {
+  useBootstrap: () => ({
+    data: {
+      profile: null,
+      market_config: { schedule: [], productsNeverExpire: false, marketNeverCloses: true },
+      badges: null,
+    },
+    loading: false,
+    user: null,
+    isAuthenticated: false,
+    refresh: vi.fn(),
+  }),
+  BootstrapProvider: ({ children }: any) => React.createElement(React.Fragment, null, children),
+}
+const proEnabledMock = {
+  useProEnabled: () => ({ isProEnabled: false }),
+}
 
 // 2 levels: app/(main)/xxx/page.tsx → ../../lib/
 vi.mock('../../lib/supabase', () => supabaseMock)
@@ -91,6 +108,8 @@ vi.mock('../../lib/store', () => storeMock)
 vi.mock('../../lib/geocode', () => geocodeMock)
 vi.mock('../../lib/legal', () => legalMock)
 vi.mock('../../lib/analytics', () => analyticsMock)
+vi.mock('../../lib/useBootstrap', () => bootstrapMock)
+vi.mock('../../lib/useProEnabled', () => proEnabledMock)
 // 3 levels: app/(main)/xxx/yyy/page.tsx → ../../../lib/
 vi.mock('../../../lib/supabase', () => supabaseMock)
 vi.mock('../../../lib/useAuth', () => authMock)
@@ -98,6 +117,8 @@ vi.mock('../../../lib/store', () => storeMock)
 vi.mock('../../../lib/geocode', () => geocodeMock)
 vi.mock('../../../lib/legal', () => legalMock)
 vi.mock('../../../lib/analytics', () => analyticsMock)
+vi.mock('../../../lib/useBootstrap', () => bootstrapMock)
+vi.mock('../../../lib/useProEnabled', () => proEnabledMock)
 // 4 levels: app/(main)/xxx/yyy/zzz/page.tsx → ../../../../lib/
 vi.mock('../../../../lib/supabase', () => supabaseMock)
 vi.mock('../../../../lib/useAuth', () => authMock)
@@ -105,6 +126,8 @@ vi.mock('../../../../lib/store', () => storeMock)
 vi.mock('../../../../lib/geocode', () => geocodeMock)
 vi.mock('../../../../lib/legal', () => legalMock)
 vi.mock('../../../../lib/analytics', () => analyticsMock)
+vi.mock('../../../../lib/useBootstrap', () => bootstrapMock)
+vi.mock('../../../../lib/useProEnabled', () => proEnabledMock)
 // 5 levels
 vi.mock('../../../../../lib/supabase', () => supabaseMock)
 vi.mock('../../../../../lib/useAuth', () => authMock)
@@ -112,6 +135,9 @@ vi.mock('../../../../../lib/store', () => storeMock)
 vi.mock('../../../../../lib/geocode', () => geocodeMock)
 vi.mock('../../../../../lib/legal', () => legalMock)
 vi.mock('../../../../../lib/analytics', () => analyticsMock)
+vi.mock('../../../../../lib/useBootstrap', () => bootstrapMock)
+vi.mock('../../../../../lib/useProEnabled', () => proEnabledMock)
+
 
 // Mock subcomponents used by pages
 vi.mock('../../components/CameraCapture', () => ({ default: () => null }))
@@ -262,7 +288,7 @@ describe('my-booth/products/page.tsx', () => {
     const mod = await import('../(main)/my-booth/products/page')
     const c = renderPage(mod)
     expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Product|Sign|Create a booth/)
+    expect(c.textContent).toMatch(/Loading|Product|Sign|Create a (booth|stand)/)
   })
 })
 
@@ -292,7 +318,7 @@ describe('my-booth/customize/page.tsx', () => {
     const mod = await import('../(main)/my-booth/customize/page')
     const c = renderPage(mod)
     expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Customiz|Theme|Sign|Create a booth/)
+    expect(c.textContent).toMatch(/Loading|Customiz|Theme|Sign|Create a (booth|stand)/)
   })
 })
 
@@ -304,7 +330,7 @@ describe('my-booth/invitations/page.tsx', () => {
     const mod = await import('../(main)/my-booth/invitations/page')
     const c = renderPage(mod)
     expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Invit|Helper|Sign|Create a booth/)
+    expect(c.textContent).toMatch(/Loading|Invit|Helper|Sign|Create a (booth|stand)/)
   })
 })
 
@@ -389,7 +415,7 @@ describe('helping/page.tsx', () => {
     const mod = await import('../(main)/helping/page')
     const c = renderPage(mod)
     expect(c).toBeTruthy()
-    expect(c.textContent).toMatch(/Loading|Help|Booth|Sign/)
+    expect(c.textContent).toMatch(/Loading|Help|Booth|Stand|Sign/)
   })
 })
 

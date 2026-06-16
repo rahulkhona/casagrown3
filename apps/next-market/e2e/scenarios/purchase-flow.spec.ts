@@ -91,11 +91,11 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
     }
 
     // Ensure a free product exists for PF6 — update an existing one
-    const existFree = execSql(`SELECT id FROM market_products WHERE price_usd = 0 AND inventory > 0 LIMIT 1`)
+    const existFree = execSql(`SELECT id FROM market_products WHERE price_usd = 0 AND inventory > 0 AND is_active = true LIMIT 1`)
     if (!existFree) {
       execSql(
         `UPDATE market_products SET price_usd = 0
-         WHERE id = (SELECT id FROM market_products WHERE id != '${testProductId}' AND price_usd > 0 LIMIT 1)`
+         WHERE id = (SELECT id FROM market_products WHERE id != '${testProductId}' AND price_usd > 0 AND inventory > 0 AND is_active = true LIMIT 1)`
       )
       console.log('[SETUP] Set one product price to $0')
     }
@@ -278,7 +278,7 @@ test.describe('Purchase Flow — Order + Stripe Sandbox', () => {
   test('PF6 — free product order skips Stripe hold', async () => {
     // Find a free product (price = 0)
     const freeId = execSql(
-      `SELECT id FROM market_products WHERE price_usd = 0 AND inventory > 0 LIMIT 1`
+      `SELECT id FROM market_products WHERE price_usd = 0 AND inventory > 0 AND is_active = true LIMIT 1`
     )
 
     if (!freeId) {

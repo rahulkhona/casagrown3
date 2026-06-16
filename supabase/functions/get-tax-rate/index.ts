@@ -36,11 +36,33 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         );
     }
 
+    // Normalize state code (e.g. "California" -> "CA")
+    const STATE_MAP: Record<string, string> = {
+        'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+        'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+        'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+        'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD', 'massachusetts': 'MA',
+        'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO', 'montana': 'MT',
+        'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM',
+        'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+        'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+        'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+        'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+        'district of columbia': 'DC'
+    };
+    const normalizeState = (st: string): string => {
+        if (!st) return '';
+        const trimmed = st.trim().toLowerCase();
+        if (trimmed.length === 2) return trimmed.toUpperCase();
+        return STATE_MAP[trimmed] || st.trim().toUpperCase().slice(0, 2);
+    };
+    const normState = normalizeState(state_code);
+
     // ── 1. Check category_tax_rules ─────────────────────────────────────
     const { data: categoryRule } = await supabase
         .from("category_tax_rules")
         .select("id, rule_type, rate_pct")
-        .eq("state_code", state_code.toUpperCase())
+        .eq("state_code", normState)
         .eq("category_name", category)
         .is("effective_until", null)
         .maybeSingle();

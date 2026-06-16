@@ -363,7 +363,7 @@ export default function CartPage() {
     <div className={styles.cartPage}>
       <h1 className={styles.cartTitle}>🛒 Your Cart</h1>
       <p className={styles.cartSubtitle}>
-        {items.length} item{items.length > 1 ? 's' : ''} from {boothGroups.length} booth{boothGroups.length > 1 ? 's' : ''}
+        {items.length} item{items.length > 1 ? 's' : ''} from {boothGroups.length} stand{boothGroups.length > 1 ? 's' : ''}
       </p>
 
       {boothGroups.map(group => {
@@ -445,7 +445,7 @@ export default function CartPage() {
                         ⏰ No {item.fulfillmentMode} windows available
                       </span>
                     )}
-                    {quarantinedProducts[item.product.id] && !item.unavailable && (
+                    {false && quarantinedProducts[item.product.id] && !item.unavailable && (
                       <span className={`${styles.unavailBadge}`} style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fcd34d' }}>
                         ⚠️ Potential Quarantine — {quarantinedProducts[item.product.id].pest_name}
                       </span>
@@ -538,7 +538,7 @@ export default function CartPage() {
       {/* Grand total and unified checkout */}
       {(() => {
         const allAvailable = boothGroups.flatMap(g => getCheckoutItems(g))
-        const hasQuarantined = allAvailable.some(i => quarantinedProducts[i.product.id])
+        const hasQuarantined = false && allAvailable.some(i => quarantinedProducts[i.product.id])
         const quarantinedCount = allAvailable.filter(i => quarantinedProducts[i.product.id]).length
         return allAvailable.length > 0 && (
           <div className={styles.grandTotalSection}>
@@ -624,7 +624,7 @@ export default function CartPage() {
             <p className={styles.checkoutNotice}>
               Your card is only charged after delivery is confirmed and the order is complete.
               <br /><br />
-              <strong>Notice:</strong> Always check your local Department of Agriculture for active plant quarantines before purchasing agricultural products.
+              Reminder: Please check your local agricultural guidelines before purchasing agricultural products.
             </p>
           </div>
         )

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarketingAnalytics, trackEvent } from '../../../lib/crm-analytics'
 import { getReferralData, getTouchHistory, clearReferralData } from '../../../lib/useReferralCapture'
+import { normalizeStateCode } from '../../../lib/address'
 
 type Step = 'profile' | 'otp' | 'phone-verify' | 'welcome'
 
@@ -218,7 +219,7 @@ function JoinContent() {
       // ── USPS Address Validation ──
       let validatedStreet = streetAddress.trim()
       let validatedCity = city.trim()
-      let validatedState = stateCode.trim().toUpperCase()
+      let validatedState = normalizeStateCode(stateCode)
       let validatedZipPlus4 = zip.trim()
       let county: string | null = null
 
@@ -229,7 +230,7 @@ function JoinContent() {
         if (!uspsError && uspsResult?.address) {
           validatedStreet = uspsResult.address.streetAddress || validatedStreet
           validatedCity = uspsResult.address.city || validatedCity
-          validatedState = uspsResult.address.state || validatedState
+          validatedState = normalizeStateCode(uspsResult.address.state || validatedState)
           validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
           county = uspsResult.jurisdiction?.county || null
         }
@@ -394,7 +395,7 @@ function JoinContent() {
             </h1>
             <div className="join-hero-desc">
               {intent === 'seller' ? (
-                <p>Join thousands of home growers earning from their gardens. Set up your booth in minutes and start selling to neighbors who want what you're growing.</p>
+                <p>Join thousands of home growers earning from their gardens. Set up your stand in minutes and start selling to neighbors who want what you're growing.</p>
               ) : (
                 <p>CasaGrown connects you with neighbors growing fresh, organic produce right in your community. Fresher than any store, with prices that support local growers.</p>
               )}
@@ -615,7 +616,7 @@ function JoinContent() {
                     <Link href="/get-started" className="join-welcome-card">
                       <span className="join-welcome-card-icon">🌿</span>
                       <strong>Start Selling</strong>
-                      <p>Set up your booth and list your harvest</p>
+                      <p>Set up your stand and list your harvest</p>
                     </Link>
                     <Link href="/growbot" className="join-welcome-card">
                       <span className="join-welcome-card-icon">🤖</span>

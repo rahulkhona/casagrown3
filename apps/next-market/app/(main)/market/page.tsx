@@ -19,7 +19,7 @@ import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import { useCommunityDigest } from '../../../lib/useCommunityDigest'
 import AddressInput from '../../components/AddressInput'
-import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress } from '../../../lib/address'
+import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress, normalizeStateCode } from '../../../lib/address'
 import GrowBotFAB from '../../components/GrowBotFAB'
 import { NativeBridge } from '../../../lib/nativeBridge'
 import styles from './page.module.css'
@@ -835,6 +835,9 @@ function BrowseMarketPageInner() {
       const geo = await geocodeAddress(geoStr)
       if (geo) {
         setLat(geo.lat); setLng(geo.lng)
+        if (geo.stateCode) {
+          setBuyerStateCode(normalizeStateCode(geo.stateCode))
+        }
         // Extract zip code from geocoding explicitly or fallback to display name regex
         const explicitZip = geo.zipCode
         const zipMatch = geo.display?.match(/\b(\d{5})\b/)
@@ -882,7 +885,7 @@ function BrowseMarketPageInner() {
               const sc = stateMap[data.address.state] || data.address['ISO3166-2-lvl4']?.split('-')[1] || data.address.state
               setAddress({ street: street || '', city: city || '', state: sc || '', zip: data.address.postcode || '' })
               if (data.address.postcode) setZipCode(data.address.postcode)
-              if (sc) setBuyerStateCode(sc)
+              if (sc) setBuyerStateCode(normalizeStateCode(sc))
             }
           } catch { /* ignore reverse geocode failure */ }
           setAddressResolved(true); setLocationLoading(false)
@@ -919,7 +922,7 @@ function BrowseMarketPageInner() {
             const parts = [street, city, sc, data.address.postcode].filter(Boolean)
             setAddress({ street: street || '', city: city || '', state: sc || '', zip: data.address.postcode || '' })
             if (data.address.postcode) setZipCode(data.address.postcode)
-            if (sc) setBuyerStateCode(sc)
+            if (sc) setBuyerStateCode(normalizeStateCode(sc))
           }
         } catch { /* ignore */ }
         setAddressResolved(true); setLocationLoading(false)

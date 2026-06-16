@@ -1,6 +1,10 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { describe, it, vi, beforeEach, afterEach } from 'vitest'
 import { BlockModal } from '../BlockModal'
+
+afterEach(() => {
+  cleanup()
+})
 
 const mockInsert = vi.fn()
 const mockSupabase = {

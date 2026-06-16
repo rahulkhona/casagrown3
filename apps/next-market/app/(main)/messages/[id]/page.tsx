@@ -1082,7 +1082,7 @@ export default function MessageThreadPage() {
                 // Get all user's booths with passcodes
                 const { data: booths } = await supabase.from('market_booths').select('name, helper_passcode').eq('owner_id', user.id).not('helper_passcode', 'is', null)
                 if (!booths || booths.length === 0) {
-                  setErrorToast('Generate a pairing code in your booth settings first')
+                  setErrorToast('Generate a pairing code in your stand settings first')
                   setTimeout(() => setErrorToast(null), 3000)
                   return
                 }

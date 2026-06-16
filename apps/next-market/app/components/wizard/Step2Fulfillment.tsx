@@ -202,6 +202,53 @@ export default function Step2Fulfillment() {
     if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
     return { street: a, city: '', state: '', zip: '' }
   })
+
+  // Sync local fields when state.address changes from context (e.g. after async profile fetch)
+  useEffect(() => {
+    const a = state.address || ''
+    if (typeof a !== 'string') return
+    const currentFormatted = formatFullAddress(addressFields)
+    if (a !== currentFormatted) {
+      const parts = a.split(',').map((s: string) => s.trim())
+      if (parts.length >= 3) {
+        const sz = parts[parts.length - 1].split(/\s+/)
+        setAddressFields({
+          street: parts.slice(0, -2).join(', '),
+          city: parts[parts.length - 2],
+          state: sz[0] || '',
+          zip: sz.slice(1).join(' ')
+        })
+      } else if (parts.length === 2) {
+        setAddressFields({ street: parts[0], city: parts[1], state: '', zip: '' })
+      } else {
+        setAddressFields({ street: a, city: '', state: '', zip: '' })
+      }
+    }
+  }, [state.address, addressFields])
+
+  // Sync local fields when state.pickupAddress changes from context
+  useEffect(() => {
+    const a = state.pickupAddress || ''
+    if (typeof a !== 'string') return
+    const currentFormatted = formatFullAddress(pickupAddressFields)
+    if (a !== currentFormatted) {
+      const parts = a.split(',').map((s: string) => s.trim())
+      if (parts.length >= 3) {
+        const sz = parts[parts.length - 1].split(/\s+/)
+        setPickupAddressFields({
+          street: parts.slice(0, -2).join(', '),
+          city: parts[parts.length - 2],
+          state: sz[0] || '',
+          zip: sz.slice(1).join(' ')
+        })
+      } else if (parts.length === 2) {
+        setPickupAddressFields({ street: parts[0], city: parts[1], state: '', zip: '' })
+      } else {
+        setPickupAddressFields({ street: a, city: '', state: '', zip: '' })
+      }
+    }
+  }, [state.pickupAddress, pickupAddressFields])
+
   // Scroll to top when entering this step
   useEffect(() => {
     const el = document.querySelector('[class*="wizardContent"]') || document.querySelector('[class*="wizard"]')
@@ -210,16 +257,24 @@ export default function Step2Fulfillment() {
   }, [])
 
   const localToday = new Date()
-  const todayStr = `${localToday.getFullYear()}-${String(localToday.getMonth()+1).padStart(2,'0')}-${String(localToday.getDate()).padStart(2,'0')}`
-  const tomorrowDate = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + 1)
-  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`
-  const todayLabel = `Today (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][localToday.getDay()]})`
-  const tomorrowLabel = `Tomorrow (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][tomorrowDate.getDay()]})`
-
-  const dynamicDays = [
-    { id: todayStr, label: todayLabel },
-    { id: tomorrowStr, label: tomorrowLabel }
-  ]
+  const dynamicDays: { id: string; label: string }[] = []
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const id = `${yyyy}-${mm}-${dd}`
+    let label = ''
+    if (i === 0) {
+      label = `Today (${weekdays[d.getDay()]})`
+    } else if (i === 1) {
+      label = `Tomorrow (${weekdays[d.getDay()]})`
+    } else {
+      label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+    }
+    dynamicDays.push({ id, label })
+  }
 
   const mapWeeklyWindowsToDates = (
     weeklyWindows: Record<string, any[]> | null | undefined,

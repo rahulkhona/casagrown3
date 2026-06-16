@@ -9,14 +9,14 @@ import { NotificationPromptModal } from '../../components/NotificationPromptModa
 import { useAuth } from '../../../lib/useAuth'
 import styles from './page.module.css'
 
-/** Booth themes — visual styles for the booth. */
+/** Stand themes — visual styles for the stand. */
 const BOOTH_THEMES = [
   {
     id: 'rustic',
     name: 'Rustic',
     emoji: '🪵',
     tagline: 'Warm earth tones with a handmade feel',
-    description: 'A natural, farm-to-table aesthetic with warm golden tones. Perfect for garden and produce booths.',
+    description: 'A natural, farm-to-table aesthetic with warm golden tones. Perfect for garden and produce stands.',
     color: '#fef3c7',
     border: '#d97706',
   },
@@ -43,7 +43,7 @@ const BOOTH_THEMES = [
     name: 'Floral',
     emoji: '🌸',
     tagline: 'Soft pinks and a garden party feel',
-    description: 'Elegant and inviting with gentle floral tones. A beautiful look for any booth.',
+    description: 'Elegant and inviting with gentle floral tones. A beautiful look for any stand.',
     color: '#fce7f3',
     border: '#ec4899',
   },
@@ -91,7 +91,7 @@ export default function GetStartedPage() {
     <div className={styles.page}>
       {/* Header */}
       <section className={styles.header}>
-        <h1 className={styles.title}>Claim Your Booth</h1>
+        <h1 className={styles.title}>Claim Your Stand</h1>
         <p className={styles.subtitle}>
           Choose a theme for your produce stand — this sets the visual look and feel.
           You can sell whatever you like and change your theme anytime.

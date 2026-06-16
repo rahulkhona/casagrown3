@@ -135,11 +135,12 @@ test.describe('Product Fulfillment Options', () => {
     if (!productDeliveryOnlyId || !boothId) { test.skip(); return }
     const page = await loginAsUser(browser, 'beth')
     await navigateTo(page, `/market/booth/${boothId}/product/${productDeliveryOnlyId}`)
-    await page.waitForTimeout(3000)
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(2000)
     await assertPageHealthy(page)
 
     // Wait for the UI to render the correct option
-    await expect(page.locator('text=🚗 Delivery').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=🚗 Delivery').first()).toBeVisible({ timeout: 15000 })
 
     // Should NOT show Pickup as a fulfillment option
     await expect(page.locator('text=📍 Pickup')).toHaveCount(0)

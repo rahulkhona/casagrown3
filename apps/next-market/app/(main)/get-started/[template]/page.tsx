@@ -245,7 +245,7 @@ export default function BoothSetupPage() {
 
   const handleCreate = () => {
     const newErrors: Record<string, string> = {}
-    if (!boothName.trim()) newErrors.boothName = 'Booth name is required'
+    if (!boothName.trim()) newErrors.boothName = 'Stand name is required'
     if (!fullName.trim()) newErrors.fullName = 'Name is required'
     if (!street.trim()) newErrors.street = 'Address is required'
     if (!city.trim()) newErrors.city = 'City is required'
@@ -309,9 +309,9 @@ export default function BoothSetupPage() {
 
         {/* ============ Core Form ============ */}
         <section className={styles.section}>
-          {/* Booth Name */}
+          {/* Stand Name */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>Booth Name <span className={styles.required}>*</span></label>
+            <label className={styles.label}>Stand Name <span className={styles.required}>*</span></label>
             <input className={`${styles.input} ${errors.boothName ? styles.inputError : ''}`} value={boothName} onChange={e => { setBoothName(e.target.value); setErrors(p => ({ ...p, boothName: '' })) }} placeholder="e.g. Sarah's Garden Stand" autoFocus />
             {errors.boothName && <span className={styles.errorMsg}>{errors.boothName}</span>}
           </div>
@@ -356,7 +356,7 @@ export default function BoothSetupPage() {
             {headerImage && <img src={headerImage} alt="Header" className={styles.previewHeaderImg} />}
             <div className={styles.previewBody}>
               <div className={styles.previewThemeIcons}>{selectedTheme?.emoji} {selectedTheme?.emoji} {selectedTheme?.emoji}</div>
-              <h3 className={styles.previewName}>{boothName || 'Your Booth Name'}</h3>
+              <h3 className={styles.previewName}>{boothName || 'Your Stand Name'}</h3>
               <p className={styles.previewTagline}>{tagline || 'Your tagline here...'}</p>
             </div>
           </div>
@@ -599,7 +599,7 @@ export default function BoothSetupPage() {
             Delivery and pickup details will be set when you add products for each market day.
           </p>
           <button className={styles.createBtn} onClick={handleCreate}>
-            🚀 Create Your Booth
+            🚀 Create Your Stand
           </button>
         </section>
       </div>

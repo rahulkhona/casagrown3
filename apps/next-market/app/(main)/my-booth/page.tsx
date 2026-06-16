@@ -15,5 +15,5 @@ export default function MyBoothRedirect() {
     router.replace('/my-stands')
   }, [router])
 
-  return <LoadingSpinner message="Redirecting to My Booths..." />
+  return <LoadingSpinner message="Redirecting to My Produce Stands..." />
 }

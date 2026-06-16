@@ -1659,7 +1659,7 @@ function ProContent() {
                               </div>
                               <div className="tier-card-meta">
                                 <span>Platform fee: <strong>{details.platformFee}%</strong></span>
-                                <span>Booths: <strong>{tier.max_booths < 0 ? 'Unlimited' : tier.max_booths}</strong></span>
+                                <span>Stands: <strong>{tier.max_booths < 0 ? 'Unlimited' : tier.max_booths}</strong></span>
                               </div>
                               <p className="tier-card-headline">
                                 {tierKey === 'lite' && 'Perfect for home gardeners with extra harvest'}
@@ -1670,7 +1670,7 @@ function ProContent() {
                                 <p className="tier-card-callout">GrowBot engages buyers, answers questions, and closes sales while you&apos;re at the farm, driving, or asleep</p>
                               )}
                               {tierKey === 'elite' && (
-                                <p className="tier-card-callout">Post your inventory to Facebook, Instagram &amp; Google Maps — generate pre-purchased orders that drive foot traffic to your booth</p>
+                                <p className="tier-card-callout">Post your inventory to Facebook, Instagram &amp; Google Maps — generate pre-purchased orders that drive foot traffic to your stand</p>
                               )}
                             </div>
                             <div className="tier-card-benefits">
@@ -1683,7 +1683,7 @@ function ProContent() {
                                   </div>
                                   <div className="tier-features-compact">
                                     <span>✓ Secure checkout</span>
-                                    <span>✓ {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} booth</span>
+                                    <span>✓ {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} stand</span>
                                     <span>✓ Photo listings</span>
                                     <span>✓ Delivery &amp; pickup scheduling</span>
                                   </div>
@@ -1695,13 +1695,13 @@ function ProContent() {
                                     <div className="tier-benefit-item">🤖 <strong>Never miss a sale</strong> — GrowBot engages buyers, answers questions &amp; closes deals while you&apos;re away</div>
                                     <div className="tier-benefit-item">👀 <strong>Monitor &amp; respond</strong> — AI watches your FB comments and DMs so no lead slips through</div>
                                     <div className="tier-benefit-item">🔔 <strong>Urgent alerts</strong> — get notified when a buyer needs your personal attention</div>
-                                    <div className="tier-benefit-item">🚀 <strong>Drive foot traffic</strong> — post inventory to Facebook, generate pre-purchased orders that bring buyers to your booth</div>
+                                    <div className="tier-benefit-item">🚀 <strong>Drive foot traffic</strong> — post inventory to Facebook, generate pre-purchased orders that bring buyers to your stand</div>
                                   </div>
                                   <div className="tier-features-compact">
                                     <span>✓ GrowBot AI Copilot</span>
                                     <span>✓ Facebook catalog &amp; auto-post</span>
                                     <span>✓ Messenger &amp; comment auto-replies</span>
-                                    <span>✓ Up to {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} booths</span>
+                                    <span>✓ Up to {tier.max_booths < 0 ? 'Unlimited' : tier.max_booths} stands</span>
                                     <span>✓ Product Catalog</span>
                                     <span>✓ Lower all-in fees (incl. credit card processing)</span>
                                     <span>✓ 7-day refund guarantee</span>
@@ -1712,14 +1712,14 @@ function ProContent() {
                                 <>
                                   <div className="tier-benefits-section">
                                     <div className="tier-benefit-item">📣 <strong>Sell everywhere</strong> — post inventory to Facebook + Instagram + Google Maps automatically</div>
-                                    <div className="tier-benefit-item">🛒 <strong>Pre-purchased orders</strong> — more channels = more pre-sales = more foot traffic to your booths</div>
+                                    <div className="tier-benefit-item">🛒 <strong>Pre-purchased orders</strong> — more channels = more pre-sales = more foot traffic to your stands</div>
                                     <div className="tier-benefit-item">🤖 <strong>AI on every channel</strong> — GrowBot closes sales in DMs and comments across all platforms</div>
                                   </div>
                                   <div className="tier-features-compact">
                                     <span>✓ Everything in Pro</span>
                                     <span>✓ Instagram auto-post &amp; Reels</span>
                                     <span>✓ Google Maps listing</span>
-                                    <span>✓ Unlimited booths</span>
+                                    <span>✓ Unlimited stands</span>
                                     <span>✓ Premium branding</span>
                                     <span>✓ Lowest all-in fees (incl. credit card processing)</span>
                                   </div>

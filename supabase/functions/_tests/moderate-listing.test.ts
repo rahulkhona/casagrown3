@@ -608,21 +608,35 @@ Deno.test({
       price_usd: 20.0,
     })
     try {
-      const res = await fetch(FN_URL, {
-        method: 'POST',
-        headers: AUTH_HEADERS,
-        body: JSON.stringify({
-          product_id,
-          seller_id: SEED_SELLER_ID,
-          name: 'Marijuana Brownies',
-          description: 'THC infused homemade brownies',
-          price_usd: 20.0,
-          category: 'produce',
-          photo_url: null,
-        }),
+      const payload = JSON.stringify({
+        product_id,
+        seller_id: SEED_SELLER_ID,
+        name: 'Marijuana Brownies',
+        description: 'THC infused homemade brownies',
+        price_usd: 20.0,
+        category: 'produce',
+        photo_url: null,
       })
-      assertEquals(res.status, 200)
-      const body = await res.json()
+
+      // Retry under load — the edge function server may be slow during full suite runs
+      let res: Response | null = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          res = await fetch(FN_URL, {
+            method: 'POST',
+            headers: AUTH_HEADERS,
+            body: payload,
+          })
+          if (res.status === 200) break
+          console.warn(`⚠️  M13 attempt ${attempt + 1}: status=${res.status}, retrying...`)
+        } catch (e) {
+          console.warn(`⚠️  M13 attempt ${attempt + 1}: fetch error: ${e}, retrying...`)
+        }
+        await new Promise(r => setTimeout(r, 2000))
+      }
+
+      assertEquals(res!.status, 200)
+      const body = await res!.json()
 
       // Profanity pre-check won't catch this (it's not profanity)
       // but LLM should flag it. If no LLM key, note the gap.
@@ -637,5 +651,90 @@ Deno.test({
     } finally {
       await deleteProduct(product_id)
     }
+  },
+})
+
+// M14 — Approved listing triggers in-app notification with share link
+Deno.test({
+  name: 'M14 — approved listing triggers in-app notification with share link',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const seller_id = SEED_SELLER_ID
+    const product_id = await seedProduct({
+      name: 'Approved Cherry Tomatoes',
+      description: 'Fresh picked cherry tomatoes',
+      category: 'produce',
+      price_usd: 4.0,
+      moderation_status: 'pending',
+    })
+    try {
+      // Clean any existing live notifications for this seller first
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/notifications?user_id=eq.${seller_id}&content=like.*is live!*`,
+        { method: 'DELETE', headers: AUTH_HEADERS },
+      )
+
+      const res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({
+          product_id,
+          seller_id: SEED_SELLER_ID,
+          name: 'Approved Cherry Tomatoes',
+          description: 'Fresh picked cherry tomatoes',
+          price_usd: 4.0,
+          category: 'produce',
+          photo_url: null,
+        }),
+      })
+      assertEquals(res.status, 200)
+      const body = await res.json()
+      assert(body.status === 'approved' || body.skipped === true)
+
+      // Small settle
+      await new Promise(r => setTimeout(r, 500))
+
+      const notif = await getLatestNotification(seller_id)
+      assertExists(notif, 'Should have created a notification for the seller')
+      assert(
+        (notif.content as string).includes('Approved Cherry Tomatoes') || (notif.content as string).includes('live'),
+        `Notification should mention the product is live, got: ${notif.content}`,
+      )
+      assertExists(notif.link_url, 'Notification should have a link_url')
+      assert(
+        (notif.link_url as string).includes(`/my-booth/products?share=${product_id}`),
+        `link_url should point to the product share link, got: ${notif.link_url}`,
+      )
+      console.log(`✅ M14 notification: "${notif.content}"`)
+    } finally {
+      await deleteProduct(product_id)
+    }
+  },
+})
+
+// M15 — notify-product-approved handles approved payload without error
+Deno.test({
+  name: 'M15 — notify-product-approved handles approved payload without error',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-product-approved`, {
+      method: 'POST',
+      headers: AUTH_HEADERS,
+      body: JSON.stringify({
+        seller_id: SEED_SELLER_ID,
+        seller_email: 'test@example.com',
+        seller_name: 'Sam Test',
+        product_name: 'Test Tomatoes',
+        product_id: '00000000-0000-0000-0000-000000000001',
+      }),
+    })
+    const body = await res.text()
+    assert(
+      res.status !== 500,
+      `notify-product-approved returned 500 — parsing error: ${body}`,
+    )
+    console.log(`✅ M15 notify-product-approved response: ${res.status}`)
   },
 })

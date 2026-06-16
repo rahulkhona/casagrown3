@@ -220,7 +220,7 @@ describe('Navbar', () => {
     await act(async () => { fireEvent.click(menuBtn) })
     expect(menuBtn.textContent).toBe('✕')
     expect(container.textContent).toContain('Navigation')
-    expect(container.textContent).toContain('My Stands')
+    expect(container.textContent).toContain('My Produce Stands')
     expect(container.textContent).toContain('Helping')
     expect(container.textContent).toContain('Earnings & Activity')
     expect(container.textContent).toContain('Wallet')

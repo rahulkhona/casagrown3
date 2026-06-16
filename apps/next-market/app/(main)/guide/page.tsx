@@ -31,10 +31,10 @@ const SECTIONS: Section[] = [
         <ol>
           <li><strong>Sign up</strong> with your email address — you&apos;ll receive a one-time verification code</li>
           <li><strong>Enter your name</strong> — this is how other users will see you</li>
-          <li><strong>Add your address</strong> — tap <em>&quot;📍 Use My Location&quot;</em> for automatic GPS detection, or type it in manually. Your address is validated via USPS and used to match you with nearby booths</li>
+          <li><strong>Add your address</strong> — tap <em>&quot;📍 Use My Location&quot;</em> for automatic GPS detection, or type it in manually. Your address is validated via USPS and used to match you with nearby stands</li>
           <li><strong>Upload a profile photo</strong> — tap the camera icon to take a photo or choose from your gallery. You can crop and position it</li>
         </ol>
-        <p className={styles.tip}>💡 <strong>Important:</strong> Your exact address is never shown to other users. It&apos;s used only to find booths near you and for delivery coordination.</p>
+        <p className={styles.tip}>💡 <strong>Important:</strong> Your exact address is never shown to other users. It&apos;s used only to find stands near you and for delivery coordination.</p>
         <h4>Phone & Notifications</h4>
         <ul>
           <li><strong>Add your phone number</strong> — verify it with a one-time code for SMS notifications</li>
@@ -64,7 +64,7 @@ const SECTIONS: Section[] = [
         <p>The market is open <strong>every Saturday and Sunday from 8:00 AM to 11:00 AM</strong> (your local time).</p>
         <p><strong>Why limited hours?</strong> Fresher produce, fairer access, and a true community shopping experience — just like a real farmers market. We&apos;ll notify you before the market opens!</p>
         <ul>
-          <li>Browse booths and place orders during market hours</li>
+          <li>Browse stands and place orders during market hours</li>
           <li>Sellers can list products anytime — they&apos;ll go live when the market opens</li>
           <li>Orders placed during market hours are fulfilled the same day</li>
           <li>A countdown timer on the Market page shows when the next market opens</li>
@@ -81,23 +81,23 @@ const SECTIONS: Section[] = [
     content: (
       <>
         <p>The Market page is your starting point for finding fresh produce from neighbors.</p>
-        <h4>Finding Booths Near You</h4>
+        <h4>Finding Stands Near You</h4>
         <ol>
-          <li><strong>Enter your address</strong> or tap <em>&quot;📍 Use My Location&quot;</em> to find booths nearby</li>
-          <li>Booths are sorted by distance — the closest appear first</li>
-          <li>Each booth card shows the booth name, distance from you, product count, and seller rating</li>
+          <li><strong>Enter your address</strong> or tap <em>&quot;📍 Use My Location&quot;</em> to find stands nearby</li>
+          <li>Stands are sorted by distance — the closest appear first</li>
+          <li>Each stand card shows the stand name, distance from you, product count, and seller rating</li>
         </ol>
         <h4>Search & Filters</h4>
         <ul>
           <li><strong>Text search</strong> — search for specific produce (e.g., &quot;tomatoes&quot;, &quot;basil&quot;)</li>
           <li><strong>Fulfillment type</strong> — filter by All, Delivery only, or Pickup only</li>
-          <li><strong>Distance</strong> — adjust the mile radius slider to find booths within your preferred range</li>
+          <li><strong>Distance</strong> — adjust the mile radius slider to find stands within your preferred range</li>
           <li><strong>Price range</strong> — set minimum and maximum price</li>
           <li><strong>Categories</strong> — filter by produce, baked goods, preserved items, flowers, garden equipment, seeds, eggs, honey, and more</li>
         </ul>
-        <h4>Booth Details</h4>
-        <p>Tap any booth card to see its full listing — product photos, descriptions, prices, available quantities, and fulfillment options (pickup or delivery with distance range).</p>
-        <p className={styles.tip}>💡 <strong>Tip:</strong> Follow your favorite booths to get notified when they list new products!</p>
+        <h4>Stand Details</h4>
+        <p>Tap any stand card to see its full listing — product photos, descriptions, prices, available quantities, and fulfillment options (pickup or delivery with distance range).</p>
+        <p className={styles.tip}>💡 <strong>Tip:</strong> Follow your favorite stands to get notified when they list new products!</p>
       </>
     ),
   },
@@ -112,14 +112,14 @@ const SECTIONS: Section[] = [
         <p>CasaGrown connects you directly with neighbors who grow. <strong>No middlemen, no markup</strong> — just fresh produce from down the street.</p>
         <h4>How to Order</h4>
         <ol>
-          <li><strong>Browse a booth</strong> — tap on a booth to see available products</li>
+          <li><strong>Browse a stand</strong> — tap on a stand to see available products</li>
           <li><strong>Add items to cart</strong> — select quantities for each product you want</li>
           <li><strong>Choose fulfillment</strong> — pick up at the seller&apos;s location or request delivery (if offered)</li>
-          <li><strong>Review your cart</strong> — you can order from multiple booths in a single checkout</li>
+          <li><strong>Review your cart</strong> — you can order from multiple stands in a single checkout</li>
           <li><strong>Pay securely</strong> — all payments are handled through Stripe. Your card is <strong>only charged upon delivery confirmation</strong>, not when you place the order</li>
         </ol>
-        <h4>Multi-Booth Orders</h4>
-        <p>You can add items from multiple booths to your cart. Each booth receives its own order and coordinates delivery or pickup with you separately.</p>
+        <h4>Multi-Stand Orders</h4>
+        <p>You can add items from multiple stands to your cart. Each stand receives its own order and coordinates delivery or pickup with you separately.</p>
         <h4>After You Order</h4>
         <p>Once your order is placed, the seller is notified immediately. You can track the status in the <strong>📦 Orders</strong> tab and coordinate pickup details via the order chat.</p>
       </>
@@ -141,7 +141,7 @@ const SECTIONS: Section[] = [
           <li>⚠️ <strong>Disputed</strong> — orders with reported issues being resolved</li>
           <li>✅ <strong>Completed</strong> — finished orders (confirmed, cancelled, or resolved)</li>
         </ul>
-        <p>You can also filter by role — <strong>🛒 Buying</strong>, <strong>🏪 Selling</strong>, or <strong>🤝 Helping</strong> (if you&apos;re a booth helper).</p>
+        <p>You can also filter by role — <strong>🛒 Buying</strong>, <strong>🏪 Selling</strong>, or <strong>🤝 Helping</strong> (if you&apos;re a stand helper).</p>
 
         <h4>For Sellers: Fulfilling Orders</h4>
         <p>When you receive a new order, you&apos;ll get a notification and it appears in your <strong>Needs Action</strong> tab. Open the order and you have two options:</p>
@@ -210,7 +210,7 @@ const SECTIONS: Section[] = [
         <h4>Starting a New Chat</h4>
         <ul>
           <li>Tap <strong>&quot;+ New Chat&quot;</strong> at the top right to search for and message any CasaGrown user</li>
-          <li>Tap a seller&apos;s profile from their booth to start a DM</li>
+          <li>Tap a seller&apos;s profile from their stand to start a DM</li>
           <li>Use the order chat (📋 Order Notes) for order-specific questions</li>
         </ul>
         <h4>Search &amp; Filter</h4>
@@ -238,7 +238,7 @@ const SECTIONS: Section[] = [
           <li><strong>Seasonal guidance</strong> — know exactly what to plant and when for your neighborhood</li>
           <li><strong>Pest &amp; disease help</strong> — describe symptoms or <strong>send a photo</strong> for GrowBot to analyze</li>
           <li><strong>Harvest timing</strong> — learn when your fruits and vegetables are at peak ripeness</li>
-          <li><strong>Marketplace help</strong> — get tips on product descriptions, booth optimization, and selling strategies</li>
+          <li><strong>Marketplace help</strong> — get tips on product descriptions, stand optimization, and selling strategies</li>
         </ul>
         <h4>Using the GrowBot Chat</h4>
         <ul>
@@ -256,39 +256,39 @@ const SECTIONS: Section[] = [
   {
     id: 'selling',
     icon: '🧺',
-    title: 'Selling: Booth Setup & Listings',
+    title: 'Selling: Stand Setup & Listings',
     tier: null,
     content: (
       <>
         <p>Got a garden, fruit tree, or even a few extra herbs? <strong>Turn your harvest into income</strong> instead of letting it go to waste.</p>
-        <h4>Creating Your Booth</h4>
+        <h4>Creating Your Stand</h4>
         <ol>
-          <li>Open the ☰ menu and tap <strong>&quot;My Stands&quot;</strong></li>
-          <li>Tap <strong>&quot;🌱 Create My Booth&quot;</strong></li>
-          <li>Give your booth a name and description</li>
+          <li>Open the ☰ menu and tap <strong>&quot;My Produce Stands&quot;</strong></li>
+          <li>Tap <strong>&quot;🌱 Create My Produce Stand&quot;</strong></li>
+          <li>Give your stand a name and description</li>
           <li>Upload a cover photo — this is the banner image buyers see</li>
           <li>Set your fulfillment options — pickup, delivery (with distance range), or both</li>
         </ol>
         <h4>Adding Products</h4>
         <ol>
-          <li>From your booth card, tap <strong>&quot;➕ Add Listing&quot;</strong></li>
+          <li>From your stand card, tap <strong>&quot;➕ Add Listing&quot;</strong></li>
           <li>Upload clear, well-lit photos — they&apos;re the #1 factor in getting orders</li>
           <li>Set a price and choose units (lb, bunch, each, pint, quart, etc.)</li>
           <li>Set the available quantity</li>
           <li>Add a description — mention if produce is organic, heirloom, or freshly picked</li>
         </ol>
         <h4>Product Catalog</h4>
-        <p>Pro and Elite users have access to the <strong>📦 Product Catalog</strong> — a centralized inventory manager where you can create and maintain your full product library. Add products to the catalog once, then quickly list them to any of your booths without re-entering details each time. Access it from the &quot;📦 Manage Product Catalog&quot; button on your My Booths page.</p>
-        <h4>Managing Your Booth</h4>
-        <p>Your booth card on the &quot;My Booths&quot; page shows your status (● Active or ● Inactive), product count, and fulfillment modes. You can:</p>
+        <p>Pro and Elite users have access to the <strong>📦 Product Catalog</strong> — a centralized inventory manager where you can create and maintain your full product library. Add products to the catalog once, then quickly list them to any of your stands without re-entering details each time. Access it from the &quot;📦 Manage Product Catalog&quot; button on your My Produce Stands page.</p>
+        <h4>Managing Your Stand</h4>
+        <p>Your stand card on the &quot;My Produce Stands&quot; page shows your status (● Active or ● Inactive), product count, and fulfillment modes. You can:</p>
         <ul>
-          <li><strong>👁️ View</strong> — see your booth as buyers see it</li>
-          <li><strong>✏️ Edit</strong> — update booth name, description, photo, or fulfillment settings</li>
-          <li><strong>🔗 Share</strong> — share your booth via WhatsApp, Nextdoor, Facebook, SMS, Email, or copy a link</li>
+          <li><strong>👁️ View</strong> — see your stand as buyers see it</li>
+          <li><strong>✏️ Edit</strong> — update stand name, description, photo, or fulfillment settings</li>
+          <li><strong>🔗 Share</strong> — share your stand via WhatsApp, Nextdoor, Facebook, SMS, Email, or copy a link</li>
           <li><strong>Update availability regularly</strong> so buyers see accurate stock</li>
         </ul>
         <h4>Helpers</h4>
-        <p>You can invite helpers to assist with your booth. Helpers can see your orders, add listings, and chat with buyers on your behalf. They&apos;ll see your booth in their &quot;Booths I Help With&quot; section with a 🤝 Helper badge.</p>
+        <p>You can invite helpers to assist with your stand. Helpers can see your orders, add listings, and chat with buyers on your behalf. They&apos;ll see your stand in their &quot;Stands I Help With&quot; section with a 🤝 Helper badge.</p>
       </>
     ),
   },
@@ -371,7 +371,7 @@ const SECTIONS: Section[] = [
         <h4>Address Privacy</h4>
         <ul>
           <li>Your exact address is <strong>never shown publicly</strong></li>
-          <li>Booth locations appear as approximate neighborhoods, not exact addresses</li>
+          <li>Stand locations appear as approximate neighborhoods, not exact addresses</li>
           <li>Your address is only shared with a seller during active delivery, or with a buyer when you approve pickup</li>
         </ul>
         <h4>Custom Pickup &amp; Touchless Options</h4>
@@ -397,7 +397,7 @@ const SECTIONS: Section[] = [
     tier: 'pro',
     content: (
       <>
-        <p>GrowBot Auto-Reply handles full customer conversations on your behalf so you can focus on growing. When buyers message you, GrowBot carries on a <strong>natural, multi-turn conversation</strong> — answering questions about your products, availability, pickup details, and more — all based on your booth info and custom instructions.</p>
+        <p>GrowBot Auto-Reply handles full customer conversations on your behalf so you can focus on growing. When buyers message you, GrowBot carries on a <strong>natural, multi-turn conversation</strong> — answering questions about your products, availability, pickup details, and more — all based on your stand info and custom instructions.</p>
         <h4>How It Works</h4>
         <ol>
           <li>A buyer sends you a message on any connected channel (CasaGrown DMs, Facebook Messenger, Instagram, or WhatsApp)</li>
@@ -438,7 +438,7 @@ const SECTIONS: Section[] = [
           <li><strong>Auto-Posting</strong> — new listings and updates are automatically posted to your Facebook Page and local groups</li>
           <li><strong>DM Auto-Replies</strong> — GrowBot responds to buyer messages on Facebook Messenger. These conversations appear in your CasaGrown Messages inbox</li>
           <li><strong>Comment Auto-Replies</strong> — GrowBot detects buying intent in post comments and sends private checkout DMs</li>
-          <li><strong>Marketplace Spreadsheet</strong> — download a CSV file from your booth and bulk-upload your listings to Facebook Marketplace (see the Marketplace section below for step-by-step instructions)</li>
+          <li><strong>Marketplace Spreadsheet</strong> — download a CSV file from your stand and bulk-upload your listings to Facebook Marketplace (see the Marketplace section below for step-by-step instructions)</li>
         </ul>
         <h4>Setup</h4>
         <p>Connect your Facebook Page from the subscription management page. You&apos;ll authorize CasaGrown to post and respond on your behalf. You can disconnect at any time.</p>
@@ -457,9 +457,9 @@ const SECTIONS: Section[] = [
 
         <h4>Step 1: Download Your Marketplace Spreadsheet</h4>
         <ol>
-          <li>Go to <strong>My Booths</strong> (☰ menu → My Stands)</li>
-          <li>Find the booth you want to list on Marketplace</li>
-          <li>Tap the <strong>&quot;📥 Marketplace CSV&quot;</strong> button on the booth card</li>
+          <li>Go to <strong>My Produce Stands</strong> (☰ menu → My Produce Stands)</li>
+          <li>Find the stand you want to list on Marketplace</li>
+          <li>Tap the <strong>&quot;📥 Marketplace CSV&quot;</strong> button on the stand card</li>
           <li>A CSV file will download to your device with all your active products pre-formatted for Facebook</li>
         </ol>
         <p className={styles.tip}>💡 <strong>Tip:</strong> The spreadsheet includes your product names, descriptions, prices, availability, and direct purchase links back to CasaGrown. When buyers click the link in your Marketplace listing, they land directly on the product page to complete their purchase.</p>
@@ -572,26 +572,26 @@ const SECTIONS: Section[] = [
   },
   // ─── MULTI-BOOTH MANAGEMENT ─── PRO
   {
-    id: 'multi-booth',
+    id: 'multi-stand',
     icon: '🏪',
-    title: 'Multi-Booth Management',
+    title: 'Multi-Stand Management',
     tier: 'pro',
     content: (
       <>
-        <p>Scale your selling operation by running multiple booths from a single account.</p>
+        <p>Scale your selling operation by running multiple stands from a single account.</p>
         <h4>How It Works</h4>
         <ul>
-          <li><strong>Lite</strong> — 1 booth</li>
-          <li><strong>Pro</strong> — up to 3 booths</li>
-          <li><strong>Elite</strong> — unlimited booths</li>
+          <li><strong>Lite</strong> — 1 stand</li>
+          <li><strong>Pro</strong> — up to 3 stands</li>
+          <li><strong>Elite</strong> — unlimited stands</li>
         </ul>
-        <p>Each booth has its own name, branding, products, and fulfillment settings. This is useful if you sell different categories (e.g., produce in one booth, baked goods in another) or serve different neighborhoods.</p>
-        <h4>Booth Actions</h4>
+        <p>Each stand has its own name, branding, products, and fulfillment settings. This is useful if you sell different categories (e.g., produce in one stand, baked goods in another) or serve different neighborhoods.</p>
+        <h4>Stand Actions</h4>
         <ul>
-          <li><strong>Archive</strong> — temporarily hide a booth from the market without deleting it</li>
-          <li><strong>Reactivate</strong> — bring an archived booth back to the market</li>
+          <li><strong>Archive</strong> — temporarily hide a stand from the market without deleting it</li>
+          <li><strong>Reactivate</strong> — bring an archived stand back to the market</li>
         </ul>
-        <p>Your &quot;My Booths&quot; page shows how many booths you have active vs. your plan limit.</p>
+        <p>Your &quot;My Produce Stands&quot; page shows how many stands you have active vs. your plan limit.</p>
       </>
     ),
   },
@@ -628,8 +628,8 @@ function GuideContent() {
   const planParam = searchParams?.get('plan') || null
 
   const getInitialSections = (): Set<string> => {
-    if (planParam === 'elite') return new Set(['getting-started', 'growbot', 'growbot-auto', 'instagram', 'whatsapp', 'multi-booth', 'marketplace-csv'])
-    if (planParam === 'pro') return new Set(['getting-started', 'growbot', 'growbot-auto', 'facebook', 'multi-booth', 'marketplace-csv'])
+    if (planParam === 'elite') return new Set(['getting-started', 'growbot', 'growbot-auto', 'instagram', 'whatsapp', 'multi-stand', 'marketplace-csv'])
+    if (planParam === 'pro') return new Set(['getting-started', 'growbot', 'growbot-auto', 'facebook', 'multi-stand', 'marketplace-csv'])
     return new Set(['getting-started', 'browsing'])
   }
 

@@ -74,7 +74,7 @@ export default function SellersPage() {
         <div className="marketing-steps">
           {[
             { icon: '🚫', title: 'Zero Listing Fees', desc: 'List as many products as you want for free. No monthly subscription. Pay only a small platform fee when you make a sale.' },
-            { icon: '📱', title: 'Easy Mobile App', desc: 'Manage your booth, update inventory, and chat with buyers — all from your phone in minutes.' },
+            { icon: '📱', title: 'Easy Mobile App', desc: 'Manage your stand, update inventory, and chat with buyers — all from your phone in minutes.' },
             { icon: '🏘️', title: 'Hyper-Local Buyers', desc: 'Your neighbors are already looking for fresh local produce. No shipping, no strangers — just community.' },
             { icon: '💸', title: 'Fast Payouts', desc: 'Get paid via gift card, donation, or direct cashout. Earnings processed weekly.' },
             { icon: '📊', title: 'Sales Analytics', desc: 'See what\'s selling, track your earnings, and know when to plant more of what\'s popular.' },
@@ -114,14 +114,14 @@ export default function SellersPage() {
       {/* ── Final CTA ────────────────────────────────────────────── */}
       <section className="marketing-cta-section">
         <h2>Ready to Turn Your Garden Into Income?</h2>
-        <p>It takes 5 minutes to set up your booth. Start earning this week.</p>
+        <p>It takes 5 minutes to set up your stand. Start earning this week.</p>
         <div className="marketing-cta-actions">
           <Link
             href="/join?intent=seller"
             className="marketing-btn-primary marketing-btn-large"
             onClick={() => trackEvent('cta_clicked', '/sellers', { button: 'bottom-cta' })}
           >
-            Create My Seller Booth →
+            Create My Seller Stand →
           </Link>
         </div>
       </section>

@@ -362,7 +362,7 @@ export function Navbar() {
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
-    { href: '/my-stands', label: 'My Stands', icon: '🏪', section: 'main' },
+    { href: '/my-stands', label: 'My Produce Stands', icon: '🏪', section: 'main' },
     { href: '/earnings', label: 'Earnings & Activity', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Wallet', icon: '💸', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },
@@ -438,7 +438,7 @@ export function Navbar() {
             <Link
               href="/my-stands"
               className={styles.iconBtn}
-              title="My Stands"
+              title="My Produce Stands"
               style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-600)' }}
             >
               <StandIcon size={22} />

@@ -12,6 +12,7 @@ import { ProCarousel } from '../../components/ProCarousel'
 import { useErrorToast } from '../../components/ErrorToast'
 import { useProEnabled } from '../../../lib/useProEnabled'
 import styles from './page.module.css'
+import { normalizeStateCode } from '../../../lib/address'
 
 function ProfileSetupPageInner() {
   const router = useRouter()
@@ -174,7 +175,7 @@ function ProfileSetupPageInner() {
           const road = addr.road || ''
           setStreetAddress([houseNumber, road].filter(Boolean).join(' '))
           setCity(addr.city || addr.town || addr.village || addr.hamlet || '')
-          setStateCode(addr.state ? (addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state.slice(0, 2)).toUpperCase() : '')
+          setStateCode(addr.state ? normalizeStateCode(addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state) : '')
           setZip(addr.postcode?.split('-')[0] || '')
           setCachedLat(pos.coords.latitude)
           setCachedLng(pos.coords.longitude)
@@ -210,7 +211,7 @@ function ProfileSetupPageInner() {
       let county: string | null = null
       let validatedStreet = streetAddress.trim()
       let validatedCity = city.trim()
-      let validatedState = stateCode.trim().toUpperCase()
+      let validatedState = normalizeStateCode(stateCode)
 
       try {
         const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
@@ -225,7 +226,7 @@ function ProfileSetupPageInner() {
         if (!uspsError && uspsResult?.address) {
           validatedStreet = uspsResult.address.streetAddress || validatedStreet
           validatedCity = uspsResult.address.city || validatedCity
-          validatedState = uspsResult.address.state || validatedState
+          validatedState = normalizeStateCode(uspsResult.address.state || validatedState)
           validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
           county = uspsResult.jurisdiction?.county || null
           setStreetAddress(validatedStreet)

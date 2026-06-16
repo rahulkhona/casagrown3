@@ -6,7 +6,7 @@ import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
 
 export default function Step1Basics() {
-  const { state, updateState, nextStep, isAuthenticated } = useWizard()
+  const { state, updateState, nextStep, isAuthenticated, isAuthLoading } = useWizard()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
   const [showInlineOtp, setShowInlineOtp] = useState(false)
@@ -117,7 +117,7 @@ export default function Step1Basics() {
         supabase.from('market_booths').select('id, name').eq('owner_id', user.id).order('created_at')
           .then(({ data: booths }: { data: any }) => {
             if (booths && booths.length > 0) {
-              setAllBooths(booths.map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Booth' })))
+              setAllBooths(booths.map((b: any) => ({ id: b.id, name: b.name || 'Unnamed Stand' })))
               // Pre-select first booth if none selected
               if (!state.boothId) {
                 updateState({ boothId: booths[0].id })
@@ -164,7 +164,7 @@ export default function Step1Basics() {
     const newErrors: Record<string, string> = {}
     if (!state.name.trim()) newErrors.name = 'Name is required'
     if (!state.category) newErrors.category = 'Category is required'
-    if (!(isAuthenticated || state.isExistingUser)) {
+    if (!(isAuthenticated || state.isExistingUser || isAuthLoading)) {
       if (!state.email.trim() || !/\S+@\S+\.\S+/.test(state.email)) {
         newErrors.email = 'Valid email is required'
       }
@@ -209,9 +209,10 @@ export default function Step1Basics() {
         setOtpError(error.message)
       } else {
         let profileUpdates: Partial<typeof state> = {}
+        let isCompleted = false
         if (data?.user?.id) {
           const [{ data: profile }, { data: booth }] = await Promise.all([
-            supabase.from('profiles').select('full_name, street_address, city, state_code').eq('id', data.user.id).single(),
+            supabase.from('profiles').select('full_name, street_address, city, state_code, profile_completed_at, tos_accepted_at').eq('id', data.user.id).single(),
             supabase.from('market_booths').select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows').eq('owner_id', data.user.id).single()
           ])
 
@@ -220,6 +221,7 @@ export default function Step1Basics() {
             profileUpdates.address = profile.street_address || ''
             profileUpdates.city = profile.city || ''
             profileUpdates.state_code = profile.state_code || ''
+            isCompleted = !!(profile.profile_completed_at && profile.tos_accepted_at)
           }
           if (booth) {
             profileUpdates.offersDelivery = booth.offers_delivery ?? true
@@ -232,9 +234,9 @@ export default function Step1Basics() {
             profileUpdates.pickupAddress = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
           }
         }
-        
+
         setIsCheckingEmail(false)
-        updateState({ ...profileUpdates, isExistingUser: true })
+        updateState({ ...profileUpdates, isExistingUser: isCompleted })
         nextStep()
       }
     }
@@ -275,10 +277,10 @@ export default function Step1Basics() {
     <div>
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Create Your Product Listing</h2>
 
-      {/* Booth Selector (multi-booth users) */}
+      {/* Stand Selector (multi-stand users) */}
       {allBooths.length > 1 && (
         <div className={styles.formGroup}>
-          <label className={styles.label}>🏪 Booth</label>
+          <label className={styles.label}>🏪 Stand</label>
           <select
             className={styles.input}
             value={state.boothId || ''}
@@ -289,7 +291,7 @@ export default function Step1Basics() {
             ))}
           </select>
           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-            This product will be listed at the selected booth
+            This product will be listed at the selected stand
           </div>
         </div>
       )}
@@ -535,8 +537,8 @@ export default function Step1Basics() {
 
       <div className={styles.bottomBar}>
         <div className={styles.bottomBarInner}>
-          <button className={styles.btnPrimary} onClick={validateAndNext} disabled={isCheckingEmail}>
-            {isCheckingEmail ? 'Checking...' : (showInlineOtp ? 'Verify & Continue' : 'Next →')}
+          <button className={styles.btnPrimary} onClick={validateAndNext} disabled={isCheckingEmail || isAuthLoading}>
+            {isAuthLoading ? 'Loading...' : (isCheckingEmail ? 'Checking...' : (showInlineOtp ? 'Verify & Continue' : 'Next →'))}
           </button>
         </div>
       </div>

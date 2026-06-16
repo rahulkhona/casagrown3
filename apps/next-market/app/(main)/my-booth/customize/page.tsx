@@ -20,21 +20,21 @@ export default function CustomizePage() {
   const [theme, setTheme] = useState<Booth['decorativeTheme']>(myBooth?.decorativeTheme || 'floral')
   const [about, setAbout] = useState(myBooth?.aboutHtml?.replace(/<\/?p>/g, '') || '')
 
-  if (!myBooth) return <div className="container" style={{ padding: 80, textAlign: 'center' }}><h2>Create a booth first</h2></div>
+  if (!myBooth) return <div className="container" style={{ padding: 80, textAlign: 'center' }}><h2>Create a stand first</h2></div>
 
   const handleSave = () => {
     dispatch({
       type: 'UPDATE_BOOTH',
       payload: { id: myBooth.id, name, description, decorativeTheme: theme, aboutHtml: `<p>${about}</p>` },
     })
-    dispatch({ type: 'ADD_TOAST', payload: { message: 'Booth updated! ✨', type: 'success' } })
+    dispatch({ type: 'ADD_TOAST', payload: { message: 'Stand updated! ✨', type: 'success' } })
   }
 
   const tc = THEMES.find(t => t.id === theme)
 
   return (
     <div className="container-sm">
-      <div className="page-header"><h1 className="page-title">Customize Booth</h1></div>
+      <div className="page-header"><h1 className="page-title">Customize Stand</h1></div>
 
       {/* Preview */}
       <div style={{
@@ -43,12 +43,12 @@ export default function CustomizePage() {
         border: '2px solid var(--border)',
       }}>
         <div style={{ fontSize: 24, letterSpacing: 12, opacity: 0.6, marginBottom: 8 }}>{tc?.emoji} {tc?.emoji} {tc?.emoji}</div>
-        <h2 style={{ fontSize: 24, fontWeight: 800 }}>{name || 'Your Booth Name'}</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 800 }}>{name || 'Your Stand Name'}</h2>
         <p style={{ fontSize: 13, color: 'var(--gray-500)' }}>by {state.user?.name}</p>
       </div>
 
       <div className="form-group">
-        <label className="label">Booth Name</label>
+        <label className="label">Stand Name</label>
         <input className="input" value={name} onChange={e => setName(e.target.value)} />
       </div>
       <div className="form-group">
