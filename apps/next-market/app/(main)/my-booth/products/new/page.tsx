@@ -2710,18 +2710,28 @@ function NewProductPageInner() {
           </>
         )}
 
-        {showShareModal && publishMissing.length === 0 && (
-          <SocialShareModal
-            isOpen={showShareModal}
-            onClose={() => { setShowShareModal(false); router.back() }}
-            title={`${addedProductName} added!`}
-            subtitle={`🎉 Your listing is live! Invite your neighbors to check it out.`}
-            entityName={addedProductName || 'Product'}
-            shareUrl={getProductUrl() || ''}
-            shareMessage={getShareMessage()}
-            shareContext="new_product_share"
-          />
-        )}
+        {showShareModal && publishMissing.length === 0 && (() => {
+          const ogPrice = parseFloat(priceUsd) === 0
+            ? 'Free'
+            : priceUsd
+              ? `$${Number(priceUsd).toFixed(2)}/${unit}`
+              : ''
+          const ogTitle = `${addedProductName || 'Product'}${ogPrice ? ` — ${ogPrice}` : ''} | CasaGrown Market`
+          return (
+            <SocialShareModal
+              isOpen={showShareModal}
+              onClose={() => { setShowShareModal(false); router.back() }}
+              title={`${addedProductName} added!`}
+              subtitle={`🎉 Your listing is live! Invite your neighbors to check it out.`}
+              entityName={addedProductName || 'Product'}
+              shareUrl={getProductUrl() || ''}
+              shareMessage={getShareMessage()}
+              shareContext="new_product_share"
+              imageUrl={photos?.[0] || undefined}
+              ogTitle={ogTitle}
+            />
+          )
+        })()}
       </div>
 
       {/* Notification Prompt Modal */}

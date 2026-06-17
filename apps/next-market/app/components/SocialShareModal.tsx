@@ -16,6 +16,8 @@ interface SocialShareModalProps {
   userId?: string
   /** If provided, only these platform buttons are shown. Omit for all platforms. */
   platforms?: SharePlatform[]
+  imageUrl?: string
+  ogTitle?: string
 }
 
 // ── Platform SVG Icons ──
@@ -267,6 +269,8 @@ export default function SocialShareModal({
   shareContext,
   userId,
   platforms,
+  imageUrl,
+  ogTitle,
 }: SocialShareModalProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [customMessages, setCustomMessages] = useState<Record<string, string>>({})
@@ -814,26 +818,40 @@ export default function SocialShareModal({
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <span style={{ fontSize: 11, color: '#039be5', fontWeight: 600 }}>casagrown.org</span>
                         <span style={{ fontSize: 12, color: '#212121', fontWeight: 700 }}>
-                          {entityName || 'Organic Homegrown Produce'}
+                          {ogTitle || entityName || 'Organic Homegrown Produce'}
                         </span>
                         <span style={{ fontSize: 11, color: '#727272', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           Grown with love. Click to check out my local garden share!
                         </span>
                       </div>
-                      <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 4,
-                        background: '#10B981',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        flexShrink: 0,
-                        fontSize: 20
-                      }}>
-                        🍅
-                      </div>
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={entityName}
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 4,
+                            objectFit: 'cover',
+                            flexShrink: 0
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 4,
+                          background: '#10B981',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          flexShrink: 0,
+                          fontSize: 20
+                        }}>
+                          🍅
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 10, color: '#757575', marginTop: -2 }}>
@@ -873,13 +891,25 @@ export default function SocialShareModal({
                     alignSelf: 'flex-start',
                     boxSizing: 'border-box'
                   }}>
-                    <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                      🌱
-                    </div>
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={entityName}
+                        style={{
+                          width: '100%',
+                          height: 90,
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                        🌱
+                      </div>
+                    )}
                     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 10, color: '#8e8e93', textTransform: 'uppercase', fontWeight: 600 }}>CASAGROWN.ORG</span>
                       <span style={{ fontSize: 12, color: '#000', fontWeight: 600 }}>
-                        {entityName || 'Organic Homegrown Produce'}
+                        {ogTitle || entityName || 'Organic Homegrown Produce'}
                       </span>
                       <span style={{ fontSize: 10, color: '#8e8e93' }}>
                         Tap to view details and order.
@@ -930,13 +960,25 @@ export default function SocialShareModal({
                     flexDirection: 'column',
                     boxSizing: 'border-box'
                   }}>
-                    <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                      🧺
-                    </div>
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={entityName}
+                        style={{
+                          width: '100%',
+                          height: 90,
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{ height: 90, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                        🧺
+                      </div>
+                    )}
                     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 10, color: '#00B246', fontWeight: 600 }}>casagrown.org</span>
                       <span style={{ fontSize: 12, color: '#111827', fontWeight: 700 }}>
-                        {entityName || 'Organic Homegrown Produce'}
+                        {ogTitle || entityName || 'Organic Homegrown Produce'}
                       </span>
                       <span style={{ fontSize: 11, color: '#6b7280' }}>
                         Connect with local growers in our neighborhood.
@@ -986,13 +1028,25 @@ export default function SocialShareModal({
                     flexDirection: 'column',
                     boxSizing: 'border-box'
                   }}>
-                    <div style={{ height: 90, background: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                      🏡
-                    </div>
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={entityName}
+                        style={{
+                          width: '100%',
+                          height: 90,
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{ height: 90, background: '#e4e6eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
+                        🏡
+                      </div>
+                    )}
                     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 9, color: '#65676b', textTransform: 'uppercase' }}>CASAGROWN.ORG</span>
                       <span style={{ fontSize: 12, color: '#050505', fontWeight: 700 }}>
-                        {entityName || 'Organic Homegrown Produce'}
+                        {ogTitle || entityName || 'Organic Homegrown Produce'}
                       </span>
                       <span style={{ fontSize: 11, color: '#65676b', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         Fresh local produce from my garden to your table.
@@ -1019,7 +1073,7 @@ export default function SocialShareModal({
                 }}>
                   <div style={{ borderBottom: '1px solid #f3f4f6', paddingBottom: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
                     <div style={{ display: 'flex', gap: 4 }}><span style={{ color: '#9ca3af', width: 44 }}>To:</span><span style={{ color: '#374151', fontWeight: 500 }}>neighbor@community.org</span></div>
-                    <div style={{ display: 'flex', gap: 4 }}><span style={{ color: '#9ca3af', width: 44 }}>Subject:</span><span style={{ color: '#111827', fontWeight: 600 }}>{entityName || title || 'Check this out'}</span></div>
+                    <div style={{ display: 'flex', gap: 4 }}><span style={{ color: '#9ca3af', width: 44 }}>Subject:</span><span style={{ color: '#111827', fontWeight: 600 }}>{ogTitle || entityName || title || 'Check this out'}</span></div>
                   </div>
                   <div style={{
                     color: '#374151',
@@ -1031,7 +1085,7 @@ export default function SocialShareModal({
                   }}>
                     {/* Embedded Rich Email Banner */}
                     <img 
-                      src="/produce-banner.png" 
+                      src={imageUrl || "/produce-banner.png"} 
                       alt="Organic Produce Banner" 
                       style={{
                         width: '100%',

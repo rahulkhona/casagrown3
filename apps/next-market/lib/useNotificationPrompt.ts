@@ -171,7 +171,10 @@ async function enableWebPush(userId: string): Promise<boolean> {
   if (permission !== 'granted') return false
 
   try {
-    const registration = await navigator.serviceWorker.ready
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('ServiceWorker ready timeout')), 3000))
+    ])
     let subscription: PushSubscription | null = null
 
     try {
@@ -252,10 +255,20 @@ export function useNotificationPrompt(userId?: string) {
     if (success) {
       setVisible(false)
     } else {
-      const { NativeBridge } = await import('./nativeBridge')
-      if (NativeBridge.isNative) {
+      const permission = getPermissionStatus()
+      if (permission === 'granted') {
+        setVisible(false)
+      } else if (permission === 'denied') {
         setVariant('denied')
         setVisible(true)
+      } else {
+        const { NativeBridge } = await import('./nativeBridge')
+        if (NativeBridge.isNative) {
+          setVariant('denied')
+          setVisible(true)
+        } else {
+          setVisible(false)
+        }
       }
     }
   }, [userId])

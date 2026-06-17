@@ -29,7 +29,65 @@ async function resetBuyerProfile() {
   })
 }
 
-test.describe('Wizard and Modal Regression Tests (Authed)', () => {
+/** Set up Beth Buyer's booth defaults for E2E testing */
+async function setupTestBooth() {
+  // 1. Delete any existing products for BUYER_ID to avoid foreign key constraints
+  const deleteProductsRes = await fetch(`${SUPABASE_URL}/rest/v1/market_products?seller_id=eq.${BUYER_ID}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+    },
+  })
+  if (!deleteProductsRes.ok) {
+    const errText = await deleteProductsRes.text()
+    throw new Error(`Failed to delete products: ${deleteProductsRes.status} ${errText}`)
+  }
+
+  // 2. Delete any existing booth for BUYER_ID
+  const deleteRes = await fetch(`${SUPABASE_URL}/rest/v1/market_booths?owner_id=eq.${BUYER_ID}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+    },
+  })
+  if (!deleteRes.ok) {
+    const errText = await deleteRes.text()
+    throw new Error(`Failed to delete booth: ${deleteRes.status} ${errText}`)
+  }
+
+  // 2. Insert fresh booth defaults
+  const postRes = await fetch(`${SUPABASE_URL}/rest/v1/market_booths`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      owner_id: BUYER_ID,
+      name: 'Beth Garden Stand',
+      offers_delivery: true,
+      offers_pickup: true,
+      delivery_radius_miles: 10,
+      pickup_address: '1247 Minnesota Ave, San Jose, CA 95125',
+      weekly_delivery_windows: {
+        Saturday: [{ id: '10-12', label: '10–12p' }]
+      },
+      weekly_pickup_windows: {
+        Sunday: [{ id: '12-14', label: '12–2p' }]
+      }
+    }),
+  })
+  if (!postRes.ok) {
+    const errText = await postRes.text()
+    throw new Error(`Failed to insert booth: ${postRes.status} ${errText}`)
+  }
+}
+
+test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
   test.use({ storageState: 'e2e/.auth/user.json' })
 
   test.beforeEach(async ({ page }) => {
@@ -104,6 +162,41 @@ test.describe('Wizard and Modal Regression Tests (Authed)', () => {
 
     // Verify we proceed to Step 3
     await expect(page.locator('h2:has-text("Set Your Price")')).toBeVisible({ timeout: 10000 })
+  })
+
+  test('fulfillment step loads pre-configured booth weekly defaults on subsequent listing flows', async ({ page }) => {
+    // 1. Setup booth defaults
+    await setupTestBooth()
+
+    await page.goto('/create-listing')
+    await expect(page.locator('h2:has-text("Create Your Product Listing")')).toBeVisible({ timeout: 15000 })
+
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
+
+    // 2. Fill Step 1 Basics
+    const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')
+    await expect(nameInput).toBeVisible()
+    await nameInput.fill('Fulfillment Defaults Tomatoes')
+
+    const categorySelect = page.locator('select', { has: page.locator('option:has-text("Select Category")') })
+    await expect(categorySelect.locator('option')).not.toHaveCount(1, { timeout: 15000 })
+    const firstCategoryValue = await categorySelect.locator('option:not([value=""])').first().getAttribute('value')
+    await categorySelect.selectOption(firstCategoryValue!)
+
+    // Click Next
+    await page.getByRole('button', { name: 'Next →' }).click()
+
+    // 3. Verify Step 2 Fulfillment shows default days selected
+    const step2Heading = page.locator('h2:has-text("How will buyers get it?")')
+    await expect(step2Heading).toBeVisible({ timeout: 15000 })
+
+    // Check that default Saturday and Sunday buttons are automatically selected (contain checkbox/emoji or state checks)
+    const satBtn = page.getByTestId('delivery-box').locator('button:has-text("Sat")').first()
+    await expect(satBtn).toContainText('✅')
+
+    const sunBtn = page.getByTestId('pickup-box').locator('button:has-text("Sun")').first()
+    await expect(sunBtn).toContainText('✅')
   })
 
   test('native-app class hiding bottom nav test on other routes', async ({ page }) => {

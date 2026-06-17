@@ -339,8 +339,28 @@ export default function Step2Fulfillment() {
         }
       }
 
-      // Auto-select if only 1 stand and no boothId yet
-      if (standList.length === 1 && !state.boothId) {
+      const currentStand = state.boothId ? standList.find((s: any) => s.id === state.boothId) : null
+      const shouldLoadDefaults = currentStand && 
+        Object.keys(state.deliveryWindows || {}).length === 0 && 
+        Object.keys(state.pickupWindows || {}).length === 0
+
+      if (shouldLoadDefaults && currentStand) {
+        const resolvedDeliveryWindows = mapWeeklyWindowsToDates(currentStand.weekly_delivery_windows, dynamicDays)
+        const resolvedPickupWindows = mapWeeklyWindowsToDates(currentStand.weekly_pickup_windows, dynamicDays)
+        const allDates = Array.from(new Set([...Object.keys(resolvedDeliveryWindows), ...Object.keys(resolvedPickupWindows)]))
+
+        updateState({
+          offersDelivery: currentStand.offers_delivery,
+          offersPickup: currentStand.offers_pickup,
+          deliveryRadius: currentStand.delivery_radius_miles || 5,
+          deliveryZipcodes: currentStand.delivery_zipcodes || [],
+          pickupAddress: currentStand.pickup_address || '',
+          deliveryWindows: resolvedDeliveryWindows,
+          pickupWindows: resolvedPickupWindows,
+          selectedDates: allDates,
+          address: state.address || profileAddress
+        })
+      } else if (standList.length === 1 && !state.boothId) {
         const stand = standList[0]
         const resolvedDeliveryWindows = mapWeeklyWindowsToDates(stand.weekly_delivery_windows, dynamicDays)
         const resolvedPickupWindows = mapWeeklyWindowsToDates(stand.weekly_pickup_windows, dynamicDays)
@@ -362,7 +382,7 @@ export default function Step2Fulfillment() {
         updateState({ address: profileAddress })
       }
     })
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, state.boothId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStandChange = (standId: string) => {
     const stand = stands.find((s: any) => s.id === standId)
@@ -574,7 +594,7 @@ export default function Step2Fulfillment() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 12 }}>
           {/* Delivery Box */}
-          <div style={{ border: `2px solid ${state.offersDelivery ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: state.offersDelivery ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
+          <div data-testid="delivery-box" style={{ border: `2px solid ${state.offersDelivery ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: state.offersDelivery ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
             <div 
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', cursor: 'pointer' }}
               onClick={() => {
@@ -704,7 +724,7 @@ export default function Step2Fulfillment() {
           </div>
 
           {/* Pickup Box */}
-          <div style={{ border: `2px solid ${state.offersPickup ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: state.offersPickup ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
+          <div data-testid="pickup-box" style={{ border: `2px solid ${state.offersPickup ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: state.offersPickup ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
             <div 
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', cursor: 'pointer' }}
               onClick={() => {
