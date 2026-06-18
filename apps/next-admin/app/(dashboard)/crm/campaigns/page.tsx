@@ -536,6 +536,15 @@ export default function CrmCampaignsPage() {
               <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
             </div>
 
+            <div className="crm-field">
+              <label>Test Emails (comma-separated)</label>
+              <input 
+                placeholder="e.g. admin@test.com, tester@test.com" 
+                value={form.test_emails} 
+                onChange={e => setForm(f => ({ ...f, test_emails: e.target.value }))} 
+              />
+            </div>
+
           </div>
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
             <button className="crm-btn-primary" onClick={handleSave} disabled={saving || !form.name}>
