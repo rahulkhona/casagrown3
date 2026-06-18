@@ -485,6 +485,7 @@ export async function handleGrowerDigest(
   }
 
   const postmarkToken = env('POSTMARK_BROADCAST_TOKEN');
+  // TODO: Remove this unused dead code variable (From is resolved internally by sendBroadcastEmailBatch)
   const fromEmail = env('POSTMARK_FROM_EMAIL') || 'no-reply@casagrown.com'
   const messageStream = env('POSTMARK_BROADCAST_STREAM') || 'broadcast'
 
