@@ -12,13 +12,9 @@ const Font: any = Quill.import('attributors/style/font');
 Font.whitelist = ['sans-serif', 'serif', 'monospace', 'arial', 'courier', 'garamond', 'tahoma', 'times', 'verdana'];
 Quill.register(Font, true);
 
-// ── Custom ImageBlot ──────────────────────────────────────────────────
-// Extends the default Image embed to preserve width, height, style, and alt
-// attributes. This allows image resize operations to persist through
-// Quill's delta serialization round-trip.
-const BlockEmbed: any = Quill.import('blots/block/embed');
+const InlineEmbed: any = Quill.import('blots/embed');
 
-class ImageBlot extends BlockEmbed {
+class ImageBlot extends InlineEmbed {
   static blotName = 'image';
   static tagName = 'IMG';
 
