@@ -178,7 +178,7 @@ export default function CrmPromotionsBuilderPage() {
     try {
       const path = `crm/${Date.now()}-${file.name}`
       const { error: uploadErr } = await supabase.storage
-        .from('media')
+        .from('marketing-assets')
         .upload(path, file, { upsert: true })
 
       if (uploadErr) throw uploadErr
@@ -190,7 +190,7 @@ export default function CrmPromotionsBuilderPage() {
         storage_path: path
       })
 
-      const publicUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+      const publicUrl = supabase.storage.from('marketing-assets').getPublicUrl(path).data.publicUrl
       setForm(f => ({ ...f, giveaway_image_url: publicUrl }))
       toast('Image uploaded and applied successfully!')
     } catch (err: any) {
@@ -208,7 +208,7 @@ export default function CrmPromotionsBuilderPage() {
     try {
       const path = `crm/${Date.now()}-${file.name}`
       const { error: uploadErr } = await supabase.storage
-        .from('media')
+        .from('marketing-assets')
         .upload(path, file, { upsert: true })
 
       if (uploadErr) throw uploadErr
@@ -219,7 +219,7 @@ export default function CrmPromotionsBuilderPage() {
         storage_path: path
       })
 
-      const publicUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+      const publicUrl = supabase.storage.from('marketing-assets').getPublicUrl(path).data.publicUrl
       setForm(f => ({ ...f, credit_image_url: publicUrl }))
       toast('Credit image uploaded successfully!')
     } catch (err: any) {

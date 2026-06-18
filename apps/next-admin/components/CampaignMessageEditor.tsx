@@ -72,6 +72,17 @@ export default function CampaignMessageEditor({
 }: CampaignMessageEditorProps) {
   const quillRef = useRef<any>(null)
   
+  const [aiTargetField, setAiTargetField] = useState<'content_html' | 'content_text'>('content_html')
+
+  const currentContent = (form.channel === 'email' && aiTargetField === 'content_text')
+    ? (form.content_html || '')
+    : form.channel === 'sms'
+    ? (form.content_text || '')
+    : (form.content_html || '');
+  const hasCurrentContent = useMemo(() => {
+    return currentContent.replace(/<[^>]*>/g, '').trim().length > 0;
+  }, [currentContent]);
+
   const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
   const [previewEmail, setPreviewEmail] = useState<{ html: string, text: string } | null>(null)
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
@@ -91,6 +102,8 @@ export default function CampaignMessageEditor({
   const [linkUtmFields, setLinkUtmFields] = useState({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
   const [linkShortening, setLinkShortening] = useState(false)
   const [linkLabel, setLinkLabel] = useState('')
+  const [customLinkUrl, setCustomLinkUrl] = useState('')
+  const [customLinkLabel, setCustomLinkLabel] = useState('')
 
   // AI Draft Modal State
   const [aiModalOpen, setAiModalOpen] = useState(false)
@@ -98,6 +111,9 @@ export default function CampaignMessageEditor({
   const [aiTone, setAiTone] = useState('Friendly and Urgent')
   const [isGeneratingAi, setIsGeneratingAi] = useState(false)
   const [aiDraft, setAiDraft] = useState('')
+  const [aiRefTab, setAiRefTab] = useState<'links' | 'images'>('links')
+  const [aiRefSearch, setAiRefSearch] = useState('')
+  const [shortLinks, setShortLinks] = useState<any[]>([])
 
   // Track Link Modal State
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -105,6 +121,7 @@ export default function CampaignMessageEditor({
   const [trackLinkRange, setTrackLinkRange] = useState<{ index: number; length: number } | null>(null)
   const [trackUtm, setTrackUtm] = useState({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
   const [trackCreatingShort, setTrackCreatingShort] = useState(false)
+  const linkInterceptorRegisteredRef = useRef(false)
 
   // Image Sizing Popover State
   const [imgPopover, setImgPopover] = useState<{
@@ -155,19 +172,20 @@ export default function CampaignMessageEditor({
   useEffect(() => {
     // Fetch landing pages and promos for the link picker
     const fetchLinkData = async () => {
-      const [{ data: shortLinks }, { data: lps }, { data: promos }] = await Promise.all([
-        supabase.from('crm_short_links').select('token, destination_url').is('campaign_id', null),
+      const [{ data: fetchedShortLinks }, { data: lps }, { data: promos }] = await Promise.all([
+        supabase.from('crm_short_links').select('token, destination_url, label').is('campaign_id', null),
         supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
         supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
       ])
       if (lps) setLandingPages(lps)
+      if (fetchedShortLinks) setShortLinks(fetchedShortLinks)
       if (promos) {
         // Attach shortlinks to promos if found
         const promosWithTokens = promos.map(p => {
           const lp = (lps || []).find(l => l.id === p.landing_page_id);
           if (lp) {
             const suffix = `/p/${lp.slug}?promo=${p.id}`;
-            const sl = (shortLinks || []).find(s => s.destination_url?.endsWith(suffix));
+            const sl = (fetchedShortLinks || []).find(s => s.destination_url?.endsWith(suffix));
             if (sl) p.short_token = sl.token;
           }
           return p;
@@ -178,16 +196,55 @@ export default function CampaignMessageEditor({
     fetchLinkData()
   }, [supabase])
 
+  // Load assets automatically when AI modal is opened
+  useEffect(() => {
+    if (aiModalOpen) {
+      const loadAssets = async () => {
+        setLoadingAssets(true)
+        const { data } = await supabase.from('crm_assets').select('*').eq('type', 'image').order('created_at', { ascending: false })
+        if (data) {
+          const formatted = data.map((a: any) => {
+            const url = a.storage_path 
+              ? supabase.storage.from('marketing-assets').getPublicUrl(a.storage_path).data.publicUrl
+              : ''
+            return {
+              name: a.name,
+              url: url
+            }
+          })
+          setAssets(formatted.filter(a => a.url))
+        }
+        setLoadingAssets(false)
+      }
+      loadAssets()
+    }
+  }, [aiModalOpen, supabase])
+
   // Intercept clicks on links in the Quill editor → open Track modal instead of Quill's tooltip
   useEffect(() => {
-    const timer = setTimeout(() => {
-      let quill: any
-      try { quill = quillRef.current?.getEditor() } catch { return }
-      if (!quill) return
+    if (linkInterceptorRegisteredRef.current) return
+    let quill: any
+    try { quill = quillRef.current?.getEditor() } catch { return }
+    if (!quill) return
     const root = quill.root
     const handleLinkClick = (e: MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a')
-      if (!anchor) return
+      if (!anchor) {
+        const img = (e.target as HTMLElement).closest('img')
+        if (img && !img.closest('a')) {
+          quill.update()
+          const blot = quill.constructor.find(img)
+          if (blot) {
+            const idx = quill.getIndex(blot)
+            quill.setSelection(idx, 1)
+            quillSelectionRef.current = { index: idx, length: 1 }
+            setPromoModalDest('quill')
+            e.preventDefault()
+            e.stopPropagation()
+          }
+        }
+        return
+      }
       e.preventDefault()
       e.stopPropagation()
       const href = anchor.getAttribute('href')
@@ -244,8 +301,11 @@ export default function CampaignMessageEditor({
       }
     }
     root.addEventListener('click', handleLinkClick)
-    }, 500)
-    return () => clearTimeout(timer)
+    linkInterceptorRegisteredRef.current = true
+    return () => {
+      root.removeEventListener('click', handleLinkClick)
+      linkInterceptorRegisteredRef.current = false
+    }
   })
 
   const openAssetPicker = useCallback(async () => {
@@ -260,13 +320,18 @@ export default function CampaignMessageEditor({
     } catch {}
     setAssetPickerOpen(true)
     setLoadingAssets(true)
-    const { data } = await supabase.storage.from('media').list('crm', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+    const { data } = await supabase.from('crm_assets').select('*').eq('type', 'image').order('created_at', { ascending: false })
     if (data) {
-      const formatted = data.filter((f:any) => f.name !== '.emptyFolderPlaceholder').map((f:any) => ({
-        name: f.name,
-        url: supabase.storage.from('media').getPublicUrl(`crm/${f.name}`).data.publicUrl
-      }))
-      setAssets(formatted)
+      const formatted = data.map((a: any) => {
+        const url = a.storage_path 
+          ? supabase.storage.from('marketing-assets').getPublicUrl(a.storage_path).data.publicUrl
+          : ''
+        return {
+          name: a.name,
+          url: url
+        }
+      })
+      setAssets(formatted.filter(a => a.url))
     }
     setLoadingAssets(false)
   }, [supabase])
@@ -673,18 +738,26 @@ export default function CampaignMessageEditor({
     setIsGeneratingAi(true);
     setAiDraft('');
     try {
+      const testMock = typeof window !== 'undefined' && !!(navigator.webdriver || (window as any).__playwright__);
       const { data, error } = await supabase.functions.invoke('generate-campaign-content', {
-        body: { prompt: aiPrompt, channel: form.channel, tone: aiTone }
+        body: {
+          prompt: aiPrompt,
+          channel: form.channel === 'email' && aiTargetField === 'content_text' ? 'email_text' : form.channel,
+          tone: aiTone,
+          currentContent,
+          testMock
+        }
       });
       if (error) throw error;
       console.log('[AI Response]', data);
       if (data.error) throw new Error(data.error);
-      const content = data.content ?? data.text ?? data.result ?? '';
+      const content = (data.content ?? data.text ?? data.result ?? '').trim();
       if (!content) throw new Error(`AI returned empty content. Raw: ${JSON.stringify(data)}`);
       setAiDraft(content);
       toast('Draft generated successfully by AI! Review before applying.');
     } catch (err: any) {
       console.error(err);
+      setAiDraft('');
       toast(`AI Generation Failed: ${err.message}`);
     } finally {
       setIsGeneratingAi(false);
@@ -696,10 +769,13 @@ export default function CampaignMessageEditor({
     if (form.channel === 'sms') {
       const newContent = mode === 'replace' ? aiDraft : (form.content_text + '\n\n' + aiDraft);
       setForm(f => ({ ...f, content_text: newContent }));
+    } else if (form.channel === 'email' && aiTargetField === 'content_text') {
+      const newContent = mode === 'replace' ? aiDraft : (form.content_text + '\n\n' + aiDraft);
+      setForm(f => ({ ...f, content_text: newContent }));
     } else {
       const newContent = mode === 'replace' ? aiDraft : (form.content_html + '<br><br>' + aiDraft);
       setForm(f => ({ ...f, content_html: newContent }));
-      setHtmlMode('wysiwyg');
+      setHtmlMode('raw');
     }
     setAiModalOpen(false);
     setAiPrompt('');
@@ -794,7 +870,10 @@ export default function CampaignMessageEditor({
               </select>
               <button
                 type="button"
-                onClick={() => setAiModalOpen(true)}
+                onClick={() => {
+                  setAiTargetField('content_html');
+                  setAiModalOpen(true);
+                }}
                 style={{ padding: '4px 8px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 ✨ Ask AI
@@ -1107,7 +1186,11 @@ export default function CampaignMessageEditor({
               </button>
               <button
                 type="button"
-                onClick={() => setAiModalOpen(true)}
+                onClick={() => {
+                  setAiTargetField('content_text');
+                  setAiPrompt('Convert the HTML campaign to a clean plain text version, ensuring all text, links, and details are preserved.');
+                  setAiModalOpen(true);
+                }}
                 style={{ padding: '4px 8px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 ✨ Ask AI
@@ -1169,7 +1252,10 @@ export default function CampaignMessageEditor({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAiModalOpen(true)}
+                  onClick={() => {
+                    setAiTargetField('content_text');
+                    setAiModalOpen(true);
+                  }}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
                   ✨ Ask AI
@@ -1254,7 +1340,7 @@ export default function CampaignMessageEditor({
                   setAssetPickerOpen(false)
                   const fileName = `crm/${Date.now()}-${file.name}`
                   
-                  const { error } = await supabase.storage.from('media').upload(fileName, file)
+                  const { error } = await supabase.storage.from('marketing-assets').upload(fileName, file)
                   if (error) {
                     toast(`Error: Upload failed - ${error.message}`)
                     return
@@ -1266,7 +1352,7 @@ export default function CampaignMessageEditor({
                     storage_path: fileName
                   })
                   
-                  const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName)
+                  const { data: publicUrlData } = supabase.storage.from('marketing-assets').getPublicUrl(fileName)
                   
                   if (htmlMode === 'wysiwyg') {
                     try {
@@ -1390,6 +1476,8 @@ export default function CampaignMessageEditor({
           setLinkSelectedUrl(null)
           setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' })
           setLinkLabel('')
+          setCustomLinkUrl('')
+          setCustomLinkLabel('')
         }
 
         return (
@@ -1399,7 +1487,7 @@ export default function CampaignMessageEditor({
                 <h3 style={{ margin: 0, fontSize: '1.1rem' }}>
                   {linkSelectedUrl ? '📊 Add Tracking' : '🔗 Insert Tracked Link'}
                 </h3>
-                <button className="toast-close" onClick={() => { setPromoModalDest(null); setLinkSearch(''); setLinkSelectedUrl(null); setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' }); setLinkLabel('') }}>×</button>
+                <button className="toast-close" onClick={() => { setPromoModalDest(null); setLinkSearch(''); setLinkSelectedUrl(null); setLinkUtmFields({ utm_source: '', utm_medium: '', utm_campaign: '', utm_content: '', utm_term: '' }); setLinkLabel(''); setCustomLinkUrl(''); setCustomLinkLabel('') }}>×</button>
               </div>
 
               {!linkSelectedUrl ? (
@@ -1460,6 +1548,52 @@ export default function CampaignMessageEditor({
                           <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 3 }}>{p.slug}</div>
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#374151', marginBottom: 8 }}>Or enter a custom / external URL:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <input 
+                        type="text" 
+                        placeholder="https://youtube.com/watch?v=... or mailto:..." 
+                        value={customLinkUrl} 
+                        onChange={e => setCustomLinkUrl(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.9rem' }}
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Link Text / Label (Optional)" 
+                        value={customLinkLabel} 
+                        onChange={e => setCustomLinkLabel(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.9rem' }}
+                      />
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (customLinkUrl.trim()) {
+                              insertLink(customLinkUrl.trim(), customLinkLabel.trim() || 'Link', false)
+                            }
+                          }}
+                          disabled={!customLinkUrl.trim()}
+                          style={{ padding: '8px 16px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: '#374151', opacity: customLinkUrl.trim() ? 1 : 0.6 }}
+                        >
+                          Insert Untracked
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (customLinkUrl.trim()) {
+                              selectUrl(customLinkUrl.trim(), customLinkLabel.trim() || 'Link')
+                            }
+                          }}
+                          disabled={!customLinkUrl.trim()}
+                          style={{ padding: '8px 16px', background: '#166534', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', opacity: customLinkUrl.trim() ? 1 : 0.6 }}
+                        >
+                          Track & Shorten...
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -1579,74 +1713,453 @@ export default function CampaignMessageEditor({
         </div>
       )}
 
-
-      {/* AI Draft Modal */}
-      {aiModalOpen && (
+      {trackModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '600px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>✨ AI Draft Assistant</h3>
+          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '560px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>📊 Edit Link Tracking</h3>
+              <button className="toast-close" onClick={() => setTrackModalOpen(false)}>×</button>
+            </div>
+
+            <div style={{ padding: '10px 12px', background: '#f3f4f6', borderRadius: 6, fontFamily: 'monospace', fontSize: '0.82rem', color: '#374151', wordBreak: 'break-all', marginBottom: 16, border: '1px solid #e5e7eb' }}>
+              {trackLinkUrl}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div className="crm-field">
+                <label>Source</label>
+                <select value={trackUtm.utm_source} onChange={e => setTrackUtm(u => ({ ...u, utm_source: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }}>
+                  <option value="">None (skip tracking)</option>
+                  <option value="email">Email Campaign</option>
+                  <option value="sms">SMS Campaign</option>
+                  <option value="drip">Drip / Sequence</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="google">Google Ads</option>
+                  <option value="nextdoor">Nextdoor</option>
+                  <option value="newsletter">Newsletter</option>
+                  <option value="qr_code">QR Code / Print</option>
+                  <option value="organic">Organic / Other</option>
+                </select>
+              </div>
+              <div className="crm-field">
+                <label>Medium</label>
+                <select value={trackUtm.utm_medium} onChange={e => setTrackUtm(u => ({ ...u, utm_medium: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }}>
+                  <option value="">-- Select --</option>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="social">Social</option>
+                  <option value="cpc">CPC (Paid)</option>
+                  <option value="referral">Referral</option>
+                  <option value="print">Print</option>
+                </select>
+              </div>
+              <div className="crm-field">
+                <label>Campaign Name</label>
+                <input placeholder="e.g. summer-kickoff" value={trackUtm.utm_campaign} onChange={e => setTrackUtm(u => ({ ...u, utm_campaign: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+              </div>
+              <div className="crm-field">
+                <label>Content / Placement</label>
+                <input placeholder="e.g. backyard-gardeners-fb-group" value={trackUtm.utm_content} onChange={e => setTrackUtm(u => ({ ...u, utm_content: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Keyword / Group Tag <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '0.8rem' }}>(utm_term — optional)</span></label>
+                <input placeholder="e.g. sell-backyard-produce" value={trackUtm.utm_term} onChange={e => setTrackUtm(u => ({ ...u, utm_term: e.target.value }))} style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', width: '100%' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 8 }}>
+              <button type="button" onClick={() => {
+                const quill = quillRef.current?.getEditor()
+                if (quill && trackLinkRange) {
+                  quill.formatText(trackLinkRange.index, trackLinkRange.length, 'link', false)
+                }
+                setTrackModalOpen(false)
+                toast('Link removed!')
+              }}
+                style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', color: '#dc2626' }}>
+                Remove Link
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={() => applyTracking(false)}
+                  style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', color: '#374151' }}>
+                  Save
+                </button>
+                <button type="button" onClick={() => applyTracking(true)} disabled={trackCreatingShort}
+                  style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#166534', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', opacity: trackCreatingShort ? 0.6 : 1 }}>
+                  {trackCreatingShort ? 'Saving...' : 'Save & Shorten'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {aiModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s ease' }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid rgba(241, 245, 249, 0.8)', width: '980px', maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(139, 92, 246, 0.05)', overflow: 'hidden' }}>
             
-            {!aiDraft ? (
-              <>
-                <div className="crm-field full-width" style={{ marginBottom: '16px' }}>
-                  <label>What do you want to announce?</label>
-                  <textarea 
-                    rows={4}
-                    value={aiPrompt}
-                    onChange={e => setAiPrompt(e.target.value)}
-                    placeholder="e.g. We have fresh heirloom tomatoes and honey coming this weekend. Order before Friday."
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', resize: 'vertical' }}
-                  />
-                </div>
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(to right, #fbfbfe, #f5f3ff)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #a78bfa, #818cf8)', color: '#fff', fontSize: '1.1rem' }}>✨</span>
+                AI Draft Assistant
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => { setAiModalOpen(false); setAiPrompt(''); }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.2s', outline: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0px', overflow: 'hidden', flex: 1, minHeight: '400px', maxHeight: '72vh' }}>
+              {/* Left Column - Prompt Input and Generation Actions */}
+              <div style={{ flex: 1.3, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '24px', borderRight: '1px solid #f1f5f9' }}>
+                {!aiDraft ? (
+                  <>
+                    {hasCurrentContent && (
+                      <div style={{ backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #e0f2fe', borderRadius: '10px', padding: '14px', fontSize: '0.875rem', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '10px', boxShadow: '0 2px 4px rgba(3, 105, 161, 0.02)' }}>
+                        <span style={{ fontSize: '1.2rem', lineHeight: '1' }}>💡</span>
+                        <div style={{ lineHeight: '1.5' }}>
+                          {form.channel === 'email' && aiTargetField === 'content_text'
+                            ? "The assistant will use your HTML editor content as context to generate a matching plain text version. Any URLs will be preserved inline!"
+                            : "The assistant will use your current editor content as context. Suggest modifications or rewrites below!"}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="crm-field full-width" style={{ marginBottom: '18px' }}>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>What do you want to announce?</label>
+                      <textarea 
+                        rows={6}
+                        value={aiPrompt}
+                        onChange={e => setAiPrompt(e.target.value)}
+                        placeholder="e.g. We have fresh heirloom tomatoes and honey coming this weekend. Order before Friday."
+                        style={{ width: '100%', padding: '12px 14px', fontSize: '0.9rem', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', transition: 'all 0.2s', resize: 'vertical', minHeight: '120px', lineHeight: '1.5', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
+                        onFocus={e => {
+                          e.target.style.borderColor = '#8b5cf6'
+                          e.target.style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.15), inset 0 1px 2px rgba(0,0,0,0.02)'
+                        }}
+                        onBlur={e => {
+                          e.target.style.borderColor = '#cbd5e1'
+                          e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                        }}
+                      />
+                    </div>
+                    
+                    <div className="crm-field full-width" style={{ marginBottom: '24px' }}>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Tone</label>
+                      <div style={{ position: 'relative' }}>
+                        <select 
+                          value={aiTone} 
+                          onChange={e => setAiTone(e.target.value)} 
+                          style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', appearance: 'none', background: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2364748b\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'m6 9 6 6 6-6\'/%3E%3C/svg%3E") no-repeat right 12px center/16px', backgroundColor: '#fff', transition: 'all 0.2s' }}
+                          onFocus={e => {
+                            e.target.style.borderColor = '#8b5cf6'
+                            e.target.style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.15)'
+                          }}
+                          onBlur={e => {
+                            e.target.style.borderColor = '#cbd5e1'
+                            e.target.style.boxShadow = 'none'
+                          }}
+                        >
+                          <option value="Friendly and Urgent">Friendly & Urgent</option>
+                          <option value="Professional and Welcoming">Professional & Welcoming</option>
+                          <option value="Casual and Fun">Casual & Fun</option>
+                          <option value="Short and Direct">Short & Direct</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                      {isGeneratingAi && (
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', marginRight: 'auto' }}>
+                          <span style={{ display: 'inline-block', width: 16, height: 16, border: '2.5px solid #e2e8f0', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                          Contacting AI, please wait…
+                        </span>
+                      )}
+                      <button 
+                        type="button" 
+                        className="crm-btn-secondary" 
+                        onClick={() => { setAiModalOpen(false); setAiPrompt(''); }} 
+                        disabled={isGeneratingAi}
+                        style={{ padding: '10px 18px', borderRadius: '10px', fontWeight: 600, border: '1px solid #cbd5e1', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={handleGenerateAi}
+                        disabled={!aiPrompt || isGeneratingAi}
+                        style={{ 
+                          padding: '10px 20px', 
+                          borderRadius: '10px', 
+                          fontWeight: 600, 
+                          border: 'none', 
+                          color: 'white', 
+                          background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', 
+                          cursor: !aiPrompt || isGeneratingAi ? 'not-allowed' : 'pointer', 
+                          boxShadow: !aiPrompt || isGeneratingAi ? 'none' : '0 4px 12px rgba(139, 92, 246, 0.2)',
+                          opacity: !aiPrompt || isGeneratingAi ? 0.6 : 1, 
+                          transition: 'all 0.2s' 
+                        }}
+                        onMouseEnter={e => {
+                          if (aiPrompt && !isGeneratingAi) {
+                            e.currentTarget.style.transform = 'translateY(-1px)'
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(139, 92, 246, 0.3)'
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (aiPrompt && !isGeneratingAi) {
+                            e.currentTarget.style.transform = 'translateY(0)'
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.2)'
+                          }
+                        }}
+                      >
+                        {isGeneratingAi ? '⏳ Generating…' : '✨ Generate Draft'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', flex: 1, overflowY: 'auto', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.01)' }}>
+                      {form.channel === 'email' ? (
+                        <div dangerouslySetInnerHTML={{ __html: aiDraft }} style={{ background: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 10px rgba(0,0,0,0.02)', color: '#334155' }} />
+                      ) : (
+                        <div style={{ background: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 10px rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', color: '#334155' }}>{aiDraft}</div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => setAiDraft('')}
+                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                      >
+                        ✍️ Edit Prompt
+                      </button>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => applyAiDraft('append')}
+                          style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                        >
+                          ➕ Append
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => applyAiDraft('replace')}
+                          style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.transform = 'translateY(-1px)'
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.3)'
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.transform = 'translateY(0)'
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.2)'
+                          }}
+                        >
+                          🔄 Replace All
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              {/* Right Column - Reference Manager */}
+              <div style={{ flex: 0.9, padding: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fafafc' }}>
+                <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '1rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📋</span> Campaign References
+                </h4>
                 
-                <div className="crm-field full-width" style={{ marginBottom: '24px' }}>
-                  <label>Tone</label>
-                  <select value={aiTone} onChange={e => setAiTone(e.target.value)} style={{ width: '100%' }}>
-                    <option value="Friendly and Urgent">Friendly & Urgent</option>
-                    <option value="Professional and Welcoming">Professional & Welcoming</option>
-                    <option value="Casual and Fun">Casual & Fun</option>
-                    <option value="Short and Direct">Short & Direct</option>
-                  </select>
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
-                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  {isGeneratingAi && (
-                    <span style={{ fontSize: '0.85rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #d1d5db', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      Contacting AI, please wait…
-                    </span>
-                  )}
-                  <button type="button" className="crm-btn-secondary" onClick={() => { setAiModalOpen(false); setAiPrompt(''); }} disabled={isGeneratingAi}>Cancel</button>
+                {/* Tabs selection */}
+                <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px', marginBottom: '16px' }}>
                   <button 
-                    type="button" 
-                    className="crm-btn" 
-                    onClick={handleGenerateAi}
-                    disabled={!aiPrompt || isGeneratingAi}
-                    style={{ background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', border: 'none', color: 'white', opacity: isGeneratingAi ? 0.7 : 1 }}
+                    type="button"
+                    onClick={() => { setAiRefTab('links'); setAiRefSearch(''); }}
+                    style={{ flex: 1, padding: '8px 12px', border: 'none', borderRadius: '8px', fontSize: '0.85rem', background: aiRefTab === 'links' ? '#ffffff' : 'transparent', fontWeight: aiRefTab === 'links' ? 600 : 500, color: aiRefTab === 'links' ? '#6366f1' : '#64748b', cursor: 'pointer', boxShadow: aiRefTab === 'links' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
                   >
-                    {isGeneratingAi ? '⏳ Generating…' : '✨ Generate Draft'}
+                    🔗 Links
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setAiRefTab('images'); setAiRefSearch(''); }}
+                    style={{ flex: 1, padding: '8px 12px', border: 'none', borderRadius: '8px', fontSize: '0.85rem', background: aiRefTab === 'images' ? '#ffffff' : 'transparent', fontWeight: aiRefTab === 'images' ? 600 : 500, color: aiRefTab === 'images' ? '#6366f1' : '#64748b', cursor: 'pointer', boxShadow: aiRefTab === 'images' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                  >
+                    🖼️ Images
                   </button>
                 </div>
-              </>
-            ) : (
-              <>
-                <div style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px', marginBottom: '24px', maxHeight: '400px', overflowY: 'auto' }}>
-                  {form.channel === 'email' ? (
-                    <div dangerouslySetInnerHTML={{ __html: aiDraft }} style={{ background: 'white', padding: '16px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
-                  ) : (
-                    <div style={{ background: 'white', padding: '16px', borderRadius: '4px', border: '1px solid #d1d5db', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{aiDraft}</div>
-                  )}
+
+                {/* Filter Search */}
+                <div style={{ position: 'relative', marginBottom: '16px' }}>
+                  <input 
+                    type="text"
+                    placeholder={`Search ${aiRefTab === 'links' ? 'links...' : 'images...'}`}
+                    value={aiRefSearch}
+                    onChange={e => setAiRefSearch(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px 10px 34px', fontSize: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '10px', outline: 'none', backgroundColor: '#fff', transition: 'all 0.2s' }}
+                    onFocus={e => {
+                      e.target.style.borderColor = '#8b5cf6'
+                      e.target.style.boxShadow = '0 0 0 3px rgba(139, 92, 246, 0.1)'
+                    }}
+                    onBlur={e => {
+                      e.target.style.borderColor = '#cbd5e1'
+                      e.target.style.boxShadow = 'none'
+                    }}
+                  />
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}>🔍</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button type="button" className="crm-btn-secondary" onClick={() => setAiDraft('')}>✍️ Edit Prompt</button>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button type="button" className="crm-btn-secondary" onClick={() => applyAiDraft('append')}>➕ Append</button>
-                    <button type="button" className="crm-btn" style={{ background: '#3b82f6', color: 'white', border: 'none' }} onClick={() => applyAiDraft('replace')}>🔄 Replace All</button>
-                  </div>
+
+                {/* Scrollable list contents */}
+                <style>{`
+                  .ref-scroll::-webkit-scrollbar { width: 6px; }
+                  .ref-scroll::-webkit-scrollbar-track { background: transparent; }
+                  .ref-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                  .ref-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+                  
+                  .ref-card {
+                    border: 1px solid #e2e8f0;
+                    border-radius: 10px;
+                    padding: 12px;
+                    background-color: #ffffff;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                  }
+                  .ref-card:hover {
+                    transform: translateY(-2px);
+                    border-color: #a78bfa;
+                    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+                  }
+                `}</style>
+                <div className="ref-scroll" style={{ flex: 1, overflowY: 'auto', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+                  {aiRefTab === 'links' ? (() => {
+                    const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'
+                    
+                    // Construct references
+                    const referencesList: { label: string, type: string, url: string }[] = []
+                    
+                    landingPages.forEach(lp => {
+                      referencesList.push({ label: lp.title, type: 'Landing Page', url: `${baseUrl}/p/${lp.slug}` })
+                    })
+                    
+                    promotions.forEach(p => {
+                      const lp = landingPages.find(l => l.id === p.landing_page_id)
+                      const url = lp ? `${baseUrl}/p/${lp.slug}?promo=${p.id}` : ''
+                      if (url) {
+                        referencesList.push({ label: p.name, type: 'Promotion', url })
+                      }
+                      if (p.short_token) {
+                        referencesList.push({ label: `${p.name} (Short)`, type: 'Promo Short Link', url: `${baseUrl}/r/${p.short_token}` })
+                      }
+                    })
+
+                    shortLinks.forEach(sl => {
+                      // Avoid duplicates of promo short links
+                      const exists = referencesList.some(r => r.url.endsWith(`/r/${sl.token}`))
+                      if (!exists) {
+                        referencesList.push({ label: sl.label || 'Tracked Short Link', type: 'Short Link', url: `${baseUrl}/r/${sl.token}` })
+                      }
+                    })
+
+                    const filtered = referencesList.filter(r => 
+                      r.label.toLowerCase().includes(aiRefSearch.toLowerCase()) || 
+                      r.type.toLowerCase().includes(aiRefSearch.toLowerCase()) ||
+                      r.url.toLowerCase().includes(aiRefSearch.toLowerCase())
+                    )
+
+                    if (filtered.length === 0) {
+                      return <div style={{ color: '#94a3b8', textAlign: 'center', marginTop: '24px', fontStyle: 'italic' }}>No matching links found</div>
+                    }
+
+                    return filtered.map((r, i) => (
+                      <div key={i} className="ref-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '8px' }}>
+                          <span style={{ fontWeight: 600, color: '#334155', lineHeight: '1.4' }}>{r.label}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#6366f1', backgroundColor: '#e0e7ff', padding: '2px 8px', borderRadius: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.type}</span>
+                        </div>
+                        <div style={{ color: '#4f46e5', wordBreak: 'break-all', fontSize: '0.75rem', marginBottom: '8px', fontFamily: 'monospace', background: '#f5f3ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ede9fe' }}>{r.url}</div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button 
+                            type="button" 
+                            style={{ padding: '5px 10px', fontSize: '0.75rem', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, color: '#475569', transition: 'all 0.2s' }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(r.url)
+                              toast('Link copied!')
+                            }}
+                          >
+                            📋 Copy
+                          </button>
+                          <button 
+                            type="button" 
+                            style={{ padding: '5px 12px', fontSize: '0.75rem', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(139, 92, 246, 0.15)' }}
+                            disabled={!!aiDraft}
+                            onClick={() => setAiPrompt(p => p + (p ? ' ' : '') + r.url)}
+                          >
+                            ➕ Insert
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  })() : (() => {
+                    const filtered = assets.filter(a => a.name.toLowerCase().includes(aiRefSearch.toLowerCase()))
+
+                    if (loadingAssets) {
+                      return <div style={{ color: '#94a3b8', textAlign: 'center', marginTop: '24px' }}>Loading assets...</div>
+                    }
+
+                    if (filtered.length === 0) {
+                      return <div style={{ color: '#94a3b8', textAlign: 'center', marginTop: '24px', fontStyle: 'italic' }}>No matching images found</div>
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {filtered.map((a, i) => (
+                          <div key={i} className="ref-card" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div style={{ width: '54px', height: '54px', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', background: '#f8fafc', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <img src={a.url} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '6px' }}>{a.name}</div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button 
+                                  type="button" 
+                                  style={{ padding: '5px 10px', fontSize: '0.75rem', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, color: '#475569', transition: 'all 0.2s' }}
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(a.url)
+                                    toast('Image URL copied!')
+                                  }}
+                                >
+                                  📋 Copy URL
+                                </button>
+                                <button 
+                                  type="button" 
+                                  style={{ padding: '5px 12px', fontSize: '0.75rem', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(139, 92, 246, 0.15)' }}
+                                  disabled={!!aiDraft}
+                                  onClick={() => setAiPrompt(p => p + (p ? ' ' : '') + `[Use Image: ${a.name}]`)}
+                                >
+                                  ➕ Insert
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
-              </>
-            )}
+              </div>
+            </div>
           </div>
         </div>
       )}

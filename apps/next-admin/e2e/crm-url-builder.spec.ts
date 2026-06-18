@@ -413,4 +413,97 @@ test.describe('Tracking URL Builder — Email Campaigns end-to-end', () => {
     await expect(page.getByPlaceholder('e.g. Facebook May Campaign')).toBeVisible()
     await expect(page.getByText('Short Link Label')).toBeVisible()
   })
+
+  test('Custom URL input can insert an untracked link directly', async ({ page }) => {
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    // Open link picker
+    await page.locator('.ql-link').click()
+    await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
+
+    // Fill Custom URL and label
+    const customUrlInput = page.getByPlaceholder('https://youtube.com/watch?v=... or mailto:...')
+    await expect(customUrlInput).toBeVisible({ timeout: 3000 })
+    await customUrlInput.fill('https://youtube.com/watch?v=custom123')
+    
+    const customLabelInput = page.getByPlaceholder('Link Text / Label (Optional)')
+    await customLabelInput.fill('My Custom Video')
+
+    // Click Insert Untracked
+    const insertUntrackedBtn = page.locator('button:has-text("Insert Untracked")')
+    await expect(insertUntrackedBtn).toBeEnabled()
+    await insertUntrackedBtn.click()
+
+    // Modal should close
+    await expect(page.getByText('Insert Tracked Link')).not.toBeVisible({ timeout: 5000 })
+
+    // Verify content of quill editor contains the link
+    const editorContent = page.locator('.ql-editor a')
+    await expect(editorContent).toBeVisible({ timeout: 5000 })
+    await expect(editorContent).toHaveAttribute('href', 'https://youtube.com/watch?v=custom123')
+    await expect(editorContent).toHaveText('My Custom Video')
+  })
+
+  test('Image wrapping in custom link and link removal', async ({ page }) => {
+    await page.click('#create-campaign-btn', { force: true })
+    await expect(page.locator('h2', { hasText: 'Create Campaign' })).toBeVisible({ timeout: 10000 })
+
+    await page.locator('label:has-text("Channel") + select, label:has-text("Channel") ~ select').selectOption('email')
+    const modeSelect = page.locator('select').filter({ hasText: /Custom HTML/ })
+    if (await modeSelect.count() > 0) {
+      await modeSelect.selectOption('custom')
+    }
+
+    // Insert image
+    const testImageUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    await page.evaluate((url: string) => {
+      const editor = document.querySelector('.ql-editor')
+      if (!editor) return
+      const img = document.createElement('img')
+      img.src = url
+      img.setAttribute('data-image-blot', 'true')
+      editor.appendChild(img)
+    }, testImageUrl)
+    await page.waitForTimeout(300)
+
+    // Click the image (our new click interceptor will open the link picker modal)
+    const imgLocator = page.locator('.ql-editor img').first()
+    await expect(imgLocator).toBeVisible({ timeout: 5000 })
+    await imgLocator.click()
+
+    // Link picker modal should open
+    await expect(page.getByText('Insert Tracked Link')).toBeVisible({ timeout: 5000 })
+
+    // Fill Custom URL and insert untracked
+    const customUrlInput = page.getByPlaceholder('https://youtube.com/watch?v=... or mailto:...')
+    await customUrlInput.fill('https://alerts.casagrown.com')
+    await page.locator('button:has-text("Insert Untracked")').click()
+
+    // Modal closes
+    await expect(page.getByText('Insert Tracked Link')).not.toBeVisible({ timeout: 5000 })
+
+    // Verify image is wrapped inside the link
+    const wrappedImg = page.locator('.ql-editor a[href*="alerts.casagrown.com"] img')
+    await expect(wrappedImg).toBeVisible({ timeout: 5000 })
+
+    // Click linked image again -> should open Edit Link Tracking modal
+    await wrappedImg.click({ force: true })
+    await expect(page.getByText('Edit Link Tracking')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/alerts\.casagrown\.com/)).toBeVisible()
+
+    // Click Remove Link
+    await page.locator('button:has-text("Remove Link")').click()
+
+    // Modal closes and link is removed, leaving only the image
+    await expect(page.getByText('Edit Link Tracking')).not.toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.ql-editor a')).not.toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.ql-editor img')).toBeVisible({ timeout: 5000 })
+  })
 })
