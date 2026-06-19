@@ -124,21 +124,42 @@ Deno.serve(async (req: Request) => {
       const audience = campaign.crm_audiences;
       let recipients: AudienceRow[] = [];
 
-      if (isTest && campaign.test_emails && campaign.test_emails.length > 0) {
-         recipients = campaign.test_emails.map((email: string) => ({
-             id: crypto.randomUUID(),
-             recipient_type: 'user',
-             email: email.trim(),
-             phone: null,
-             name: 'Test User',
-             state_code: null,
-             city: null,
-             zip_code: null,
-             community_h3: null,
-             joined_at: new Date().toISOString(),
-             accepts_email: true,
-             accepts_sms: false,
-         }));
+      if (isTest) {
+        if (campaign.channel === "sms") {
+          if (campaign.test_phones && campaign.test_phones.length > 0) {
+            recipients = campaign.test_phones.map((phone: string) => ({
+              id: crypto.randomUUID(),
+              recipient_type: 'user',
+              email: null,
+              phone: phone.trim(),
+              name: 'Test User',
+              state_code: null,
+              city: null,
+              zip_code: null,
+              community_h3: null,
+              joined_at: new Date().toISOString(),
+              accepts_email: false,
+              accepts_sms: true,
+            }));
+          }
+        } else {
+          if (campaign.test_emails && campaign.test_emails.length > 0) {
+            recipients = campaign.test_emails.map((email: string) => ({
+              id: crypto.randomUUID(),
+              recipient_type: 'user',
+              email: email.trim(),
+              phone: null,
+              name: 'Test User',
+              state_code: null,
+              city: null,
+              zip_code: null,
+              community_h3: null,
+              joined_at: new Date().toISOString(),
+              accepts_email: true,
+              accepts_sms: false,
+            }));
+          }
+        }
       } else if (audienceOverride && audienceOverride.length > 0) {
          // Direct audience passing via API for 1-off trigger scenarios
          recipients = audienceOverride;
@@ -148,7 +169,7 @@ Deno.serve(async (req: Request) => {
         recipients = data as AudienceRow[];
       } else {
         // Explicitly require an audience. If they selected "None", this array stays empty,
-        // and the campaign will only send to test_emails if any, or no one.
+        // and the campaign will only send to test_emails or test_phones if any, or no one.
         console.log(`[SEND-CAMPAIGN] No audience selected. Skipping global fallback.`);
       }
 
