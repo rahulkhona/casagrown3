@@ -2070,7 +2070,7 @@ export default function CampaignMessageEditor({
                     const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'
                     
                     // Construct references
-                    const referencesList: { label: string, type: string, url: string }[] = []
+                    const referencesList: { label: string, type: string, url: string, destUrl?: string }[] = []
                     
                     landingPages.forEach(lp => {
                       referencesList.push({ label: lp.title, type: 'Landing Page', url: `${baseUrl}/p/${lp.slug}` })
@@ -2083,7 +2083,12 @@ export default function CampaignMessageEditor({
                         referencesList.push({ label: p.name, type: 'Promotion', url })
                       }
                       if (p.short_token) {
-                        referencesList.push({ label: `${p.name} (Short)`, type: 'Promo Short Link', url: `${baseUrl}/r/${p.short_token}` })
+                        referencesList.push({ 
+                          label: `${p.name} (Short)`, 
+                          type: 'Promo Short Link', 
+                          url: `${baseUrl}/r/${p.short_token}`,
+                          destUrl: url
+                        })
                       }
                     })
 
@@ -2091,14 +2096,20 @@ export default function CampaignMessageEditor({
                       // Avoid duplicates of promo short links
                       const exists = referencesList.some(r => r.url.endsWith(`/r/${sl.token}`))
                       if (!exists) {
-                        referencesList.push({ label: sl.label || 'Tracked Short Link', type: 'Short Link', url: `${baseUrl}/r/${sl.token}` })
+                        referencesList.push({ 
+                          label: sl.label || 'Tracked Short Link', 
+                          type: 'Short Link', 
+                          url: `${baseUrl}/r/${sl.token}`,
+                          destUrl: sl.destination_url || ''
+                        })
                       }
                     })
 
                     const filtered = referencesList.filter(r => 
                       r.label.toLowerCase().includes(aiRefSearch.toLowerCase()) || 
                       r.type.toLowerCase().includes(aiRefSearch.toLowerCase()) ||
-                      r.url.toLowerCase().includes(aiRefSearch.toLowerCase())
+                      r.url.toLowerCase().includes(aiRefSearch.toLowerCase()) ||
+                      (r.destUrl || '').toLowerCase().includes(aiRefSearch.toLowerCase())
                     )
 
                     if (filtered.length === 0) {
@@ -2112,6 +2123,12 @@ export default function CampaignMessageEditor({
                           <span style={{ fontSize: '0.7rem', color: '#6366f1', backgroundColor: '#e0e7ff', padding: '2px 8px', borderRadius: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.type}</span>
                         </div>
                         <div style={{ color: '#4f46e5', wordBreak: 'break-all', fontSize: '0.75rem', marginBottom: '8px', fontFamily: 'monospace', background: '#f5f3ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ede9fe' }}>{r.url}</div>
+                        {r.destUrl && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ whiteSpace: 'nowrap' }}>↳ points to:</span>
+                            <span style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{r.destUrl}</span>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button 
                             type="button" 
