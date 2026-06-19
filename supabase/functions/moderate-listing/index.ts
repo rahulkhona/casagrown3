@@ -205,53 +205,57 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
       // Skip Gemini only during automated E2E tests — auto-approve
       console.log(`⏭️ [SKIP_AI] Skipping Gemini moderation for "${name}" — auto-approving`);
     } else if (AI_KEY) {
-      // Build message content — text + optional image
-      const content: any[] = [];
+      try {
+        // Build message content — text + optional image
+        const content: any[] = [];
 
-      // Attach image first if available
-      if (photo_url && photo_url.startsWith("http")) {
-        try {
-          const imgRes = await fetch(photo_url);
-          if (imgRes.ok) {
-            const imgBuf = await imgRes.arrayBuffer();
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
-            const mime = imgRes.headers.get("content-type") || "image/jpeg";
-            content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } });
+        // Attach image first if available
+        if (photo_url && photo_url.startsWith("http")) {
+          try {
+            const imgRes = await fetch(photo_url);
+            if (imgRes.ok) {
+              const imgBuf = await imgRes.arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+              const mime = imgRes.headers.get("content-type") || "image/jpeg";
+              content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } });
+            }
+          } catch {
+            console.warn("⚠️ Could not fetch image for moderation:", photo_url);
           }
-        } catch {
-          console.warn("⚠️ Could not fetch image for moderation:", photo_url);
         }
-      }
 
-      content.push({ type: "text", text: parts[0].text });
+        content.push({ type: "text", text: parts[0].text });
 
-      const aiRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Listing Moderation",
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages: [{ role: "user", content }],
-          response_format: { type: "json_object" },
-          temperature: 0.1,
-        }),
-      });
+        const aiRes = await fetch(AI_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${AI_KEY}`,
+            "HTTP-Referer": "https://casagrown.com",
+            "X-Title": "CasaGrown Listing Moderation",
+          },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            messages: [{ role: "user", content }],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+          }),
+        });
 
-      if (aiRes.ok) {
-        const aiData = await aiRes.json();
-        const raw = aiData?.choices?.[0]?.message?.content ?? "{}";
-        try {
-          moderationResult = JSON.parse(raw);
-        } catch {
-          console.warn("⚠️ Could not parse AI response:", raw);
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          const raw = aiData?.choices?.[0]?.message?.content ?? "{}";
+          try {
+            moderationResult = JSON.parse(raw);
+          } catch {
+            console.warn("⚠️ Could not parse AI response:", raw);
+          }
+        } else {
+          const errText = await aiRes.text();
+          console.warn("⚠️ AI returned", aiRes.status, "— defaulting to approved:", errText);
         }
-      } else {
-        const errText = await aiRes.text();
-        console.warn("⚠️ AI returned", aiRes.status, "— defaulting to approved:", errText);
+      } catch (fetchErr) {
+        console.warn("⚠️ AI moderation connection failed — defaulting to approved:", fetchErr);
       }
     } else {
       console.warn("⚠️ OPENROUTER_API_KEY not set — auto-approving");
@@ -305,7 +309,7 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
           method: "POST",
           headers: authHeader,
           body: JSON.stringify({
-            user_ids: [seller_id],
+            userIds: [seller_id],
             title: "🚀 Listing Live!",
             body: `🚀 "${name}" is live! Share it with your neighborhood groups and let your neighbors know.`,
             url: `/my-booth/products?share=${product_id}`,
@@ -347,7 +351,7 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
         method: "POST",
         headers: authHeader,
         body: JSON.stringify({
-          user_ids: [seller_id],
+          userIds: [seller_id],
           title: "⚠️ Listing Needs Edits",
           body: `Your listing "${name}" was flagged and is hidden from the market. Tap to edit and republish.`,
           url: `/my-booth/products/${product_id}`,

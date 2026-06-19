@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
 import { ENABLE_ELITE } from '../../../lib/featureFlags'
+import { createClient } from '../../../lib/supabase'
 import styles from './page.module.css'
 
 type Tier = 'pro' | 'elite' | null
@@ -634,6 +635,26 @@ function GuideContent() {
   }
 
   const [openSections, setOpenSections] = useState<Set<string>>(getInitialSections)
+  const [hasTutorials, setHasTutorials] = useState(false)
+
+  useEffect(() => {
+    const checkTutorials = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('tutorial_sections')
+          .select('id')
+          .eq('is_published', true)
+          .limit(1)
+        if (!error && data && data.length > 0) {
+          setHasTutorials(true)
+        }
+      } catch (err) {
+        console.error('Error checking tutorials in guide:', err)
+      }
+    }
+    checkTutorials()
+  }, [])
 
   useEffect(() => {
     setOpenSections(getInitialSections())
@@ -685,6 +706,20 @@ function GuideContent() {
           Everything you need to know about CasaGrown Market
         </p>
       </div>
+
+      {/* Video Tutorials Callout */}
+      {hasTutorials && (
+        <div className={styles.videoCallout}>
+          <span>🎥</span>
+          <span>
+            Prefer watching over reading? Check out our{' '}
+            <Link href="/tutorials" className={styles.videoCalloutLink}>
+              Video Tutorials
+            </Link>
+            !
+          </span>
+        </div>
+      )}
 
       {/* Table of Contents */}
       <nav className={styles.toc}>

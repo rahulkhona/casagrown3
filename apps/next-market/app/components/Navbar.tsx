@@ -99,6 +99,27 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [hasTutorials, setHasTutorials] = useState(false)
+
+  useEffect(() => {
+    const checkTutorials = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('tutorial_sections')
+          .select('id')
+          .eq('is_published', true)
+          .limit(1)
+        if (!error && data && data.length > 0) {
+          setHasTutorials(true)
+        }
+      } catch (err) {
+        console.error('Error checking tutorials in Navbar:', err)
+      }
+    }
+    checkTutorials()
+  }, [])
+
   const hasSession = !!authUser
   const [userId, setUserId] = useState<string | null>(null)
   const [profileName, setProfileName] = useState('')
@@ -745,6 +766,12 @@ export function Navbar() {
                         <span className={styles.menuItemIcon}>📖</span>
                         <span>User Guide</span>
                       </Link>
+                      {hasTutorials && (
+                        <Link href="/tutorials" className={`${styles.menuItem} ${pathname === '/tutorials' ? styles.menuItemActive : ''}`} onClick={() => setMenuOpen(false)}>
+                          <span className={styles.menuItemIcon}>🎥</span>
+                          <span>Video Tutorials</span>
+                        </Link>
+                      )}
                       <button className={styles.menuItem} onClick={() => { setMenuOpen(false); resetTour() }}>
                         <span className={styles.menuItemIcon}>🔄</span>
                         <span>Guided Tour</span>

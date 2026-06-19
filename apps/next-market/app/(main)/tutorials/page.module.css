@@ -1,0 +1,304 @@
+/* ============================================================================
+   CasaGrown Tutorials Styles
+   Uses CasaGrown vanilla CSS custom variables for visual excellence
+   ============================================================================ */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+  font-family: 'Inter', sans-serif;
+  color: var(--gray-800);
+}
+
+/* ──── Header ──── */
+.header {
+  text-align: center;
+  margin-bottom: 5rem;
+}
+
+.logoBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.logoImg {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.brandBadge {
+  background-color: var(--green-100);
+  color: var(--green-800);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: var(--green-900);
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 1.125rem;
+  color: var(--gray-600);
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ──── Loading & Error ──── */
+.loadingContainer,
+.errorContainer,
+.emptyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem;
+  background-color: white;
+  border-radius: 1rem;
+  border: 1px solid var(--green-100);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.loadingText {
+  margin-top: 1.5rem;
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.errorIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.errorTitle {
+  color: var(--red-600);
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.errorText {
+  color: var(--gray-600);
+  margin-bottom: 2rem;
+}
+
+.emptyIcon {
+  font-size: 3.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.backHomeBtn {
+  background-color: var(--green-600);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.backHomeBtn:hover {
+  background-color: var(--green-700);
+  transform: translateY(-1px);
+}
+
+/* ──── Tutorials List & Section Cards ──── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+}
+
+.section {
+  background-color: white;
+  border-radius: 1.25rem;
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(20, 83, 45, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s ease;
+  display: flex;
+}
+
+.section:hover {
+  border-color: var(--green-200);
+  box-shadow: 0 12px 30px -4px rgba(20, 83, 45, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  transform: translateY(-2px);
+}
+
+/* ──── Landscape Layout (16:9) ──── */
+.landscapeSection {
+  flex-direction: row;
+}
+
+.landscapeSection .videoWrapper {
+  width: 55%;
+  flex-shrink: 0;
+  background-color: #000;
+}
+
+.landscapeSection .content {
+  flex: 1;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ──── Portrait Layout (9:16) ──── */
+.portraitSection {
+  flex-direction: row;
+}
+
+.portraitSection .videoWrapper {
+  width: 320px;
+  flex-shrink: 0;
+  background-color: #000;
+  border-right: 1px solid var(--gray-150);
+}
+
+.portraitSection .content {
+  flex: 1;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* ──── Video Player ──── */
+.videoWrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.aspectLandscape {
+  aspect-ratio: 16 / 9;
+}
+
+.aspectPortrait {
+  aspect-ratio: 9 / 16;
+  max-height: 568px;
+  align-self: center;
+}
+
+.iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ──── Content Details ──── */
+.numberIndex {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--green-600);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--green-900);
+  margin-bottom: 1.5rem;
+  line-height: 1.25;
+}
+
+/* Description Text styling (handles Quill HTML output) */
+.description {
+  font-size: 1rem;
+  color: var(--gray-600);
+  line-height: 1.6;
+}
+
+.description p {
+  margin-bottom: 1rem;
+}
+
+.description p:last-child {
+  margin-bottom: 0;
+}
+
+.description ul, 
+.description ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.description li {
+  margin-bottom: 0.5rem;
+}
+
+.description strong {
+  color: var(--gray-800);
+  font-weight: 600;
+}
+
+/* ──── Responsive Media Queries ──── */
+@media (max-width: 992px) {
+  .landscapeSection {
+    flex-direction: column;
+  }
+  
+  .landscapeSection .videoWrapper {
+    width: 100%;
+  }
+
+  .landscapeSection .content {
+    padding: 2rem;
+  }
+
+  .portraitSection {
+    flex-direction: column;
+  }
+
+  .portraitSection .videoWrapper {
+    width: 100%;
+    max-width: 320px;
+    margin: 2rem auto 0;
+    border-right: none;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  }
+
+  .portraitSection .content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .container {
+    padding: 2.5rem 1rem;
+  }
+
+  .header {
+    margin-bottom: 3rem;
+  }
+
+  .title {
+    font-size: 2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.4rem;
+  }
+}

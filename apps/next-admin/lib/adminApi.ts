@@ -25,11 +25,35 @@ interface AdminResponse<T = any> {
 }
 
 /**
- * Get the current access token via supabase.auth.getSession().
- * This triggers auto-refresh if the token has expired, using the
- * long-lived refresh token stored by the Supabase client.
+ * Get the current access token via direct localStorage lookup (to bypass any
+ * GoTrue navigator.locks deadlocks in dev mode/HMR), falling back to getSession().
  */
 async function getAccessToken(): Promise<string | null> {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i)
+        if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+          const val = window.localStorage.getItem(key)
+          if (val) {
+            try {
+              const parsed = JSON.parse(val)
+              const token = parsed?.currentSession?.access_token || parsed?.access_token
+              if (token) {
+                console.log('[getAccessToken] Extracted access token directly from localStorage:', key)
+                return token
+              }
+            } catch {
+              // ignore json parse errors for unrelated keys
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[getAccessToken] LocalStorage scan error:', e)
+  }
+
   try {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token || null
@@ -46,11 +70,14 @@ async function adminFetch<T = any>(body: Record<string, any>): Promise<AdminResp
       headers['Authorization'] = `Bearer ${token}`
     }
 
+    console.log('[adminApi] Starting adminFetch for action:', body.action, 'table:', body.table);
+    console.log('[adminApi] Fetching /api/admin with body:', JSON.stringify(body));
     const res = await fetch('/api/admin', {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
     })
+    console.log('[adminApi] Received response status:', res.status);
 
     // Auto-logout on 401 — token is truly expired/invalid
     if (res.status === 401) {

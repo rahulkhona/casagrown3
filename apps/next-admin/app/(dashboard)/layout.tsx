@@ -102,6 +102,7 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Promotions Builder', path: '/crm/promotions' },
       { label: 'Landing Pages', path: '/crm/landing-pages' },
+      { label: 'Tutorials Management', path: '/crm/tutorials' },
       { label: 'Link Generator', path: '/crm/link-generator' },
       { label: 'Data Sources', path: '/crm/data-sources' },
       { label: 'Leads', path: '/crm/leads' },

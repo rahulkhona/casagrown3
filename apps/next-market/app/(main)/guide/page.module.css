@@ -326,3 +326,29 @@
   border-color: #16a34a;
   transform: translateY(-1px);
 }
+
+.videoCallout {
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -1.5rem auto 2.5rem;
+  max-width: 600px;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.04);
+}
+
+.videoCalloutLink {
+  color: var(--green-700);
+  font-weight: 700;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.videoCalloutLink:hover {
+  color: var(--green-900);
+}

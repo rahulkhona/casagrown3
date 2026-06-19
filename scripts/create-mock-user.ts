@@ -8,6 +8,7 @@ if (!SUPABASE_SERVICE_KEY) {
   console.error('❌ Error: SUPABASE_SERVICE_ROLE_KEY is missing. Cannot create mock user.');
   process.exit(1);
 }
+console.log('DEBUG KEY:', SUPABASE_SERVICE_KEY);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: {

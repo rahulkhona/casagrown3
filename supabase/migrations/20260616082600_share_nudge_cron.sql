@@ -11,14 +11,10 @@ SELECT cron.schedule(
   '*/30 * * * *',  -- Every 30 minutes
   $$
   SELECT net.http_post(
-    url := coalesce(current_setting('app.settings.supabase_url', true), 'http://host.docker.internal:54321')
-           || '/functions/v1/market-cron',
+    url := get_edge_fn_base_url() || '/market-cron',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || coalesce(
-        current_setting('app.settings.service_role_key', true),
-        current_setting('supabase.service_role_key', true)
-      )
+      'Authorization', 'Bearer ' || get_service_role_key()
     ),
     body := '{"action":"share_nudge"}'::jsonb
   );

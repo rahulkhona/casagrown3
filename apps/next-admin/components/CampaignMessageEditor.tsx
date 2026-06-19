@@ -30,6 +30,8 @@ interface CampaignMessageEditorProps {
   showChannelSelector?: boolean
   showTestAndDataFields?: boolean
   showDesignModeSelector?: boolean
+  showVariablesSelector?: boolean
+  showSubjectAndPreheader?: boolean
 }
 
 const formatHTML = (html: string) => {
@@ -68,7 +70,9 @@ export default function CampaignMessageEditor({
   toast,
   showChannelSelector = true,
   showTestAndDataFields = true,
-  showDesignModeSelector = true
+  showDesignModeSelector = true,
+  showVariablesSelector = true,
+  showSubjectAndPreheader = true
 }: CampaignMessageEditorProps) {
   const quillRef = useRef<any>(null)
   
@@ -84,7 +88,7 @@ export default function CampaignMessageEditor({
   }, [currentContent]);
 
   const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
-  const [previewEmail, setPreviewEmail] = useState<{ html: string, text: string } | null>(null)
+  const [previewEmail, setPreviewEmail] = useState<{ html: string; text?: string } | null>(null)
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
 
   // Modals state
@@ -806,7 +810,7 @@ export default function CampaignMessageEditor({
         </div>
       )}
 
-      {form.channel === 'email' && !templateMode && (
+      {form.channel === 'email' && !templateMode && showSubjectAndPreheader && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
             <label>Email Subject *</label>
@@ -841,7 +845,7 @@ export default function CampaignMessageEditor({
       {form.channel === 'email' && !templateMode && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-            <label>Email Content (HTML)</label>
+            <label>{showSubjectAndPreheader ? 'Email Content (HTML)' : 'Description (HTML) *'}</label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {htmlMode === 'raw' && (
                 <>
@@ -865,9 +869,11 @@ export default function CampaignMessageEditor({
                 <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
                 <option value="raw">Raw HTML (Paste Template)</option>
               </select>
-              <select onChange={appendVar} style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #d1d5db' }}>
-                {SUPPORTED_VARS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-              </select>
+              {showVariablesSelector && (
+                <select onChange={appendVar} style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #d1d5db' }}>
+                  {SUPPORTED_VARS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1172,7 +1178,7 @@ export default function CampaignMessageEditor({
         </div>
       )}
 
-      {form.channel === 'email' && !templateMode && (
+      {form.channel === 'email' && !templateMode && showSubjectAndPreheader && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
             <label>Plain Text Fallback (Optional) <span className="crm-hint">— used if the user's client strips HTML</span></label>

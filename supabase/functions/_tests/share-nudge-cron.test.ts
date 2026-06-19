@@ -44,6 +44,7 @@ async function seedProduct(name: string, createdHoursAgo: number, overrides: Rec
     is_deleted: false,
     moderation_status: "approved",
     created_at,
+    moderation_checked_at: created_at,
     ...overrides,
   };
 

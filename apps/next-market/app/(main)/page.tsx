@@ -14,6 +14,26 @@ export default function HomePage() {
   const [activeModal, setActiveModal] = useState<'waste' | 'teens' | null>(null)
   const [isNativeApp, setIsNativeApp] = useState(false)
   const [deviceOS, setDeviceOS] = useState<'ios' | 'android' | 'desktop' | null>(null)
+  const [hasTutorials, setHasTutorials] = useState(false)
+
+  useEffect(() => {
+    const checkTutorials = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('tutorial_sections')
+          .select('id')
+          .eq('is_published', true)
+          .limit(1)
+        if (!error && data && data.length > 0) {
+          setHasTutorials(true)
+        }
+      } catch (err) {
+        console.error('Error checking tutorials on homepage:', err)
+      }
+    }
+    checkTutorials()
+  }, [])
 
   useEffect(() => {
     if (activeModal) document.body.style.overflow = 'hidden'
@@ -506,6 +526,7 @@ export default function HomePage() {
             )}
             <div className={styles.footerLinks}>
               <Link href="/market">Join the Movement</Link>
+              {hasTutorials && <Link href="/tutorials">Video Tutorials</Link>}
               <Link href="/terms">Terms of Use</Link>
               <Link href="/terms?tab=privacy">Privacy Policy</Link>
             </div>

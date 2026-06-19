@@ -31,6 +31,14 @@ async function resetBuyerProfile() {
 
 /** Set up Beth Buyer's booth defaults for E2E testing */
 async function setupTestBooth() {
+  // 0. Truncate all orders cascade to avoid foreign key constraints across multiple tables
+  const { execSync } = require('child_process')
+  try {
+    execSync('docker exec -i supabase_db_casagrown3 psql -U postgres -c "TRUNCATE TABLE market_orders CASCADE;"', { stdio: 'ignore' })
+  } catch (err) {
+    console.error('Failed to truncate market_orders:', err)
+  }
+
   // 1. Delete any existing products for BUYER_ID to avoid foreign key constraints
   const deleteProductsRes = await fetch(`${SUPABASE_URL}/rest/v1/market_products?seller_id=eq.${BUYER_ID}`, {
     method: 'DELETE',
@@ -105,8 +113,9 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     // 1. Check that web BottomNav is visible on mobile (padding prevents overlap with wizard buttons)
     await expect(page.locator('nav[class*="bottomNav"]')).toBeVisible()
 
-    // 2. Fill Step 1 Basics — wait for full hydration before interacting
+    // 2. Fill Step 1 Basics — wait for full hydration and auth resolution
     await page.waitForLoadState('networkidle')
+    await expect(page.locator('input[type="email"]')).toBeDisabled({ timeout: 15000 })
 
     const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')
     await expect(nameInput).toBeVisible()
@@ -171,8 +180,9 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await page.goto('/create-listing')
     await expect(page.locator('h2:has-text("Create Your Product Listing")')).toBeVisible({ timeout: 15000 })
 
+    // Wait for full hydration and auth resolution
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
+    await expect(page.locator('input[type="email"]')).toBeDisabled({ timeout: 15000 })
 
     // 2. Fill Step 1 Basics
     const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')

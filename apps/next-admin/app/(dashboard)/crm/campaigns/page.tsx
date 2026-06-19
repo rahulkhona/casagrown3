@@ -53,6 +53,14 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 
+function toLocalDatetimeString(dateInput: string | Date): string {
+  const date = new Date(dateInput)
+  if (isNaN(date.getTime())) return ''
+  const offset = date.getTimezoneOffset() * 60000
+  const localTime = new Date(date.getTime() - offset)
+  return localTime.toISOString().slice(0, 16)
+}
+
 export default function CrmCampaignsPage() {
   const quillRef = useRef<any>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -141,7 +149,7 @@ export default function CrmCampaignsPage() {
       content_text: data.content_text || '',
       audience_id: data.audience_id || '',
       sequence_id: data.sequence_id || '',
-      scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString().slice(0, 16) : '',
+      scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
       target_states: data.target_states || [],
       target_cities: data.target_cities || [],
       target_counties: data.target_counties || [],

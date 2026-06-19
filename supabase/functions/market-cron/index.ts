@@ -964,15 +964,15 @@ async function handleShareNudge(
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
   const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
 
-  // 1. Get products created 2-4 hours ago that are active and approved
+  // 1. Get products approved 2-4 hours ago that are active and approved
   const { data: products, error } = await supabase
     .from('market_products')
     .select('id, name, seller_id, created_at')
     .eq('moderation_status', 'approved')
     .eq('is_active', true)
     .eq('is_deleted', false)
-    .gte('created_at', fourHoursAgo)
-    .lte('created_at', twoHoursAgo)
+    .gte('moderation_checked_at', fourHoursAgo)
+    .lte('moderation_checked_at', twoHoursAgo)
 
   if (error) {
     console.error('[CRON-SHARE-NUDGE] Error fetching products:', error.message)

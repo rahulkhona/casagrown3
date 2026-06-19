@@ -147,7 +147,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
     
     // Fetch profile
     supabase.from('profiles')
-      .select('full_name, street_address, city, state_code, zip_code, phone_number, profile_completed_at, tos_accepted_at')
+      .select('email, full_name, street_address, city, state_code, zip_code, phone_number, profile_completed_at, tos_accepted_at')
       .eq('id', user.id)
       .single()
       .then((res: any) => {
@@ -155,7 +155,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
         if (profile) {
           updateState(prev => {
             const updates: Partial<WizardState> = {}
-            if (user.email && !prev.email) updates.email = user.email
+            if ((user.email || profile.email) && !prev.email) updates.email = user.email || profile.email
             if (profile.full_name && !prev.fullName) updates.fullName = profile.full_name
             if (profile.street_address && !prev.address) {
               updates.address = [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean).join(', ')

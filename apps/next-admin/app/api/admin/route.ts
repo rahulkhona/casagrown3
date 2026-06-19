@@ -36,6 +36,7 @@ function getServiceClient() {
 const ALLOWED_TABLES = new Set([
   // Market operations
   'market_state_blocks',
+  'tutorial_sections',
   'market_settings',
   'market_schedule_policies',
   // Sales & categories
@@ -121,6 +122,7 @@ interface AdminRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[Admin API] POST request received');
   try {
     // 1. Authenticate: read access token from Authorization header
     //    (the shared auth-hook stores sessions in localStorage, not cookies,
@@ -128,7 +130,9 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Authorization')
     const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
 
+    console.log('[Admin API] Access token present:', !!accessToken);
     if (!accessToken) {
+      console.log('[Admin API] Unauthorized: No access token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -142,35 +146,46 @@ export async function POST(request: NextRequest) {
     let isAdmin = false;
 
     if (cachedAdmin && cachedAdmin.expiresAt > Date.now()) {
+      console.log('[Admin API] Auth Cache HIT');
       isAdmin = true;
     } else {
+      console.log('[Admin API] Auth Cache MISS - executing verification waterfall');
       // Not cached or expired: execute verification waterfall
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+      
+      console.log('[Admin API] Fetching user info from Supabase Auth URL:', `${supabaseUrl}/auth/v1/user`);
       const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'apikey': anonKey,
         },
       })
+      console.log('[Admin API] Fetching user response status:', authResponse.status);
 
       if (!authResponse.ok) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       const user = await authResponse.json()
+      console.log('[Admin API] User email fetched:', user?.email);
       if (!user?.email) {
+        console.log('[Admin API] User has no email associated');
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
+      console.log('[Admin API] Querying staff_members for:', user.email.toLowerCase());
       const serviceClient = getServiceClient()
-      const { data: staffRow } = await serviceClient
+      const { data: staffRow, error: staffError } = await serviceClient
         .from('staff_members')
         .select('id, roles')
         .eq('email', user.email.toLowerCase())
         .maybeSingle()
 
+      console.log('[Admin API] Staff query finished. Row:', staffRow, 'Error:', staffError);
+
       if (!staffRow || !staffRow.roles?.includes('admin')) {
+        console.log('[Admin API] Access forbidden: user is not an admin. Roles:', staffRow?.roles);
         return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
       }
       
@@ -196,6 +211,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Parse and validate request
     const body: AdminRequestBody = await request.json()
+    console.log('[Admin API] Parsed body:', JSON.stringify(body));
     const { action, table, data, select: selectClause, filters, order, limit, single } = body
 
     // Handle function invocation separately — no table needed
@@ -360,7 +376,9 @@ export async function POST(request: NextRequest) {
       query = query.single()
     }
 
+    console.log('[Admin API] Executing query on table:', table, 'action:', action);
     const { data: result, error: queryError, count } = await query
+    console.log('[Admin API] Query execution finished. Error:', queryError, 'Result:', result);
 
     if (queryError) {
       return NextResponse.json(
