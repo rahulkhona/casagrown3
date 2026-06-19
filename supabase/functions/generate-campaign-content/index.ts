@@ -247,7 +247,7 @@ Rules:
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ role: "user", parts: [{ text: userPromptText }] }],
-              systemInstruction: {
+              system_instruction: {
                 parts: [{ text: systemPrompt }]
               },
               generationConfig: {
