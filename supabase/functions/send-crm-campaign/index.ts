@@ -22,7 +22,7 @@ import { buildTemplateModel } from "../_shared/template-interpolation.ts";
 const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
 const SITE_URL = (
   _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
-) ? "https://www.casagrown.com" : _rawSiteUrl;
+) ? "https://casagrown.com" : _rawSiteUrl;
 const BATCH_SIZE = 500;
 
 Deno.serve(async (req: Request) => {
@@ -454,6 +454,10 @@ async function rewriteLinks(
 
   for (const match of html.matchAll(urlRegex)) {
     const originalUrl = match[1];
+    // Skip if it is already a shortened link from our domain
+    if (originalUrl.includes("/r/") && (originalUrl.includes("casagrown.com") || originalUrl.includes(SITE_URL))) {
+      continue;
+    }
     const token = await createShortLink(originalUrl, campaignId, recipientId, recipientType, supabase);
     replacements.push([originalUrl, `${SITE_URL}/r/${token}`]);
   }
@@ -478,6 +482,10 @@ async function rewriteLinksText(
 
   for (const match of text.matchAll(urlRegex)) {
     const originalUrl = match[0];
+    // Skip if it is already a shortened link from our domain
+    if (originalUrl.includes("/r/") && (originalUrl.includes("casagrown.com") || originalUrl.includes(SITE_URL))) {
+      continue;
+    }
     const token = await createShortLink(originalUrl, campaignId, recipientId, recipientType, supabase);
     replacements.push([originalUrl, `${SITE_URL}/r/${token}`]);
   }
