@@ -216,11 +216,12 @@ export async function sendMarketingSms(
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const messagingServiceSid = Deno.env.get("TWILIO_MARKETING_MESSAGING_SERVICE_SID");
+    const marketingFromNumber = Deno.env.get("TWILIO_MARKETING_FROM_NUMBER");
 
-    if (!accountSid || !authToken || !messagingServiceSid) {
+    if (!accountSid || !authToken || (!messagingServiceSid && !marketingFromNumber)) {
         return {
             success: false,
-            error: "Marketing SMS not configured — set TWILIO_MARKETING_MESSAGING_SERVICE_SID in Supabase secrets",
+            error: "Marketing SMS not configured — set TWILIO_MARKETING_MESSAGING_SERVICE_SID or TWILIO_MARKETING_FROM_NUMBER in Supabase secrets",
         };
     }
 
@@ -229,7 +230,11 @@ export async function sendMarketingSms(
 
     const params = new URLSearchParams();
     params.set("To", to);
-    params.set("MessagingServiceSid", messagingServiceSid); // routes via 10DLC registered campaign
+    if (messagingServiceSid) {
+        params.set("MessagingServiceSid", messagingServiceSid);
+    } else if (marketingFromNumber) {
+        params.set("From", marketingFromNumber);
+    }
     params.set("Body", body);
 
     try {

@@ -546,9 +546,11 @@ Deno.test('process-earnings-estimate-request-queue: skips leads marked ai_estima
 
 import { sendMarketingSms } from '../_shared/twilio.ts'
 
-Deno.test('sendMarketingSms: returns config error when TWILIO_MARKETING_MESSAGING_SERVICE_SID is not set', async () => {
+Deno.test('sendMarketingSms: returns config error when neither service SID nor marketing phone number is set', async () => {
   const original = Deno.env.get('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+  const originalFrom = Deno.env.get('TWILIO_MARKETING_FROM_NUMBER')
   if (original) Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+  if (originalFrom) Deno.env.delete('TWILIO_MARKETING_FROM_NUMBER')
 
   const result = await sendMarketingSms('+15005550006', 'Hello from CasaGrown!')
 
@@ -561,6 +563,42 @@ Deno.test('sendMarketingSms: returns config error when TWILIO_MARKETING_MESSAGIN
   )
 
   if (original) Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', original)
+  if (originalFrom) Deno.env.set('TWILIO_MARKETING_FROM_NUMBER', originalFrom)
+})
+
+Deno.test('sendMarketingSms: uses From (marketing phone number) in Twilio API call when MessagingServiceSid is not set', async () => {
+  let capturedBody: URLSearchParams | null = null
+
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+    if (url.includes('api.twilio.com')) {
+      capturedBody = new URLSearchParams(init?.body as string)
+      return new Response(JSON.stringify({ sid: 'SM_test', status: 'queued' }), { status: 201 })
+    }
+    return originalFetch(input, init)
+  }
+
+  Deno.env.set('TWILIO_ACCOUNT_SID', 'ACtest')
+  Deno.env.set('TWILIO_AUTH_TOKEN', 'authtest')
+  Deno.env.set('TWILIO_MARKETING_FROM_NUMBER', '+15005550006')
+  const originalServiceSid = Deno.env.get('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+  if (originalServiceSid) Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+
+  const result = await sendMarketingSms('+15005550005', 'Spring market is live!')
+
+  assertEquals(result.success, true)
+  assertExists(capturedBody, 'Twilio API should have been called')
+  assertEquals(capturedBody!.get('From'), '+15005550006', 'Must use From number')
+  assertEquals(capturedBody!.get('MessagingServiceSid'), null, 'Must NOT set MessagingServiceSid')
+  assertEquals(capturedBody!.get('To'), '+15005550005')
+  assertEquals(capturedBody!.get('Body'), 'Spring market is live!')
+
+  globalThis.fetch = originalFetch
+  Deno.env.delete('TWILIO_ACCOUNT_SID')
+  Deno.env.delete('TWILIO_AUTH_TOKEN')
+  Deno.env.delete('TWILIO_MARKETING_FROM_NUMBER')
+  if (originalServiceSid) Deno.env.set('TWILIO_MARKETING_MESSAGING_SERVICE_SID', originalServiceSid)
 })
 
 Deno.test('sendMarketingSms: uses MessagingServiceSid (not From) in Twilio API call', async () => {
