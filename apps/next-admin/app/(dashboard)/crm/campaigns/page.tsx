@@ -37,6 +37,7 @@ type Campaign = {
   data_source_id?: string | null
   postmark_template_alias?: string | null
   test_emails: string[]
+  test_phones: string[]
   audience_id?: string | null
   sequence_id?: string | null
 }
@@ -102,7 +103,8 @@ export default function CrmCampaignsPage() {
     target_zips: [] as string[],
     data_source_id: '',
     postmark_template_alias: '',
-    test_emails: ''
+    test_emails: '',
+    test_phones: ''
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -156,7 +158,8 @@ export default function CrmCampaignsPage() {
       target_zips: data.target_zips || [],
       data_source_id: data.data_source_id || '',
       postmark_template_alias: data.postmark_template_alias || '',
-      test_emails: data.test_emails ? data.test_emails.join(', ') : ''
+      test_emails: data.test_emails ? data.test_emails.join(', ') : '',
+      test_phones: data.test_phones ? data.test_phones.join(', ') : ''
     })
     setTemplateMode(!!data.postmark_template_alias)
     setEditingId(c.id)
@@ -297,6 +300,7 @@ export default function CrmCampaignsPage() {
       data_source_id: form.data_source_id || null,
       postmark_template_alias: templateMode ? (form.postmark_template_alias || null) : null,
       test_emails: form.test_emails ? form.test_emails.split(',').map((e: string) => e.trim()).filter(Boolean) : [],
+      test_phones: form.test_phones ? form.test_phones.split(',').map((p: string) => p.trim()).filter(Boolean) : [],
       target_zips: form.target_zips,
       target_cities: form.target_cities,
       target_counties: form.target_counties,
@@ -544,14 +548,25 @@ export default function CrmCampaignsPage() {
               <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
             </div>
 
-            <div className="crm-field">
-              <label>Test Emails (comma-separated)</label>
-              <input 
-                placeholder="e.g. admin@test.com, tester@test.com" 
-                value={form.test_emails} 
-                onChange={e => setForm(f => ({ ...f, test_emails: e.target.value }))} 
-              />
-            </div>
+            {form.channel === 'sms' ? (
+              <div className="crm-field">
+                <label>Test Phone Numbers (comma-separated)</label>
+                <input 
+                  placeholder="e.g. +14084218125" 
+                  value={form.test_phones || ''} 
+                  onChange={e => setForm(f => ({ ...f, test_phones: e.target.value }))} 
+                />
+              </div>
+            ) : (
+              <div className="crm-field">
+                <label>Test Emails (comma-separated)</label>
+                <input 
+                  placeholder="e.g. admin@test.com, tester@test.com" 
+                  value={form.test_emails} 
+                  onChange={e => setForm(f => ({ ...f, test_emails: e.target.value }))} 
+                />
+              </div>
+            )}
 
           </div>
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
@@ -622,15 +637,33 @@ export default function CrmCampaignsPage() {
                         >
                           👥 Preview
                         </button>
-                        <button
-                          className="crm-btn-send crm-btn-secondary"
-                          disabled={sending === c.id || !c.test_emails || c.test_emails.length === 0}
-                          onClick={() => sendNow(c.id, true)}
-                          title={(!c.test_emails || c.test_emails.length === 0) ? "Add Test Emails first" : "Send to Test Emails only"}
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', background: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, cursor: (!c.test_emails || c.test_emails.length === 0) ? 'not-allowed' : 'pointer' }}
-                        >
-                          🧪 Test
-                        </button>
+                        {(() => {
+                          const hasTestRecipients = c.channel === 'sms' 
+                            ? (c.test_phones && c.test_phones.length > 0)
+                            : (c.test_emails && c.test_emails.length > 0);
+                          const titleText = c.channel === 'sms'
+                            ? (hasTestRecipients ? "Send to Test Phone numbers" : "Add Test Phone numbers first")
+                            : (hasTestRecipients ? "Send to Test Emails" : "Add Test Emails first");
+                          return (
+                            <button
+                              className="crm-btn-send crm-btn-secondary"
+                              disabled={sending === c.id || !hasTestRecipients}
+                              onClick={() => sendNow(c.id, true)}
+                              title={titleText}
+                              style={{ 
+                                padding: '4px 8px', 
+                                fontSize: '0.8rem', 
+                                background: '#e5e7eb', 
+                                color: '#374151', 
+                                border: '1px solid #d1d5db', 
+                                borderRadius: 4, 
+                                cursor: !hasTestRecipients ? 'not-allowed' : 'pointer' 
+                              }}
+                            >
+                              🧪 Test
+                            </button>
+                          );
+                        })()}
                         <button
                           className="crm-btn-send"
                           disabled={sending === c.id}
