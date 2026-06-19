@@ -218,6 +218,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [audiences, setAudiences] = useState<any[]>([])
   const [landingPages, setLandingPages] = useState<any[]>([])
   const [promotions, setPromotions] = useState<any[]>([])
+  const [allSequences, setAllSequences] = useState<any[]>([])
 
   const queryFields = useMemo(() => {
     const flatFields = [
@@ -262,6 +263,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         operators: [{ name: 'contains', label: 'is' }, { name: 'doesNotContain', label: 'is not' }],
         optGroup: 'CRM Health',
         values: promotions.map(p => ({ name: p.id, label: p.name }))
+      },
+      {
+        name: 'enrolled_sequence_ids',
+        label: 'Enrolled in Sequence',
+        inputType: 'select',
+        valueEditorType: 'select',
+        operators: [{ name: 'contains', label: 'is' }, { name: 'doesNotContain', label: 'is not' }],
+        optGroup: 'CRM Health',
+        values: allSequences.map(s => ({ name: s.id, label: s.name }))
       }
     ]
 
@@ -273,20 +283,22 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     })
 
     return Object.values(groups) as any
-  }, [audiences, landingPages, promotions])
+  }, [audiences, landingPages, promotions, allSequences])
 
   useEffect(() => {
     const fetchData = async () => {
-      const [seqRes, dsRes, audRes, lpRes, promoRes] = await Promise.all([
+      const [seqRes, dsRes, audRes, lpRes, promoRes, allSeqsRes] = await Promise.all([
         adminApi.select('crm_sequences', '*', { eq: { id: sequenceId } }),
         adminApi.select('crm_data_sources', 'id, name, rpc_name'),
         adminApi.select('crm_audiences', 'id, name, audience_rpc_name'),
         adminApi.select('crm_landing_pages', 'id, slug, title', { eq: { is_active: true } }),
-        adminApi.select('crm_promotions', 'id, name, landing_page_id')
+        adminApi.select('crm_promotions', 'id, name, landing_page_id'),
+        adminApi.select('crm_sequences', 'id, name')
       ])
       
       if (lpRes.data) setLandingPages(lpRes.data)
       if (promoRes.data) setPromotions(promoRes.data)
+      if (allSeqsRes.data) setAllSequences(allSeqsRes.data)
       
       if (seqRes.data && seqRes.data.length > 0) {
         setSequence(seqRes.data[0])

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useFilters } from './layout'
 import { fetchUserGrowth, fetchSalesSummary, fetchMarketplaceHealth } from '../../lib/metrics-service'
 import { Sparkline, formatNumber, formatCurrency } from '../../lib/charts'
+import { supabase } from '../../lib/supabase'
 
 interface KPI {
   label: string
@@ -23,28 +24,77 @@ export default function OverviewPage() {
 
     async function load() {
       setLoading(true)
-      const [users, sales, health] = await Promise.all([
+      const fourteenDaysAgo = new Date()
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+
+      const [users, sales, health, dbUsers, dbLeads, dbProducts] = await Promise.all([
         fetchUserGrowth(dateRange, granularity, geoFilter),
         fetchSalesSummary(dateRange, granularity, geoFilter),
         fetchMarketplaceHealth(dateRange),
+        supabase.from('profiles').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
+        supabase.from('crm_leads').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
+        supabase.from('market_products').select('created_at').eq('is_active', true).eq('is_deleted', false).gte('created_at', fourteenDaysAgo.toISOString())
       ])
 
       if (cancelled) return
 
+      const getWoWStats = (rows: any[] | null) => {
+        if (!rows || rows.length === 0) return { count: 0, change: 0 }
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        
+        const currentWeekRows = rows.filter(r => new Date(r.created_at) >= sevenDaysAgo)
+        const prevWeekRows = rows.filter(r => new Date(r.created_at) < sevenDaysAgo)
+
+        const currentCount = currentWeekRows.length
+        const prevCount = prevWeekRows.length
+        let change = 0
+        if (prevCount > 0) {
+          change = Math.round(((currentCount - prevCount) / prevCount) * 100 * 10) / 10
+        } else if (currentCount > 0) {
+          change = 100
+        }
+        return { count: currentCount, change }
+      }
+
+      const getTimeSeries14Days = (rows: any[] | null) => {
+        const series = new Array(14).fill(0)
+        if (!rows) return series
+        const now = new Date()
+        for (let i = 0; i < 14; i++) {
+          const d = new Date()
+          d.setDate(now.getDate() - (13 - i))
+          const dateStr = d.toISOString().split('T')[0]
+          series[i] = rows.filter(r => r.created_at && r.created_at.startsWith(dateStr)).length
+        }
+        return series
+      }
+
+      const userWoW = getWoWStats(dbUsers.data)
+      const leadWoW = getWoWStats(dbLeads.data)
+      const productWoW = getWoWStats(dbProducts.data)
+
       setKpis([
         {
-          label: 'Total Users',
-          value: formatNumber(users.total),
-          change: 12.3,
-          sparkData: users.timeSeries.slice(-14).map(p => p.value),
+          label: 'User Growth (WoW)',
+          value: `+${formatNumber(userWoW.count)} new`,
+          change: userWoW.change,
+          sparkData: getTimeSeries14Days(dbUsers.data),
           accent: 'blue',
         },
         {
-          label: 'New Users',
-          value: formatNumber(users.newInPeriod),
-          change: 8.7,
-          sparkData: users.timeSeries.slice(-14).map(p => p.value),
+          label: 'Lead Growth (WoW)',
+          value: `+${formatNumber(leadWoW.count)} new`,
+          change: leadWoW.change,
+          sparkData: getTimeSeries14Days(dbLeads.data),
           accent: 'blue',
+        },
+        {
+          label: 'Active Listings (WoW)',
+          value: `+${formatNumber(productWoW.count)} active`,
+          change: productWoW.change,
+          sparkData: getTimeSeries14Days(dbProducts.data),
+          accent: 'purple',
         },
         {
           label: 'Total Sales (GMV)',
@@ -83,13 +133,6 @@ export default function OverviewPage() {
           change: 9.8,
           sparkData: health.activeBuyers.slice(-14).map(p => p.value),
           accent: 'purple',
-        },
-        {
-          label: 'Platform Fees',
-          value: formatCurrency(sales.totalFees),
-          change: 14.1,
-          sparkData: sales.gmvTimeSeries.slice(-14).map(p => Math.round(p.value * 0.029)),
-          accent: 'orange',
         },
       ])
       setLoading(false)

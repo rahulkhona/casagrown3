@@ -61,6 +61,32 @@ export default function SequencesPage() {
     }
   }
 
+  const cloneSequence = async (sequence: Sequence) => {
+    try {
+      setIsCreating(true)
+      setErrorMsg('')
+      
+      const { data: fullSeq, error: fetchErr } = await adminApi.select('crm_sequences', '*', { eq: { id: sequence.id } })
+      if (fetchErr || !fullSeq || fullSeq.length === 0) throw new Error(fetchErr || 'Sequence not found')
+
+      const { data, error } = await adminApi.insert('crm_sequences', {
+        name: `${fullSeq[0].name} (Copy)`,
+        status: 'draft',
+        trigger_event: fullSeq[0].trigger_event,
+        definition: fullSeq[0].definition
+      })
+
+      if (error) throw new Error(error)
+      if (!data || data.length === 0) throw new Error('No data returned from clone')
+
+      setSequences(s => [data[0], ...s])
+    } catch (e: any) {
+      setErrorMsg(`Failed to clone sequence: ${e.message}`)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
   const STATUS_COLORS: Record<string, string> = {
     draft: '#9ca3af',
     active: '#22c55e',
@@ -133,6 +159,17 @@ export default function SequencesPage() {
                       }}>
                         {s.status === 'draft' ? 'Build' : 'Open'}
                       </Link>
+                      <button onClick={() => cloneSequence(s)} style={{
+                        padding: '4px 12px',
+                        background: '#e0e7ff',
+                        border: '1px solid #c7d2fe',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: '#4f46e5',
+                        fontSize: '0.85rem'
+                      }}>
+                        Clone
+                      </button>
                       <button onClick={() => deleteSequence(s.id)} style={{
                         padding: '4px 12px',
                         background: '#fef2f2',

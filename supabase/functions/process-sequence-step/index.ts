@@ -62,8 +62,9 @@ function evaluateQuery(query: any, data: any): boolean {
     return query.rules.some((r: any) => evaluateRule(r, data));
   }
 }
-
 import { buildTemplateModel, interpolateTemplate } from "../_shared/template-interpolation.ts";
+import { sendBroadcastEmail } from "../_shared/postmark.ts";
+import { sendMarketingSms } from "../_shared/twilio.ts";
 
 serve(async (req) => {
   const supabase = createClient(
@@ -109,6 +110,9 @@ serve(async (req) => {
 
       // ── Fetch Metadata for Interpolation & Conditions ──
       let metaRes: any = {}, profileRes: any = {}, enrolledPromoRes: any = {};
+      let acceptsEmail = true;
+      let acceptsSms = true;
+
       if (enrollment.recipient_type === 'user') {
         const [mRes, pRes, epRes] = await Promise.all([
           supabase.from('crm_user_metadata').select('*').eq('recipient_id', enrollment.recipient_id).single(),
@@ -118,6 +122,9 @@ serve(async (req) => {
         if (mRes.data) metaRes.data = mRes.data;
         if (pRes.data) profileRes.data = pRes.data;
         if (epRes.data) enrolledPromoRes.data = epRes.data;
+
+        acceptsEmail = metaRes.data?.email_enabled !== false;
+        acceptsSms = metaRes.data?.sms_enabled === true;
       } else if (enrollment.recipient_type === 'member') {
         // Market members — fetch directly from profiles, no CRM metadata
         const { data } = await supabase
@@ -129,12 +136,16 @@ serve(async (req) => {
           profileRes.data = { full_name: data.full_name, email: data.email, phone_number: data.phone_number };
           metaRes.data = {};
         }
+        acceptsEmail = true;
+        acceptsSms = true;
       } else {
         // Default: lead recipient
         const { data } = await supabase.from('crm_leads').select('*').eq('id', enrollment.recipient_id).single();
         if (data) {
           profileRes.data = { full_name: data.name, email: data.email, phone_number: data.phone };
           metaRes.data = data.metadata || {};
+          acceptsEmail = data.accepts_email !== false;
+          acceptsSms = data.accepts_sms !== false;
         }
       }
 
@@ -156,16 +167,38 @@ serve(async (req) => {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
         const subject = interpolateTemplate(node.data.subject || '', model);
         const htmlBody = interpolateTemplate(node.data.html || '', model);
+        const email = profileRes.data?.email;
 
-        // Send email via Postmark (stubbed integration)
-        console.log(`[POSTMARK EMIT] Sending Sequence Email: ${subject} to ${enrollment.recipient_id}`);
+        let errorMsg: string | null = null;
+        let sentAt: string | null = null;
+
+        if (!email) {
+          errorMsg = 'missing_email';
+        } else if (!acceptsEmail) {
+          errorMsg = 'opted_out';
+        } else {
+          console.log(`[POSTMARK EMIT] Sending Sequence Email: ${subject} to ${email}`);
+          const res = await sendBroadcastEmail({
+            to: email,
+            subject,
+            htmlBody,
+          });
+          if (res.success) {
+            sentAt = new Date().toISOString();
+          } else {
+            errorMsg = res.error || 'send_failed';
+          }
+        }
+
         await supabase.from('crm_campaign_sends').insert({
           campaign_id: null,
           sequence_id: sequence.id,
           node_id: node.id,
           recipient_type: enrollment.recipient_type,
           recipient_id: enrollment.recipient_id,
-          sent_at: new Date().toISOString()
+          email: email || null,
+          sent_at: sentAt,
+          error: errorMsg,
         });
         
         const edge = def.edges.find((e: any) => e.source === node.id);
@@ -173,17 +206,34 @@ serve(async (req) => {
       } else if (nodeLogicType === 'action_sms') {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
         const textBody = interpolateTemplate(node.data.text || '', model);
+        const phone = profileRes.data?.phone_number;
 
-        // Mock SMS Send
-        console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${enrollment.recipient_id}`);
+        let errorMsg: string | null = null;
+        let sentAt: string | null = null;
+
+        if (!phone) {
+          errorMsg = 'missing_phone';
+        } else if (!acceptsSms) {
+          errorMsg = 'opted_out';
+        } else {
+          console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${phone}`);
+          const res = await sendMarketingSms(phone, textBody);
+          if (res.success) {
+            sentAt = new Date().toISOString();
+          } else {
+            errorMsg = res.error || 'send_failed';
+          }
+        }
+
         const { error: insertError } = await supabase.from('crm_campaign_sends').insert({
           campaign_id: null,
           sequence_id: sequence.id,
           node_id: node.id,
           recipient_type: enrollment.recipient_type,
           recipient_id: enrollment.recipient_id,
-          error: 'mock_sent',
-          sent_at: new Date().toISOString()
+          phone: phone || null,
+          sent_at: sentAt,
+          error: errorMsg,
         });
         if (insertError) console.error("Insert error:", insertError);
         
@@ -216,13 +266,23 @@ serve(async (req) => {
               enrolledPromotionIds = Array.isArray(metadata.enrolled_promotion_ids) ? metadata.enrolled_promotion_ids : [metadata.enrolled_promotion_ids];
             }
            
-           const evalContext = {
+            let enrolledSequenceIds: string[] = [];
+            const { data: enrRes } = await supabase
+              .from('crm_sequence_enrollments')
+              .select('sequence_id')
+              .eq('recipient_id', enrollment.recipient_id);
+            if (enrRes) {
+              enrolledSequenceIds = enrRes.map((e: any) => e.sequence_id);
+            }
+
+            const evalContext = {
              ...metadata,
              has_signed_tos: hasSignedTos,
              has_completed_profile: hasCompletedProfile,
              days_since_last_active: daysSinceActive,
              user_macro_state: macroState,
-             enrolled_promotion_ids: enrolledPromotionIds
+             enrolled_promotion_ids: enrolledPromotionIds,
+             enrolled_sequence_ids: enrolledSequenceIds
            };
            
            conditionMet = evaluateQuery(node.data.query, evalContext);

@@ -16,7 +16,17 @@ import { supabase } from './supabase'
 let _isDemoMode = false
 export function getIsDemoMode(): boolean { return _isDemoMode }
 export function resetDemoMode(): void { _isDemoMode = false }
-function markDemo() { _isDemoMode = true }
+
+const isLocal = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL.includes('localhost') ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL.includes('127.0.0.1');
+
+function markDemo() {
+  if (!isLocal) {
+    throw new Error("Database metrics query failed or is not available. Mock data is disabled in live systems.");
+  }
+  _isDemoMode = true;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
