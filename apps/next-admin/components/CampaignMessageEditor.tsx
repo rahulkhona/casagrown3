@@ -787,6 +787,12 @@ export default function CampaignMessageEditor({
     toast('AI draft applied to editor!');
   }
 
+  const handleCloseAiModal = () => {
+    setAiModalOpen(false);
+    setAiPrompt('');
+    setAiDraft('');
+  }
+
 
   return (
     <div className="crm-message-editor">
@@ -1815,7 +1821,7 @@ export default function CampaignMessageEditor({
               </h3>
               <button 
                 type="button" 
-                onClick={() => { setAiModalOpen(false); setAiPrompt(''); }}
+                onClick={handleCloseAiModal}
                 style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.2s', outline: 'none' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
                 onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
@@ -1894,7 +1900,7 @@ export default function CampaignMessageEditor({
                       <button 
                         type="button" 
                         className="crm-btn-secondary" 
-                        onClick={() => { setAiModalOpen(false); setAiPrompt(''); }} 
+                        onClick={handleCloseAiModal} 
                         disabled={isGeneratingAi}
                         style={{ padding: '10px 18px', borderRadius: '10px', fontWeight: 600, border: '1px solid #cbd5e1', cursor: 'pointer', transition: 'all 0.2s' }}
                       >
@@ -1943,15 +1949,26 @@ export default function CampaignMessageEditor({
                       )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setAiDraft('')}
-                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                      >
-                        ✍️ Edit Prompt
-                      </button>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => setAiDraft('')}
+                          style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                        >
+                          ✍️ Edit Prompt
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={handleCloseAiModal}
+                          style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <button 
                           type="button" 
