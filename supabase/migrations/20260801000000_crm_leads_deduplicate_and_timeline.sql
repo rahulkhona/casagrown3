@@ -9,6 +9,11 @@ DECLARE
   v_history JSONB;
   v_entry JSONB;
 BEGIN
+  -- Ensure metadata is initialized as a jsonb object
+  IF NEW.metadata IS NULL OR jsonb_typeof(NEW.metadata) != 'object' THEN
+    NEW.metadata := '{}'::jsonb;
+  END IF;
+
   -- 1. Determine current ingestion source
   v_source := COALESCE(
     NEW.metadata->>'ingested_from', 
