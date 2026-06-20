@@ -24,6 +24,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.casagrown.market",
+      "buildNumber": "3",
       "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
         "applinks:casagrown.com",
