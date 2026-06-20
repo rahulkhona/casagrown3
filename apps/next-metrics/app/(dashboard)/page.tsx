@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useFilters } from './layout'
-import { fetchUserGrowth, fetchSalesSummary, fetchMarketplaceHealth } from '../../lib/metrics-service'
-import { Sparkline, formatNumber, formatCurrency } from '../../lib/charts'
+import { fetchUserGrowth, fetchSalesSummary, fetchMarketplaceHealth, fetchWeeklyTrends, type WeeklyTrendPoint } from '../../lib/metrics-service'
+import { Sparkline, BarChart, formatNumber, formatCurrency } from '../../lib/charts'
 import { supabase } from '../../lib/supabase'
 
 interface KPI {
@@ -17,6 +17,8 @@ interface KPI {
 export default function OverviewPage() {
   const { dateRange, granularity, geoFilter } = useFilters()
   const [kpis, setKpis] = useState<KPI[]>([])
+  const [weeklyTrends, setWeeklyTrends] = useState<WeeklyTrendPoint[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,19 +26,24 @@ export default function OverviewPage() {
 
     async function load() {
       setLoading(true)
-      const fourteenDaysAgo = new Date()
+      setError(null)
+      try {
+        const fourteenDaysAgo = new Date()
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
-      const [users, sales, health, dbUsers, dbLeads, dbProducts] = await Promise.all([
+      const [users, sales, health, dbUsers, dbLeads, dbProducts, weeklyData] = await Promise.all([
         fetchUserGrowth(dateRange, granularity, geoFilter),
         fetchSalesSummary(dateRange, granularity, geoFilter),
         fetchMarketplaceHealth(dateRange),
         supabase.from('profiles').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('crm_leads').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
-        supabase.from('market_products').select('created_at').eq('is_active', true).eq('is_deleted', false).gte('created_at', fourteenDaysAgo.toISOString())
+        supabase.from('market_products').select('created_at').eq('is_active', true).eq('is_deleted', false).gte('created_at', fourteenDaysAgo.toISOString()),
+        fetchWeeklyTrends(8)
       ])
 
       if (cancelled) return
+
+      setWeeklyTrends(weeklyData)
 
       const getWoWStats = (rows: any[] | null) => {
         if (!rows || rows.length === 0) return { count: 0, change: 0 }
@@ -135,7 +142,13 @@ export default function OverviewPage() {
           accent: 'purple',
         },
       ])
-      setLoading(false)
+        setLoading(false)
+      } catch (err: any) {
+        if (cancelled) return
+        console.error(err)
+        setError(err.message || 'Failed to load metrics')
+        setLoading(false)
+      }
     }
 
     load()
@@ -154,8 +167,75 @@ export default function OverviewPage() {
           <div className="spinner" />
           <span>Loading metrics...</span>
         </div>
+      ) : error ? (
+        <div className="card" style={{ border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.05)', padding: 32, borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', textAlign: 'center', margin: '24px 0' }}>
+          <span style={{ fontSize: '2rem' }}>⚠️</span>
+          <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600 }}>Access Denied or Database Error</h3>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: 450 }}>
+            {error.includes("Mock data is disabled") 
+              ? "Your account does not have staff permissions to view live database metrics. Please log out and sign in with an authorized staff account (e.g. admin@casagrown.com)." 
+              : error}
+          </p>
+        </div>
       ) : (
-        <div className="kpi-grid stagger">
+        <>
+          {/* Weekly Trends Section */}
+          {weeklyTrends.length > 0 && (
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    Live Week-over-Week Trends
+                  </h2>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                    Real-time metrics queried directly from database tables (past 8 weeks)
+                  </p>
+                </div>
+              </div>
+              <div className="chart-grid-3">
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="chart-title" style={{ margin: 0 }}>User Signups WoW</span>
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>Live</span>
+                  </div>
+                  <BarChart
+                    data={weeklyTrends.map(t => ({ date: t.weekLabel, value: t.signups }))}
+                    color="var(--chart-1)"
+                    height={160}
+                  />
+                </div>
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="chart-title" style={{ margin: 0 }}>New Listings WoW</span>
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>Live</span>
+                  </div>
+                  <BarChart
+                    data={weeklyTrends.map(t => ({ date: t.weekLabel, value: t.listings }))}
+                    color="var(--chart-3)"
+                    height={160}
+                  />
+                </div>
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="chart-title" style={{ margin: 0 }}>CRM Leads WoW</span>
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>Live</span>
+                  </div>
+                  <BarChart
+                    data={weeklyTrends.map(t => ({ date: t.weekLabel, value: t.leads }))}
+                    color="var(--chart-2)"
+                    height={160}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              Performance Overview
+            </h2>
+          </div>
+          <div className="kpi-grid stagger">
           {kpis.map((kpi, i) => (
             <div key={i} className={`kpi-card ${kpi.accent}`}>
               <span className="kpi-label">{kpi.label}</span>
@@ -174,6 +254,7 @@ export default function OverviewPage() {
             </div>
           ))}
         </div>
+        </>
       )}
     </div>
   )

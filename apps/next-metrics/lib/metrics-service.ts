@@ -215,6 +215,76 @@ function generateCumulative(series: TimeSeriesPoint[], startValue: number): Time
 
 // ─── Service Functions ──────────────────────────────────────────────────────
 
+export interface WeeklyTrendPoint {
+  weekLabel: string;
+  signups: number;
+  listings: number;
+  leads: number;
+}
+
+export async function fetchWeeklyTrends(weeksCount = 8): Promise<WeeklyTrendPoint[]> {
+  const now = new Date();
+  
+  // Find the start of the current week (Monday)
+  const currentDay = now.getDay();
+  const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+  const startOfCurrentWeek = new Date(now);
+  startOfCurrentWeek.setDate(now.getDate() - distanceToMonday);
+  startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+  // Go back weeksCount weeks from the start of the current week
+  const startOfPeriod = new Date(startOfCurrentWeek);
+  startOfPeriod.setDate(startOfPeriod.getDate() - (weeksCount - 1) * 7);
+
+  const startDateStr = startOfPeriod.toISOString();
+
+  // Query database tables directly
+  const [profilesRes, productsRes, leadsRes] = await Promise.all([
+    supabase.from('profiles').select('created_at').gte('created_at', startDateStr),
+    supabase.from('market_products').select('created_at').eq('is_deleted', false).gte('created_at', startDateStr),
+    supabase.from('crm_leads').select('created_at').gte('created_at', startDateStr)
+  ]);
+
+  const profiles = profilesRes.data || [];
+  const products = productsRes.data || [];
+  const leads = leadsRes.data || [];
+
+  const trendPoints: WeeklyTrendPoint[] = [];
+  for (let i = 0; i < weeksCount; i++) {
+    const weekStart = new Date(startOfPeriod);
+    weekStart.setDate(weekStart.getDate() + i * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const signupsCount = profiles.filter((p: any) => {
+      const d = new Date(p.created_at);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+
+    const listingsCount = products.filter((p: any) => {
+      const d = new Date(p.created_at);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+
+    const leadsCount = leads.filter((p: any) => {
+      const d = new Date(p.created_at);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+
+    trendPoints.push({
+      weekLabel: label,
+      signups: signupsCount,
+      listings: listingsCount,
+      leads: leadsCount
+    });
+  }
+
+  return trendPoints;
+}
+
+
 export async function fetchUserGrowth(
   dateRange: DateRange,
   granularity: Granularity,
