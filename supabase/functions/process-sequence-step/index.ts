@@ -66,6 +66,7 @@ function evaluateQuery(query: any, data: any): boolean {
 import { buildTemplateModel, interpolateTemplate } from "../_shared/template-interpolation.ts";
 import { sendBroadcastEmail } from "../_shared/postmark.ts";
 import { sendMarketingSms } from "../_shared/twilio.ts";
+import { rewriteLinks, rewriteLinksText } from "../_shared/short-links.ts";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -171,7 +172,17 @@ serve(async (req) => {
       } else if (nodeLogicType === 'action_email') {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
         const subject = interpolateTemplate(node.data.subject || '', model);
-        const htmlBody = interpolateTemplate(node.data.html || '', model);
+        let htmlBody = interpolateTemplate(node.data.html || '', model);
+
+        // Rewrite links to short URLs with sequence tracking
+        htmlBody = await rewriteLinks(
+          htmlBody,
+          enrollment.recipient_id,
+          enrollment.recipient_type,
+          supabase,
+          { sequenceId: sequence.id, nodeId: node.id }
+        );
+
         const email = profileRes.data?.email;
 
         let errorMsg: string | null = null;
@@ -210,7 +221,17 @@ serve(async (req) => {
         if (edge) nextNodeId = edge.target;
       } else if (nodeLogicType === 'action_sms') {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
-        const textBody = interpolateTemplate(node.data.text || '', model);
+        let textBody = interpolateTemplate(node.data.text || '', model);
+
+        // Rewrite links to short URLs with sequence tracking
+        textBody = await rewriteLinksText(
+          textBody,
+          enrollment.recipient_id,
+          enrollment.recipient_type,
+          supabase,
+          { sequenceId: sequence.id, nodeId: node.id }
+        );
+
         const phone = profileRes.data?.phone_number;
 
         let errorMsg: string | null = null;
@@ -325,3 +346,4 @@ serve(async (req) => {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })
+
