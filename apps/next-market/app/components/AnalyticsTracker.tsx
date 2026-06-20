@@ -13,19 +13,22 @@ export function AnalyticsTracker() {
   const pathname = usePathname()
   const { user } = useAuth()
   const prevPath = useRef<string | null>(null)
+  const trackedUserId = useRef<string | null>(null)
 
-  // Set user ID for analytics
   useEffect(() => {
+    if (!pathname) return
+
+    // Set user ID for analytics
     setAnalyticsUser(user?.id ?? null)
-  }, [user?.id])
 
-  // Track page views on route change
-  useEffect(() => {
-    if (pathname && pathname !== prevPath.current) {
+    // Track page view if pathname changed OR if user just hydrated/authenticated
+    const shouldTrack = pathname !== prevPath.current || (user?.id && user.id !== trackedUserId.current)
+    if (shouldTrack) {
       prevPath.current = pathname
+      trackedUserId.current = user?.id ?? null
       trackPageView(pathname)
     }
-  }, [pathname])
+  }, [pathname, user?.id])
 
   return null // invisible tracker
 }

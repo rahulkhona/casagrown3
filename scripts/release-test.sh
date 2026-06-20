@@ -618,6 +618,22 @@ else
   log_suite "RLS Restricted Tables" "$RLS_P" "$RLS_F"
 fi
 
+# 5v: Metrics RPC DB tests
+echo "  Running Metrics RPC DB tests..."
+METRICS_DB_OUTPUT=$(npx supabase test db \
+  supabase/tests/database/68_metrics_rpcs.test.sql 2>&1)
+if echo "$METRICS_DB_OUTPUT" | grep -q "All tests successful"; then
+  METRICS_DB_TESTS=$(echo "$METRICS_DB_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "6")
+  echo -e "  ${GREEN}✅ Metrics RPC DB: ${METRICS_DB_TESTS} tests — ALL PASS${NC}"
+  log_suite "Metrics RPC DB" "${METRICS_DB_TESTS:-6}"
+else
+  METRICS_DB_P=$(echo "$METRICS_DB_OUTPUT" | grep -c "^ok " || echo "0")
+  METRICS_DB_F=$(echo "$METRICS_DB_OUTPUT" | grep -c "^not ok" || echo "0")
+  echo -e "  ${RED}❌ Metrics RPC DB: ${METRICS_DB_P} passed, ${METRICS_DB_F} failed${NC}"
+  echo "$METRICS_DB_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
+  log_suite "Metrics RPC DB" "$METRICS_DB_P" "$METRICS_DB_F"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
