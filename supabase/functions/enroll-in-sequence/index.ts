@@ -1,9 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+import { corsHeaders } from '../_shared/cors.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
@@ -86,7 +87,7 @@ serve(async (req) => {
     if (consented.length === 0) {
       return new Response(
         JSON.stringify({ success: true, enrolled: 0, skipped }),
-        { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -106,14 +107,14 @@ serve(async (req) => {
 
     if (error) {
       // Unique constraint violation = already enrolled
-      return new Response(JSON.stringify({ error: error.message }), { status: 400 })
+      return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     return new Response(
       JSON.stringify({ success: true, enrolled: data?.length, skipped }),
-      { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })

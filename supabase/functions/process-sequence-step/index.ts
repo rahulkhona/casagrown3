@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
+import { corsHeaders } from '../_shared/cors.ts'
 
 const SequenceNodeSchema = z.object({ 
   id: z.string(), 
@@ -67,6 +68,10 @@ import { sendBroadcastEmail } from "../_shared/postmark.ts";
 import { sendMarketingSms } from "../_shared/twilio.ts";
 
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -82,7 +87,7 @@ serve(async (req) => {
 
   if (error || !enrollments) {
     console.error("Error fetching enrollments", error);
-    return new Response(JSON.stringify({ error: error?.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: error?.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
   const results: any[] = [];
@@ -317,6 +322,6 @@ serve(async (req) => {
   }
 
   return new Response(JSON.stringify({ success: true, processed: results.length, results }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })
