@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { AuthGuard } from '../auth-guard'
 import type { GeoFilter, DateRange, Granularity } from '../../lib/metrics-service'
 import { getIsDemoMode } from '../../lib/metrics-service'
+import { supabase } from '../../lib/supabase'
+
 
 // ─── Demo Data Banner ───────────────────────────────────────────────────────
 
@@ -127,6 +129,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [granularity, setGranularity] = useState<Granularity>('daily')
   const [geoFilter, setGeoFilter] = useState<GeoFilter>({})
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
   return (
     <AuthGuard>
       <FilterContext.Provider value={{ dateRange, granularity, geoFilter, setDateRange, setGranularity, setGeoFilter }}>
@@ -173,7 +180,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* Sidebar footer */}
-          <div style={{ padding: '16px 12px', borderTop: '1px solid var(--border-subtle)' }}>
+          <div style={{ padding: '16px 12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              onClick={handleSignOut}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: 'var(--radius-sm)',
+                color: '#ef4444',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+              onMouseOut={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+            >
+              Sign Out
+            </button>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
               CasaGrown Metrics v0.1
             </div>
