@@ -3,6 +3,14 @@
     "name": "CasaGrown",
     "slug": "casagrown-market",
     "version": "1.0.2",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8263827d-3616-4e60-a027-9c94737c9465",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
