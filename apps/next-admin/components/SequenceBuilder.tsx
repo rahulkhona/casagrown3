@@ -700,7 +700,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: sequenceId, recipients }),
+          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true }),
         }
       )
       const enrollData = await enrollRes.json()

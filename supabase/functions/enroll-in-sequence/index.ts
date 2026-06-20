@@ -13,10 +13,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { sequence_id, recipients } = await req.json()
+    const { sequence_id, recipients, reset } = await req.json()
 
     if (!sequence_id || !recipients || !Array.isArray(recipients)) {
-      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 })
+      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (recipients.length === 0) {
@@ -100,10 +100,14 @@ serve(async (req) => {
       status: 'active'
     }))
 
-    const { data, error } = await supabase
-      .from('crm_sequence_enrollments')
-      .insert(enrollments)
-      .select()
+    let query = supabase.from('crm_sequence_enrollments')
+    if (reset === true) {
+      query = query.upsert(enrollments, { onConflict: 'sequence_id,recipient_type,recipient_id' })
+    } else {
+      query = query.insert(enrollments)
+    }
+
+    const { data, error } = await query.select()
 
     if (error) {
       // Unique constraint violation = already enrolled

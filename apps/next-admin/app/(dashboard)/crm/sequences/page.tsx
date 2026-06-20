@@ -162,7 +162,7 @@ export default function SequencesPage() {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: seq.id, recipients }),
+          body: JSON.stringify({ sequence_id: seq.id, recipients, reset: true }),
         }
       )
       const enrollData = await enrollRes.json()
