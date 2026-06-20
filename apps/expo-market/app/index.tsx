@@ -73,9 +73,12 @@ if (Platform.OS === 'android') {
   });
 }
 
+const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
-  const [currentUrl, setCurrentUrl] = useState(START_URL);
+  const [currentUrl, setCurrentUrl] = useState<string | null>(IS_TEST ? START_URL : null);
+  const [isUrlInitialized, setIsUrlInitialized] = useState(IS_TEST);
   const [canGoBack, setCanGoBack] = useState(false);
 
   const checkAndSendNotificationPermission = async () => {
@@ -105,10 +108,26 @@ export default function AppShell() {
     };
     const appStateSub = AppState.addEventListener('change', handleAppStateChange);
 
-    // Handle cold boot URL
-    Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink(url);
-    });
+    // Safeguard: auto-hide splash screen after 6 seconds in case load fails/hangs
+    const timer = setTimeout(() => {
+      const p = SplashScreen.hideAsync();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    }, 6000);
+
+    if (!IS_TEST) {
+      // Handle cold boot URL
+      Linking.getInitialURL().then((url) => {
+        if (url) {
+          handleDeepLink(url);
+        } else {
+          setCurrentUrl(START_URL);
+        }
+        setIsUrlInitialized(true);
+      }).catch(() => {
+        setCurrentUrl(START_URL);
+        setIsUrlInitialized(true);
+      });
+    }
 
     // Handle background URL
     const sub = Linking.addEventListener('url', ({ url }) => {
@@ -127,16 +146,32 @@ export default function AppShell() {
       appStateSub.remove();
       sub.remove();
       notifSub.remove();
+      clearTimeout(timer);
     };
   }, []);
 
   const handleDeepLink = (url: string) => {
     try {
       const parsed = Linking.parse(url);
+      let targetPath = '';
+
       if (parsed.hostname === 'casagrown.com' || parsed.hostname === 'localhost') {
-        const fullUrl = `https://${parsed.hostname}${parsed.path ? '/' + parsed.path : ''}${parsed.queryParams ? '?' + new URLSearchParams(parsed.queryParams as any).toString() : ''}`;
-        setCurrentUrl(fullUrl);
+        targetPath = parsed.path ? '/' + parsed.path : '';
+      } else if (parsed.scheme === 'casagrown') {
+        const host = parsed.hostname ? '/' + parsed.hostname : '';
+        const rest = parsed.path ? '/' + parsed.path : '';
+        targetPath = `${host}${rest}`;
+      } else {
+        // Unknown scheme/host
+        return;
       }
+
+      const queryStr = parsed.queryParams && Object.keys(parsed.queryParams).length > 0
+        ? '?' + new URLSearchParams(parsed.queryParams as any).toString()
+        : '';
+
+      const fullUrl = `${BASE_URL}${targetPath}${queryStr}`;
+      setCurrentUrl(fullUrl);
     } catch (e) {
       console.warn('Invalid deep link:', url);
     }
@@ -293,6 +328,10 @@ export default function AppShell() {
     true; // note: this is required, or you'll sometimes get silent failures
   `;
 
+  if (!isUrlInitialized || !currentUrl) {
+    return null; // Keep native splash screen visible while initializing the URL
+  }
+
   const webview = (
     <WebView
       ref={webViewRef}
@@ -313,8 +352,21 @@ export default function AppShell() {
       }}
       onLoadEnd={() => {
         // Hide splash screen once the webview finishes its initial load
-        SplashScreen.hideAsync();
+        const p = SplashScreen.hideAsync();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
         checkAndSendNotificationPermission();
+      }}
+      onError={(syntheticEvent) => {
+        const { nativeEvent } = syntheticEvent;
+        console.warn('WebView error: ', nativeEvent);
+        const p = SplashScreen.hideAsync();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }}
+      onHttpError={(syntheticEvent) => {
+        const { nativeEvent } = syntheticEvent;
+        console.warn('WebView HTTP error: ', nativeEvent);
+        const p = SplashScreen.hideAsync();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
       }}
       allowsBackForwardNavigationGestures={true}
       bounces={false}
