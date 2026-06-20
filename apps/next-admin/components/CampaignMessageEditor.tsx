@@ -173,32 +173,33 @@ export default function CampaignMessageEditor({
     toast('Variable appended!');
   };
 
-  useEffect(() => {
-    // Fetch landing pages and promos for the link picker
-    const fetchLinkData = async () => {
-      const [{ data: fetchedShortLinks }, { data: lps }, { data: promos }] = await Promise.all([
-        supabase.from('crm_short_links').select('token, destination_url, label').is('campaign_id', null),
-        supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
-        supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
-      ])
-      if (lps) setLandingPages(lps)
-      if (fetchedShortLinks) setShortLinks(fetchedShortLinks)
-      if (promos) {
-        // Attach shortlinks to promos if found
-        const promosWithTokens = promos.map(p => {
-          const lp = (lps || []).find(l => l.id === p.landing_page_id);
-          if (lp) {
-            const suffix = `/p/${lp.slug}?promo=${p.id}`;
-            const sl = (fetchedShortLinks || []).find(s => s.destination_url?.endsWith(suffix));
-            if (sl) p.short_token = sl.token;
-          }
-          return p;
-        });
-        setPromotions(promosWithTokens)
-      }
+  // Fetch landing pages and promos for the link picker
+  const fetchLinkData = useCallback(async () => {
+    const [{ data: fetchedShortLinks }, { data: lps }, { data: promos }] = await Promise.all([
+      supabase.from('crm_short_links').select('token, destination_url, label').is('campaign_id', null),
+      supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
+      supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
+    ])
+    if (lps) setLandingPages(lps)
+    if (fetchedShortLinks) setShortLinks(fetchedShortLinks)
+    if (promos) {
+      // Attach shortlinks to promos if found
+      const promosWithTokens = promos.map(p => {
+        const lp = (lps || []).find(l => l.id === p.landing_page_id);
+        if (lp) {
+          const suffix = `/p/${lp.slug}?promo=${p.id}`;
+          const sl = (fetchedShortLinks || []).find(s => s.destination_url?.endsWith(suffix));
+          if (sl) p.short_token = sl.token;
+        }
+        return p;
+      });
+      setPromotions(promosWithTokens)
     }
-    fetchLinkData()
   }, [supabase])
+
+  useEffect(() => {
+    fetchLinkData()
+  }, [fetchLinkData])
 
   // Load assets automatically when AI modal is opened
   useEffect(() => {
@@ -221,8 +222,9 @@ export default function CampaignMessageEditor({
         setLoadingAssets(false)
       }
       loadAssets()
+      fetchLinkData()
     }
-  }, [aiModalOpen, supabase])
+  }, [aiModalOpen, supabase, fetchLinkData])
 
   // Intercept clicks on links in the Quill editor → open Track modal instead of Quill's tooltip
   useEffect(() => {

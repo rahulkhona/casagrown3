@@ -12,14 +12,28 @@ type Sequence = {
   status: 'draft' | 'active' | 'archived'
   trigger_event: string | null
   created_at: string
+  test_emails?: string[]
+  test_phones?: string[]
 }
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
 
 export default function SequencesPage() {
   const [sequences, setSequences] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [toastMsg, setToastMsg] = useState('')
+  const [testingId, setTestingId] = useState<string | null>(null)
   const router = useRouter()
+
+  const toast = (msg: string, ms = 5000) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(prev => prev === msg ? '' : prev), ms)
+  }
 
   useEffect(() => {
     const fetchSequences = async () => {
@@ -87,6 +101,103 @@ export default function SequencesPage() {
     }
   }
 
+  const triggerTestRun = async (seq: Sequence) => {
+    const emails = seq.test_emails || []
+    const phones = seq.test_phones || []
+    if (emails.length === 0 && phones.length === 0) {
+      toast("Error: Please set test email/phone inside the Sequence Builder first.")
+      return
+    }
+
+    setTestingId(seq.id)
+    toast("Preparing test leads...")
+    try {
+      const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
+
+      for (const email of emails) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${email})`,
+            email: email,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      for (const phone of phones) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('phone', phone)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${phone})`,
+            phone: phone,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${phone}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      toast("Enrolling leads...")
+      const enrollRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enroll-in-sequence`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: seq.id, recipients }),
+        }
+      )
+      const enrollData = await enrollRes.json()
+      if (!enrollRes.ok) {
+        throw new Error(enrollData.error || 'Failed to enroll leads')
+      }
+
+      toast("Executing sequence step...")
+      const processRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: seq.id }),
+        }
+      )
+      const processData = await processRes.json()
+      if (!processRes.ok) {
+        throw new Error(processData.error || 'Failed to process sequence step')
+      }
+
+      toast("Test run triggered successfully!")
+    } catch (err: any) {
+      toast(`Error: ${err.message}`)
+    } finally {
+      setTestingId(null)
+      const { data } = await adminApi.select('crm_sequences', '*', undefined, { order: { column: 'created_at', ascending: false } })
+      if (data) setSequences(data)
+    }
+  }
+
   const STATUS_COLORS: Record<string, string> = {
     draft: '#9ca3af',
     active: '#22c55e',
@@ -108,6 +219,24 @@ export default function SequencesPage() {
       {errorMsg && (
         <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #f87171', color: '#b91c1c', borderRadius: '8px', marginBottom: '24px', fontWeight: 500 }}>
           {errorMsg}
+        </div>
+      )}
+
+      {toastMsg && (
+        <div className={`crm-toast ${toastMsg.startsWith('Error') ? 'error' : 'success'}`} style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '24px',
+          fontWeight: 500,
+          background: toastMsg.startsWith('Error') ? '#fef2f2' : '#f0fdf4',
+          border: toastMsg.startsWith('Error') ? '1px solid #fecaca' : '1px solid #bbf7d0',
+          color: toastMsg.startsWith('Error') ? '#991b1b' : '#166534',
+        }}>
+          <span>{toastMsg}</span>
+          <button onClick={() => setToastMsg('')} style={{ background: 'none', border: 'none', fontStyle: 'normal', cursor: 'pointer', fontSize: '1rem', color: 'inherit', paddingLeft: 12 }}>✕</button>
         </div>
       )}
 
@@ -181,6 +310,25 @@ export default function SequencesPage() {
                       }}>
                         Delete
                       </button>
+                      {s.status === 'active' && (
+                        <button
+                          onClick={() => triggerTestRun(s)}
+                          disabled={testingId === s.id}
+                          style={{
+                            padding: '4px 12px',
+                            background: '#f5f3ff',
+                            border: '1px solid #ddd6fe',
+                            borderRadius: '4px',
+                            cursor: testingId === s.id ? 'not-allowed' : 'pointer',
+                            color: '#7c3aed',
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            opacity: testingId === s.id ? 0.7 : 1
+                          }}
+                        >
+                          {testingId === s.id ? 'Testing...' : '🧪 Test'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

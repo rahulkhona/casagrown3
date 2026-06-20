@@ -219,6 +219,9 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [landingPages, setLandingPages] = useState<any[]>([])
   const [promotions, setPromotions] = useState<any[]>([])
   const [allSequences, setAllSequences] = useState<any[]>([])
+  const [testEmails, setTestEmails] = useState<string>('')
+  const [testPhones, setTestPhones] = useState<string>('')
+  const [testing, setTesting] = useState(false)
 
   const queryFields = useMemo(() => {
     const flatFields = [
@@ -303,6 +306,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       if (seqRes.data && seqRes.data.length > 0) {
         setSequence(seqRes.data[0])
         setTriggerEvent(seqRes.data[0].trigger_event || '')
+        setTestEmails((seqRes.data[0].test_emails || []).join(', '))
+        setTestPhones((seqRes.data[0].test_phones || []).join(', '))
         if (seqRes.data[0].definition?.nodes?.length > 0) {
           const safeNodes = seqRes.data[0].definition.nodes.map((n: any, idx: number) => {
             const nodeType = n.data?.type || n.type;
@@ -544,7 +549,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       startNodeId: 'start'
     }
     
-    await adminApi.update('crm_sequences', { definition, trigger_event: triggerEvent || null }, { eq: { id: sequenceId } })
+    const parsedEmails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const parsedPhones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
+
+    await adminApi.update('crm_sequences', { 
+      definition, 
+      trigger_event: triggerEvent || null,
+      test_emails: parsedEmails,
+      test_phones: parsedPhones
+    }, { eq: { id: sequenceId } })
 
     setToastMsg('Node saved locally and auto-saved to database draft.')
     setTimeout(() => setToastMsg(''), 3000)
@@ -568,7 +581,16 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       startNodeId: 'start'
     }
     
-    const { error } = await adminApi.update('crm_sequences', { name: sequence.name, definition, trigger_event: triggerEvent || null }, { eq: { id: sequenceId } })
+    const parsedEmails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const parsedPhones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
+
+    const { error } = await adminApi.update('crm_sequences', { 
+      name: sequence.name, 
+      definition, 
+      trigger_event: triggerEvent || null,
+      test_emails: parsedEmails,
+      test_phones: parsedPhones
+    }, { eq: { id: sequenceId } })
     setSaving(false)
     if (error) {
       setErrorMsg(`Error saving: ${error}`)
@@ -608,6 +630,109 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       setSequence({ ...sequence, status: 'draft' })
       setToastMsg('Sequence deactivated to draft state.')
       setTimeout(() => setToastMsg(''), 3000)
+    }
+  }
+
+  const handleTriggerTest = async () => {
+    const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const phones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
+    if (emails.length === 0 && phones.length === 0) {
+      alert('Please enter at least one test email or phone number.')
+      return
+    }
+
+    setTesting(true)
+    setToastMsg('Saving test contacts...')
+    try {
+      await adminApi.update('crm_sequences', { 
+        test_emails: emails,
+        test_phones: phones
+      }, { eq: { id: sequenceId } })
+
+      setToastMsg('Preparing test leads...')
+      const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
+
+      for (const email of emails) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${email})`,
+            email: email,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      for (const phone of phones) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('phone', phone)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${phone})`,
+            phone: phone,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${phone}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      setToastMsg('Enrolling test leads...')
+      const enrollRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enroll-in-sequence`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: sequenceId, recipients }),
+        }
+      )
+      const enrollData = await enrollRes.json()
+      if (!enrollRes.ok) {
+        throw new Error(enrollData.error || 'Failed to enroll leads')
+      }
+
+      setToastMsg('Executing sequence step...')
+      const processRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: sequenceId }),
+        }
+      )
+      const processData = await processRes.json()
+      if (!processRes.ok) {
+        throw new Error(processData.error || 'Failed to process sequence step')
+      }
+
+      setToastMsg('✅ Test run triggered successfully!')
+      setTimeout(() => setToastMsg(''), 4000)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred during testing')
+      setTimeout(() => setErrorMsg(''), 5000)
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -791,6 +916,67 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   {!isLocked && (
                     <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 16 }}>Apply Trigger Configuration</button>
                   )}
+
+                  {/* Test Sequence Card */}
+                  <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 20, paddingTop: 20 }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: 700, color: '#1f2937' }}>
+                      🧪 Test Sequence
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 16 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>
+                          Test Email Addresses (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. test@social.com, admin@test.com"
+                          value={testEmails}
+                          onChange={e => setTestEmails(e.target.value)}
+                          style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.88rem' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>
+                          Test Phone Numbers (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. +15550100, +15550200"
+                          value={testPhones}
+                          onChange={e => setTestPhones(e.target.value)}
+                          style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.88rem' }}
+                        />
+                      </div>
+
+                      {sequence.status === 'active' ? (
+                        <button
+                          type="button"
+                          onClick={handleTriggerTest}
+                          disabled={testing}
+                          style={{
+                            padding: '10px',
+                            background: '#4f46e5',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 6,
+                            fontWeight: 600,
+                            cursor: testing ? 'not-allowed' : 'pointer',
+                            opacity: testing ? 0.7 : 1,
+                            fontSize: '0.9rem',
+                            marginTop: 4
+                          }}
+                        >
+                          {testing ? 'Executing Test Run...' : '⚡ Save & Trigger Test Enrollment'}
+                        </button>
+                      ) : (
+                        <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#92400e', lineHeight: 1.4 }}>
+                          ⚠️ <strong>Sequence is in Draft</strong>. You must activate this sequence before triggering a test run. Click "Activate Sequence" at the top right first.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -895,6 +1081,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                 compact
                 defaultMedium={editorForm.channel === 'email' ? 'email' : 'sms'}
                 defaultCampaign={sequence?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ''}
+                sequenceId={sequenceId}
+                nodeId={selectedNode?.id}
               />
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', background: '#f9fafb' }}>

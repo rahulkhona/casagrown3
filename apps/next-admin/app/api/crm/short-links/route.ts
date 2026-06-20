@@ -19,7 +19,7 @@ function generateToken(): string {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { destination_url, campaign_id, label } = body
+    const { destination_url, campaign_id, label, sequence_id, node_id } = body
 
     if (!destination_url) {
       return NextResponse.json({ error: 'destination_url is required' }, { status: 400 })
@@ -46,6 +46,8 @@ export async function POST(request: Request) {
         destination_url,
         campaign_id: campaign_id || null,
         label: label || null,
+        sequence_id: sequence_id || null,
+        node_id: node_id || null,
       })
       .select('token')
       .single()

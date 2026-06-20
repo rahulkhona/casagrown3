@@ -25,6 +25,10 @@ interface TrackingUrlBuilderProps {
   defaultCampaign?: string
   /** If provided, short links will be tagged with this campaign ID */
   campaignId?: string
+  /** Optional sequence ID for short links generated inside sequence flowcharts */
+  sequenceId?: string
+  /** Optional node ID for short links generated inside sequence flowcharts */
+  nodeId?: string
   /** Compact mode: collapses into an accordion, suitable for sidebars */
   compact?: boolean
   /** Custom destination URLs — overrides the default BASE_URLS list. Hides Custom URL toggle. */
@@ -89,6 +93,8 @@ export default function TrackingUrlBuilder({
   defaultMedium = '',
   defaultCampaign = '',
   campaignId,
+  sequenceId,
+  nodeId,
   compact = false,
   destinations,
 }: TrackingUrlBuilderProps) {
@@ -138,6 +144,8 @@ export default function TrackingUrlBuilder({
         body: JSON.stringify({
           destination_url: fullUrl,
           campaign_id: campaignId || null,
+          sequence_id: sequenceId || null,
+          node_id: nodeId || null,
           label: label || `${params.utm_source || 'link'} — ${params.utm_campaign || 'general'}`,
         }),
       })
