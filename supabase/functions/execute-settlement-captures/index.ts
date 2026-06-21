@@ -41,19 +41,22 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     // Get all captures for this settlement that need Stripe execution
-    const { data: captures, error: captureErr } = await supabase
+    // BUG-18: Filter out rows already claimed by another worker within the last 30 minutes
+    const lockCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: rawCaptures, error: captureErr } = await supabase
         .from("settlement_captures")
         .select("*")
         .eq("settlement_id", settlement_id)
         .eq("capture_status", "captured")  // DB marked as captured, but Stripe API not yet called
-        .gt("capture_amount_usd", 0);
+        .gt("capture_amount_usd", 0)
+        .or(`processing_started_at.is.null,processing_started_at.lt.${lockCutoff}`);
 
     if (captureErr) {
         console.error("Failed to fetch captures:", captureErr);
         return jsonError("Failed to fetch captures", corsHeaders);
     }
 
-    if (!captures || captures.length === 0) {
+    if (!rawCaptures || rawCaptures.length === 0) {
         return jsonOk({
             message: "No captures to execute",
             total: 0,
@@ -66,14 +69,54 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }, corsHeaders);
     }
 
+    // BUG-18: Immediately stamp processing_started_at to soft-lock these rows
+    // so concurrent cron runs skip them
+    const captureIds = rawCaptures.map(c => c.id);
+    const { error: lockErr } = await supabase
+        .from("settlement_captures")
+        .update({ processing_started_at: new Date().toISOString() })
+        .in("id", captureIds);
+
+    if (lockErr) {
+        console.warn("[CAPTURE] Failed to stamp processing_started_at:", lockErr);
+        // Continue anyway — the soft lock is best-effort
+    }
+
+    const captures = rawCaptures;
+
     console.log(`[CAPTURE] Processing ${captures.length} captures for settlement ${settlement_id}`);
 
     let succeeded = 0;
     let failed = 0;
     let debtsCreated = 0;
 
-    for (const capture of captures) {
+    // BUG-15: Track per-capture results for accurate totalCaptured computation
+    const captureResults = captures.map(c => ({ id: c.id, success: false, amount: 0 }));
+
+    for (let captureIdx = 0; captureIdx < captures.length; captureIdx++) {
+        const capture = captures[captureIdx];
         const captureAmountCents = Math.round(capture.capture_amount_usd * 100);
+
+        // BUG-17: Check if PaymentIntent auth has expired (> 6 days / 144 hours)
+        const createdAt = new Date(capture.created_at);
+        const ageMs = Date.now() - createdAt.getTime();
+        const maxAgeMs = 144 * 60 * 60 * 1000; // 6 days in ms
+        if (ageMs > maxAgeMs) {
+            console.warn(
+                `⚠️ [CAPTURE] Skipping expired PI ${capture.stripe_payment_intent_id} ` +
+                `(created ${createdAt.toISOString()}, age: ${(ageMs / 3600000).toFixed(1)}h)`,
+            );
+            await supabase
+                .from("settlement_captures")
+                .update({
+                    capture_status: "expired",
+                    error_message: `PaymentIntent auth expired (age: ${(ageMs / 3600000).toFixed(1)}h, max: 144h)`,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", capture.id);
+            failed++;
+            continue;
+        }
 
         // Attempt Stripe capture
         const result = await attemptStripeCapture(
@@ -81,6 +124,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             capture.stripe_payment_intent_id,
             captureAmountCents,
             STRIPE_API_BASE,
+            capture.id,
         );
 
         if (result.success) {
@@ -94,6 +138,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 .eq("id", capture.id);
 
             console.log(`✅ [CAPTURE] ${capture.stripe_payment_intent_id} → $${capture.capture_amount_usd}`);
+            captureResults[captureIdx].success = true;
+            captureResults[captureIdx].amount = capture.capture_amount_usd;
             succeeded++;
         } else {
             console.warn(`⚠️ [CAPTURE] First attempt failed for ${capture.stripe_payment_intent_id}: ${result.error}`);
@@ -106,6 +152,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 capture.stripe_payment_intent_id,
                 captureAmountCents,
                 STRIPE_API_BASE,
+                capture.id,
             );
 
             if (retryResult.success) {
@@ -118,6 +165,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     .eq("id", capture.id);
 
                 console.log(`✅ [CAPTURE] Retry succeeded: ${capture.stripe_payment_intent_id}`);
+                captureResults[captureIdx].success = true;
+                captureResults[captureIdx].amount = capture.capture_amount_usd;
                 succeeded++;
             } else {
                 // Permanent failure → mark capture failed, create buyer debt
@@ -194,9 +243,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // Record bank ledger inflow for total successfully captured amount
     if (succeeded > 0) {
-        const totalCaptured = captures
-            .filter((_c, i) => i < succeeded)  // approximation — we track individually
-            .reduce((sum, c) => sum + c.capture_amount_usd, 0);
+        const totalCaptured = captureResults
+            .filter(r => r.success === true)
+            .reduce((sum, r) => sum + r.amount, 0);
 
         // We'll let the payout webhook handle the actual bank ledger inflow
         // since money doesn't arrive until Stripe sends the payout
@@ -457,6 +506,7 @@ async function attemptStripeCapture(
     paymentIntentId: string,
     amountCents: number,
     apiBase: string,
+    captureRecordId: string,
 ): Promise<{ success: boolean; chargeId?: string; error?: string }> {
     try {
         const response = await fetch(
@@ -466,6 +516,7 @@ async function attemptStripeCapture(
                 headers: {
                     Authorization: `Bearer ${stripeKey}`,
                     "Content-Type": "application/x-www-form-urlencoded",
+                    "Idempotency-Key": `capture_${captureRecordId}`,
                 },
                 body: new URLSearchParams({
                     amount_to_capture: String(amountCents),

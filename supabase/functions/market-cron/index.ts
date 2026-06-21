@@ -30,6 +30,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     return await handleMessengerNudge(supabase, env, corsHeaders)
   } else if (action === 'share_nudge') {
     return await handleShareNudge(supabase, env, corsHeaders, siteUrl)
+  } else if (action === 'settlement_health_check') {
+    return await handleSettlementHealthCheck(supabase, corsHeaders)
   } else {
     return jsonOk({ error: 'Unknown action: ' + action }, corsHeaders)
   }
@@ -1092,4 +1094,58 @@ async function handleShareNudge(
   }
 
   return jsonOk({ nudged: nudgedCount }, corsHeaders)
+}
+
+// ═══════════════════════════════════════════════
+// Settlement Health Check — alert staff if no settlement in 48h
+// ═══════════════════════════════════════════════
+async function handleSettlementHealthCheck(
+  supabase: any,
+  corsHeaders: Record<string, string>,
+) {
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+
+  // Query for the most recent settlement within the last 48 hours
+  const { data: recentSettlement } = await supabase
+    .from('market_settlements')
+    .select('id, created_at')
+    .gte('created_at', fortyEightHoursAgo)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (recentSettlement) {
+    return jsonOk({ healthy: true, last_settlement_at: recentSettlement.created_at }, corsHeaders)
+  }
+
+  // No settlement in 48 hours — alert all staff members
+  console.warn('[HEALTH-CHECK] No settlement found in the last 48 hours. Alerting staff.')
+
+  const { data: staffMembers } = await supabase
+    .from('staff_members')
+    .select('user_id')
+    .not('user_id', 'is', null)
+
+  if (!staffMembers || staffMembers.length === 0) {
+    console.warn('[HEALTH-CHECK] No staff members found to alert.')
+    return jsonOk({ healthy: false, alerted: 0, message: 'No staff members to alert' }, corsHeaders)
+  }
+
+  const notifications = staffMembers.map((s: any) => ({
+    user_id: s.user_id,
+    content: '🚨 Settlement Health Check Failed: No settlement has run in the last 48 hours. Please check the settlement cron job.',
+    link_url: '/admin/settlements',
+  }))
+
+  const { error: insertError } = await supabase
+    .from('market_notifications')
+    .insert(notifications)
+
+  if (insertError) {
+    console.error('[HEALTH-CHECK] Failed to insert alert notifications:', insertError)
+    return jsonOk({ healthy: false, alerted: 0, error: insertError.message }, corsHeaders)
+  }
+
+  console.log(`[HEALTH-CHECK] Alerted ${staffMembers.length} staff members about missing settlements.`)
+  return jsonOk({ healthy: false, alerted: staffMembers.length }, corsHeaders)
 }

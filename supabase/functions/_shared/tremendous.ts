@@ -7,6 +7,9 @@ import {
     UnifiedGiftCard,
 } from "./gift-card-types.ts";
 
+// BUG-31: Use env var for Tremendous API base URL (sandbox vs production)
+const TREMENDOUS_API_BASE = Deno.env.get("TREMENDOUS_API_URL") || "https://testflight.tremendous.com";
+
 export async function fetchTremendousCatalog(
     apiKey: string,
     allowPrepaid = false,
@@ -14,7 +17,7 @@ export async function fetchTremendousCatalog(
     if (!apiKey) return [];
 
     const res = await fetch(
-        "https://testflight.tremendous.com/api/v2/products?country=US",
+        `${TREMENDOUS_API_BASE}/api/v2/products?country=US`,
         {
             headers: { Authorization: `Bearer ${apiKey}` },
         },
@@ -89,7 +92,7 @@ export async function orderFromTremendous(
 
     if (!catalogId) {
         const searchRes = await fetch(
-            "https://testflight.tremendous.com/api/v2/products?country=US",
+            `${TREMENDOUS_API_BASE}/api/v2/products?country=US`,
             {
                 headers: { Authorization: `Bearer ${apiKey}` },
             },
@@ -127,7 +130,7 @@ export async function orderFromTremendous(
     }
 
     const response = await fetch(
-        "https://testflight.tremendous.com/api/v2/orders",
+        `${TREMENDOUS_API_BASE}/api/v2/orders`,
         {
             method: "POST",
             headers: {
@@ -182,7 +185,7 @@ export async function orderFromTremendous(
 
 export async function fetchTremendousBalance(apiKey: string): Promise<number> {
     const res = await fetch(
-        "https://testflight.tremendous.com/api/v2/funding_sources",
+        `${TREMENDOUS_API_BASE}/api/v2/funding_sources`,
         {
             headers: { Authorization: `Bearer ${apiKey}` },
         },
@@ -221,7 +224,7 @@ export async function fetchTremendousProduct(
 
     try {
         const res = await fetch(
-            `https://testflight.tremendous.com/api/v2/products/${productId}`,
+            `${TREMENDOUS_API_BASE}/api/v2/products/${productId}`,
             { headers: { Authorization: `Bearer ${apiKey}` } },
         );
 

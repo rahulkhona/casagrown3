@@ -23,15 +23,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     return jsonError('Invalid JSON body', corsHeaders, 400)
   }
 
-  // Verify signature
-  if (WEBHOOK_SECRET && signature) {
-    const isValid = await verifyStripeSignature(body, signature, WEBHOOK_SECRET)
-    if (!isValid) {
-      console.error('Invalid Stripe subscription webhook signature')
-      return jsonError('Invalid signature', corsHeaders, 401)
-    }
-  } else if (WEBHOOK_SECRET && !signature) {
+  // Verify signature — webhook secret is MANDATORY
+  if (!WEBHOOK_SECRET) {
+    console.error('[SUB-WEBHOOK] CRITICAL: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET is not configured. Refusing to process unverified webhook.')
+    return jsonError('Webhook secret not configured', corsHeaders, 500)
+  }
+
+  if (!signature) {
     return jsonError('Missing signature', corsHeaders, 401)
+  }
+
+  const isValid = await verifyStripeSignature(body, signature, WEBHOOK_SECRET)
+  if (!isValid) {
+    console.error('Invalid Stripe subscription webhook signature')
+    return jsonError('Invalid signature', corsHeaders, 401)
   }
 
   console.log(`[SUB-WEBHOOK] ${event.type}, id: ${event.id}`)
@@ -259,31 +264,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           }
 
           // 7. Market ledger entry (pro_subscription debit)
+          // BUG-42: Use atomic RPC to prevent race conditions where two webhooks
+          // read the same balance_after value before inserting
           try {
-            // Get current balance
-            const { data: lastEntry } = await supabase
-              .from('market_ledger')
-              .select('balance_after')
-              .eq('user_id', sub.user_id)
-              .order('id', { ascending: false })
-              .limit(1)
-              .maybeSingle()
-
-            const currentBalance = lastEntry?.balance_after ?? 0
-            const newBalance = Number((currentBalance - invoiceAmountUsd).toFixed(2))
-
-            await supabase.from('market_ledger').insert({
-              user_id: sub.user_id,
-              event_type: 'pro_subscription',
-              amount_usd: invoiceAmountUsd,
-              direction: 'debit',
-              balance_after: newBalance,
-              metadata: {
+            const { data: ledgerResult, error: ledgerRpcErr } = await supabase.rpc('append_market_ledger_entry', {
+              p_user_id: sub.user_id,
+              p_event_type: 'pro_subscription',
+              p_amount_usd: invoiceAmountUsd,
+              p_direction: 'debit',
+              p_metadata: {
                 description: `CasaGrown Pro — Monthly subscription ($${invoiceAmountUsd.toFixed(2)})`,
                 stripe_invoice_id: invoiceId,
               },
             })
-            console.log(`[SUB-WEBHOOK] Ledger entry: pro_subscription debit $${invoiceAmountUsd}, balance: ${newBalance}`)
+
+            if (ledgerRpcErr) {
+              console.warn('[SUB-WEBHOOK] Ledger RPC error:', ledgerRpcErr)
+            } else {
+              console.log(`[SUB-WEBHOOK] Ledger entry: pro_subscription debit $${invoiceAmountUsd}, balance: ${ledgerResult?.balance_after}`)
+            }
           } catch (ledgerErr) {
             console.warn('[SUB-WEBHOOK] Ledger entry failed:', ledgerErr)
           }
@@ -406,6 +405,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         if (subscription.status === 'trialing') status = 'trialing'
         else if (subscription.status === 'past_due') status = 'past_due'
         else if (subscription.status === 'canceled') status = 'canceled'
+        // BUG-35: Preserve 'canceling' status when Stripe reports active + cancel_at_period_end
+        else if (subscription.cancel_at_period_end) status = 'canceling'
 
         const stripePlan = await getSubscriptionPlanFromStripe(subscription.id, STRIPE_SECRET_KEY, stripeBase, subscription)
 
@@ -431,7 +432,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .eq('user_id', sub.user_id)
 
         // Sync is_pro flag based on subscription status and plan
-        const isActive = ['active', 'trialing'].includes(status) && stripePlan !== 'lite'
+        // BUG-35: 'canceling' users retain Pro until period end
+        const isActive = ['active', 'trialing', 'canceling'].includes(status) && stripePlan !== 'lite'
         await supabase.from('profiles').update({ is_pro: isActive }).eq('id', sub.user_id)
 
         // Detect plan change direction for email

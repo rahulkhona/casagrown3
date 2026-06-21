@@ -10,6 +10,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
   const hubspotToken = env("HUBSPOT_ACCESS_TOKEN");
   if (!hubspotToken) {
+    const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+    const isLocal = supaUrl.includes("localhost") || supaUrl.includes("127.0.0.1") || supaUrl.includes("kong:");
+    if (isLocal) {
+      console.log("Skipping HubSpot leads sync in local development because HUBSPOT_ACCESS_TOKEN is not set.");
+      return jsonOk({
+        success: true,
+        synced: 0,
+        note: "Skipped local sync (no HUBSPOT_ACCESS_TOKEN set)"
+      }, corsHeaders);
+    }
     return jsonError("Missing HUBSPOT_ACCESS_TOKEN environment variable", corsHeaders);
   }
 

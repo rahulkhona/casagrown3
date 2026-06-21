@@ -14,6 +14,34 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://127.0.0.1:54321";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
+// BUG-34: Webhook secret is now mandatory. Set a known test secret.
+const WEBHOOK_TEST_SECRET = "whsec_test_pro_subscription_secret";
+
+/**
+ * Compute a Stripe-compatible webhook signature for testing.
+ * Uses HMAC-SHA256 matching the verification logic in the edge function.
+ */
+async function computeStripeSignature(payload: string, secret: string): Promise<string> {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(signedPayload),
+  );
+  const sig = Array.from(new Uint8Array(mac))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `t=${timestamp},v1=${sig}`;
+}
+
 // Test seller from seed data
 const TEST_SELLER_ID = "a1111111-1111-1111-1111-111111111111";
 const TEST_SELLER_EMAIL = "seller@test.local";
@@ -181,6 +209,9 @@ Deno.test("Pro Subscription — cancel marks subscription for end-of-period", as
     "seller_subscriptions",
     `user_id=eq.${TEST_SELLER_ID}&select=canceled_at,status`,
   );
+  // BUG-35: cancel now sets status='canceling' — user keeps Pro until period end.
+  // canceled_at is also set to record when cancellation was requested.
+  assertEquals(subs[0]?.status, "canceling", "status should be 'canceling'");
   assertExists(subs[0]?.canceled_at, "canceled_at should be set");
 });
 
@@ -241,6 +272,9 @@ Deno.test("Pro Subscription — webhook handles invoice.paid", async () => {
     },
   };
 
+  const bodyStr = JSON.stringify(webhookBody);
+  const signature = await computeStripeSignature(bodyStr, WEBHOOK_TEST_SECRET);
+
   const res = await fetch(
     `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
     {
@@ -248,8 +282,9 @@ Deno.test("Pro Subscription — webhook handles invoice.paid", async () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "stripe-signature": signature,
       },
-      body: JSON.stringify(webhookBody),
+      body: bodyStr,
     },
   );
 
@@ -285,6 +320,9 @@ Deno.test("Pro Subscription — webhook handles payment_failed", async () => {
     },
   };
 
+  const bodyStr = JSON.stringify(webhookBody);
+  const signature = await computeStripeSignature(bodyStr, WEBHOOK_TEST_SECRET);
+
   const res = await fetch(
     `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
     {
@@ -292,8 +330,9 @@ Deno.test("Pro Subscription — webhook handles payment_failed", async () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "stripe-signature": signature,
       },
-      body: JSON.stringify(webhookBody),
+      body: bodyStr,
     },
   );
 
@@ -325,6 +364,9 @@ Deno.test("Pro Subscription — webhook handles subscription.deleted", async () 
     },
   };
 
+  const bodyStr = JSON.stringify(webhookBody);
+  const signature = await computeStripeSignature(bodyStr, WEBHOOK_TEST_SECRET);
+
   const res = await fetch(
     `${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`,
     {
@@ -332,8 +374,9 @@ Deno.test("Pro Subscription — webhook handles subscription.deleted", async () 
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "stripe-signature": signature,
       },
-      body: JSON.stringify(webhookBody),
+      body: bodyStr,
     },
   );
 

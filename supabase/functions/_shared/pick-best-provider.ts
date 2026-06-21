@@ -48,6 +48,12 @@ export async function pickBestProvider(
                     cached.productId,
                     env("RELOADLY_SANDBOX") !== "false",
                 );
+            } else if (cached.provider === "tremendous") {
+                // BUG-31: Add missing Tremendous real-time lookup
+                fresh = await fetchTremendousProduct(
+                    env("TREMENDOUS_API_KEY") || "",
+                    cached.productId,
+                );
             }
 
             return fresh;

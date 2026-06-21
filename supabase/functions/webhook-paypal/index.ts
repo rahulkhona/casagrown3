@@ -32,6 +32,72 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const body = await req.text();
     const event = JSON.parse(body);
 
+    // ── BUG-24: Verify PayPal webhook signature ──────────────────────────────
+    const PAYPAL_WEBHOOK_ID = env("PAYPAL_WEBHOOK_ID");
+    if (!PAYPAL_WEBHOOK_ID) {
+        console.error("[WEBHOOK-PAYPAL] PAYPAL_WEBHOOK_ID not configured");
+        return jsonError("Webhook verification not configured", corsHeaders, 500);
+    }
+
+    const transmissionId = req.headers.get("PAYPAL-TRANSMISSION-ID");
+    const transmissionTime = req.headers.get("PAYPAL-TRANSMISSION-TIME");
+    const transmissionSig = req.headers.get("PAYPAL-TRANSMISSION-SIG");
+    const certUrl = req.headers.get("PAYPAL-CERT-URL");
+    const authAlgo = req.headers.get("PAYPAL-AUTH-ALGO") || "SHA256withRSA";
+
+    if (!transmissionId || !transmissionTime || !transmissionSig || !certUrl) {
+        console.warn("[WEBHOOK-PAYPAL] Missing PayPal signature headers");
+        return jsonError("Missing PayPal signature headers", corsHeaders, 401);
+    }
+
+    // Get PayPal OAuth token for API call
+    const PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID");
+    const PAYPAL_SECRET = env("PAYPAL_SECRET");
+    const paypalBase = env("PAYPAL_API_BASE") || "https://api-m.paypal.com";
+
+    const tokenRes = await fetch(`${paypalBase}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+            Authorization: `Basic ${btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`)}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.access_token) {
+        console.error("[WEBHOOK-PAYPAL] Failed to get PayPal access token:", tokenData);
+        return jsonError("Webhook verification failed", corsHeaders, 500);
+    }
+
+    const verifyRes = await fetch(`${paypalBase}/v1/notifications/verify-webhook-signature`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            auth_algo: authAlgo,
+            cert_url: certUrl,
+            transmission_id: transmissionId,
+            transmission_sig: transmissionSig,
+            transmission_time: transmissionTime,
+            webhook_id: PAYPAL_WEBHOOK_ID,
+            webhook_event: event,
+        }),
+    });
+    const verifyData = await verifyRes.json();
+
+    if (!verifyRes.ok || verifyData.verification_status !== "SUCCESS") {
+        console.error(
+            `[WEBHOOK-PAYPAL] Signature verification failed: ${verifyData.verification_status}`,
+            verifyData,
+        );
+        return jsonError("Webhook signature verification failed", corsHeaders, 401);
+    }
+
+    console.log("[WEBHOOK-PAYPAL] Signature verified ✓");
+    // ── End signature verification ───────────────────────────────────────────
+
     const eventType = event.event_type;
     console.log(`[WEBHOOK-PAYPAL] Received: ${eventType}`);
 

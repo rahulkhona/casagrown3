@@ -4,7 +4,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner'
 /**
  * Notifications Page — In-app notification center
  * 
- * Reads from Supabase `notifications` table (shared with community app).
+ * Reads from Supabase `market_notifications` table.
  * Polls every 30s for new notifications. Supports dismiss (delete) and clear all.
  */
 

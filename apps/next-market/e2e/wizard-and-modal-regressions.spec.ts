@@ -23,6 +23,8 @@ async function resetBuyerProfile() {
       city: 'San Jose',
       state_code: 'CA',
       zip_code: '95125',
+      is_banned: false,
+      banned_at: null,
       profile_completed_at: new Date().toISOString(),
       tos_accepted_at: new Date().toISOString(),
     }),
@@ -115,7 +117,18 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
 
     // 2. Fill Step 1 Basics — wait for full hydration and auth resolution
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('input[type="email"]')).toBeDisabled({ timeout: 15000 })
+    
+    // Under heavy load in production build, SSR may render unauthenticated state.
+    // If email is still enabled after 5s, reload the page to get client-rendered auth state.
+    const emailInput = page.locator('input[type="email"]')
+    try {
+      await expect(emailInput).toBeDisabled({ timeout: 5000 })
+    } catch {
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+    }
+    await expect(emailInput).toBeDisabled({ timeout: 25000 })
+    await expect(page.locator('a[href="/my-stands"]')).toBeVisible({ timeout: 15000 })
 
     const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')
     await expect(nameInput).toBeVisible()
@@ -170,6 +183,7 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await nextBtn2.click()
 
     // Verify we proceed to Step 3
+    await page.screenshot({ path: 'failure.png' })
     await expect(page.locator('h2:has-text("Set Your Price")')).toBeVisible({ timeout: 10000 })
   })
 

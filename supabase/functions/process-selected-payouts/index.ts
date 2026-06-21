@@ -298,7 +298,7 @@ async function processPayPalCashout(supabase: any, env: any, redemption: Record<
 
     const payoutPayload = {
         sender_batch_header: { sender_batch_id: `manual_${Date.now()}_${userId.substring(0, 8)}`, email_subject: "Here is your CasaGrown payout!", email_message: `You earned $${usdAmount.toFixed(2)} on CasaGrown Market!` },
-        items: [{ recipient_type: receiverType, amount: { value: usdAmount.toFixed(2), currency: "USD" }, note: "CasaGrown Market Payout", sender_item_id: `manual_item_${Date.now()}`, receiver: payoutTarget }],
+        items: [{ recipient_type: receiverType, amount: { value: usdAmount.toFixed(2), currency: "USD" }, note: "CasaGrown Market Payout", sender_item_id: redemption.id, receiver: payoutTarget }],
     };
 
     console.log(`[MANUAL-RETRY] Dispatching PayPal payout for ${usdAmount}...`);

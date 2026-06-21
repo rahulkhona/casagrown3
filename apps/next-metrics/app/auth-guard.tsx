@@ -31,13 +31,26 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       // Verify staff role
-      const { data: isStaff } = await supabase
+      let { data: isStaff, error } = await supabase
         .rpc('is_staff_email', { check_email: session.user.email.toLowerCase() })
+
+      if (error) {
+        console.warn('[AUTH] is_staff_email failed (possibly DB load), retrying once in 1.5s...', error.message)
+        await new Promise(r => setTimeout(r, 1500))
+        const retryResult = await supabase
+          .rpc('is_staff_email', { check_email: session.user.email.toLowerCase() })
+        isStaff = retryResult.data
+        error = retryResult.error
+      }
 
       if (cancelled) return
 
-      if (!isStaff) {
-        await supabase.auth.signOut()
+      if (error || !isStaff) {
+        console.error('[AUTH] Authorization check failed. isStaff:', isStaff, 'error:', error?.message)
+        // Only signOut if it was a successful query verifying they are NOT staff
+        if (!isStaff && !error) {
+          await supabase.auth.signOut()
+        }
         router.replace('/login')
         return
       }

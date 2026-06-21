@@ -163,16 +163,19 @@ export default function PayoutPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
-  // ── Fetch balance ──
-  useEffect(() => {
+  // ── Fetch balance ── BUG-30: Extracted to reusable function for re-fetch after payouts
+  const refreshBalance = useCallback(async () => {
     if (!userId) return
-    supabase.rpc('get_transaction_summary', {}).then(({ data }: { data: any }) => {
-      if (data) {
-        setAvailableUsd(data.available_usd || 0)
-        setHeldBalanceUsd(data.held_balance_usd || 0)
-      }
-    })
+    const { data } = await supabase.rpc('get_transaction_summary', {}) as { data: any }
+    if (data) {
+      setAvailableUsd(data.available_usd || 0)
+      setHeldBalanceUsd(data.held_balance_usd || 0)
+    }
   }, [userId, supabase])
+
+  useEffect(() => {
+    refreshBalance()
+  }, [refreshBalance])
 
   // ── Fetch active methods ──
   useEffect(() => {
@@ -395,7 +398,8 @@ export default function PayoutPage() {
         code: data?.cardCode, url: data?.cardUrl, status: data?.status || 'pending',
         redeemedAt: new Date().toISOString(),
       })
-      setAvailableUsd(prev => Math.max(0, prev - gcAmount))
+      // BUG-30: Re-fetch balance from server instead of optimistic update
+      await refreshBalance()
       setSelectedCard(null)
     } catch (err: any) {
       trackError('gift_card_redeem_failed', { error: err.message })
@@ -419,7 +423,8 @@ export default function PayoutPage() {
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
-      setAvailableUsd(prev => Math.max(0, prev - usdAmt))
+      // BUG-30: Re-fetch balance from server instead of optimistic update
+      await refreshBalance()
       setCompletedDonation({
         organizationName: selectedCharity.organization, projectTitle: selectedCharity.title,
         theme: selectedCharity.theme, amount: Math.round(usdAmt * 100),
@@ -464,7 +469,8 @@ export default function PayoutPage() {
       })
       if (error) throw error
       if (!data?.success && data?.error) throw new Error(data.error)
-      setAvailableUsd(prev => Math.max(0, prev - usdAmt))
+      // BUG-30: Re-fetch balance from server instead of optimistic update
+      await refreshBalance()
       setCashoutResult({ success: true, txnId: data.batch_id || data.transactionId, status: data.status || 'completed' })
     } catch (err: any) {
       trackError('cashout_failed', { error: err.message })

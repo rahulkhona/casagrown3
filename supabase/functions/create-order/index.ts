@@ -1,3 +1,10 @@
+/**
+ * @deprecated This edge function is LEGACY (points-based order creation).
+ * The active market USD checkout path uses the `place_market_order` Postgres
+ * RPC, called directly from the next-market cart/BuyModal flow.
+ * This function should NOT be called from next-market.
+ * Retained for backward compatibility only — do not add new features here.
+ */
 import {
     jsonError,
     jsonOk,

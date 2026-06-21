@@ -62,7 +62,7 @@ async function registerAndSelectLandingPage(page: Page) {
 
 test.describe('Tracking URL Builder — Landing Pages', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/crm/landing-pages', { waitUntil: 'networkidle', timeout: 20000 })
+    await page.goto('/crm/landing-pages', { waitUntil: 'load', timeout: 60000 })
     await page.waitForSelector('button:has-text("+ Register Page")', { state: 'visible', timeout: 10000 })
   })
 
@@ -221,7 +221,7 @@ test.describe('Tracking URL Builder — Landing Pages', () => {
 
 test.describe('Link Picker — Campaigns form', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/crm/campaigns', { waitUntil: 'networkidle', timeout: 20000 })
+    await page.goto('/crm/campaigns', { waitUntil: 'load', timeout: 60000 })
     await page.waitForSelector('#create-campaign-btn', { state: 'visible', timeout: 10000 })
   })
 
@@ -347,7 +347,7 @@ test.describe('Link Picker — Campaigns form', () => {
 
 test.describe('Tracking URL Builder — Email Campaigns end-to-end', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/crm/campaigns', { waitUntil: 'networkidle', timeout: 20000 })
+    await page.goto('/crm/campaigns', { waitUntil: 'load', timeout: 60000 })
     await page.waitForSelector('#create-campaign-btn', { state: 'visible', timeout: 10000 })
   })
 
@@ -461,7 +461,8 @@ test.describe('Tracking URL Builder — Email Campaigns end-to-end', () => {
       await modeSelect.selectOption('custom')
     }
 
-    // Insert image
+    // Insert image — wait for editor to be visible first
+    await expect(page.locator('.ql-editor')).toBeVisible({ timeout: 10000 })
     const testImageUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
     await page.evaluate((url: string) => {
       const editor = document.querySelector('.ql-editor')

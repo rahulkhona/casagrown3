@@ -212,7 +212,7 @@ export default function Step1Basics() {
         let isCompleted = false
         if (data?.user?.id) {
           const [{ data: profile }, { data: booth }] = await Promise.all([
-            supabase.from('profiles').select('full_name, street_address, city, state_code, profile_completed_at, tos_accepted_at').eq('id', data.user.id).single(),
+            supabase.from('profiles').select('full_name, street_address, city, state_code, zip_code, profile_completed_at, tos_accepted_at').eq('id', data.user.id).single(),
             supabase.from('market_booths').select('offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, delivery_windows, pickup_windows').eq('owner_id', data.user.id).single()
           ])
 
@@ -231,7 +231,7 @@ export default function Step1Basics() {
             if (booth.delivery_windows) profileUpdates.deliveryWindows = booth.delivery_windows
             if (booth.pickup_windows) profileUpdates.pickupWindows = booth.pickup_windows
           } else if (profile?.street_address) {
-            profileUpdates.pickupAddress = [profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', ')
+            profileUpdates.pickupAddress = [profile.street_address, profile.city, `${profile.state_code || ''} ${profile.zip_code || ''}`.trim()].filter(Boolean).join(', ')
           }
         }
 

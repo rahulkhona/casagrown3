@@ -80,6 +80,27 @@ async function getLastEmailHtml(
   }
 }
 
+// Helper: fetch raw MIME source from Mailpit (avoids quoted-printable decoding issues)
+async function getLastEmailRaw(
+  recipientEmail: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:54324/api/v1/search?query=to:${recipientEmail}&limit=1`,
+    );
+    const data = await res.json();
+    if (!data.messages || data.messages.length === 0) return null;
+
+    const msgId = data.messages[0].ID;
+    const rawRes = await fetch(
+      `http://127.0.0.1:54324/api/v1/message/${msgId}/raw`,
+    );
+    return await rawRes.text();
+  } catch {
+    return null;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Test 1: Buyer receipt with credit applied shows "$" values
 // ═══════════════════════════════════════════════════════════
@@ -103,11 +124,16 @@ Deno.test({
     const html = await getLastEmailHtml("buyer@test-credit.local");
     if (html) {
       assertStringIncludes(html, "Credit Applied", "Missing 'Credit Applied' label");
-      assertStringIncludes(html, "-$2.50", "Missing '-$2.50' credit value");
-      assertStringIncludes(html, "$13.5", "Missing '$13.5' subtotal");
-      assertStringIncludes(html, "$4.5", "Missing '$4.5' price per unit");
+      assertStringIncludes(html, "$13.50", "Missing '$13.50' subtotal");
+      assertStringIncludes(html, "$4.50", "Missing '$4.50' price per unit");
       // Must NOT contain "pts"
       assertEquals(html.includes(" pts"), false, "Should not contain 'pts' label");
+    }
+    // Use raw MIME source for credit value check (Mailpit HTML decoding strips
+    // periods from quoted-printable content, turning '-$2.50' into '-$250')
+    const raw = await getLastEmailRaw("buyer@test-credit.local");
+    if (raw) {
+      assertStringIncludes(raw, "-$2.50", "Missing '-$2.50' credit value in raw email");
     }
   },
 });

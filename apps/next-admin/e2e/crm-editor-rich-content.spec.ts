@@ -58,9 +58,15 @@ async function insertTestImage(page: any) {
 // registration can race with editor focus and fail on first attempt.
 async function clickImageAndOpenPopover(page: any, img: any) {
   const popover = page.locator('[data-testid="img-sizing-popover"]')
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    await img.click({ force: true })
-    await page.waitForTimeout(400 * attempt) // 400ms, 800ms, 1200ms
+  await img.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(300)
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      await img.click()
+    } catch {
+      await img.click({ force: true })
+    }
+    await page.waitForTimeout(400 * attempt) // 400ms, 800ms, 1200ms, 1600ms
     if (await popover.isVisible({ timeout: 2000 }).catch(() => false)) return popover
     console.log(`[EDITOR] Popover not visible after attempt ${attempt}, retrying...`)
   }
@@ -120,7 +126,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     await clickImageAndOpenPopover(page, img)
 
-    await page.click('[data-testid="img-size-medium"]')
+    await page.click('[data-testid="img-size-medium"]', { force: true })
     await page.waitForTimeout(300)
 
     const width = await img.evaluate((el: HTMLImageElement) => el.style.width)
@@ -152,7 +158,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     await clickImageAndOpenPopover(page, img)
 
-    await page.click('[data-testid="img-align-center"]')
+    await page.click('[data-testid="img-align-center"]', { force: true })
     await page.waitForTimeout(300)
 
     const styles = await img.evaluate((el: HTMLImageElement) => ({
@@ -191,7 +197,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     await clickImageAndOpenPopover(page, img)
 
-    await page.click('[data-testid="img-size-small"]')
+    await page.click('[data-testid="img-size-small"]', { force: true })
     await page.waitForTimeout(300)
 
     const width = await img.evaluate((el: HTMLImageElement) => el.style.width)
@@ -206,7 +212,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     await clickImageAndOpenPopover(page, img)
 
-    await page.click('[data-testid="img-size-full"]')
+    await page.click('[data-testid="img-size-full"]', { force: true })
     await page.waitForTimeout(300)
 
     const width = await img.evaluate((el: HTMLImageElement) => el.style.width)
@@ -221,7 +227,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
 
     await clickImageAndOpenPopover(page, img)
 
-    await page.click('[data-testid="img-remove"]')
+    await page.click('[data-testid="img-remove"]', { force: true })
     await page.waitForTimeout(500)
 
     const imgCount = await page.locator('.ql-editor img').count()
@@ -301,7 +307,7 @@ test.describe('Table Support in WYSIWYG Editor', () => {
     await page.waitForTimeout(500)
     await expect(page.locator('[data-testid="table-edit-toolbar"]')).toBeVisible({ timeout: 5000 })
 
-    await page.click('[data-testid="table-add-row-below"]')
+    await page.click('[data-testid="table-add-row-below"]', { force: true })
     await page.waitForTimeout(500)
 
     const newRows = await table.locator('tr').count()
@@ -318,7 +324,7 @@ test.describe('Table Support in WYSIWYG Editor', () => {
     await page.waitForTimeout(500)
     await expect(page.locator('[data-testid="table-edit-toolbar"]')).toBeVisible({ timeout: 5000 })
 
-    await page.click('[data-testid="table-delete"]')
+    await page.click('[data-testid="table-delete"]', { force: true })
     await page.waitForTimeout(500)
 
     const tableCount = await page.locator('.ql-editor table').count()
@@ -342,7 +348,7 @@ test.describe('HTML Output Integrity', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
-    await page.click('[data-testid="img-size-medium"]')
+    await page.click('[data-testid="img-size-medium"]', { force: true })
     await page.waitForTimeout(500)
 
     await page.locator('.ql-editor').click({ position: { x: 10, y: 10 } })

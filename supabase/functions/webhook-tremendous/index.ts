@@ -231,7 +231,14 @@ async function verifyHmacSha256(
         const computed = Array.from(new Uint8Array(mac))
             .map((b) => b.toString(16).padStart(2, "0"))
             .join("");
-        return computed === signature.replace(/^sha256=/, "");
+        const expected = signature.replace(/^sha256=/, "");
+        // BUG-31: Constant-time comparison to prevent timing attacks
+        if (computed.length !== expected.length) return false;
+        const a = new TextEncoder().encode(computed);
+        const b = new TextEncoder().encode(expected);
+        let result = 0;
+        for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i];
+        return result === 0;
     } catch (e) {
         console.error("[WEBHOOK-TREMENDOUS] Signature verification error:", e);
         return false;

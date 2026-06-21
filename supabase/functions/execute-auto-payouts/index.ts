@@ -230,7 +230,32 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             .rpc("batch_debit_market_balance", { p_debits: debits });
 
           if (debitError) {
-            console.error("[AUTO-PAYOUT] Batch debit error:", debitError);
+            console.error("[AUTO-PAYOUT] CRITICAL: Batch debit failed after PayPal batch succeeded:", JSON.stringify(debitError));
+
+            // Mark ALL users in this batch as debit_failed
+            for (const u of cashoutUsers) {
+              results.push({
+                user_id: u.user_id,
+                trigger: u.trigger_reason,
+                method: "cashout",
+                amount: Number(u.available_usd),
+                status: "failed",
+                error: `Batch debit failed: ${debitError.message}`,
+              });
+            }
+
+            // Insert admin alert notification
+            await supabase.from("market_notifications").insert({
+              user_id: null,
+              content: `🚨 CRITICAL: PayPal batch ${batchResult.batch_id} sent successfully but balance debit failed. ${cashoutUsers.length} users affected. Error: ${debitError.message}`,
+              link_url: "/admin/payouts",
+            });
+
+            return jsonError(
+              `PayPal batch sent (batch_id=${batchResult.batch_id}) but balance debit failed: ${debitError.message}. Manual reconciliation required.`,
+              corsHeaders,
+              500
+            );
           }
 
           for (const u of cashoutUsers) {

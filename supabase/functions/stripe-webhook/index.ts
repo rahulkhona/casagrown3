@@ -1300,7 +1300,13 @@ async function verifyStripeSignature(
             .map((b) => b.toString(16).padStart(2, "0"))
             .join("");
 
-        return computedSig === expectedSig;
+        // Constant-time comparison to prevent timing attacks
+        const a = new TextEncoder().encode(computedSig);
+        const b = new TextEncoder().encode(expectedSig);
+        if (a.length !== b.length) return false;
+        let result = 0;
+        for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i];
+        return result === 0;
     } catch (e) {
         console.error("Signature verification error:", e);
         return false;

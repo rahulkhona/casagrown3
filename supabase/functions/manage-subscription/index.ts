@@ -50,7 +50,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       return jsonOk({
         plan: sub.plan,
         status: sub.status,
-        isPro: sub.plan === 'pro' && ['active', 'trialing'].includes(sub.status),
+        isPro: sub.plan === 'pro' && ['active', 'trialing', 'canceling'].includes(sub.status),
         trialEndsAt: sub.trial_ends_at,
         currentPeriodEnd: sub.current_period_end,
         currentPeriodStart: sub.current_period_start,
@@ -86,9 +86,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         }
       }
 
+      // BUG-35: Set status to 'canceling' — user keeps Pro features until period end.
+      // When Stripe fires customer.subscription.deleted, the webhook handler
+      // sets status='canceled' and is_pro=false (see stripe-subscription-webhook).
       await supabase
         .from('seller_subscriptions')
-        .update({ canceled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: 'canceling', canceled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('user_id', userId)
 
       // Automatically release and cleanup Twilio number if it was provisioned by us

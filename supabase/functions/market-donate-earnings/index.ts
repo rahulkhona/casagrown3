@@ -235,6 +235,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
      console.log(`[DONATE] Queuing enabled explicitly for globalgiving`);
   }
 
+  const receiptNumber = ggReceipt?.receiptNumber ?? receiptNumberFallback;
+
   if (isQueuing || externalErrorMsg) {
     const finalReason = externalErrorMsg || "Queue is currently enabled for globalgiving";
     await supabase

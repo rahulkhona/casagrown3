@@ -321,11 +321,11 @@ function renderReceipt(
     .replace("{{product}}", data.product || "Item")
     .replace("{{quantity}}", String(data.quantity || 0))
     .replace("{{unit}}", data.unit || "")
-    .replace("{{priceDisplay}}", "$" + String(data.pointsPerUnit || 0))
-    .replace("{{subtotalDisplay}}", "$" + String(data.subtotal || 0))
-    .replace("{{taxDisplay}}", "$" + String(data.tax || 0))
+    .replace("{{priceDisplay}}", "$" + (data.pointsPerUnit || 0).toFixed(2))
+    .replace("{{subtotalDisplay}}", "$" + (data.subtotal || 0).toFixed(2))
+    .replace("{{taxDisplay}}", "$" + (data.tax || 0).toFixed(2))
     .replace("{{creditAppliedRow}}", creditAppliedRow)
-    .replace("{{totalDisplay}}", "$" + String(data.total || 0))
+    .replace("{{totalDisplay}}", "$" + (data.total || 0).toFixed(2))
     .replace("{{financialSection}}", financialSection);
 
   const html = wrapInBrandedTemplate({

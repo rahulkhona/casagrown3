@@ -170,7 +170,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         // Use the first result (most specific match)
         const result = data.results[0];
         const combinedRate = Number(result.taxSales) * 100; // API returns decimal (e.g. 0.0925)
-        const stateRate = Number(result.taxUse) * 100 || 0;
+        const stateRate = combinedRate; // ZipTax v40 doesn't break down components; use combined as best approximation
         const countyRate = 0; // v40 gives combined, breakdown needs v60
         const cityRate = 0;
         const districtRate = 0;

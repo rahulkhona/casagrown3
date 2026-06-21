@@ -17,6 +17,14 @@ import {
 } from "../_shared/serve-with-cors.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+    // BUG-20: Block this simulation endpoint in production
+    if (Deno.env.get("ENVIRONMENT") === "production") {
+        return new Response(
+            JSON.stringify({ error: "Not allowed in production" }),
+            { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } },
+        );
+    }
+
     const { settlement_id } = await req.json();
     if (!settlement_id) {
         return jsonError("settlement_id is required", corsHeaders);

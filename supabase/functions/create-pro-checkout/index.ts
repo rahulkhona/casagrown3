@@ -140,19 +140,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
 
-  // Also set is_pro on profile so it's reflected immediately
-  // (In production, the Stripe webhook also sets this after payment confirmation)
-  await supabase.from('profiles').update({ is_pro: true }).eq('id', userId)
+  // Pro status is set by the stripe-subscription-webhook when payment actually completes.
+  // Do NOT set is_pro: true here — the checkout session is not yet paid.
 
   // 7. Increment promo used_count
   if (promo_code) {
     await supabase.rpc('increment_promo_used', { p_code: promo_code.toUpperCase() })
-      .then(({ error }) => {
+      .then(async ({ error }: { error: any }) => {
         // Fallback: direct update if RPC doesn't exist yet
         if (error) {
-          supabase
+          const { data: currentPromo } = await supabase
             .from('subscription_promos')
-            .update({ used_count: (existingSub as any)?.used_count + 1 || 1 })
+            .select('used_count')
+            .eq('code', promo_code.toUpperCase())
+            .single()
+          const currentCount = currentPromo?.used_count ?? 0
+          await supabase
+            .from('subscription_promos')
+            .update({ used_count: currentCount + 1 })
             .eq('code', promo_code.toUpperCase())
         }
       })

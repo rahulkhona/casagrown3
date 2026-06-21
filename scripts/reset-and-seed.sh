@@ -3,7 +3,7 @@ set -e
 
 # Reset Database (re-apply migrations & run seed.sql)
 echo "♻️  Resetting and Seeding Database..."
-npx supabase db reset --yes || echo "⚠️ Supabase reset finished with error (ignoring known issue)..."
+npx supabase@latest db reset --yes || echo "⚠️ Supabase reset finished with error (ignoring known issue)..."
 
 # Apply any migrations that supabase db reset may have skipped
 echo "🔄 Applying any skipped migrations..."
@@ -27,7 +27,7 @@ done
 
 echo "👤 Creating Mock User..."
 # Use provided key or fallback to local generated key
-export SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$(npx supabase status -o env 2>/dev/null | grep 'SERVICE_ROLE_KEY=' | cut -d'"' -f2)}
+export SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-$(npx supabase@latest status -o env 2>/dev/null | grep 'SERVICE_ROLE_KEY=' | cut -d'"' -f2)}
 echo "📦 Initializing Storage Buckets..."
 node scripts/init-storage.js
 npx tsx scripts/create-mock-user.ts

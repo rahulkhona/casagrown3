@@ -24,7 +24,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const body = await req.text();
     const event = JSON.parse(body);
 
-    console.log(`[WEBHOOK-RELOADLY] Received callback:`, JSON.stringify(event).substring(0, 200));
+    // BUG-32: Log request metadata for audit trail
+    console.log(`[WEBHOOK-RELOADLY] Received callback from ${req.headers.get('x-forwarded-for') || 'unknown'}, content-type: ${req.headers.get('content-type')}, body-length: ${body.length}`);
+    console.log(`[WEBHOOK-RELOADLY] Event:`, JSON.stringify(event).substring(0, 300));
 
     // Extract our redemption ID from customIdentifier
     const customId = event.customIdentifier || event.data?.customIdentifier;

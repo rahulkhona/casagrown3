@@ -83,6 +83,79 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     return jsonError(`Account already in closure process: ${profile.closure_status}`, corsHeaders, 409)
   }
 
+  // 2b. BUG-37: Check for financial blockers before allowing closure
+  const blockers: Array<{ type: string; message: string; action: string }> = []
+
+  // Check balance
+  const { data: balance } = await supabase
+    .from('user_balances')
+    .select('available_usd, pending_usd')
+    .eq('user_id', userId)
+    .single()
+
+  if (balance?.available_usd > 0) {
+    blockers.push({
+      type: 'balance',
+      message: `You have $${Number(balance.available_usd).toFixed(2)} in earnings — withdraw first`,
+      action: '/earnings/payout',
+    })
+  }
+
+  // Check pending/unfulfilled orders (as seller)
+  const { count: pendingOrders } = await supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('seller_id', userId)
+    .in('status', ['pending', 'accepted', 'ready'])
+
+  if ((pendingOrders || 0) > 0) {
+    blockers.push({
+      type: 'pending_orders',
+      message: `You have ${pendingOrders} unfulfilled order${pendingOrders! > 1 ? 's' : ''} — complete them first`,
+      action: '/orders',
+    })
+  }
+
+  // Check active subscription
+  const { data: activeSub } = await supabase
+    .from('seller_subscriptions')
+    .select('id, status')
+    .eq('user_id', userId)
+    .in('status', ['active', 'trialing'])
+    .limit(1)
+    .maybeSingle()
+
+  if (activeSub) {
+    blockers.push({
+      type: 'active_subscription',
+      message: 'You have an active Pro plan — cancel first',
+      action: '/manage-plan',
+    })
+  }
+
+  // Check pending payouts
+  const { count: pendingPayouts } = await supabase
+    .from('redemption_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .in('status', ['pending', 'processing'])
+
+  if ((pendingPayouts || 0) > 0) {
+    blockers.push({
+      type: 'pending_payouts',
+      message: `You have ${pendingPayouts} pending payout${pendingPayouts! > 1 ? 's' : ''} — wait for completion`,
+      action: '/earnings',
+    })
+  }
+
+  if (blockers.length > 0) {
+    return jsonOk({
+      success: false,
+      blockers,
+      message: `Cannot close account: ${blockers.length} issue${blockers.length > 1 ? 's' : ''} must be resolved first`,
+    }, corsHeaders)
+  }
+
   // 3. Check fast-path eligibility
   const { data: isEligible } = await supabase.rpc('check_fast_path_eligible', {
     p_user_id: userId

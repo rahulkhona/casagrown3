@@ -49,19 +49,8 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     const body = JSON.parse(bodyText || '{}');
     
     const auth = await requireAuth(req, supabase, corsHeaders);
-    let adminId: string;
-    
-    if (auth instanceof Response) {
-        // Fallback: allow service-role callers to pass admin_user_id in the request body
-        // This is needed because local Supabase Kong rejects ES256 user JWTs
-        if (body.admin_user_id) {
-            adminId = body.admin_user_id;
-        } else {
-            return auth;
-        }
-    } else {
-        adminId = auth;
-    }
+    if (auth instanceof Response) return auth;
+    const adminId = auth;
 
     const supabaseAdmin = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',

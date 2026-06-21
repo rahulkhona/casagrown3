@@ -52,6 +52,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const [stripeReady, setStripeReady] = useState(false)
   const cardElementRef = useRef<any>(null)
   const stripeRef = useRef<any>(null)
+  const orderBusyRef = useRef(false) // BUG-3: Prevent double-click race
   const [availableBalance, setAvailableBalance] = useState(0) // buyer's available USD balance
 
   // Push notification prompt
@@ -70,11 +71,14 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const windowsValid = hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)
   const canOrder = !productExpired && windowsValid
 
+  // BUG-8: Use integer cents for tax calculations to avoid floating-point rounding errors
   const subtotal = currentPrice * qty
-  const computedTax = +(subtotal * (taxInfo?.rate || 0) / 100).toFixed(2)
-  const total = +(subtotal + computedTax).toFixed(2)
+  const subtotalCents = Math.round(subtotal * 100)
+  const taxCents = Math.round(subtotalCents * (taxInfo?.rate || 0) / 100)
+  const totalCents = subtotalCents + taxCents
+  const computedTax = taxCents / 100
+  const total = totalCents / 100
   const isTaxExempt = (taxInfo?.rate || 0) === 0
-  const totalCents = Math.round(total * 100)
   const priceChanged = currentPrice !== product.price_usd
   const isFreeProduct = currentPrice === 0
 
@@ -151,15 +155,28 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           },
         })
 
-        // Mount after a short delay to ensure container is rendered
-        setTimeout(() => {
+        // BUG-9: Use MutationObserver instead of setTimeout to mount card element
+        const mountCard = () => {
           const container = document.getElementById('stripe-card-element')
           if (container) {
             cardElement.mount('#stripe-card-element')
             cardElementRef.current = cardElement
             setStripeReady(true)
+            return true
           }
-        }, 100)
+          return false
+        }
+
+        // Try immediately first
+        if (!mountCard()) {
+          // If container not ready, observe DOM for it
+          const observer = new MutationObserver(() => {
+            if (mountCard()) observer.disconnect()
+          })
+          observer.observe(document.body, { childList: true, subtree: true })
+          // Safety timeout: give up after 5 seconds
+          setTimeout(() => observer.disconnect(), 5000)
+        }
       } catch (err) {
         console.warn('Failed to load Stripe Elements:', err)
       }
@@ -224,15 +241,20 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   }
 
   const handleOrder = async () => {
-    if (!user) { setError('Please sign in to make a purchase'); return }
-    if (qty <= 0) { setError('Quantity must be at least 1'); return }
-    if (qty > available) { setError(`Only ${available} available`); return }
-    if (fulfillment === 'delivery' && !deliveryAddress.trim()) { setError('Please enter a delivery address'); return }
+    // BUG-3: Prevent double-click race condition
+    if (orderBusyRef.current) return
+    orderBusyRef.current = true
+
+    if (!user) { setError('Please sign in to make a purchase'); orderBusyRef.current = false; return }
+    if (qty <= 0) { setError('Quantity must be at least 1'); orderBusyRef.current = false; return }
+    if (qty > available) { setError(`Only ${available} available`); orderBusyRef.current = false; return }
+    if (fulfillment === 'delivery' && !deliveryAddress.trim()) { setError('Please enter a delivery address'); orderBusyRef.current = false; return }
     if (!hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)) {
       setError(`No ${fulfillment} windows available. ${fulfillment === 'delivery' ? 'Try switching to Pickup.' : 'Try switching to Delivery.'}`)
+      orderBusyRef.current = false
       return
     }
-    if (needsCard && (!stripeReady || !cardElementRef.current)) { setError('Card form is loading, please wait'); return }
+    if (needsCard && (!stripeReady || !cardElementRef.current)) { setError('Card form is loading, please wait'); orderBusyRef.current = false; return }
 
     setLoading(true)
     setError('')
@@ -289,7 +311,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       const fbChannel = typeof window !== 'undefined' ? sessionStorage.getItem('fb_channel') : null
       const fbMetadata = fbPsid ? { fb_psid: fbPsid, fb_page_id: fbPageId, fb_channel: fbChannel } : null
 
-      const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
+      let { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
         p_product_id: product.id,
         p_quantity: qty,
         p_fulfillment_type: fulfillment,
@@ -298,6 +320,24 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         p_hold_id: holdResult.holdId || null,
         p_fb_metadata: fbMetadata || null,
       })
+
+      // BUG-10: Handle tax_cache_miss — warm cache and retry once
+      if (orderResult?.code === 'tax_cache_miss' && buyerZip) {
+        await supabase.functions.invoke('get-tax-rate', {
+          body: { zip: buyerZip, category: product.category },
+        })
+        const retry = await supabase.rpc('place_market_order', {
+          p_product_id: product.id,
+          p_quantity: qty,
+          p_fulfillment_type: fulfillment,
+          p_buyer_zip: buyerZip || null,
+          p_expected_price: currentPrice,
+          p_hold_id: holdResult.holdId || null,
+          p_fb_metadata: fbMetadata || null,
+        })
+        orderResult = retry.data
+        orderErr = retry.error
+      }
 
       if (orderErr) { setError(orderErr.message); setLoading(false); return }
       if (orderResult?.error) {
@@ -329,6 +369,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)
+      orderBusyRef.current = false
     }
   }
 

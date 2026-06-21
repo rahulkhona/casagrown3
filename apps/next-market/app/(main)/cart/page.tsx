@@ -33,6 +33,7 @@ export default function CartPage() {
   const stripeRef = useRef<any>(null)
   const cardElementRef = useRef<any>(null)
   const cardMountedRef = useRef(false)
+  const checkoutBusyRef = useRef(false)
 
   // Quarantine tracking: product_id -> quarantine info
   const [quarantinedProducts, setQuarantinedProducts] = useState<Record<string, { pest_name: string; county_name: string }>>({})
@@ -188,16 +189,21 @@ export default function CartPage() {
 
   // Unified checkout with Stripe card entry — HOLD-FIRST flow
   const handleUnifiedCheckout = async () => {
+    // BUG-2: Prevent double-click race condition
+    if (checkoutBusyRef.current) return
+    checkoutBusyRef.current = true
+
     if (!user || !isAuthenticated) {
+      checkoutBusyRef.current = false
       requireAuth({
         trigger: 'checkout',
         onReady: () => handleUnifiedCheckout(),
       })
       return
     }
-    if (!balanceLoaded) { setCheckoutError('Still loading payment info, please wait'); return }
+    if (!balanceLoaded) { setCheckoutError('Still loading payment info, please wait'); checkoutBusyRef.current = false; return }
     if (needsCard && (!stripeReady || !cardElementRef.current)) {
-      setCheckoutError('Card form is loading, please wait'); return
+      setCheckoutError('Card form is loading, please wait'); checkoutBusyRef.current = false; return
     }
     setCheckingOut(true)
     setCheckoutError('')
@@ -289,28 +295,59 @@ export default function CartPage() {
         }
       }
 
+      // BUG-7: Re-check prices haven't changed since cart was loaded
+      let priceChanged = false
+      for (const group of orderGroups) {
+        for (const item of group.items) {
+          const fresh = freshMap.get(item.product.id)
+          if (fresh && Number(fresh.price_usd) !== item.product.price_usd) {
+            priceChanged = true
+            // Update the cart with fresh prices
+            refreshItems((freshData as any[]).map((d: any) => ({
+              id: d.id, inventory: d.inventory, price_usd: Number(d.price_usd),
+              is_active: d.is_active, expires_at: d.expires_at || null,
+              window_dates: d.window_dates || [], product_delivery_windows: d.product_delivery_windows || [],
+              product_pickup_windows: d.product_pickup_windows || [],
+            })))
+          }
+        }
+      }
+      if (priceChanged) {
+        setCheckoutError('Some prices have been updated. Please review your cart and try again.')
+        setCheckingOut(false)
+        checkoutBusyRef.current = false
+        return
+      }
+
       // Step 4: Place orders ONLY after payment is secured
+      // BUG-1: Track successful orders for partial rollback on failure
       const placedOrderIds: string[] = []
       const placedProductIds: string[] = []
+      const failedItems: string[] = []
+      let partialFailure = false
 
       for (const group of orderGroups) {
         for (const item of group.items) {
-          const { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
+          let { data: orderResult, error: orderErr } = await supabase.rpc('place_market_order', {
             p_product_id: item.product.id,
             p_quantity: item.qty,
             p_fulfillment_type: item.fulfillmentMode || 'delivery',
             p_hold_id: holdResult?.holdId || null,
           })
 
-          if (orderErr) {
-            setCheckoutError(`Failed to order ${item.product.name}: ${orderErr.message}`)
-            setCheckingOut(false)
-            return
+          // BUG-10: Handle tax_cache_miss — ask user to retry (cache will be warmed by first attempt)
+          if (orderResult?.code === 'tax_cache_miss') {
+            // The place_market_order RPC internally calls with buyer's zip from profile.
+            // On first attempt, get-tax-rate warms the cache. A simple retry should succeed.
+            failedItems.push(item.product.name + ' (tax rate loading, please retry)')
+            partialFailure = true
+            continue
           }
-          if (orderResult?.error) {
-            setCheckoutError(`${item.product.name}: ${orderResult.error}`)
-            setCheckingOut(false)
-            return
+
+          if (orderErr || orderResult?.error) {
+            failedItems.push(item.product.name)
+            partialFailure = true
+            continue // Try remaining items instead of aborting
           }
 
           placedOrderIds.push(orderResult.order_id)
@@ -318,17 +355,58 @@ export default function CartPage() {
         }
       }
 
-      // Step 5: Success — remove items from cart
+      // BUG-1: If some orders failed, adjust hold to release unused portion
+      if (partialFailure && holdResult?.holdId) {
+        // Calculate the total for successfully placed orders only
+        const successfulTotal = orderGroups.reduce((sum, group) => {
+          return sum + group.items
+            .filter(item => placedProductIds.includes(item.product.id))
+            .reduce((s, item) => s + (item.product.price_usd * item.qty), 0)
+          }, 0)
+
+        // Adjust the hold down to only cover successful orders
+        const adjustCents = Math.round(successfulTotal * 100)
+        if (adjustCents < totalCents) {
+          await supabase.functions.invoke('market-hold', {
+            body: {
+              action: 'adjust',
+              hold_id: holdResult.holdId,
+              new_amount_cents: adjustCents,
+            },
+          }).catch(() => {}) // Best-effort adjustment
+        }
+      }
+
+      // Step 5: Remove successfully ordered items from cart
       for (const pid of placedProductIds) {
         removeItem(pid)
       }
-      showToast(`🎉 ${placedOrderIds.length} order${placedOrderIds.length > 1 ? 's' : ''} placed!`)
-      setTimeout(() => router.push('/orders?role=buying'), 1500)
+
+      if (placedOrderIds.length > 0 && failedItems.length > 0) {
+        // Partial success
+        showToast(`⚠️ ${placedOrderIds.length} order(s) placed. Failed: ${failedItems.join(', ')}`)
+        setCheckoutError(`Some items could not be ordered: ${failedItems.join(', ')}. Your hold was adjusted.`)
+      } else if (placedOrderIds.length > 0) {
+        // Full success
+        showToast(`🎉 ${placedOrderIds.length} order${placedOrderIds.length > 1 ? 's' : ''} placed!`)
+        setTimeout(() => router.push('/orders?role=buying'), 1500)
+      } else {
+        // All failed
+        setCheckoutError(`All orders failed: ${failedItems.join(', ')}. Your payment hold has been released.`)
+        // Release entire hold
+        if (holdResult?.holdId) {
+          await supabase.functions.invoke('market-hold', {
+            body: { action: 'adjust', hold_id: holdResult.holdId, new_amount_cents: 0 },
+          }).catch(() => {})
+        }
+      }
 
     } catch (err: any) {
       setCheckoutError('Checkout failed: ' + (err?.message || 'Unknown error'))
+    } finally {
+      setCheckingOut(false)
+      checkoutBusyRef.current = false
     }
-    setCheckingOut(false)
   }
 
 

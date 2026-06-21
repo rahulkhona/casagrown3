@@ -12,6 +12,7 @@
 import {
     jsonError,
     jsonOk,
+    requireAuth,
     serveWithCors,
     // @ts-ignore: Deno requires .ts extension for local imports
 } from "../_shared/serve-with-cors.ts";
@@ -236,6 +237,25 @@ function formatNetCalculation(evidence: any): string {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+    // ── BUG-38: Require authentication and staff authorization ───────────────
+    const auth = await requireAuth(req, supabase, corsHeaders);
+    if (auth instanceof Response) return auth;
+    const userId = auth;
+
+    // Verify caller is staff (service_role is a trusted server-to-server caller)
+    if (userId !== "service_role") {
+        const { data: staff } = await supabase
+            .from("staff_members")
+            .select("user_id")
+            .eq("user_id", userId)
+            .single();
+
+        if (!staff) {
+            return jsonError("Forbidden: Staff access required", corsHeaders, 403);
+        }
+    }
+    // ── End auth check ───────────────────────────────────────────────────────
+
     const { dispute_id, evidence: providedEvidence, submit = true } =
         await req.json();
 

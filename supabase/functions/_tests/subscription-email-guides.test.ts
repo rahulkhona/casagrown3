@@ -20,6 +20,34 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ||
 // Mailpit API endpoint
 const MAILPIT_API = "http://127.0.0.1:54324/api";
 
+// BUG-34: Webhook secret is now mandatory. Set a known test secret.
+const WEBHOOK_TEST_SECRET = "whsec_test_pro_subscription_secret";
+
+/**
+ * Compute a Stripe-compatible webhook signature for testing.
+ * Uses HMAC-SHA256 matching the verification logic in the edge function.
+ */
+async function computeStripeSignature(payload: string, secret: string): Promise<string> {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(signedPayload),
+  );
+  const sig = Array.from(new Uint8Array(mac))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `t=${timestamp},v1=${sig}`;
+}
+
 import {
   assertEquals,
   assertExists,
@@ -57,14 +85,17 @@ async function createUser(suffix: string): Promise<string> {
 }
 
 async function callSubWebhook(body: Record<string, unknown>): Promise<{ status: number; data: any }> {
+  const bodyStr = JSON.stringify(body);
+  const signature = await computeStripeSignature(bodyStr, WEBHOOK_TEST_SECRET);
   const res = await fetch(`${SUPABASE_URL}/functions/v1/stripe-subscription-webhook`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
       apikey: SERVICE_ROLE_KEY,
+      "stripe-signature": signature,
     },
-    body: JSON.stringify(body),
+    body: bodyStr,
   });
   const text = await res.text();
   let data;

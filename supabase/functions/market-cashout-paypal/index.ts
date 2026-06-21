@@ -406,11 +406,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   }
 
   // Record bank ledger outflow for platform cash tracking
+  const isPhoneHandle = /^\+?[1-9]\d{1,14}$/.test(finalPayoutId);
+  const ledgerProvider = isPhoneHandle ? "venmo" : "paypal";
   await supabase.rpc("append_bank_ledger_entry", {
     p_event_type: "cashout_sent",
     p_direction: "outflow",
     p_amount_usd: usdAmount,
-    p_provider: "venmo",
+    p_provider: ledgerProvider,
     p_reference_type: "redemption",
     p_reference_id: redemption.id,
     p_metadata: { payout_target: finalPayoutId, batch_id: txId },
@@ -419,6 +421,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   });
 
   // The RPC handles the redemption 'completed' status update.
+
+  // Record last manual payout timestamp to prevent auto-payout race condition (BUG-29)
+  await supabase
+    .from("profiles")
+    .update({ last_manual_payout_at: new Date().toISOString() })
+    .eq("id", userId);
 
   // 8. Send push notification and in-app notification
   const successMessage = `Your cashout of $${

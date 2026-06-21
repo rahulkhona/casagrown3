@@ -926,10 +926,19 @@ export default function EarningsPage() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <span style={{
                                   fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-                                  background: tx.metadata.settlement_status === 'cleared' ? 'var(--green-100, #dcfce7)' : 'var(--amber-100, #fef3c7)',
-                                  color: tx.metadata.settlement_status === 'cleared' ? 'var(--green-700, #15803d)' : 'var(--amber-700, #b45309)',
+                                  background: tx.metadata.settlement_status === 'cleared' ? 'var(--green-100, #dcfce7)'
+                                    : tx.metadata.settlement_status === 'reconciliation_failed' ? 'var(--red-100, #fee2e2)'
+                                    : tx.metadata.settlement_status === 'captures_sent' ? 'var(--blue-100, #dbeafe)'
+                                    : 'var(--amber-100, #fef3c7)',
+                                  color: tx.metadata.settlement_status === 'cleared' ? 'var(--green-700, #15803d)'
+                                    : tx.metadata.settlement_status === 'reconciliation_failed' ? 'var(--red-700, #b91c1c)'
+                                    : tx.metadata.settlement_status === 'captures_sent' ? 'var(--blue-700, #1d4ed8)'
+                                    : 'var(--amber-700, #b45309)',
                                 }}>
-                                  {tx.metadata.settlement_status === 'cleared' ? '✓ Cleared' : '⏳ Pending clearance'}
+                                  {tx.metadata.settlement_status === 'cleared' ? '✓ Cleared'
+                                    : tx.metadata.settlement_status === 'reconciliation_failed' ? '❌ Payment capture issue — contact support'
+                                    : tx.metadata.settlement_status === 'captures_sent' ? '⚠️ Settlement processing — payment being finalized'
+                                    : '⏳ Pending clearance'}
                                 </span>
                                 {tx.metadata.available_at && tx.metadata.settlement_status !== 'cleared' && (
                                   <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>

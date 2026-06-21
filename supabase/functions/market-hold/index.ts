@@ -121,7 +121,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         // Check for existing hold to link order
         const { data: existingHold } = await supabase
             .from("market_holds")
-            .select("id")
+            .select("id, spent_amount_cents")
             .eq("buyer_id", buyerId)
             .eq("status", "active")
             .single();
@@ -239,7 +239,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         );
 
         // Cancel old Stripe PI
-        await fetch(
+        const cancelResponse = await fetch(
             `${STRIPE_API_BASE}/v1/payment_intents/${existingHold.stripe_payment_intent_id}/cancel`,
             {
                 method: "POST",
@@ -249,6 +249,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 },
             },
         );
+        if (!cancelResponse.ok) {
+            console.warn(
+                `⚠️ [MARKET-HOLD] Failed to cancel old PI ${existingHold.stripe_payment_intent_id}: HTTP ${cancelResponse.status}. Continuing with new PI.`,
+            );
+        }
 
         // Create new PI with the card-only amount
         const piResponse = await fetch(
@@ -387,23 +392,50 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         `key_prefix=${keyPrefix}`,
     );
 
-    // Create hold record
-    const { data: hold, error: holdErr } = await supabase
-        .from("market_holds")
-        .insert({
-            buyer_id: buyerId,
-            stripe_payment_intent_id: piData.id,
-            stripe_client_secret: piData.client_secret,
-            hold_amount_cents: holdAmountCents,
-            spent_amount_cents: amount_cents,
-            balance_applied_cents: balanceAppliedCents,
-            status: "active",
-        })
-        .select("id")
-        .single();
+    // Create hold record — wrap in try/catch to clean up Stripe PI on failure
+    let hold: { id: string };
+    try {
+        const { data: holdData, error: holdErr } = await supabase
+            .from("market_holds")
+            .insert({
+                buyer_id: buyerId,
+                stripe_payment_intent_id: piData.id,
+                stripe_client_secret: piData.client_secret,
+                hold_amount_cents: holdAmountCents,
+                spent_amount_cents: amount_cents,
+                balance_applied_cents: balanceAppliedCents,
+                status: "active",
+            })
+            .select("id")
+            .single();
 
-    if (holdErr) {
-        console.error("Failed to create hold:", holdErr);
+        if (holdErr) {
+            throw holdErr;
+        }
+        hold = holdData;
+    } catch (dbErr) {
+        console.error("Failed to create hold, cleaning up Stripe PI:", dbErr);
+        // Cancel the orphaned Stripe PaymentIntent
+        try {
+            await fetch(
+                `${STRIPE_API_BASE}/v1/payment_intents/${piData.id}/cancel`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                },
+            );
+        } catch (cancelErr) {
+            console.error("Failed to cancel orphaned PI:", cancelErr);
+        }
+        // Refund the debited balance
+        await supabase.rpc("refund_buyer_balance", {
+            p_buyer_id: buyerId,
+            p_amount_cents: balanceAppliedCents,
+            p_reason: "hold_insert_failed",
+        });
         return jsonError("Failed to record hold", corsHeaders);
     }
 
