@@ -7,7 +7,11 @@ BEGIN
   BEGIN PERFORM cron.unschedule('sync-hubspot-leads'); EXCEPTION WHEN OTHERS THEN END;
 
   v_url := get_edge_fn_base_url();
-  IF v_url NOT LIKE '%host.docker.internal%' AND v_url NOT LIKE '%127.0.0.1%' AND v_url NOT LIKE '%localhost%' THEN
+  IF v_url LIKE 'https://%' 
+     AND v_url NOT LIKE '%host.docker.internal%' 
+     AND v_url NOT LIKE '%127.0.0.1%' 
+     AND v_url NOT LIKE '%localhost%' 
+     AND v_url NOT LIKE '%kong%' THEN
     PERFORM cron.schedule('sync-hubspot-leads', '0 * * * *',
       $inner$
         SELECT net.http_post(
