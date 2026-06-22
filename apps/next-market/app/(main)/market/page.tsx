@@ -979,23 +979,8 @@ function BrowseMarketPageInner() {
   const isSearching = !!search.trim()
   const totalProducts = booths.reduce((sum, b) => sum + (b.matched_products?.length || 0), 0)
 
-  // Pioneer Banner Rendering (Profile Context, Global Overlay)
-  const renderPioneerBanner = () => {
-    if (!showPioneerBanner || communityMemberCount === null || communityMemberCount > 20 || !userH3) return null;
-    return (
-      <div style={{ position: 'relative', zIndex: 100 }}>
-        <PioneerBanner
-          memberCount={communityMemberCount}
-          communityH3={userH3}
-          onDismiss={() => {
-            setShowPioneerBanner(false)
-            try { localStorage.setItem(`pioneer_banner_dismissed_${userH3}`, '1') } catch {}
-          }}
-        />
-        <div style={{ height: 140 }} />
-      </div>
-    )
-  }
+  // Pioneer banner removed — Option B redesign
+  const renderPioneerBanner = () => null
 
   // ── STATE 1: Loading profile or market status ──
   if (profileLoading || marketLoading) {
@@ -1015,100 +1000,25 @@ function BrowseMarketPageInner() {
         {renderAppBanner()}
         {renderPioneerBanner()}
         <div className="container">
-          {/* Market Days soft banner — consistent with STATE 3 */}
-          {!isScheduleOpen && !isGrandOpening && nextOpenDate && (
-            <div style={{ padding: '16px 0 24px' }}>
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-                background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', 
-                border: '1px solid #3730a3',
-                borderRadius: 24, padding: '32px 24px', marginBottom: 24,
-                boxShadow: '0 8px 32px rgba(30, 27, 75, 0.4)',
-                textAlign: 'center',
-              }}>
-                <div style={{ fontSize: 48, marginBottom: -8, animation: 'pulse 2s infinite' }}>🌙</div>
-                <div>
-                  <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e0e7ff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
-                    {nextOpenDate 
-                      ? `Next Market Day is ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long' })}` 
-                      : 'Market Days Bring the Most Variety'}
-                  </h2>
-                  <p style={{ fontSize: 15, color: '#c7d2fe', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
-                    You can still browse and purchase from individual growers anytime! However, Market days result in more variety and more chances of finding what you want.
-                    <br /><br />
-                    While you wait for the market to open, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
-                    {nextOpenDate && (
-                      <>
-                        <br /><br />
-                        Do visit us on our next Market day on {nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
-                      </>
-                    )}
-                  </p>
-                </div>
-                
-                {nextOpenDate && (
-                  <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
-                    <CountdownTimer targetDate={nextOpenDate} theme="dark" />
-                  </div>
-                )}
+          {/* Market closed banner removed — Option B redesign */}
 
-                {/* Action buttons row */}
-                <div style={{
-                  display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
-                  marginTop: 8, width: '100%',
-                }}>
-                  <button onClick={() => router.push('/community')} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '10px 18px', borderRadius: 999,
-                    background: '#4f46e5', color: '#fff', border: '1px solid #6366f1',
-                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
-                  }}>
-                    👥 Visit Community
-                  </button>
-                  <button onClick={() => setShowGlobalShareModal(true)} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '10px 18px', borderRadius: 999,
-                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                    fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(22,163,74,0.3)', transition: 'transform 0.1s ease',
-                  }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
-                    📣 Invite Neighbors
-                  </button>
-                  <button onClick={() => {
-                    if (!user) { router.push('/login'); return }
-                    if ('Notification' in window && Notification.permission !== 'granted') {
-                      Notification.requestPermission().then(p => {
-                        if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
-                        else showInfo('Please enable notifications in your browser settings.')
-                      })
-                    } else {
-                      showSuccess('🔔 You\'ll be notified when the market opens!')
-                    }
-                  }} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '10px 18px', borderRadius: 999,
-                    background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
-                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    backdropFilter: 'blur(4px)'
-                  }}>
-                    🔔 Set Reminder
-                  </button>
-                  <button onClick={() => resetTour()} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '10px 18px', borderRadius: 999,
-                    background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
-                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    backdropFilter: 'blur(4px)'
-                  }}>
-                    🔄 Guided Tour
-                  </button>
-                </div>
+          {/* ── Option B: Sell + GrowBot Action Cards ── */}
+          <div className={styles.actionCards}>
+            <Link href="/create-listing" className={styles.actionCardSell}>
+              <span className={styles.sellTitle}>Grow & Earn 🌱</span>
+              <span className={styles.sellSub}>List produce, eggs, flowers & more — sell to neighbors nearby</span>
+              <span className={styles.sellBadge}>⚡ Takes under 2 min</span>
+              <span className={styles.sellBtn}>🌱 Start Listing →</span>
+            </Link>
+            <Link href="/growbot" className={styles.actionCardBot}>
+              <div className={styles.botAvatar}>
+                <img src="/growbot-avatar-v3.png" alt="GrowBot" />
               </div>
-            </div>
-          )}
+              <span className={styles.botTitle}>GrowBot</span>
+              <span className={styles.botSub}>Your AI gardening assistant</span>
+              <span className={styles.botBtn}>💬 Ask</span>
+            </Link>
+          </div>
 
           <div className={styles.addressPrompt}>
           <h2 className={styles.promptTitle}>Where should we look?</h2>
@@ -1170,29 +1080,7 @@ function BrowseMarketPageInner() {
         </div>
       </div>
 
-      {/* Vertically stacked FABs — outside container so position:fixed works in all states */}
-      {!keyboardOpen && (
-        <>
-          <Link
-            href="/create-listing"
-            id="sell-fab"
-            style={{
-              position: 'fixed', bottom: 80, right: 24,
-              background: 'linear-gradient(135deg, #16a34a, #15803d)',
-              color: '#fff', borderRadius: 28, padding: '14px 24px',
-              fontSize: 15, fontWeight: 600, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 8,
-              boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
-              zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-          >
-            {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
-          </Link>
-          <GrowBotFAB />
-        </>
-      )}
+      {/* FABs removed — Option B redesign */}
       </>
     )
   }
@@ -1205,204 +1093,27 @@ function BrowseMarketPageInner() {
       {renderAppBanner()}
       {renderPioneerBanner()}
       <div className="container">
-        {!isScheduleOpen && isGrandOpening && (
-          <div style={{ padding: '16px 0 24px' }}>
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-              background: 'linear-gradient(135deg, #a16207 0%, #ca8a04 100%)', 
-              border: '1px solid #facc15',
-              borderRadius: 24, padding: '32px 24px', marginBottom: 24,
-              boxShadow: '0 8px 32px rgba(161, 98, 7, 0.4)',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 48, marginBottom: -8, animation: 'bounce 2s infinite' }}>🎉</div>
-              <div>
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: '#fefce8', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
-                  CasaGrown Grand Opening!
-                </h2>
-                <p style={{ fontSize: 15, color: '#fef08a', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
-                  The wait is almost over! We are officially opening our doors on {nextOpenDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
-                  Get ready for the freshest produce straight from your neighbors' backyards!
-                  <br /><br />
-                  While you wait, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
-                </p>
-              </div>
-              
-              {nextOpenDate && (
-                <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
-                  <CountdownTimer targetDate={nextOpenDate} theme="dark" />
-                </div>
-              )}
+        {/* Grand opening banner removed — Option B redesign */}
 
-              {/* Action buttons row */}
-              <div style={{
-                display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
-                marginTop: 8, width: '100%',
-              }}>
-                <button onClick={() => router.push('/community')} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 999,
-                  background: '#fefce8', color: '#a16207',
-                  fontSize: 14, fontWeight: 800, border: 'none', cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(254, 252, 232, 0.4)', transition: 'transform 0.1s ease',
-                }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
-                  👥 Visit Community
-                </button>
-                <button onClick={() => setShowGlobalShareModal(true)} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 999,
-                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  backdropFilter: 'blur(4px)'
-                }}>
-                  📣 Invite Neighbors
-                </button>
-                <button onClick={() => {
-                  if (!user) { router.push('/login'); return }
-                  if ('Notification' in window && Notification.permission !== 'granted') {
-                    Notification.requestPermission().then(p => {
-                      if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
-                      else showInfo('Please enable notifications in your browser settings.')
-                    })
-                  } else {
-                    showSuccess('🔔 You\'ll be notified when the market opens!')
-                  }
-                }} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 999,
-                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  backdropFilter: 'blur(4px)'
-                }}>
-                  🔔 Set Reminder
-                </button>
-                <button onClick={() => resetTour()} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 999,
-                  background: 'rgba(255,255,255,0.15)', color: '#fefce8', border: '1px solid rgba(255,255,255,0.3)',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  backdropFilter: 'blur(4px)'
-                }}>
-                  🔄 Guided Tour
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Market closed banner removed — Option B redesign */}
 
-        {!isScheduleOpen && !isGrandOpening && nextOpenDate && (
-        <div style={{ padding: '16px 0 24px' }}>
-          {/* Large Closed Market Banner */}
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', 
-            border: '1px solid #3730a3',
-            borderRadius: 24, padding: '32px 24px', marginBottom: 24,
-            boxShadow: '0 8px 32px rgba(30, 27, 75, 0.4)',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 48, marginBottom: -8, animation: 'pulse 2s infinite' }}>🌙</div>
-            <div>
-              <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e0e7ff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
-                {nextOpenDate 
-                  ? `Next Market Day is ${nextOpenDate.toLocaleDateString('en-US', { weekday: 'long' })}` 
-                  : 'Market Days Bring the Most Variety'}
-              </h2>
-              <p style={{ fontSize: 15, color: '#c7d2fe', margin: '0 auto', maxWidth: 600, lineHeight: 1.5 }}>
-                You can still browse and purchase from individual growers anytime! However, Market days result in more variety and more chances of finding what you want.
-                <br /><br />
-                While you wait for the market to open, head over to the Community to share gardening tips, ask questions, and connect with your neighbors!
-                {nextOpenDate && (
-                  <>
-                    <br /><br />
-                    Do visit us on our next Market day on {nextOpenDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {todaySchedule?.open_time || '8:00 AM'}.
-                  </>
-                )}
-              </p>
+        {/* ── Option B: Sell + GrowBot Action Cards ── */}
+        <div className={styles.actionCards}>
+          <Link href="/create-listing" className={styles.actionCardSell}>
+            <span className={styles.sellTitle}>Grow & Earn 🌱</span>
+            <span className={styles.sellSub}>List produce, eggs, flowers & more — sell to neighbors nearby</span>
+            <span className={styles.sellBadge}>⚡ Takes under 2 min</span>
+            <span className={styles.sellBtn}>🌱 Start Listing →</span>
+          </Link>
+          <Link href="/growbot" className={styles.actionCardBot}>
+            <div className={styles.botAvatar}>
+              <img src="/growbot-avatar-v3.png" alt="GrowBot" />
             </div>
-            
-            {nextOpenDate && (
-              <div style={{ margin: '8px 0', transform: 'scale(1.15)', transformOrigin: 'center' }}>
-                <CountdownTimer targetDate={nextOpenDate} theme="dark" />
-              </div>
-            )}
-
-            {/* Action buttons row */}
-            <div style={{
-              display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
-              marginTop: 8, width: '100%',
-            }}>
-              <button onClick={() => router.push('/community')} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 999,
-                background: '#4f46e5', color: '#fff', border: '1px solid #6366f1',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
-              }}>
-                👥 Visit Community
-              </button>
-              <button onClick={() => setShowGlobalShareModal(true)} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 999,
-                background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(22,163,74,0.3)', transition: 'transform 0.1s ease',
-              }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
-                📣 Invite Neighbors
-              </button>
-              <button onClick={() => {
-                if (!user) { router.push('/login'); return }
-                if ('Notification' in window && Notification.permission !== 'granted') {
-                  Notification.requestPermission().then(p => {
-                    if (p === 'granted') showSuccess('🔔 You\'ll be notified when the market opens!')
-                    else showInfo('Please enable notifications in your browser settings.')
-                  })
-                } else {
-                  showSuccess('🔔 You\'ll be notified when the market opens!')
-                }
-              }} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                backdropFilter: 'blur(4px)'
-              }}>
-                🔔 Set Reminder
-              </button>
-              <button onClick={() => resetTour()} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.1)', color: '#e0e7ff', border: '1px solid rgba(255,255,255,0.2)',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                backdropFilter: 'blur(4px)'
-              }}>
-                🔄 Guided Tour
-              </button>
-            </div>
-          </div>
-          {/* Demo products header */}
-          {demoBooths.length > 0 && (
-            <>
-              <h2 style={{
-                fontSize: 16, fontWeight: 800, color: 'var(--gray-800, #1f2937)',
-                marginBottom: 4, letterSpacing: '-0.02em',
-              }}>
-                🛒 Explore the Market
-              </h2>
-              <p style={{
-                fontSize: 12, color: 'var(--gray-500, #6b7280)', lineHeight: 1.4, margin: 0,
-              }}>
-                Browse demo listings to see how the market works
-              </p>
-            </>
-          )}
+            <span className={styles.botTitle}>GrowBot</span>
+            <span className={styles.botSub}>Your AI gardening assistant</span>
+            <span className={styles.botBtn}>💬 Ask</span>
+          </Link>
         </div>
-      )}
 
       {/* Address bar + change (always visible) */}
       <div className={styles.addressBar}>
@@ -1808,7 +1519,7 @@ function BrowseMarketPageInner() {
                   <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', margin: 0, letterSpacing: '-0.02em' }}>🌿 Local Farms Near You</h3>
                   <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                   {localFarms.map((farm, i) => {
                     const isCSA = farm._directory === 'csa'
                     const mapsUrl = farm.location_address
@@ -1818,17 +1529,17 @@ function BrowseMarketPageInner() {
                       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([farm.listing_name, farm.location_city, farm.location_state].filter(Boolean).join(', '))}`
                     const websiteUrl = farm.media_website?.startsWith('http') ? farm.media_website : farm.media_website ? `https://${farm.media_website}` : null
                     return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'stretch', background: '#fff', border: '1px solid #d1fae5', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <div style={{ width: 6, flexShrink: 0, background: isCSA ? 'linear-gradient(180deg, #059669, #047857)' : 'linear-gradient(180deg, #16a34a, #15803d)' }} />
-                        <div style={{ flex: 1, padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: '#1f2937' }}>{farm.listing_name}</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, background: isCSA ? '#059669' : '#16a34a', color: '#fff', borderRadius: 999, padding: '2px 8px' }}>{isCSA ? 'CSA' : 'On-Farm Market'}</span>
+                      <div key={i} style={{ flex: '0 0 260px', scrollSnapAlign: 'start', background: '#fff', border: '1px solid #d1fae5', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ height: 4, background: isCSA ? 'linear-gradient(90deg, #059669, #047857)' : 'linear-gradient(90deg, #16a34a, #15803d)' }} />
+                        <div style={{ padding: '14px 16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: '#1f2937', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{farm.listing_name}</span>
                           </div>
-                          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#6b7280' }}>📍 {farm.location_address || [farm.location_city, farm.location_state, farm.location_zipcode].filter(Boolean).join(', ')}</p>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Directions</a>
-                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 999, background: '#fff', color: '#15803d', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid #86efac' }}>🌐 Website</a>}
+                          <span style={{ fontSize: 10, fontWeight: 700, background: isCSA ? '#059669' : '#16a34a', color: '#fff', borderRadius: 999, padding: '2px 8px', width: 'fit-content', marginBottom: 8 }}>{isCSA ? 'CSA' : 'On-Farm Market'}</span>
+                          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#6b7280', lineHeight: 1.4, flex: 1 }}>📍 {farm.location_address || [farm.location_city, farm.location_state, farm.location_zipcode].filter(Boolean).join(', ')}</p>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Map</a>
+                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#fff', color: '#15803d', fontSize: 11, fontWeight: 600, textDecoration: 'none', border: '1px solid #86efac' }}>🌐 Web</a>}
                           </div>
                         </div>
                       </div>
@@ -1859,29 +1570,24 @@ function BrowseMarketPageInner() {
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', marginBottom: 4, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>🏪 Nearby Farmers Markets <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span></h3>
                 <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>Sorted by distance from your location</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                   {usdaMarkets.map((market, i) => {
                     const distMiles = market.distance ? parseFloat(market.distance).toFixed(1) : null
                     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(market.location_address || `${market.listing_name} ${market.location_city} ${market.location_state}`)}`
                     const websiteUrl = market.media_website?.startsWith('http') ? market.media_website : market.media_website ? `https://${market.media_website}` : null
                     return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'stretch', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'}
-                      >
-                        <div style={{ width: 6, flexShrink: 0, background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} />
-                        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 28, flexShrink: 0 }}>🏪</span>
-                          <div style={{ flex: 1, minWidth: 200 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                              <span style={{ fontWeight: 700, fontSize: 16, color: '#1f2937' }}>{market.listing_name}</span>
-                              {distMiles && <span style={{ fontSize: 12, fontWeight: 600, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 999, padding: '2px 8px' }}>📍 {distMiles} mi away</span>}
-                            </div>
-                            <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{market.location_address || `${market.location_street || ''} ${market.location_city}, ${market.location_state} ${market.location_zipcode}`}</p>
+                      <div key={i} style={{ flex: '0 0 260px', scrollSnapAlign: 'start', background: '#fff', border: '1px solid #fde68a', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ height: 4, background: 'linear-gradient(90deg, #f59e0b, #d97706)' }} />
+                        <div style={{ padding: '14px 16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ fontSize: 20, flexShrink: 0 }}>🏪</span>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: '#1f2937', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{market.listing_name}</span>
                           </div>
-                          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#374151'} onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1f2937'}>🗺️ Directions</a>
-                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: '#fff', color: '#d97706', fontSize: 13, fontWeight: 600, textDecoration: 'none', border: '1px solid #fde68a' }}>🌐 Website</a>}
+                          {distMiles && <span style={{ fontSize: 10, fontWeight: 600, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 999, padding: '2px 8px', width: 'fit-content', marginBottom: 6 }}>📍 {distMiles} mi</span>}
+                          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#6b7280', lineHeight: 1.4, flex: 1 }}>{market.location_address || `${market.location_street || ''} ${market.location_city}, ${market.location_state} ${market.location_zipcode}`}</p>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Map</a>
+                            {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#fff', color: '#d97706', fontSize: 11, fontWeight: 600, textDecoration: 'none', border: '1px solid #fde68a' }}>🌐 Web</a>}
                           </div>
                         </div>
                       </div>
@@ -2038,29 +1744,7 @@ function BrowseMarketPageInner() {
       )}
     </div>
 
-    {/* Vertically stacked FABs — outside container so position:fixed works in all states */}
-    {!keyboardOpen && (
-      <>
-        <Link
-          href="/create-listing"
-          id="sell-fab"
-          style={{
-            position: 'fixed', bottom: 80, right: 24,
-            background: 'linear-gradient(135deg, #16a34a, #15803d)',
-            color: '#fff', borderRadius: 28, padding: '14px 24px',
-            fontSize: 15, fontWeight: 600, textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 6px 20px rgba(22, 163, 74, 0.4)',
-            zIndex: 100, transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-        >
-          {marketIsOpen ? '🌱 Sell Something' : '🌱 List for Next Market'}
-        </Link>
-        <GrowBotFAB />
-      </>
-    )}
+    {/* FABs removed — Option B redesign */}
   </>
   )
 }
