@@ -1,43 +1,56 @@
 #!/bin/sh
 
-# Pre-commit hook: Run unit tests for all apps before committing
-# Ensures service logic is not broken across apps.
+# Pre-commit hook: FAST checks only (~2-5s total)
+# Heavier tests (integration, E2E) belong in pre-push or CI.
 
 echo "🔍 Running pre-commit checks..."
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
-# 1. Market App unit tests (vitest, ~6s)
-echo "📋 [1/4] Market App unit tests..."
-cd apps/next-market && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Market App unit tests failed — commit aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
+# ── 1. Migration lint — check staged SQL files for missing COMMENT ON (~<1s)
+STAGED_SQL=$(git diff --cached --name-only --diff-filter=ACM -- 'supabase/migrations/*.sql' 2>/dev/null || true)
+if [ -n "$STAGED_SQL" ]; then
+  echo "📋 [1/2] Migration schema documentation lint..."
+  for file in $STAGED_SQL; do
+    ./scripts/lint-migration-comments.sh "$file" || {
+      echo "❌ Migration lint failed — commit aborted."
+      echo "   See .agents/AGENTS.md → Schema Documentation Rules"
+      exit 1
+    }
+  done
+  echo "✅ Migration lint OK"
+else
+  echo "📋 [1/2] Migration lint — no SQL files staged, skipping"
+fi
 
-# 2. Community Voice unit tests (vitest, ~300ms)
-echo "📋 [2/4] Community Voice unit tests..."
-cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Community Voice unit tests failed — commit aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
+# ── 2. TypeScript — check staged apps for compile errors (~3-5s)
+# Only check apps that have staged changes
+STAGED_MARKET=$(git diff --cached --name-only -- 'apps/next-market/' 'packages/' 2>/dev/null || true)
+STAGED_ADMIN=$(git diff --cached --name-only -- 'apps/next-admin/' 2>/dev/null || true)
 
-# 3. Admin App unit tests (vitest)
-echo "📋 [3/4] Admin App unit tests..."
-cd apps/next-admin && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Admin App unit tests failed — commit aborted."
+checks_run=0
+if [ -n "$STAGED_MARKET" ]; then
+  echo "📋 [2/2] TypeScript typecheck (market)..."
+  (cd apps/next-market && npx tsc --noEmit --pretty 2>&1) || {
+    echo "❌ Market TypeScript errors — commit aborted."
     exit 1
-}
-cd "$ROOT_DIR"
+  }
+  checks_run=1
+fi
 
-# 4. Metrics App unit tests (vitest)
-echo "📋 [4/4] Metrics App unit tests..."
-cd apps/next-metrics && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Metrics App unit tests failed — commit aborted."
+if [ -n "$STAGED_ADMIN" ]; then
+  echo "📋 [2/2] TypeScript typecheck (admin)..."
+  (cd apps/next-admin && npx tsc --noEmit --pretty 2>&1) || {
+    echo "❌ Admin TypeScript errors — commit aborted."
     exit 1
-}
-cd "$ROOT_DIR"
+  }
+  checks_run=1
+fi
 
-echo "✅ All pre-commit checks passed!"
+if [ "$checks_run" -eq 0 ]; then
+  echo "📋 [2/2] TypeScript — no app files staged, skipping"
+fi
+
+echo ""
+echo "✅ Pre-commit checks passed!"
