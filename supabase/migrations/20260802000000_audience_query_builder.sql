@@ -98,6 +98,9 @@ AS $$
         AND tc.table_schema = ccu.table_schema
       WHERE tc.constraint_type = 'FOREIGN KEY'
         AND tc.table_schema = 'public'
+        -- Only include FKs from in-scope tables
+        AND COALESCE(obj_description((tc.table_schema || '.' || kcu.table_name)::regclass), '')
+            NOT LIKE '%@audience:no%'
     ),
     'enums', (
       SELECT jsonb_agg(jsonb_build_object(
@@ -114,6 +117,109 @@ AS $$
   );
 $$;
 
+
+-- ─── 2b. get_queryable_schema_compact() — text format for AI prompts ─────────
+-- Returns the same schema as get_queryable_schema() but in a compact DDL-like
+-- text format that is ~3-8x smaller. Used by generate-audience-query to keep
+-- the Gemini prompt under token limits as tables grow.
+
+CREATE OR REPLACE FUNCTION get_queryable_schema_compact()
+RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+DECLARE
+  result TEXT := '';
+  tbl RECORD;
+  col RECORD;
+  fk_target TEXT;
+  pk_cols TEXT[];
+  enum_rec RECORD;
+BEGIN
+  FOR tbl IN
+    SELECT t.table_name,
+           obj_description((t.table_schema || '.' || t.table_name)::regclass) AS tbl_desc
+    FROM information_schema.tables t
+    WHERE t.table_schema = 'public'
+      AND t.table_type = 'BASE TABLE'
+      AND t.table_name NOT LIKE 'pg_%'
+      AND COALESCE(obj_description((t.table_schema || '.' || t.table_name)::regclass), '')
+          NOT LIKE '%@audience:no%'
+    ORDER BY t.table_name
+  LOOP
+    result := result || E'\n== ' || tbl.table_name;
+    IF tbl.tbl_desc IS NOT NULL THEN
+      result := result || ' — ' || tbl.tbl_desc;
+    END IF;
+    result := result || E' ==\n';
+
+    -- Get PK columns
+    SELECT array_agg(kcu.column_name::text) INTO pk_cols
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+    WHERE tc.table_schema = 'public'
+      AND tc.table_name = tbl.table_name
+      AND tc.constraint_type = 'PRIMARY KEY';
+
+    FOR col IN
+      SELECT c.column_name, c.udt_name, c.is_nullable,
+             col_description(('public.' || tbl.table_name)::regclass, c.ordinal_position) AS col_desc
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public' AND c.table_name = tbl.table_name
+      ORDER BY c.ordinal_position
+    LOOP
+      result := result || '  ' || col.column_name || ' ' || col.udt_name;
+
+      IF pk_cols IS NOT NULL AND col.column_name = ANY(pk_cols) THEN
+        result := result || ' PK';
+      END IF;
+
+      SELECT ccu.table_name || '.' || ccu.column_name INTO fk_target
+      FROM information_schema.table_constraints tc2
+      JOIN information_schema.key_column_usage kcu2
+        ON tc2.constraint_name = kcu2.constraint_name AND tc2.table_schema = kcu2.table_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON tc2.constraint_name = ccu.constraint_name AND tc2.table_schema = ccu.table_schema
+      WHERE tc2.constraint_type = 'FOREIGN KEY'
+        AND tc2.table_schema = 'public'
+        AND kcu2.table_name = tbl.table_name
+        AND kcu2.column_name = col.column_name
+      LIMIT 1;
+
+      IF fk_target IS NOT NULL THEN
+        result := result || ' FK→' || fk_target;
+      END IF;
+
+      IF col.is_nullable = 'NO' AND (pk_cols IS NULL OR NOT (col.column_name = ANY(pk_cols))) THEN
+        result := result || ' NOT NULL';
+      END IF;
+
+      IF col.col_desc IS NOT NULL AND length(col.col_desc) > 0 THEN
+        result := result || ' "' || left(col.col_desc, 200) || '"';
+      END IF;
+
+      result := result || E'\n';
+    END LOOP;
+  END LOOP;
+
+  -- Enums
+  result := result || E'\n== ENUMS ==\n';
+  FOR enum_rec IN
+    SELECT t.typname,
+           string_agg(e.enumlabel, ', ' ORDER BY e.enumsortorder) AS vals
+    FROM pg_type t
+    JOIN pg_namespace n ON t.typnamespace = n.oid
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    WHERE n.nspname = 'public'
+    GROUP BY t.typname
+    ORDER BY t.typname
+  LOOP
+    result := result || '  ' || enum_rec.typname || ': ' || enum_rec.vals || E'\n';
+  END LOOP;
+
+  RETURN result;
+END;
+$$;
 
 -- ─── 3. get_jsonb_column_schemas() — runtime JSONB key discovery ─────────────
 -- For every JSONB column in audience-queryable tables, samples up to 500 rows
@@ -536,3 +642,21 @@ COMMENT ON TABLE comment_flags IS '@audience:no Product comment moderation flags
 COMMENT ON TABLE comment_likes IS '@audience:no Product comment likes';
 COMMENT ON TABLE short_link_clicks IS '@audience:no Short link click event log';
 COMMENT ON TABLE user_analytics IS '@audience:no User engagement analytics events';
+
+-- ─── 8. JSONB column documentation (from code analysis) ─────────────────────
+-- These comments document the internal key structure of JSONB columns so the AI
+-- can generate correct queries even on an empty database.
+
+COMMENT ON COLUMN buyer_debts.metadata IS 'JSONB — Chargeback/dispute context. Keys: dispute_id TEXT (Stripe dispute ID e.g. "dp_xxx", present when reason=chargeback), reason TEXT (Stripe dispute reason: fraudulent, product_not_received, etc.), dispute_result TEXT ("won"|"lost", added when resolved). Query: metadata->>''dispute_id'', metadata->>''reason'', metadata->>''dispute_result''';
+
+COMMENT ON COLUMN market_orders.fb_metadata IS 'JSONB — Facebook Messenger checkout tracking. Keys: fb_psid TEXT (Facebook Page-Scoped ID of buyer), fb_page_id TEXT (Facebook Page ID buyer came from), fb_channel TEXT (channel source e.g. "messenger"). Set when buyer checks out via Messenger flow. Query: fb_metadata->>''fb_psid'', fb_metadata->>''fb_page_id''';
+
+COMMENT ON COLUMN market_products.moderation_flags IS 'JSONB — AI moderation result, NULL when approved. Keys: issues TEXT[] (violation codes: drugs_banned_substances, alcohol, tobacco_cigarettes_vaping, weapons_dangerous_items, sexually_explicit, hate_speech_abusive, profanity_offensive_language, category_mismatch, not_homegrown_produce, photo_mismatch, price_unrealistic, misleading, quarantine_violation), issue_messages OBJECT (map of violation code to explanation), confidence NUMERIC (0.0-1.0), reason TEXT (summary). Query: moderation_flags->>''reason'', moderation_flags->''issues''';
+
+COMMENT ON COLUMN order_disputes.photos IS 'JSONB array — Dispute evidence photos. Each element: {url: TEXT (public storage URL), timestamp: TEXT (ISO 8601), latitude?: NUMERIC, longitude?: NUMERIC, accuracy?: NUMERIC (GPS meters)}. Legacy entries may be plain URL strings. Query: photos->0->>''url''';
+
+COMMENT ON COLUMN profiles.bot_channels IS 'JSONB — GrowBot auto-reply config per channel. Keys: messenger, instagram, whatsapp, comments, dm, orders — each is {enabled: BOOLEAN, delayMinutes: INTEGER (0=instant)}. Query: bot_channels->''messenger''->>''enabled'', bot_channels->''whatsapp''->>''delayMinutes''';
+
+-- ─── 9. Clarify crm_leads columns for correct AI query generation ───────────
+COMMENT ON COLUMN crm_leads.source_platform IS 'Where the lead originally came from (ad/form platform): facebook, instagram, google, direct, website, earnings-calculator, nutrition-calculator. NOT the CRM system — see metadata->>''ingested_from'' for that.';
+COMMENT ON COLUMN crm_leads.source_url IS 'The URL where the lead submitted their info (e.g. Facebook Lead Ad URL, landing page URL)';

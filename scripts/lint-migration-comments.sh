@@ -5,7 +5,7 @@
 #
 # Enforces the schema documentation rules from .agents/AGENTS.md:
 #   1. Every CREATE TABLE must have a COMMENT ON TABLE
-#   2. Every ADD COLUMN must have a COMMENT ON COLUMN
+#   2. Every column (inline or ADD COLUMN) must have a COMMENT ON COLUMN
 #   3. Every JSONB column must document its key structure
 #
 # Usage:
@@ -45,7 +45,6 @@ for file in $files; do
   file_errors=0
 
   # ── Check 1: CREATE TABLE must have COMMENT ON TABLE ──────────────
-  # Extract table names from CREATE TABLE [IF NOT EXISTS] [public.]<name>
   tables=$(grep -iE '^[[:space:]]*(CREATE[[:space:]]+TABLE)' "$file" 2>/dev/null | \
     sed -E 's/.*CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?//' | \
     sed -E 's/^(public\.)?//' | \
@@ -58,20 +57,60 @@ for file in $files; do
     sort -u || true)
 
   for table in $tables; do
-    # Check if there's a COMMENT ON TABLE for this table in the same file
     if ! grep -qi "COMMENT ON TABLE[[:space:]].*${table}" "$file" 2>/dev/null; then
       echo -e "${RED}ERROR${NC} [$basename]: CREATE TABLE ${table} — missing COMMENT ON TABLE"
       echo "  Add: COMMENT ON TABLE ${table} IS '<description>';"
-      echo "  For non-market tables, prefix with @audience:no"
       ((file_errors++)) || true
     fi
   done
 
-  # ── Check 2: ADD COLUMN must have COMMENT ON COLUMN ───────────────
-  # Extract table.column pairs from ALTER TABLE ... ADD COLUMN ...
+  # ── Check 2: Columns inside CREATE TABLE must have COMMENT ON COLUMN ─
+  # Use awk to extract table_name + column definitions from CREATE TABLE blocks
+  while IFS='|' read -r tbl col; do
+    [[ -z "$tbl" || -z "$col" ]] && continue
+    tbl=$(echo "$tbl" | tr -d ' ')
+    col=$(echo "$col" | tr -d ' ')
+    if ! grep -qi "COMMENT ON COLUMN[[:space:]].*${tbl}\.${col}" "$file" 2>/dev/null; then
+      echo -e "${YELLOW}WARNING${NC} [$basename]: ${tbl}.${col} — missing COMMENT ON COLUMN"
+      ((warnings++)) || true
+    fi
+  done < <(awk '
+    /CREATE[[:space:]]+TABLE/i {
+      # Extract table name
+      line = $0
+      gsub(/.*CREATE[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?/, "", line)
+      gsub(/^(public\.)?/, "", line)
+      gsub(/[[:space:]]*\(.*/, "", line)
+      gsub(/"/, "", line)
+      tbl = tolower(line)
+      # Skip if tbl looks like a keyword
+      if (tbl == "" || tbl == "create" || tbl == "table") next
+      in_create = 1
+      next
+    }
+    in_create && /^\);/ { in_create = 0; next }
+    in_create {
+      line = $0
+      # Skip empty lines, comments, constraints
+      gsub(/^[[:space:]]+/, "", line)
+      if (line == "") next
+      if (line ~ /^--/) next
+      if (line ~ /^(PRIMARY|UNIQUE|FOREIGN|CHECK|CONSTRAINT|EXCLUDE)/i) next
+      if (line ~ /^\)/) { in_create = 0; next }
+      # Extract column name (first word)
+      split(line, parts, /[[:space:]]+/)
+      col = tolower(parts[1])
+      gsub(/"/, "", col)
+      # Skip if it looks like a constraint keyword
+      if (col == "primary" || col == "unique" || col == "foreign" || col == "check" || col == "constraint") next
+      if (col == "") next
+      print tbl "|" col
+    }
+  ' "$file" 2>/dev/null || true)
+
+  # ── Check 3: ADD COLUMN must have COMMENT ON COLUMN ───────────────
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    # Extract table name and column name
     table=$(echo "$line" | sed -E 's/.*ALTER[[:space:]]+TABLE[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?(public\.)?//' | \
       sed -E 's/[[:space:]]+ADD[[:space:]]+COLUMN.*//' | sed 's/"//g' | tr '[:upper:]' '[:lower:]')
     col=$(echo "$line" | sed -E 's/.*ADD[[:space:]]+COLUMN[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?//' | \
@@ -80,15 +119,12 @@ for file in $files; do
     if [[ -n "$table" && -n "$col" ]]; then
       if ! grep -qi "COMMENT ON COLUMN[[:space:]].*${table}\.${col}" "$file" 2>/dev/null; then
         echo -e "${YELLOW}WARNING${NC} [$basename]: ADD COLUMN ${table}.${col} — missing COMMENT ON COLUMN"
-        echo "  Add: COMMENT ON COLUMN ${table}.${col} IS '<description>';"
         ((warnings++)) || true
       fi
     fi
   done < <(grep -iE 'ALTER[[:space:]]+TABLE.*ADD[[:space:]]+COLUMN' "$file" 2>/dev/null || true)
 
-  # ── Check 3: JSONB columns should document key structure ──────────
-  # Find lines with JSONB type declarations (in CREATE TABLE or ADD COLUMN)
-  # Only match actual column definitions, not COMMENT ON or function bodies
+  # ── Check 4: JSONB columns should document key structure ──────────
   jsonb_cols=$(grep -iE '^[[:space:]]+[a-z_]+[[:space:]]+jsonb' "$file" 2>/dev/null | \
     grep -vi 'COMMENT ON' | \
     grep -vi 'RETURNS' | \
@@ -100,12 +136,10 @@ for file in $files; do
 
   for col in $jsonb_cols; do
     col_lower=$(echo "$col" | tr '[:upper:]' '[:lower:]')
-    # Check if there's a comment that mentions JSONB/JSON structure
     if grep -qi "COMMENT ON COLUMN.*\.${col_lower}" "$file" 2>/dev/null; then
       comment_text=$(grep -i "COMMENT ON COLUMN.*\.${col_lower}" "$file" | head -1)
-      if ! echo "$comment_text" | grep -qiE "jsonb|json|\{.*:|\[.*\]|structure|keys|schema|object|array"; then
+      if ! echo "$comment_text" | grep -qiE "jsonb|json|\{.*:|structure|keys|schema|object|array"; then
         echo -e "${YELLOW}WARNING${NC} [$basename]: JSONB column ${col_lower} — comment doesn't document key structure"
-        echo "  Update to describe JSONB keys, types, and query examples"
         ((warnings++)) || true
       fi
     fi
@@ -121,6 +155,7 @@ if [[ $errors -gt 0 ]]; then
   echo -e "${RED}═══════════════════════════════════════════${NC}"
   echo ""
   echo "Every CREATE TABLE needs a COMMENT ON TABLE."
+  echo "Every column needs a COMMENT ON COLUMN."
   echo "See .agents/AGENTS.md → Schema Documentation Rules"
   exit 1
 elif [[ $warnings -gt 0 ]]; then

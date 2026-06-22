@@ -16,7 +16,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
+const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3.5-flash";
 const AI_MOCK = Deno.env.get("AI_MOCK") === "true";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -50,7 +50,6 @@ async function callGemini(
   const models = [
     AI_MODEL,
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
   ];
 
   const contents = userMessages.map((m) => ({
@@ -167,8 +166,8 @@ Deno.serve(async (req: Request) => {
     // ── Supabase client (service role for RPC access) ──────────────────
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // ── Step 1: Fetch live DB schema ───────────────────────────────────
-    const { data: schema, error: schemaError } = await supabase.rpc("get_queryable_schema");
+    // ── Step 1: Fetch compact schema (text format, ~23KB vs 187KB JSON) ─
+    const { data: schema, error: schemaError } = await supabase.rpc("get_queryable_schema_compact");
     if (schemaError) {
       console.error("[AUDIENCE-AI] Schema fetch error:", schemaError);
       return new Response(JSON.stringify({ error: `Schema fetch failed: ${schemaError.message}` }), {
@@ -178,28 +177,24 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 1b: Fetch JSONB column key schemas from real data ─────────
-    let jsonbSchemas: Record<string, unknown> = {};
+    let jsonbSection = "";
     try {
       const { data: jsonbData } = await supabase.rpc("get_jsonb_column_schemas");
-      if (jsonbData && typeof jsonbData === "object") {
-        jsonbSchemas = jsonbData as Record<string, unknown>;
+      if (jsonbData && typeof jsonbData === "object" && Object.keys(jsonbData).length > 0) {
+        jsonbSection = `\n\nJSONB COLUMN KEY SCHEMAS (sampled from real data):\n${JSON.stringify(jsonbData, null, 2)}\nUse these keys with the -> and ->> operators to query JSONB columns.`;
       }
     } catch (err) {
       console.warn("[AUDIENCE-AI] JSONB schema fetch failed (non-fatal):", err);
     }
 
     // ── Step 2: Build system prompt ────────────────────────────────────
-    const jsonbSection = Object.keys(jsonbSchemas).length > 0
-      ? `\n\nJSONB COLUMN KEY SCHEMAS (sampled from real data):\n${JSON.stringify(jsonbSchemas, null, 2)}\nUse these keys with the -> and ->> operators to query JSONB columns. Column comments in the schema above also document known JSONB structures.`
-      : `\nNote: JSONB column structures are documented in column comments (the "description" field) in the schema above. Use -> and ->> operators to query JSONB fields.`;
-
     const systemPrompt = `You are an expert PostgreSQL query builder for CasaGrown, a local neighborhood produce marketplace where home gardeners sell fresh produce to their neighbors.
 
 Your job is to generate SELECT queries that identify audiences of users/leads for marketing campaigns.
 You can also answer questions about the database schema — what tables exist, what columns they have, relationships between tables, etc.
 
-DATABASE SCHEMA:
-${JSON.stringify(schema, null, 2)}
+DATABASE SCHEMA (compact DDL format — "column type [PK|FK→table.col] [NOT NULL] [description]"):
+${schema}
 ${jsonbSection}
 
 OUTPUT REQUIREMENTS:

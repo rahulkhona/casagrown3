@@ -9,6 +9,28 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
+// ── Lightweight SQL formatter for readable display ──────────────────────────
+function formatSql(sql: string): string {
+  if (!sql) return sql;
+  // Normalize whitespace
+  let s = sql.replace(/\s+/g, ' ').trim();
+  // Add newlines before major keywords
+  s = s.replace(/\b(FROM|WHERE|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|FULL JOIN|CROSS JOIN|ON|ORDER BY|GROUP BY|HAVING|LIMIT|OFFSET|UNION ALL|UNION|EXCEPT|INTERSECT)\b/gi, '\n$1');
+  // Break SELECT columns: after SELECT keyword, split on commas
+  s = s.replace(/^SELECT\s+(DISTINCT\s+)?/i, (match) => 'SELECT ' + (match.includes('DISTINCT') ? 'DISTINCT\n  ' : '\n  '));
+  // Break AND/OR onto new lines
+  s = s.replace(/\b(AND|OR)\b/gi, '\n  $1');
+  // Break commas in SELECT clause (before FROM) into separate lines
+  const fromIdx = s.search(/\nFROM\b/i);
+  if (fromIdx > 0) {
+    const selectPart = s.substring(0, fromIdx);
+    const rest = s.substring(fromIdx);
+    const formattedSelect = selectPart.replace(/,\s*/g, ',\n  ');
+    s = formattedSelect + rest;
+  }
+  return s;
+}
+
 type Audience = {
   id: string
   name: string
@@ -441,7 +463,7 @@ export default function CrmAudiencesPage() {
                               {showSql ? '▾ Hide SQL' : '▸ Show SQL'}
                             </button>
                             {showSql && (
-                              <pre className="chat-sql-code">{msg.sql}</pre>
+                              <pre className="chat-sql-code">{formatSql(msg.sql)}</pre>
                             )}
                           </div>
                         )}
@@ -852,10 +874,10 @@ export default function CrmAudiencesPage() {
         .chat-content { white-space: pre-wrap; }
         .chat-error { margin-top: 8px; padding: 8px 12px; background: #fef2f2; border-radius: 6px; color: #991b1b; font-size: 0.82rem; }
 
-        .chat-sql-section { margin-top: 10px; }
-        .chat-sql-toggle { background: none; border: none; color: #7c3aed; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; }
+        .chat-sql-section { margin-top: 10px; margin-left: -16px; margin-right: -16px; }
+        .chat-sql-toggle { background: none; border: none; color: #7c3aed; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; margin-left: 16px; }
         .chat-sql-toggle:hover { text-decoration: underline; }
-        .chat-sql-code { background: #1e1e2e; color: #cdd6f4; padding: 12px; border-radius: 8px; font-size: 0.78rem; overflow-x: auto; margin-top: 6px; white-space: pre-wrap; word-break: break-all; font-family: 'SF Mono', 'Fira Code', monospace; }
+        .chat-sql-code { background: #1e1e2e; color: #cdd6f4; padding: 14px 16px; border-radius: 0 0 12px 12px; font-size: 0.78rem; overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 6px; white-space: pre; word-break: normal; font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace; line-height: 1.6; tab-size: 2; }
 
         .chat-count { margin-top: 10px; padding: 8px 12px; background: #ecfdf5; border-radius: 8px; color: #059669; font-size: 0.85rem; }
         .chat-sample { margin-top: 10px; }
