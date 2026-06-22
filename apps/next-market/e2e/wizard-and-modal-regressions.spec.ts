@@ -97,6 +97,67 @@ async function setupTestBooth() {
   }
 }
 
+async function ensureAuthenticated(page: any) {
+  await page.waitForLoadState('networkidle')
+  const emailInput = page.locator('input[type="email"]')
+  let authResolved = false
+  
+  // Attempt 1: Wait for initial hydration
+  try {
+    await expect(emailInput).toBeDisabled({ timeout: 8000 })
+    authResolved = true
+  } catch { /* will try reload */ }
+  
+  // Attempt 2: Reload page (gives Supabase SDK another chance to refresh token)
+  if (!authResolved) {
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    try {
+      await expect(emailInput).toBeDisabled({ timeout: 10000 })
+      authResolved = true
+    } catch { /* will try fresh auth injection */ }
+  }
+  
+  // Attempt 3: Re-authenticate with a fresh JWT and re-inject into browser
+  if (!authResolved) {
+    const freshRes = await fetch(
+      `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' },
+        body: JSON.stringify({ email: 'buyer@test.local', password: 'TestPassword123!' }),
+      }
+    )
+    if (freshRes.ok) {
+      const freshData = await freshRes.json()
+      await page.evaluate(({ at, rt, u }) => {
+        const payload = JSON.stringify({ access_token: at, refresh_token: rt, user: u })
+        localStorage.setItem('supabase.auth.token', payload)
+        localStorage.setItem('sb-127-auth-token', JSON.stringify({
+          access_token: at, refresh_token: rt,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, user: u,
+        }))
+      }, { at: freshData.access_token, rt: freshData.refresh_token, u: freshData.user })
+      
+      // Set fresh cookies too
+      const cookieVal = Buffer.from(JSON.stringify({
+        access_token: freshData.access_token,
+        refresh_token: freshData.refresh_token,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        expires_in: 3600, token_type: 'bearer', user: freshData.user,
+      })).toString('base64url')
+      await page.context().addCookies([
+        { name: 'sb-127-auth-token', value: `base64-${cookieVal}`, domain: 'localhost', path: '/', sameSite: 'Lax', httpOnly: false, expires: Math.floor(Date.now() / 1000) + 3600 },
+        { name: 'supabase.auth.token', value: `base64-${cookieVal}`, domain: 'localhost', path: '/', sameSite: 'Lax', httpOnly: false, expires: Math.floor(Date.now() / 1000) + 3600 },
+      ])
+      
+      await page.reload()
+      await page.waitForLoadState('networkidle')
+    }
+  }
+  await expect(emailInput).toBeDisabled({ timeout: 25000 })
+}
+
 test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
   test.use({ storageState: 'e2e/.auth/user.json' })
 
@@ -116,18 +177,9 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await expect(page.locator('nav[class*="bottomNav"]')).toBeVisible()
 
     // 2. Fill Step 1 Basics — wait for full hydration and auth resolution
-    await page.waitForLoadState('networkidle')
-    
-    // Under heavy load in production build, SSR may render unauthenticated state.
-    // If email is still enabled after 5s, reload the page to get client-rendered auth state.
     const emailInput = page.locator('input[type="email"]')
-    try {
-      await expect(emailInput).toBeDisabled({ timeout: 5000 })
-    } catch {
-      await page.reload()
-      await page.waitForLoadState('networkidle')
-    }
-    await expect(emailInput).toBeDisabled({ timeout: 25000 })
+    await ensureAuthenticated(page)
+    
     await expect(page.locator('a[href="/my-stands"]')).toBeVisible({ timeout: 15000 })
 
     const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')
@@ -174,8 +226,23 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await expect(page.locator('input[placeholder="ZIP"]').first()).not.toHaveValue('', { timeout: 10000 })
 
     // 4. Select a delivery day and a pickup day to satisfy fulfillment validation
-    await page.locator('button:has-text("Today")').first().click()
-    await page.locator('button:has-text("Today")').nth(1).click()
+    const deliveryToday = page.getByTestId('delivery-box').locator('button:has-text("Today")').first()
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await deliveryToday.click()
+      const hasCheck = await deliveryToday.textContent().then(t => t?.includes('✅')).catch(() => false)
+      if (hasCheck) break
+      await page.waitForTimeout(500)
+    }
+    await expect(deliveryToday).toContainText('✅')
+
+    const pickupToday = page.getByTestId('pickup-box').locator('button:has-text("Today")').first()
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await pickupToday.click()
+      const hasCheck = await pickupToday.textContent().then(t => t?.includes('✅')).catch(() => false)
+      if (hasCheck) break
+      await page.waitForTimeout(500)
+    }
+    await expect(pickupToday).toContainText('✅')
 
     // 5. Verify that the Next button is clickable and not obscured
     const nextBtn2 = page.getByRole('button', { name: 'Next →' })
@@ -194,9 +261,9 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await page.goto('/create-listing')
     await expect(page.locator('h2:has-text("Create Your Product Listing")')).toBeVisible({ timeout: 15000 })
 
-    // Wait for full hydration and auth resolution
-    await page.waitForLoadState('networkidle')
-    await expect(page.locator('input[type="email"]')).toBeDisabled({ timeout: 15000 })
+    // Wait for full hydration and auth resolution — use resilient auth check
+    // since even serial tests can lose auth state under heavy CPU load
+    await ensureAuthenticated(page)
 
     // 2. Fill Step 1 Basics
     const nameInput = page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]')

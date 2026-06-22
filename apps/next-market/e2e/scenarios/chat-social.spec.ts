@@ -294,7 +294,7 @@ test.describe('Chat & Social Flows', () => {
     // that calls setShowActions(false) on click. Click it via the overlay.
     const backdrop = page.locator('div[style*="position: fixed"][style*="inset: 0"]').first()
     if (await backdrop.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await backdrop.click()
+      await backdrop.click({ force: true })
     } else {
       // Fallback: click the message bubble again to toggle off
       await msgBubble.click()

@@ -50,14 +50,14 @@ ON CONFLICT (country_iso_3, code) DO UPDATE SET
 
 -- Ensure San Jose and Dallas city rows exist
 INSERT INTO public.cities (id, state_id, name) VALUES
-  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'San Jose'),
-  ('2570ba06-6fcf-482c-8157-319ade6c4011', '2570ba06-6fcf-482c-8157-319ade6c4010', 'Dallas')
-ON CONFLICT (id) DO NOTHING;
+  ('00000000-0000-0000-0000-000000000002', (SELECT id FROM public.states WHERE country_iso_3 = 'USA' AND code = 'CA'), 'San Jose'),
+  ('2570ba06-6fcf-482c-8157-319ade6c4011', (SELECT id FROM public.states WHERE country_iso_3 = 'USA' AND code = 'TX'), 'Dallas')
+ON CONFLICT (state_id, name) DO NOTHING;
 
 -- Ensure zip codes exist
 INSERT INTO public.zip_codes (zip_code, country_iso_3, city_id, latitude, longitude) VALUES
-  ('95125', 'USA', '00000000-0000-0000-0000-000000000002', 37.30, -121.90),
-  ('75254', 'USA', '2570ba06-6fcf-482c-8157-319ade6c4011', 32.90, -96.80)
+  ('95125', 'USA', (SELECT id FROM public.cities WHERE name = 'San Jose' AND state_id = (SELECT id FROM public.states WHERE country_iso_3 = 'USA' AND code = 'CA')), 37.30, -121.90),
+  ('75254', 'USA', (SELECT id FROM public.cities WHERE name = 'Dallas' AND state_id = (SELECT id FROM public.states WHERE country_iso_3 = 'USA' AND code = 'TX')), 32.90, -96.80)
 ON CONFLICT (zip_code, country_iso_3) DO NOTHING;
 
 INSERT INTO profiles (id, full_name, email, zip_code, country_code) VALUES
