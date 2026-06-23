@@ -8,9 +8,7 @@
       "channel": "preview",
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://fzdmszvfeewpwswlnfyk.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_cdltuKvLr3by60BWg-8gHQ_8zsrGRAP"
+        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com"
       },
       "android": {
         "buildType": "apk"
@@ -19,9 +17,7 @@
     "production": {
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://fzdmszvfeewpwswlnfyk.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_cdltuKvLr3by60BWg-8gHQ_8zsrGRAP"
+        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com"
       },
       "android": {
         "buildType": "app-bundle"

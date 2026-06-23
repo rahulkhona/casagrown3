@@ -89,6 +89,7 @@ const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
+  const isPageLoadedRef = useRef(false);
   const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
   const [canGoBack, setCanGoBack] = useState(false);
 
@@ -190,13 +191,13 @@ export default function AppShell() {
       // Defer ALL deep links: store the URL and navigate after START_URL loads.
       // This ensures the splash screen always hides (START_URL always loads successfully).
       // On warm resume, the WebView is already loaded so we can navigate directly.
-      if (webViewRef.current) {
-        // Warm: WebView is already mounted and loaded — navigate directly
+      if (isPageLoadedRef.current && webViewRef.current) {
+        // Warm: page is loaded — navigate directly via JS injection
         webViewRef.current.injectJavaScript(
           `window.location.href = ${JSON.stringify(fullUrl)}; true;`
         );
       } else {
-        // Cold boot: WebView is mounting, store for after onLoadEnd
+        // Cold boot: page hasn't loaded yet, store for after onLoadEnd
         pendingDeepLinkRef.current = fullUrl;
       }
       return true;
@@ -388,12 +389,15 @@ export default function AppShell() {
         return true; // Internal CasaGrown / auth pages stay in WebView
       }}
       onLoadEnd={() => {
+        // Mark the page as loaded so warm deep links can inject JS directly
+        isPageLoadedRef.current = true;
+
         // Hide splash screen once the webview finishes its initial load
         const p = SplashScreen.hideAsync();
         if (p && typeof p.catch === 'function') p.catch(() => {});
         checkAndSendNotificationPermission();
 
-        // If there's a pending deep link (from a /r/ redirect), navigate now
+        // If there's a pending deep link (from cold boot), navigate now
         if (pendingDeepLinkRef.current) {
           const deepLinkUrl = pendingDeepLinkRef.current;
           pendingDeepLinkRef.current = null;
