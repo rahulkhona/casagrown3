@@ -88,6 +88,7 @@ const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test
 
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
+  const pendingDeepLinkRef = useRef<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string | null>(IS_TEST ? START_URL : null);
   const [isUrlInitialized, setIsUrlInitialized] = useState(IS_TEST);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -191,7 +192,15 @@ export default function AppShell() {
         : '';
 
       const fullUrl = `${BASE_URL}${targetPath}${queryStr}`;
-      setCurrentUrl(fullUrl);
+
+      // Short-link redirects (/r/, /b/, /dm/) cause Android WebView to hang on 301s.
+      // Load START_URL first so the splash screen hides, then navigate after load.
+      if (targetPath.startsWith('/r/') || targetPath.startsWith('/b/') || targetPath.startsWith('/dm/')) {
+        pendingDeepLinkRef.current = fullUrl;
+        setCurrentUrl(START_URL);
+      } else {
+        setCurrentUrl(fullUrl);
+      }
       return true;
     } catch (e) {
       console.warn('Invalid deep link:', url);
@@ -387,6 +396,15 @@ export default function AppShell() {
         const p = SplashScreen.hideAsync();
         if (p && typeof p.catch === 'function') p.catch(() => {});
         checkAndSendNotificationPermission();
+
+        // If there's a pending deep link (from a /r/ redirect), navigate now
+        if (pendingDeepLinkRef.current) {
+          const deepLinkUrl = pendingDeepLinkRef.current;
+          pendingDeepLinkRef.current = null;
+          webViewRef.current?.injectJavaScript(
+            `window.location.href = ${JSON.stringify(deepLinkUrl)}; true;`
+          );
+        }
       }}
       onError={(syntheticEvent) => {
         const { nativeEvent } = syntheticEvent;
