@@ -28,18 +28,29 @@ const isInternalUrl = (url: string): boolean => {
     // Allow blob/data URLs (file downloads, inline content)
     if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('about:')) return true;
 
-    const { hostname } = new URL(url);
-    return (
+    const parsed = new URL(url);
+    const { hostname, pathname } = parsed;
+
+    // Block digital upgrade/subscription routes from opening inside the app's WebView wrapper.
+    // This complies with App Store and Google Play billing guidelines.
+    // /pro-manage remains internal since it only handles existing subscription management/billing updates.
+    const isDomainMatch =
       hostname === baseHostname ||
       hostname === 'casagrown.com' ||
       hostname.endsWith('.casagrown.com') ||
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||
-      hostname.endsWith('.local') ||           // Allow all local mDNS hostnames (e.g., test.local)
-      // Allow private/local IP addresses in development
+      hostname.endsWith('.local') ||
       /^192\.168\./.test(hostname) ||
       /^10\./.test(hostname) ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+    if (isDomainMatch && pathname.startsWith('/pro') && !pathname.startsWith('/pro-manage')) {
+      return false;
+    }
+
+    return (
+      isDomainMatch ||
       hostname.endsWith('.supabase.co') ||     // Supabase auth flows
       hostname === 'checkout.stripe.com' ||    // Stripe checkout for Pro subscriptions
       hostname === 'www.facebook.com' ||       // Facebook OAuth flow
@@ -117,9 +128,11 @@ export default function AppShell() {
     if (!IS_TEST) {
       // Handle cold boot URL
       Linking.getInitialURL().then((url) => {
+        let success = false;
         if (url) {
-          handleDeepLink(url);
-        } else {
+          success = handleDeepLink(url);
+        }
+        if (!success) {
           setCurrentUrl(START_URL);
         }
         setIsUrlInitialized(true);
@@ -150,20 +163,27 @@ export default function AppShell() {
     };
   }, []);
 
-  const handleDeepLink = (url: string) => {
+  const handleDeepLink = (url: string): boolean => {
     try {
       const parsed = Linking.parse(url);
       let targetPath = '';
 
-      if (parsed.hostname === 'casagrown.com' || parsed.hostname === 'localhost') {
-        targetPath = parsed.path ? '/' + parsed.path : '';
-      } else if (parsed.scheme === 'casagrown') {
-        const host = parsed.hostname ? '/' + parsed.hostname : '';
-        const rest = parsed.path ? '/' + parsed.path : '';
-        targetPath = `${host}${rest}`;
+      const isInternal = parsed.scheme === 'casagrown' || (parsed.hostname && isInternalUrl(url));
+      if (isInternal) {
+        if (parsed.scheme === 'casagrown') {
+          const host = parsed.hostname ? '/' + parsed.hostname : '';
+          const rest = parsed.path ? '/' + parsed.path : '';
+          targetPath = `${host}${rest}`;
+        } else {
+          let path = parsed.path || '';
+          if (path && !path.startsWith('/')) {
+            path = '/' + path;
+          }
+          targetPath = path;
+        }
       } else {
         // Unknown scheme/host
-        return;
+        return false;
       }
 
       const queryStr = parsed.queryParams && Object.keys(parsed.queryParams).length > 0
@@ -172,8 +192,10 @@ export default function AppShell() {
 
       const fullUrl = `${BASE_URL}${targetPath}${queryStr}`;
       setCurrentUrl(fullUrl);
+      return true;
     } catch (e) {
       console.warn('Invalid deep link:', url);
+      return false;
     }
   };
 
@@ -346,6 +368,16 @@ export default function AppShell() {
         // External links (USDA, OFN, farmer sites) → open in system browser
         if (!isInternalUrl(request.url)) {
           Linking.openURL(request.url);
+
+          // Hide splash screen in case we cancelled the load before it finished
+          const p = SplashScreen.hideAsync();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+
+          // Reset the WebView to START_URL if it was trying to load an external/invalid URL
+          // so the user has the home page loaded when they return.
+          if (currentUrl === request.url || currentUrl?.includes('/r/')) {
+            setCurrentUrl(START_URL);
+          }
           return false; // Cancel WebView navigation
         }
         return true; // Internal CasaGrown / auth pages stay in WebView

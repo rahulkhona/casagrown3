@@ -63,6 +63,21 @@
             {
               "scheme": "https",
               "host": "casagrown.com",
+              "pathPrefix": "/r/"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/b/"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
+              "pathPrefix": "/dm/"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
               "pathPrefix": "/cart"
             },
             {

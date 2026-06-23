@@ -182,6 +182,8 @@ describe('External Link Handling', () => {
     ['https://api.casagrown.com/v1/test', 'api.casagrown.com subdomain'],
     ['http://localhost:3000/market', 'localhost dev'],
     ['https://xyz.supabase.co/auth/v1/callback', 'Supabase auth flow'],
+    ['https://casagrown.com/pro-manage', 'subscription management'],
+    ['https://casagrown.com/pro-manage/billing', 'billing management'],
   ])('keeps %s in WebView (%s)', (url) => {
     const result = webviewProps.onShouldStartLoadWithRequest({ url })
     expect(result).toBe(true)
@@ -194,6 +196,8 @@ describe('External Link Handling', () => {
     ['https://openfoodnetwork.net/shop/farm', 'OFN store'],
     ['https://bryarwoodfarm.com', 'farmer website'],
     ['https://google.com', 'generic external'],
+    ['https://casagrown.com/pro', 'digital upgrade landing'],
+    ['https://casagrown.com/pro/upgrade', 'upgrade checkout flow'],
   ])('opens %s in system browser (%s)', (url) => {
     const result = webviewProps.onShouldStartLoadWithRequest({ url })
     expect(result).toBe(false)

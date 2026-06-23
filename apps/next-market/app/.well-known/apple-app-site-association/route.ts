@@ -27,7 +27,6 @@ export async function GET() {
             { '/': '/pro', exclude: true },
             { '/': '/pro/*', exclude: true },
             { '/': '/p/*', exclude: true },
-            { '/': '/r/*', exclude: true },
             { '/': '/sell', exclude: true },
             { '/': '/sell/*', exclude: true },
             { '/': '/sellers', exclude: true },
@@ -49,6 +48,9 @@ export async function GET() {
             // deep links to specific booths and products.
             { '/': '/market', exclude: true },
             { '/': '/market/*' },
+            { '/': '/r/*' },
+            { '/': '/b/*' },
+            { '/': '/dm/*' },
             { '/': '/cart' },
             { '/': '/cart/*' },
             { '/': '/chat/*' },
