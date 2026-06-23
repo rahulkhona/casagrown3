@@ -11,6 +11,7 @@ export default function RootLayout() {
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.white } }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="[...unmatched]" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="dark" />
     </>
