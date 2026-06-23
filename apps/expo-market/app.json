@@ -27,7 +27,6 @@
       "buildNumber": "4",
       "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
-        "applinks:casagrown.com",
         "applinks:casagrown.com"
       ],
       "entitlements": {
