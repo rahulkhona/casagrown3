@@ -149,7 +149,10 @@ serve(async (req) => {
         const { data } = await supabase.from('crm_leads').select('*').eq('id', enrollment.recipient_id).single();
         if (data) {
           profileRes.data = { full_name: data.name, email: data.email, phone_number: data.phone };
-          metaRes.data = data.metadata || {};
+          metaRes.data = {
+            ...data,
+            ...(data.metadata || {})
+          };
           acceptsEmail = data.accepts_email !== false;
           acceptsSms = data.accepts_sms !== false;
         }
@@ -268,7 +271,19 @@ serve(async (req) => {
       } else if (nodeLogicType === 'condition') {
         // Evaluate Condition via AST query against user/lead metadata
         let conditionMet = false;
-        if (metaRes.data && node.data.query) {
+        if (node.data.conditionMode === 'ai' && node.data.aiSql) {
+          // AI condition: check if this recipient appears in the AI SQL results
+          const checkSql = `SELECT * FROM (${node.data.aiSql}) AS aq WHERE aq.id = '${enrollment.recipient_id}'::uuid`;
+          const { data: matchResult, error: matchError } = await supabase.rpc('execute_audience_query', {
+            p_query: checkSql
+          });
+          if (matchError) {
+            console.error(`[AI CONDITION ERR] ${matchError.message}`);
+          } else {
+            conditionMet = Array.isArray(matchResult) && matchResult.length > 0;
+          }
+          console.log(`[AI CONDITION] ${enrollment.recipient_id} matched=${conditionMet}`);
+        } else if (metaRes.data && node.data.query) {
            const metadata = metaRes.data;
            const profile = profileRes.data || {};
            

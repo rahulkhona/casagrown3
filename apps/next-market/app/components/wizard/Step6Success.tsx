@@ -46,45 +46,49 @@ export default function Step6Success() {
           : ''
       const ogTitle = `${state.name || 'Product'}${ogPrice ? ` — ${ogPrice}` : ''} | CasaGrown Market`
 
-      return (
-        <div style={{ background: '#f0fdf4', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, margin: '-24px -20px -100px -20px' }}>
-          <div style={{ fontSize: 64, marginBottom: 24 }}>🎉</div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginBottom: 12, textAlign: 'center' }}>Your listing is live!</h2>
-          
-          <div style={{ marginTop: 24, width: '100%', border: '2px solid #16a34a', borderRadius: 24, padding: 24, background: 'white' }}>
-            <h3 style={{ fontSize: 16, marginBottom: 12, textAlign: 'center', fontWeight: 700 }}>📣 The Secret to Selling</h3>
-            <p style={{ fontSize: 14, color: '#4b5563', textAlign: 'center', lineHeight: 1.5, marginBottom: 24 }}>
-              Neighborhood sales rely on word-of-mouth. Share your listing to local Facebook groups or Nextdoor to get your first orders!
-            </p>
-            
-            <button 
-              className={styles.btnPrimary} 
-              style={{ background: '#16a34a', marginBottom: 12 }}
-              onClick={() => setShowShareModal(true)}
-            >
-              📣 Share your Listing
-            </button>
-          </div>
-          
-          <button 
-            style={{ marginTop: 32, fontWeight: 600, color: '#16a34a', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', fontSize: 16 }}
-            onClick={() => router.push('/my-booth')}
-          >
-            Go to My Dashboard →
-          </button>
+  const isFree = state.isFree || parseFloat(state.priceUsd || '0') === 0;
 
-          <SocialShareModal
-            isOpen={showShareModal}
-            onClose={() => setShowShareModal(false)}
-            title={`${state.name || 'Product'} added!`}
-            subtitle="🎉 Your listing is live! Invite your neighbors to check it out."
-            entityName={state.name || 'Product'}
-            shareUrl={productUrl}
-            shareMessage={shareMessage}
-            shareContext="new_product_share"
-            imageUrl={state.photos?.[0] || undefined}
-            ogTitle={ogTitle}
-          />
-        </div>
-      )
+  return (
+    <div style={{ background: '#f0fdf4', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, margin: '-24px -20px -100px -20px' }}>
+      <div style={{ fontSize: 64, marginBottom: 24 }}>🎉</div>
+      <h2 style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginBottom: 12, textAlign: 'center' }}>Your listing is live!</h2>
+      
+      <div style={{ marginTop: 24, width: '100%', border: '2px solid #bbf7d0', borderRadius: 24, padding: 24, background: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <p style={{ fontSize: 15, fontWeight: 700, color: '#166534', textAlign: 'center', lineHeight: 1.5, marginBottom: 24 }}>
+          {isFree 
+            ? `🎁 Let friends and neighbors know you want to share your ${state.name || 'produce'} in just a couple of clicks!`
+            : "💰 Sell out fast by letting neighbors know about your listing in just a couple of clicks."
+          }
+        </p>
+        
+        <button 
+          className={styles.btnPrimary} 
+          style={{ background: '#16a34a', marginBottom: 12 }}
+          onClick={() => setShowShareModal(true)}
+        >
+          🔗 Share your Listing
+        </button>
+      </div>
+      
+      <button 
+        style={{ marginTop: 32, fontWeight: 600, color: '#16a34a', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', fontSize: 16 }}
+        onClick={() => router.push('/my-booth')}
+      >
+        Go to My Dashboard →
+      </button>
+
+      <SocialShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        title={`${state.name || 'Product'} added!`}
+        entityName={state.name || 'Product'}
+        shareUrl={productUrl}
+        shareMessage={shareMessage}
+        shareContext="new_product_share"
+        imageUrl={state.photos?.[0] || undefined}
+        ogTitle={ogTitle}
+        isFree={isFree}
+      />
+    </div>
+  )
 }

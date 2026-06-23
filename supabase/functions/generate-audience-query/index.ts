@@ -197,6 +197,15 @@ DATABASE SCHEMA (compact DDL format — "column type [PK|FK→table.col] [NOT NU
 ${schema}
 ${jsonbSection}
 
+CRITICAL DOMAIN KNOWLEDGE:
+- \`auth.users\` is the Supabase authentication table. A row here means the person HAS AN ACCOUNT (has signed up / registered). The \`email\` column is the account email. Use this table to determine if someone "has an account", "has signed up", "is a registered user", or "is a member".
+- \`profiles\` is the user profile table. It stores profile data (name, phone, address, etc.) and has a 1:1 FK to auth.users via \`profiles.id = auth.users.id\`. A profile may exist without being fully completed (guest mode). Profiles are created after auth signup — not all auth.users have a profile immediately.
+- \`crm_leads\` are marketing leads captured via landing pages, ads, etc. Leads are NOT users — they have not signed up yet. A lead becomes a "converted" lead when their email matches an entry in \`auth.users\`.
+- To find "leads who have NOT signed up" or "leads without an account": use \`WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE LOWER(u.email) = LOWER(l.email))\` — do NOT use profiles for this check.
+- To find "converted leads" (leads who later signed up): use \`WHERE EXISTS (SELECT 1 FROM auth.users u WHERE LOWER(u.email) = LOWER(l.email))\`.
+- \`market_orders\` contains orders. \`buyer_id\` and \`seller_id\` are FKs to \`profiles.id\`. To find users who have bought/sold, JOIN with market_orders.
+- The \`crm_leads.zipcode\` column is named \`zipcode\` (no underscore), but the output must alias it as \`zip_code\`.
+
 OUTPUT REQUIREMENTS:
 - If the user asks about the schema (e.g. "what tables do we have?", "what columns does market_orders have?"), respond with a helpful plain-text answer describing the schema. Do NOT generate SQL for schema questions.
 - If the user asks to find/target/select an audience, generate ONLY a SELECT statement. No INSERT, UPDATE, DELETE, DROP, or any DDL.

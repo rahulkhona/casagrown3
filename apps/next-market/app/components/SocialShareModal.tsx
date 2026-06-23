@@ -18,6 +18,7 @@ interface SocialShareModalProps {
   platforms?: SharePlatform[]
   imageUrl?: string
   ogTitle?: string
+  isFree?: boolean
 }
 
 // ── Platform SVG Icons ──
@@ -271,6 +272,7 @@ export default function SocialShareModal({
   platforms,
   imageUrl,
   ogTitle,
+  isFree = false,
 }: SocialShareModalProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [customMessages, setCustomMessages] = useState<Record<string, string>>({})
@@ -501,21 +503,49 @@ export default function SocialShareModal({
               </div>
               <button 
                 onClick={onClose}
+                aria-label="Close"
                 style={{
-                  background: 'none', border: 'none', color: '#10B981',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px'
+                  background: 'none', border: 'none', color: '#9CA3AF',
+                  cursor: 'pointer', padding: '4px 8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
-                Skip
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
               </button>
             </div>
 
-            <h2 style={{ margin: '0 0 4px', fontSize: 18, color: '#111827', fontWeight: 700, width: '100%', textAlign: 'left' }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 18, color: '#111827', fontWeight: 700, width: '100%', textAlign: 'left' }}>
               {title || 'Select Platform to Share'}
             </h2>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280', lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
-              Choose a platform to preview, customize, and invite your neighbors!
-            </p>
+            {shareContext === 'new_product_share' ? (
+              <div style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: 12,
+                padding: '12px 16px',
+                margin: '0 0 20px',
+                textAlign: 'left',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>{isFree ? "🎁" : "💰"}</span>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#166534', lineHeight: 1.45 }}>
+                    {isFree 
+                      ? `Let friends and neighbors know you want to share your ${entityName || 'produce'} in just a couple of clicks!`
+                      : "Sell out fast by letting neighbors know about your listing in just a couple of clicks."
+                    }
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280', lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
+                {subtitle || 'Choose a platform to preview, customize, and invite your neighbors!'}
+              </p>
+            )}
 
             {/* Screen 1: Platform Selection Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', padding: '4px 0' }}>
@@ -612,6 +642,18 @@ export default function SocialShareModal({
                 />
               )}
             </div>
+            <button 
+              onClick={onClose}
+              style={{
+                background: 'none', border: 'none', color: '#9CA3AF',
+                fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                marginTop: 16, padding: '8px 16px', textDecoration: 'underline'
+              }}
+              onMouseOver={e => e.currentTarget.style.color = '#6B7280'}
+              onMouseOut={e => e.currentTarget.style.color = '#9CA3AF'}
+            >
+              No thanks, I'll share later
+            </button>
           </>
         ) : (
           <>
@@ -652,12 +694,17 @@ export default function SocialShareModal({
               </span>
               <button 
                 onClick={onClose}
+                aria-label="Close"
                 style={{
-                  background: 'none', border: 'none', color: '#10B981',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px'
+                  background: 'none', border: 'none', color: '#9CA3AF',
+                  cursor: 'pointer', padding: '4px 8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
-                Skip
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
               </button>
             </div>
 

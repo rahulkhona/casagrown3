@@ -383,7 +383,7 @@ COMMENT ON COLUMN profiles.sms_enabled IS 'Whether user has opted in to receive 
 COMMENT ON COLUMN profiles.push_enabled IS 'Whether user has opted in to receive push notifications';
 COMMENT ON COLUMN profiles.profile_completed_at IS 'Timestamp when user completed their profile setup. NULL = incomplete.';
 COMMENT ON COLUMN profiles.referral_code IS 'Unique 8-char referral code for this user';
-COMMENT ON COLUMN profiles.referred_by IS 'referral_code of the user who referred this user';
+COMMENT ON COLUMN profiles.signup_referrer_id IS 'UUID of the user who referred this signup (via referral_code)';
 COMMENT ON COLUMN profiles.created_at IS 'Account registration timestamp';
 
 -- Commerce
@@ -435,9 +435,9 @@ COMMENT ON TABLE market_chat_messages IS 'Individual messages within marketplace
 
 -- CRM & Marketing
 COMMENT ON TABLE crm_leads IS 'Marketing leads captured from landing pages, ads, and referrals';
-COMMENT ON COLUMN crm_leads.status IS 'Lead lifecycle: new → contacted → converted → archived';
+COMMENT ON COLUMN crm_leads.status IS 'Lead lifecycle: new → contacted → archived';
 COMMENT ON COLUMN crm_leads.source_platform IS 'Where the lead came from: facebook, instagram, google, direct';
-COMMENT ON COLUMN crm_leads.converted_user_id IS 'If the lead registered, this links to their profiles.id';
+-- converted_user_id: dropped in 20260803000001_remove_unused_columns.sql
 COMMENT ON COLUMN crm_leads.accepts_email IS 'Whether the lead opted in to email';
 COMMENT ON COLUMN crm_leads.accepts_sms IS 'Whether the lead opted in to SMS';
 COMMENT ON COLUMN crm_leads.metadata IS 'JSONB — varies by source. Facebook: {fb_leadgen_id, fb_ad_id, fb_form_id, raw_fields}. Calculator: {garden_size, plants[], trees[], referrer, ai_estimate_result}. Nutrition: {nutrition_produce[], referrer, ai_nutrition_result}';
@@ -558,7 +558,7 @@ COMMENT ON TABLE redemptions IS '@audience:no Gift card/donation/cashout redempt
 COMMENT ON TABLE redemption_queue IS '@audience:no Redemption processing queue';
 COMMENT ON TABLE provider_transactions IS '@audience:no External provider API transaction records';
 COMMENT ON TABLE provider_accounts IS '@audience:no External provider account configuration';
-COMMENT ON TABLE provider_queue_status IS '@audience:no Provider circuit breaker status';
+-- provider_queue_status: dropped in 20260227210144_redemption_architecture.sql
 COMMENT ON TABLE instrument_queuing_status IS '@audience:no Redemption instrument queuing status';
 COMMENT ON TABLE available_redemption_methods IS '@audience:no Redemption method definitions';
 COMMENT ON TABLE available_redemption_method_instruments IS '@audience:no Redemption instrument definitions';
@@ -613,7 +613,7 @@ COMMENT ON TABLE campaign_rewards IS '@audience:no Legacy campaign reward defini
 COMMENT ON TABLE quarantine_bot_health IS '@audience:no Bot health check monitoring';
 COMMENT ON TABLE quarantine_pest_categories IS '@audience:no Bot pest-category mapping cache';
 COMMENT ON TABLE market_schedule_policies IS '@audience:no Market scheduling policy configuration';
-COMMENT ON TABLE market_settings IS '@audience:no Per-booth key-value settings';
+-- market_settings: dropped in 20260318300000_typed_market_settings.sql
 COMMENT ON TABLE subscription_tiers IS '@audience:no Subscription tier definitions';
 COMMENT ON TABLE subscription_tier_price_history IS '@audience:no Subscription tier price history';
 COMMENT ON TABLE subscription_receipts IS '@audience:no Subscription billing receipt records';
