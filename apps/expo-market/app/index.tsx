@@ -89,8 +89,7 @@ const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
-  const [currentUrl, setCurrentUrl] = useState<string | null>(IS_TEST ? START_URL : null);
-  const [isUrlInitialized, setIsUrlInitialized] = useState(IS_TEST);
+  const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
   const [canGoBack, setCanGoBack] = useState(false);
 
   const checkAndSendNotificationPermission = async () => {
@@ -127,19 +126,13 @@ export default function AppShell() {
     }, 6000);
 
     if (!IS_TEST) {
-      // Handle cold boot URL
+      // Handle cold boot URL — always deferred so splash screen hides first
       Linking.getInitialURL().then((url) => {
-        let success = false;
         if (url) {
-          success = handleDeepLink(url);
+          handleDeepLink(url);
         }
-        if (!success) {
-          setCurrentUrl(START_URL);
-        }
-        setIsUrlInitialized(true);
       }).catch(() => {
-        setCurrentUrl(START_URL);
-        setIsUrlInitialized(true);
+        // Ignore — START_URL is already set as default
       });
     }
 
@@ -193,13 +186,18 @@ export default function AppShell() {
 
       const fullUrl = `${BASE_URL}${targetPath}${queryStr}`;
 
-      // Short-link redirects (/r/, /b/, /dm/) cause Android WebView to hang on 301s.
-      // Load START_URL first so the splash screen hides, then navigate after load.
-      if (targetPath.startsWith('/r/') || targetPath.startsWith('/b/') || targetPath.startsWith('/dm/')) {
-        pendingDeepLinkRef.current = fullUrl;
-        setCurrentUrl(START_URL);
+      // On cold boot, the WebView is already loading START_URL.
+      // Defer ALL deep links: store the URL and navigate after START_URL loads.
+      // This ensures the splash screen always hides (START_URL always loads successfully).
+      // On warm resume, the WebView is already loaded so we can navigate directly.
+      if (webViewRef.current) {
+        // Warm: WebView is already mounted and loaded — navigate directly
+        webViewRef.current.injectJavaScript(
+          `window.location.href = ${JSON.stringify(fullUrl)}; true;`
+        );
       } else {
-        setCurrentUrl(fullUrl);
+        // Cold boot: WebView is mounting, store for after onLoadEnd
+        pendingDeepLinkRef.current = fullUrl;
       }
       return true;
     } catch (e) {
@@ -359,9 +357,7 @@ export default function AppShell() {
     true; // note: this is required, or you'll sometimes get silent failures
   `;
 
-  if (!isUrlInitialized || !currentUrl) {
-    return null; // Keep native splash screen visible while initializing the URL
-  }
+
 
   const webview = (
     <WebView
