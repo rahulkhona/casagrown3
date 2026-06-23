@@ -7,12 +7,18 @@
     "preview": {
       "channel": "preview",
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://casagrown.com"
+      },
       "android": {
         "buildType": "app-bundle"
       },
