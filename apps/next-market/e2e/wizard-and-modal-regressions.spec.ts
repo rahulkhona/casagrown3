@@ -130,7 +130,7 @@ async function ensureAuthenticated(page: any) {
     )
     if (freshRes.ok) {
       const freshData = await freshRes.json()
-      await page.evaluate(({ at, rt, u }) => {
+      await page.evaluate(({ at, rt, u }: { at: string; rt: string; u: any }) => {
         const payload = JSON.stringify({ access_token: at, refresh_token: rt, user: u })
         localStorage.setItem('supabase.auth.token', payload)
         localStorage.setItem('sb-127-auth-token', JSON.stringify({

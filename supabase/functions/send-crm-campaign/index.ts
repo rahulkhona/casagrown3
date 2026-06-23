@@ -164,7 +164,16 @@ Deno.serve(async (req: Request) => {
       } else if (audienceOverride && audienceOverride.length > 0) {
          // Direct audience passing via API for 1-off trigger scenarios
          recipients = audienceOverride;
+      } else if (audience?.is_dynamic && audience?.query_sql) {
+        // Dynamic AI-generated SQL audience — execute via validated query executor
+        console.log(`[SEND-CAMPAIGN] Executing dynamic audience query for: ${audience.name}`);
+        const { data, error } = await supabase.rpc('execute_audience_query', {
+          p_query: audience.query_sql
+        });
+        if (error) throw new Error(`Dynamic audience query failed: ${error.message}`);
+        recipients = data as AudienceRow[];
       } else if (audience?.audience_rpc_name) {
+        // Legacy RPC-based audience
         const { data, error } = await supabase.rpc(audience.audience_rpc_name);
         if (error) throw new Error(`Audience RPC failed: ${error.message}`);
         recipients = data as AudienceRow[];

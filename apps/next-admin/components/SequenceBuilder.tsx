@@ -20,6 +20,7 @@ import CampaignMessageEditor, { CampaignFormState } from './CampaignMessageEdito
 import TrackingUrlBuilder from './TrackingUrlBuilder'
 import { useRouter } from 'next/navigation'
 import { adminApi } from '../lib/adminApi'
+import AiQueryChat from './AiQueryChat'
 import { QueryBuilder, Field, RuleGroupType } from 'react-querybuilder'
 import 'react-querybuilder/dist/query-builder.css'
 
@@ -158,8 +159,26 @@ const getTriggerLabel = (val: string, audienceId?: string, audiences?: any[]) =>
     case 'user.first_login': return 'Start: First Time Login';
     case 'market_orders.purchase_completed': return 'Start: Purchase Order Completed';
     case 'market_orders.sale_completed': return 'Start: Sale Order Completed';
+    case 'ai_condition': return 'Start: AI Condition';
     default: return 'Start: Manual / Snapshot';
   }
+}
+
+// ── Lightweight SQL formatter ──────────────────────────────────
+function formatSql(sql: string): string {
+  if (!sql) return sql;
+  let s = sql.replace(/\s+/g, ' ').trim();
+  s = s.replace(/\b(FROM|WHERE|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|FULL JOIN|CROSS JOIN|ON|ORDER BY|GROUP BY|HAVING|LIMIT|OFFSET|UNION ALL|UNION|EXCEPT|INTERSECT)\b/gi, '\n$1');
+  s = s.replace(/^SELECT\s+(DISTINCT\s+)?/i, (match) => 'SELECT ' + (match.includes('DISTINCT') ? 'DISTINCT\n  ' : '\n  '));
+  s = s.replace(/\b(AND|OR)\b/gi, '\n  $1');
+  const fromIdx = s.search(/\nFROM\b/i);
+  if (fromIdx > 0) {
+    const selectPart = s.substring(0, fromIdx);
+    const rest = s.substring(fromIdx);
+    const formattedSelect = selectPart.replace(/,\s*/g, ',\n  ');
+    s = formattedSelect + rest;
+  }
+  return s;
 }
 
 const supabase = createClient(
@@ -222,6 +241,19 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [testEmails, setTestEmails] = useState<string>('')
   const [testPhones, setTestPhones] = useState<string>('')
   const [testing, setTesting] = useState(false)
+  // AI condition trigger state
+  const [aiConditionPrompt, setAiConditionPrompt] = useState('')
+  const [aiConditionSql, setAiConditionSql] = useState('')
+  const [aiConditionExplanation, setAiConditionExplanation] = useState('')
+  const [aiConditionLoading, setAiConditionLoading] = useState(false)
+  const [aiConditionError, setAiConditionError] = useState('')
+  // AI condition node state
+  const [conditionNodeMode, setConditionNodeMode] = useState<'rules' | 'ai'>('rules')
+  const [conditionAiPrompt, setConditionAiPrompt] = useState('')
+  const [conditionAiSql, setConditionAiSql] = useState('')
+  const [conditionAiExplanation, setConditionAiExplanation] = useState('')
+  const [conditionAiLoading, setConditionAiLoading] = useState(false)
+  const [conditionAiError, setConditionAiError] = useState('')
 
   const queryFields = useMemo(() => {
     const flatFields = [
@@ -308,6 +340,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         setTriggerEvent(seqRes.data[0].trigger_event || '')
         setTestEmails((seqRes.data[0].test_emails || []).join(', '))
         setTestPhones((seqRes.data[0].test_phones || []).join(', '))
+        // Restore AI condition state from start node if applicable
+        if (seqRes.data[0].trigger_event === 'ai_condition' && seqRes.data[0].definition?.nodes) {
+          const startNode = seqRes.data[0].definition.nodes.find((n: any) => n.id === 'start')
+          if (startNode?.data) {
+            if (startNode.data.conditionPrompt) setAiConditionPrompt(startNode.data.conditionPrompt)
+            if (startNode.data.conditionSql) setAiConditionSql(startNode.data.conditionSql)
+            if (startNode.data.conditionExplanation) setAiConditionExplanation(startNode.data.conditionExplanation)
+          }
+        }
         if (seqRes.data[0].definition?.nodes?.length > 0) {
           const safeNodes = seqRes.data[0].definition.nodes.map((n: any, idx: number) => {
             const nodeType = n.data?.type || n.type;
@@ -489,6 +530,17 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       })
     } else if (node.data.type === 'condition') {
       setConditionConfig({ query: (node.data.query as any) || initialQuery })
+      if (node.data.conditionMode === 'ai') {
+        setConditionNodeMode('ai')
+        setConditionAiPrompt(node.data.aiPrompt || '')
+        setConditionAiSql(node.data.aiSql || '')
+        setConditionAiExplanation(node.data.aiExplanation || '')
+      } else {
+        setConditionNodeMode('rules')
+        setConditionAiPrompt('')
+        setConditionAiSql('')
+        setConditionAiExplanation('')
+      }
     }
   }
 
@@ -520,9 +572,18 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           newData.delayMinutes = m;
           newData.label = `⏳ Wait ${d}d ${h}h ${m}m`
         } else if (n.data.type === 'condition') {
-          newData.query = conditionConfig.query
-          const flatFields = queryFields.flatMap((g: any) => g.options)
-          newData.label = `🔀 ${formatQueryString(conditionConfig.query, flatFields)}`
+          if (conditionNodeMode === 'ai') {
+            newData.conditionMode = 'ai'
+            newData.aiPrompt = conditionAiPrompt
+            newData.aiSql = conditionAiSql
+            newData.aiExplanation = conditionAiExplanation
+            newData.label = `🤖 ${conditionAiExplanation?.slice(0, 40) || 'AI Condition'}...`
+          } else {
+            newData.conditionMode = 'rules'
+            newData.query = conditionConfig.query
+            const flatFields = queryFields.flatMap((g: any) => g.options)
+            newData.label = `🔀 ${formatQueryString(conditionConfig.query, flatFields)}`
+          }
         } else if (n.id === 'start') {
           newData.label = getTriggerLabel(triggerEvent, n.data.audienceId as string, audiences)
         }
@@ -880,6 +941,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       <option value="user.first_login">First Time Login</option>
                       <option value="market_orders.purchase_completed">Purchase Order Completed</option>
                       <option value="market_orders.sale_completed">Sale Order Completed</option>
+                      <option value="ai_condition">🤖 AI Condition (describe in plain English)</option>
                     </select>
                     <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '8px', lineHeight: 1.5 }}>
                       Choose what automatically kicks off this sequence. If you want this sequence to only trigger from a specific Solo Campaign blast or an Audience Snapshot, choose Manual.
@@ -906,10 +968,64 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       >
                         <option value="">Select an audience...</option>
                         {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        <option value="__ai_query__">🤖 AI Query — describe in plain English</option>
                       </select>
                       <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '8px', lineHeight: 1.5 }}>
-                        Select the audience to enroll when this sequence is triggered manually.
+                        Select the audience to enroll when this sequence is triggered manually, or use AI to describe a custom audience.
                       </p>
+                      {selectedNode.data.audienceId === '__ai_query__' && (
+                        <div style={{ marginTop: '12px' }}>
+                          <AiQueryChat
+                            compact
+                            disabled={isLocked}
+                            initialSql={selectedNode.data.snapshotAiSql as string || undefined}
+                            initialExplanation={selectedNode.data.snapshotAiExplanation as string || undefined}
+                            placeholder='Describe your snapshot audience… (e.g. "all leads that have not signed up for an account yet")'
+                            onSqlChange={(sql) => {
+                              setNodes(nds => nds.map(n => n.id === 'start' ? { ...n, data: { ...n.data, snapshotAiSql: sql } } : n))
+                              setSelectedNode(prev => prev ? { ...prev, data: { ...prev.data, snapshotAiSql: sql } } : null)
+                            }}
+                            onExplanationChange={(expl) => {
+                              setNodes(nds => nds.map(n => n.id === 'start' ? { ...n, data: { ...n.data, snapshotAiExplanation: expl } } : n))
+                              setSelectedNode(prev => prev ? { ...prev, data: { ...prev.data, snapshotAiExplanation: expl } } : null)
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {triggerEvent === 'ai_condition' && (
+                    <div className="crm-field">
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>AI Enrollment Condition</label>
+                      <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '12px', lineHeight: 1.5 }}>
+                        Describe who should be enrolled. The AI will generate a SQL query that runs every 15 minutes to find new matches.
+                      </p>
+                      <AiQueryChat
+                        compact
+                        disabled={isLocked}
+                        initialSql={aiConditionSql || undefined}
+                        initialExplanation={aiConditionExplanation || undefined}
+                        placeholder='e.g. "leads from California who signed up in the last 30 days and have not been contacted"'
+                        onSqlChange={(sql) => {
+                          setAiConditionSql(sql)
+                          setNodes(nds => nds.map(n => {
+                            if (n.id === 'start') {
+                              return { ...n, data: { ...n.data, conditionSql: sql } }
+                            }
+                            return n
+                          }))
+                        }}
+                        onExplanationChange={(expl) => {
+                          setAiConditionExplanation(expl)
+                          setNodes(nds => nds.map(n => {
+                            if (n.id === 'start') {
+                              return { ...n, data: { ...n.data, conditionExplanation: expl } }
+                            }
+                            return n
+                          }))
+                        }}
+                      />
                     </div>
                   )}
 
@@ -1028,20 +1144,61 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
               {selectedNode.data.type === 'condition' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Condition Logic</label>
-                    <div style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '12px', background: 'white' }}>
-                      <QueryBuilder 
-                        key={selectedNode.id}
-                        fields={queryFields} 
-                        defaultQuery={conditionConfig.query as any} 
-                        onQueryChange={(q) => setConditionConfig({ query: q })} 
+                  {/* Mode Toggle */}
+                  <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db' }}>
+                    <button
+                      onClick={() => setConditionNodeMode('rules')}
+                      style={{ flex: 1, padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', background: conditionNodeMode === 'rules' ? '#3b82f6' : '#f9fafb', color: conditionNodeMode === 'rules' ? 'white' : '#374151' }}
+                    >
+                      📋 Rules
+                    </button>
+                    <button
+                      onClick={() => setConditionNodeMode('ai')}
+                      style={{ flex: 1, padding: '8px 16px', border: 'none', borderLeft: '1px solid #d1d5db', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', background: conditionNodeMode === 'ai' ? '#7c3aed' : '#f9fafb', color: conditionNodeMode === 'ai' ? 'white' : '#374151' }}
+                    >
+                      🤖 AI
+                    </button>
+                  </div>
+
+                  {conditionNodeMode === 'rules' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Condition Logic</label>
+                      <div style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '12px', background: 'white' }}>
+                        <QueryBuilder 
+                          key={selectedNode.id}
+                          fields={queryFields} 
+                          defaultQuery={conditionConfig.query as any} 
+                          onQueryChange={(q) => setConditionConfig({ query: q })} 
+                        />
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 8 }}>
+                        The system will evaluate this logic against the user's CRM metadata. If true, they go down the "true" path. Make sure to connect "true" and "false" edges.
+                      </div>
+                    </div>
+                  )}
+
+                  {conditionNodeMode === 'ai' && (
+                    <div className="crm-field">
+                      <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '12px', lineHeight: 1.5 }}>
+                        Describe the condition in plain English. The AI will generate a SQL query to check if each recipient matches.
+                      </p>
+                      <AiQueryChat
+                        compact
+                        disabled={isLocked}
+                        initialSql={conditionAiSql || undefined}
+                        initialExplanation={conditionAiExplanation || undefined}
+                        placeholder='e.g. "leads from California who signed up in the last 30 days"'
+                        contextHint="This is a condition branch in a drip campaign sequence. Generate a query that returns the users/leads matching the described condition. The system will check if the current recipient appears in the results to route them to the TRUE or FALSE branch."
+                        examplePrompts={[
+                          { label: 'Leads without accounts', prompt: 'All leads that have not signed up for an account yet' },
+                          { label: 'Facebook leads', prompt: 'Leads that came from Facebook ads' },
+                          { label: 'Active buyers', prompt: 'Users who have purchased something in the last 30 days' },
+                        ]}
+                        onSqlChange={(sql) => setConditionAiSql(sql)}
+                        onExplanationChange={(expl) => setConditionAiExplanation(expl)}
                       />
                     </div>
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 8 }}>
-                    The system will evaluate this logic against the user's CRM metadata. If true, they go down the "true" path. Make sure to connect "true" and "false" edges.
-                  </div>
+                  )}
                 </div>
               )}
             </div>

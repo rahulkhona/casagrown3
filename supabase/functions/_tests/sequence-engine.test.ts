@@ -328,10 +328,10 @@ dbTest("enroll-in-sequence: Prevents duplicate enrollment of same recipient", as
 
 // ── Test 8: Condition Node / DAG Branching ────────────────────────────────────
 dbTest("process-sequence-step: Condition node routes to correct branch (true/false)", async () => {
-  // Lead A: status='converted' → condition TRUE → reaches action_sms node
-  // Lead B: status='new'       → condition FALSE → reaches completed (no edge from false branch)
-  const leadA = await createLead({ status: "converted", metadata: { status: "converted" } });
-  const leadB = await createLead({ status: "new",       metadata: { status: "new" } });
+  // Lead A: source_platform='facebook' → condition TRUE → reaches action_sms node
+  // Lead B: source_platform='direct'   → condition FALSE → reaches false branch
+  const leadA = await createLead({ source_platform: "facebook", metadata: { source: "facebook" } });
+  const leadB = await createLead({ source_platform: "direct",   metadata: { source: "direct" } });
 
   const seq = await createSequence({
     startNodeId: "node-cond",
@@ -342,12 +342,12 @@ dbTest("process-sequence-step: Condition node routes to correct branch (true/fal
         data: {
           query: {
             combinator: "and",
-            rules: [{ field: "status", operator: "=", value: "converted" }],
+            rules: [{ field: "source_platform", operator: "=", value: "facebook" }],
           },
         },
       },
-      { id: "node-sms-true",  type: "action_sms", data: { text: "You converted!" } },
-      { id: "node-sms-false", type: "action_sms", data: { text: "Still new." } },
+      { id: "node-sms-true",  type: "action_sms", data: { text: "Welcome from Facebook!" } },
+      { id: "node-sms-false", type: "action_sms", data: { text: "Welcome!" } },
     ],
     edges: [
       { id: "e-true",  source: "node-cond", target: "node-sms-true",  label: "true" },
@@ -372,20 +372,82 @@ dbTest("process-sequence-step: Condition node routes to correct branch (true/fal
   const _pd2 = await processRes.json();
   assertEquals(processRes.status, 200);
 
-  // Lead A (converted) → should be on node-sms-true
+  // Lead A (facebook) → should be on node-sms-true
   const { data: afterA } = await supabase.from("crm_sequence_enrollments")
     .select("current_node_id").eq("id", enrollA!.id).single();
-  assertEquals(afterA?.current_node_id, "node-sms-true", "Converted lead should follow true branch");
+  assertEquals(afterA?.current_node_id, "node-sms-true", "Facebook lead should follow true branch");
 
-  // Lead B (new) → should be on node-sms-false
+  // Lead B (direct) → should be on node-sms-false
   const { data: afterB } = await supabase.from("crm_sequence_enrollments")
     .select("current_node_id").eq("id", enrollB!.id).single();
-  assertEquals(afterB?.current_node_id, "node-sms-false", "New lead should follow false branch");
+  assertEquals(afterB?.current_node_id, "node-sms-false", "Direct lead should follow false branch");
 
   await cleanup(
     { table: "crm_sequences", id: seq.id },
     { table: "crm_leads", id: leadA.id },
     { table: "crm_leads", id: leadB.id },
+  );
+});
+
+// ── Test 8b: AI Condition Node ────────────────────────────────────────────────
+dbTest("process-sequence-step: AI condition node evaluates SQL and routes correctly", async () => {
+  const leadFB = await createLead({ source_platform: "facebook" });
+  const leadDirect = await createLead({ source_platform: "direct" });
+
+  const aiSql = "SELECT id, 'lead' as recipient_type, email, phone, name, NULL as state_code, NULL as city, zipcode as zip_code, NULL as community_h3, created_at as joined_at, accepts_email, accepts_sms FROM crm_leads WHERE source_platform = 'facebook'";
+
+  const seq = await createSequence({
+    startNodeId: "node-ai-cond",
+    nodes: [
+      {
+        id: "node-ai-cond",
+        type: "condition",
+        data: {
+          conditionMode: "ai",
+          aiSql: aiSql,
+          aiPrompt: "Leads from Facebook",
+        },
+      },
+      { id: "node-true", type: "action_sms", data: { text: "FB match!" } },
+      { id: "node-false", type: "action_sms", data: { text: "Not FB." } },
+    ],
+    edges: [
+      { id: "e-true", source: "node-ai-cond", target: "node-true", label: "true" },
+      { id: "e-false", source: "node-ai-cond", target: "node-false", label: "false" },
+    ],
+  });
+
+  // Enroll both
+  const rFB = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: leadFB.id }]);
+  assertEquals((await rFB.json()).enrolled, 1);
+  const rDirect = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: leadDirect.id }]);
+  assertEquals((await rDirect.json()).enrolled, 1);
+
+  // Get enrollment IDs
+  const { data: enrollFB } = await supabase.from("crm_sequence_enrollments")
+    .select("id").eq("sequence_id", seq.id).eq("recipient_id", leadFB.id).single();
+  const { data: enrollDirect } = await supabase.from("crm_sequence_enrollments")
+    .select("id").eq("sequence_id", seq.id).eq("recipient_id", leadDirect.id).single();
+
+  // Process
+  const res = await processStep();
+  const _pd = await res.json();
+  assertEquals(res.status, 200);
+
+  // FB lead → true branch
+  const { data: afterFB } = await supabase.from("crm_sequence_enrollments")
+    .select("current_node_id").eq("id", enrollFB!.id).single();
+  assertEquals(afterFB?.current_node_id, "node-true", "Facebook lead should match AI condition");
+
+  // Direct lead → false branch
+  const { data: afterDirect } = await supabase.from("crm_sequence_enrollments")
+    .select("current_node_id").eq("id", enrollDirect!.id).single();
+  assertEquals(afterDirect?.current_node_id, "node-false", "Direct lead should not match AI condition");
+
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: leadFB.id },
+    { table: "crm_leads", id: leadDirect.id },
   );
 });
 

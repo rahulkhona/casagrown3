@@ -2722,13 +2722,13 @@ function NewProductPageInner() {
               isOpen={showShareModal}
               onClose={() => { setShowShareModal(false); router.back() }}
               title={`${addedProductName} added!`}
-              subtitle={`🎉 Your listing is live! Invite your neighbors to check it out.`}
               entityName={addedProductName || 'Product'}
               shareUrl={getProductUrl() || ''}
               shareMessage={getShareMessage()}
               shareContext="new_product_share"
               imageUrl={photos?.[0] || undefined}
               ogTitle={ogTitle}
+              isFree={parseFloat(priceUsd) === 0}
             />
           )
         })()}

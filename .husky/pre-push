@@ -1,378 +1,42 @@
 #!/bin/sh
 
 # ═══════════════════════════════════════════════════════════════════
-# Pre-push hook — Full E2E test suite
-# Manages dev servers, emulators/simulators, runs all tests.
-# Shuts down heavy processes (emulators) before web tests,
-# boots iOS simulator for mobile tests, then restores state.
+# Pre-push hook — Migration lint only (~1s)
+# For unit tests + E2E, run: ./scripts/release-test.sh
 # ═══════════════════════════════════════════════════════════════════
 
 set -e
 
-# ─── Skip tests for tag-only pushes ──────────────────────────────
-# Git feeds "local_ref local_sha remote_ref remote_sha" lines on stdin.
-# If every ref being pushed is a tag (refs/tags/...), skip the test suite.
+# ─── Skip for tag-only pushes ────────────────────────────────────
 TAG_ONLY=true
 while read local_ref local_sha remote_ref remote_sha; do
     case "$local_ref" in
-        refs/tags/*) ;;  # tag push — keep checking
+        refs/tags/*) ;;
         *) TAG_ONLY=false; break ;;
     esac
 done
 if [ "$TAG_ONLY" = true ]; then
-    echo "🏷️  Tag-only push detected — skipping pre-push tests."
+    echo "🏷️  Tag-only push detected — skipping pre-push checks."
     exit 0
 fi
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
-# Track PIDs and state so we can clean up on exit
-PIDS_TO_KILL=""
-SUPABASE_STARTED_BY_US=false
-ANDROID_WAS_RUNNING=false
-ANDROID_EMU_NAME=""
-
-cleanup() {
-    echo ""
-    echo "🧹 Cleaning up..."
-    for pid in $PIDS_TO_KILL; do
-        kill "$pid" 2>/dev/null && echo "   Stopped background process $pid"
-    done
-
-    if [ "$SUPABASE_STARTED_BY_US" = true ]; then
-        echo "   Stopping Supabase..."
-        supabase stop 2>/dev/null || true
-    fi
-
-    # Restart Android emulator if it was running before we shut it down
-    if [ "$ANDROID_WAS_RUNNING" = true ] && [ -n "$ANDROID_EMU_NAME" ]; then
-        echo "   Restarting Android emulator ($ANDROID_EMU_NAME)..."
-        emulator -avd "$ANDROID_EMU_NAME" -no-snapshot-load > /dev/null 2>&1 &
-    fi
-
-    echo "🧹 Cleanup complete."
-}
-trap cleanup EXIT
-
-# ─── Helpers ──────────────────────────────────────────────────────
-
-wait_for_port() {
-    local port=$1
-    local label=$2
-    local timeout=${3:-60}
-    local elapsed=0
-    echo "   Waiting for $label on port $port..."
-    while ! curl -s "http://localhost:$port" > /dev/null 2>&1; do
-        sleep 2
-        elapsed=$((elapsed + 2))
-        if [ "$elapsed" -ge "$timeout" ]; then
-            echo "❌ Timed out waiting for $label on port $port"
-            exit 1
-        fi
-    done
-    echo "   ✓ $label ready on port $port"
-}
-
-is_port_in_use() {
-    lsof -i :"$1" -sTCP:LISTEN > /dev/null 2>&1
-}
-
 echo "🔍 Running pre-push checks..."
-echo ""
 
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 0: Shut down resource-heavy processes for web tests
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━ Phase 0: Resource Management ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# Shut down Android emulator if running (saves ~2GB RAM + CPU)
-ANDROID_EMU_NAME=$(adb shell getprop ro.boot.qemu.avd_name 2>/dev/null | tr -d '\r' || true)
-if [ -n "$ANDROID_EMU_NAME" ]; then
-    ANDROID_WAS_RUNNING=true
-    echo "   Shutting down Android emulator ($ANDROID_EMU_NAME) to free resources..."
-    adb emu kill 2>/dev/null || true
-    sleep 3
-    echo "   ✓ Android emulator stopped"
-else
-    echo "   ✓ No Android emulator running"
-fi
-
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 1: Unit Tests (no servers needed)
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━ Phase 1: Unit Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-echo "📋 [1/8] Market App unit tests (vitest)..."
-cd apps/next-market && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Market App unit tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-echo "📋 [2/8] Community Voice unit tests (vitest)..."
-cd apps/next-community-voice && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Community Voice unit tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-echo "📋 [3/8] Admin App unit tests (vitest)..."
-cd apps/next-admin && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Admin App unit tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-echo "📋 [4/8] Metrics App unit tests (vitest)..."
-cd apps/next-metrics && npx vitest run --reporter=dot 2>&1 || {
-    echo "❌ Metrics App unit tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 1.5: Supabase (database, auth, edge functions, realtime)
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━ Infrastructure: Supabase ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-if supabase status > /dev/null 2>&1; then
-    echo "   ✓ Supabase already running"
-else
-    echo "   Starting Supabase (db, auth, edge functions, realtime, storage)..."
-    supabase start 2>&1 || {
-        echo "❌ Failed to start Supabase — push aborted."
-        exit 1
-    }
-    SUPABASE_STARTED_BY_US=true
-    echo "   ✓ Supabase started"
-fi
-
-# Verify seed data exists (db reset sometimes silently fails to apply seed.sql)
-USER_COUNT=$(docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "SELECT count(*) FROM auth.users;" 2>/dev/null | tr -d ' ')
-if [ "${USER_COUNT:-0}" -lt "2" ]; then
-    echo "   ⚠️  Seed data missing (auth.users: $USER_COUNT) — re-applying seed.sql..."
-    docker exec -i supabase_db_casagrown3 psql -U postgres -f /dev/stdin < "$ROOT_DIR/supabase/seed.sql" 2>&1 | tail -3
-    echo "   ✓ Seed data applied"
-fi
-
-# Verify large compliance migration applied (20260305000001 often fails silently)
-ENUM_CHECK=$(docker exec -i supabase_db_casagrown3 psql -U postgres -t -c "SELECT prosrc FROM pg_proc WHERE proname = 'create_order_atomic';" 2>/dev/null | grep -c "'escrow'" || true)
-if [ "${ENUM_CHECK:-0}" -gt "0" ]; then
-    echo "   ⚠️  Stale 'escrow' enum in create_order_atomic — re-applying compliance functions..."
-    docker exec -i supabase_db_casagrown3 psql -U postgres -f /dev/stdin < "$ROOT_DIR/supabase/migrations/20260305000001_compliance_functions.sql" 2>&1 | tail -3
-    echo "   ✓ Compliance functions applied"
-fi
-
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 1.5b: Deno Integration Tests (requires Supabase)
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━ Phase 1.5b: Deno Integration Tests ━━━━━━━━━━━━━━━━━━━━━━"
-
-if command -v deno > /dev/null 2>&1; then
-    echo "📋 Deno compliance integration tests..."
-    deno test --allow-net --allow-env supabase/functions/_compliance-tests/ 2>&1 || {
-        echo "❌ Deno integration tests failed — push aborted."
-        exit 1
-    }
-    echo "📋 Deno Twilio SMS integration tests..."
-    deno test --allow-net --allow-env supabase/functions/send-phone-otp/test.ts 2>&1 || {
-        echo "❌ Twilio SMS tests failed — push aborted."
-        exit 1
-    }
-else
-    echo "   ⚠️  Deno not found — skipping integration tests."
-fi
-
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 2: Playwright E2E (web tests — emulators already shut down)
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━ Phase 2: Playwright E2E (Web) ━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# --- Clean stale test data so Playwright finds only seed records ---
-echo "   Cleaning stale test data..."
-docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres <<'CLEANUP_SQL' 2>&1 | tail -1
--- Remove digital receipts for non-seed orders (FK cascade)
-DELETE FROM digital_receipts WHERE order_id IN (
-  SELECT id FROM orders WHERE id::text NOT LIKE 'd0000000-%'
-);
--- Remove non-seed orders (seed orders have d0000000-... UUIDs)
-DELETE FROM orders WHERE id::text NOT LIKE 'd0000000-%';
--- Remove non-seed offers (seed offers have c999... UUIDs)
-DELETE FROM offers WHERE id::text NOT LIKE 'c999%';
--- Remove non-seed posts (seed posts have e555... / f666... / a0000... UUIDs)
-DELETE FROM posts WHERE id::text NOT LIKE 'e555%'
-                    AND id::text NOT LIKE 'f666%'
-                    AND id::text NOT LIKE 'a0000%';
--- Remove non-seed conversations (seed convos have c9999999-... UUIDs)
-DELETE FROM conversations WHERE id::text NOT LIKE 'c9999999-%';
-SELECT 'Stale data cleaned';
-CLEANUP_SQL
-echo "   ✓ Stale test data removed"
-
-# --- Start Community Voice dev server (port 3002) if not running ---
-if is_port_in_use 3002; then
-    echo "   ✓ Community Voice dev server already running on 3002"
-else
-    echo "   Starting Community Voice dev server (port 3002)..."
-    cd apps/next-community-voice && yarn dev > /dev/null 2>&1 &
-    PIDS_TO_KILL="$PIDS_TO_KILL $!"
-    cd "$ROOT_DIR"
-    wait_for_port 3002 "Community Voice" 90
-fi
-
-echo "🎭 [5/8] Community Voice Playwright E2E tests..."
-
-# Seed Community Voice feedback data (idempotent — safe to re-run)
-echo "   Seeding Community Voice test data..."
-docker exec -i supabase_db_casagrown3 psql -U postgres -d postgres < "$ROOT_DIR/scripts/seed-feedback.sql" 2>&1 | grep -v "^$" || true
-
-cd apps/next-community-voice && npx playwright test --reporter=dot 2>&1 || {
-    echo "❌ Community Voice Playwright tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-# --- Start Market dev server (port 3001) if not running ---
-if is_port_in_use 3001; then
-    echo "   ✓ Market dev server already running on 3001"
-else
-    echo "   Starting Market dev server (port 3001)..."
-    yarn web:market > /dev/null 2>&1 &
-    PIDS_TO_KILL="$PIDS_TO_KILL $!"
-    wait_for_port 3001 "Market" 90
-fi
-
-echo "🎭 [6/8] Market Playwright E2E tests..."
-cd apps/next-market && npx playwright test --reporter=dot 2>&1 || {
-    echo "❌ Market Playwright tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-# --- Start Community Web dev server (port 3000) if not running ---
-if is_port_in_use 3000; then
-    echo "   ✓ Community Web dev server already running on 3000"
-else
-    echo "   Starting Community Web dev server (port 3000)..."
-    yarn web > /dev/null 2>&1 &
-    PIDS_TO_KILL="$PIDS_TO_KILL $!"
-    wait_for_port 3000 "Community Web" 90
-fi
-
-# --- Start Admin dev server (port 3003) if not running ---
-if is_port_in_use 3003; then
-    echo "   ✓ Admin dev server already running on 3003"
-else
-    echo "   Starting Admin dev server (port 3003)..."
-    yarn web:admin > /dev/null 2>&1 &
-    PIDS_TO_KILL="$PIDS_TO_KILL $!"
-    wait_for_port 3003 "Admin" 90
-fi
-
-echo "🎭 [7/8] Community Web + Admin Playwright E2E tests..."
-npx playwright test --config=e2e/playwright/playwright.config.ts --reporter=dot 2>&1 || {
-    echo "❌ Community Web + Admin Playwright tests failed — push aborted."
-    exit 1
-}
-
-# --- Start Metrics dev server (port 3004) if not running ---
-if is_port_in_use 3004; then
-    echo "   ✓ Metrics dev server already running on 3004"
-else
-    echo "   Starting Metrics dev server (port 3004)..."
-    yarn web:metrics > /dev/null 2>&1 &
-    PIDS_TO_KILL="$PIDS_TO_KILL $!"
-    wait_for_port 3004 "Metrics" 90
-fi
-
-echo "🎭 [8/8] Metrics Playwright E2E tests..."
-cd apps/next-metrics && npx playwright test --reporter=dot 2>&1 || {
-    echo "❌ Metrics Playwright tests failed — push aborted."
-    exit 1
-}
-cd "$ROOT_DIR"
-
-# ═══════════════════════════════════════════════════════════════════
-# PHASE 3: Maestro Mobile E2E (Android Emulator)
-# ═══════════════════════════════════════════════════════════════════
-
-echo ""
-echo "━━━ Phase 3: Maestro Mobile E2E ━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# Check if maestro CLI is available
-if ! command -v maestro > /dev/null 2>&1; then
-    echo "   ⚠️  Maestro CLI not found — skipping mobile E2E tests."
-else
-    # Kill stale Maestro processes that can block the driver
-    pkill -f "maestro" 2>/dev/null || true
-    sleep 1
-
-    # Find a running Android emulator, or boot one if available
-    ANDROID_DEVICE=$(adb devices | grep -w "device" | awk '{print $1}' | head -1 || true)
-
-    if [ -z "$ANDROID_DEVICE" ]; then
-        # Try to use the emulator we shut down earlier, or the first available
-        AVD_TO_BOOT=${ANDROID_EMU_NAME:-$(emulator -list-avds | head -1 || true)}
-        
-        if [ -n "$AVD_TO_BOOT" ]; then
-            echo "   Booting Android emulator ($AVD_TO_BOOT)..."
-            emulator -avd "$AVD_TO_BOOT" -no-snapshot-load > /dev/null 2>&1 &
-            # Add to PIDS_TO_KILL so cleanup catches it if script aborts early
-            PIDS_TO_KILL="$PIDS_TO_KILL $!"
-            
-            echo "   Waiting for emulator to complete boot..."
-            adb wait-for-device
-            
-            max_retries=60
-            retry=0
-            while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
-                sleep 2
-                retry=$((retry + 1))
-                if [ $retry -ge $max_retries ]; then
-                   echo "❌ Timeout waiting for Android emulator."
-                   exit 1
-                fi
-            done
-            sleep 5
-            ANDROID_DEVICE=$(adb devices | grep -w "device" | awk '{print $1}' | head -1 || true)
-            echo "   ✓ Android emulator booted"
-            
-            # Since we started it for the test, we prevent cleanup from blindly restarting a second copy later
-            ANDROID_WAS_RUNNING=false
+# ── Migration lint — check pushed SQL files for missing COMMENT ON ──
+CHANGED_SQL=$(git diff --name-only HEAD @{u} -- 'supabase/migrations/*.sql' 2>/dev/null || true)
+if [ -n "$CHANGED_SQL" ]; then
+    echo "📋 Migration schema documentation lint..."
+    for file in $CHANGED_SQL; do
+        if [ -f "$file" ]; then
+            ./scripts/lint-migration-comments.sh "$file" || {
+                echo "❌ Migration lint failed — push aborted."
+                exit 1
+            }
         fi
-    fi
-
-    if [ -n "$ANDROID_DEVICE" ]; then
-        echo "📱 [5/5] Maestro E2E tests (Android: $ANDROID_DEVICE)..."
-        MAESTRO_DRIVER_STARTUP_TIMEOUT=120000 maestro test e2e/maestro/flows/ \
-            -e EXCLUDE_FLOW=chat-conversation \
-            --exclude-tags=skip_ci 2>&1 || {
-            echo "❌ Maestro E2E tests failed — push aborted."
-            exit 1
-        }
-    else
-        echo "   ⚠️  No Android emulator found — skipping Maestro tests."
-    fi
+    done
 fi
 
-# ═══════════════════════════════════════════════════════════════════
-# Done
-# ═══════════════════════════════════════════════════════════════════
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ All pre-push checks passed!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Pre-push checks passed!"

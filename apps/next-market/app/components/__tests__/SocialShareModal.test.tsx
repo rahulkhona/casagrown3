@@ -84,7 +84,7 @@ describe('SocialShareModal Component - User Interactions', () => {
     
     // Screen 1 Headers — title prop overrides the default 'Select Platform to Share' fallback
     expect(screen.getByText('Invite Neighbors')).toBeInTheDocument()
-    expect(screen.getByText('Choose a platform to preview, customize, and invite your neighbors!')).toBeInTheDocument()
+    expect(screen.getByText('Share your local garden produce')).toBeInTheDocument()
 
     // Platform options present
     expect(screen.getByText('Share on WhatsApp')).toBeInTheDocument()
@@ -289,7 +289,7 @@ describe('SocialShareModal Component - User Interactions', () => {
     })
 
     // Click Skip on Selection screen (Screen 1)
-    const skipBtn1 = screen.getByRole('button', { name: /Skip/ })
+    const skipBtn1 = screen.getByRole('button', { name: /No thanks, I'll share later/ })
     fireEvent.click(skipBtn1)
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
 
@@ -299,9 +299,9 @@ describe('SocialShareModal Component - User Interactions', () => {
     // Select WhatsApp to navigate to Screen 2
     fireEvent.click(screen.getByText('Share on WhatsApp'))
 
-    // Click Skip on Focused screen (Screen 2)
-    const skipBtn2 = screen.getAllByRole('button', { name: /Skip/ })[0]
-    fireEvent.click(skipBtn2)
+    // Click Close on Focused screen (Screen 2)
+    const closeBtn2 = screen.getByRole('button', { name: /Close/ })
+    fireEvent.click(closeBtn2)
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
   })
 

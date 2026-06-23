@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { generateMetadata as generateBoothMetadata } from '../app/(main)/market/booth/[id]/page'
 import { generateMetadata as generateProductMetadata } from '../app/(main)/market/booth/[id]/product/[productId]/page'
 
-const mockCreateClient = vi.fn(() => ({
+const mockCreateClient = vi.fn((url?: string, key?: string) => ({
   from: () => ({
     select: () => ({
       eq: () => ({
