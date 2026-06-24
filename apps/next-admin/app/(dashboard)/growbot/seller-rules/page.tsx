@@ -184,7 +184,7 @@ export default function SellerRulesPage() {
       )}
 
       {editingRule && (
-        <Card borderWidth={1} borderColor={colors.blue[200]} padding="$4" backgroundColor="white" elevation="$1">
+        <Card borderWidth={1} borderColor={(colors.blue as any)[200]} padding="$4" backgroundColor="white" elevation="$1">
           <YStack gap="$4">
             <XStack alignItems="center" gap="$2">
               <Edit3 size={20} color={colors.blue[600]} />

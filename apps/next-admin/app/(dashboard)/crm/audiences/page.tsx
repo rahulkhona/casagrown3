@@ -70,6 +70,27 @@ const CUSTOM_SENTINEL = '__custom__'
 
 type CreateMode = 'legacy' | 'ai'
 
+function determineRecipientType(sql: string | null): 'users' | 'leads' | 'both' {
+  if (!sql) return 'both';
+  const hasProfiles = /profiles/i.test(sql);
+  const hasLeads = /crm_leads/i.test(sql);
+  if (hasProfiles && hasLeads) return 'both';
+  if (hasProfiles) return 'users';
+  if (hasLeads) return 'leads';
+  return 'both';
+}
+
+function determineLegacyRecipientType(rpcName: string): 'users' | 'leads' | 'both' {
+  const name = rpcName.toLowerCase();
+  if (name.includes('user') || name.includes('member') || name.includes('seller') || name.includes('buyer')) {
+    return 'users';
+  }
+  if (name.includes('lead') || name.includes('prospect')) {
+    return 'leads';
+  }
+  return 'both';
+}
+
 const defaultForm = {
   name:               '',
   description:        '',
@@ -159,6 +180,7 @@ export default function CrmAudiencesPage() {
       : form.source
 
     const size = await estimateSize(rpcName)
+    const recipientType = determineLegacyRecipientType(rpcName)
 
     const { error } = await supabase.from('crm_audiences').insert({
       name:              form.name,
@@ -167,6 +189,7 @@ export default function CrmAudiencesPage() {
       estimated_count:   size,
       is_dynamic:        false,
       query_source:      'legacy',
+      recipient_type:    recipientType,
     })
 
     if (!error) {
@@ -183,6 +206,8 @@ export default function CrmAudiencesPage() {
     if (!aiPrompt.trim()) return
     setAiGenerating(true)
 
+    const promptText = aiPrompt.trim()
+
     const userMessage: ChatMessage = { role: 'user', content: aiPrompt }
     setChatHistory(prev => [...prev, userMessage])
 
@@ -198,7 +223,7 @@ export default function CrmAudiencesPage() {
 
     try {
       const { data, error } = await adminApi.invokeFunction('generate-audience-query', {
-        prompt: aiPrompt,
+        prompt: promptText,
         currentSql: currentSql || undefined,
         conversationHistory,
       })
@@ -224,6 +249,17 @@ export default function CrmAudiencesPage() {
           setCurrentExplanation(result.explanation)
           setCurrentCount(result.estimatedCount)
           setCurrentSample(result.sampleRows || [])
+
+          // Auto-generate name if empty
+          if (!aiName.trim()) {
+            const cleanName = promptText
+              .replace(/[^a-zA-Z0-9\s]/g, '')
+              .split(/\s+/)
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .slice(0, 4)
+              .join(' ')
+            setAiName(cleanName || 'AI Audience')
+          }
         }
       }
     } catch (err: any) {
@@ -248,6 +284,7 @@ export default function CrmAudiencesPage() {
       estimated_count: currentCount,
       is_dynamic:      true,
       audience_rpc_name: 'execute_audience_query', // placeholder for legacy compat
+      recipient_type:  determineRecipientType(currentSql),
     }
 
     if (editingAudience) {
@@ -402,25 +439,6 @@ export default function CrmAudiencesPage() {
           {createMode === 'ai' ? (
             /* ────────────────── AI Builder Mode ────────────────── */
             <div className="ai-builder">
-              {/* Name + Description */}
-              <div className="crm-form-grid col2">
-                <div className="crm-field">
-                  <label>Audience Name *</label>
-                  <input
-                    placeholder="e.g. High-Value California Buyers"
-                    value={aiName}
-                    onChange={e => setAiName(e.target.value)}
-                  />
-                </div>
-                <div className="crm-field">
-                  <label>Description <span className="crm-hint">— auto-filled by AI</span></label>
-                  <input
-                    placeholder="Will be auto-generated from your prompt…"
-                    value={aiDescription}
-                    onChange={e => setAiDescription(e.target.value)}
-                  />
-                </div>
-              </div>
 
               {/* Chat Interface */}
               <div className="ai-chat-container">
@@ -451,7 +469,7 @@ export default function CrmAudiencesPage() {
                     <div key={i} className={`chat-message ${msg.role}`}>
                       <div className="chat-bubble">
                         <div className="chat-content">{msg.content}</div>
-                        {msg.error && !msg.sql && (
+                        {msg.error && (
                           <div className="chat-error">⚠️ {msg.error}</div>
                         )}
                         {msg.sql && (
@@ -551,6 +569,26 @@ export default function CrmAudiencesPage() {
                       💡 You can refine the query by describing what to change. Press Enter to send.
                     </p>
                   )}
+                </div>
+              </div>
+
+              {/* Name + Description (moved here so it is right next to the Save button) */}
+              <div className="crm-form-grid col2" style={{ marginTop: 20, marginBottom: 8 }}>
+                <div className="crm-field">
+                  <label>Audience Name *</label>
+                  <input
+                    placeholder="e.g. California Buyers"
+                    value={aiName}
+                    onChange={e => setAiName(e.target.value)}
+                  />
+                </div>
+                <div className="crm-field">
+                  <label>Description <span className="crm-hint">— auto-filled by AI</span></label>
+                  <input
+                    placeholder="Will be auto-generated from your prompt…"
+                    value={aiDescription}
+                    onChange={e => setAiDescription(e.target.value)}
+                  />
                 </div>
               </div>
 

@@ -142,12 +142,12 @@ export async function POST(request: NextRequest) {
     
     // Static module-level cache (persists across Next.js API hot-requests)
     const CACHE_TTL_MS = 60 * 1000; // 1 minute
-    let cachedAdmin = (global as any).__adminAuthCache?.get(accessToken);
-    let isAdmin = false;
+    let cachedUser = (global as any).__adminAuthCache?.get(accessToken);
+    let userRoles: string[] | null = null;
 
-    if (cachedAdmin && cachedAdmin.expiresAt > Date.now()) {
+    if (cachedUser && cachedUser.expiresAt > Date.now()) {
       console.log('[Admin API] Auth Cache HIT');
-      isAdmin = true;
+      userRoles = cachedUser.roles;
     } else {
       console.log('[Admin API] Auth Cache MISS - executing verification waterfall');
       // Not cached or expired: execute verification waterfall
@@ -184,12 +184,15 @@ export async function POST(request: NextRequest) {
 
       console.log('[Admin API] Staff query finished. Row:', staffRow, 'Error:', staffError);
 
-      if (!staffRow || !staffRow.roles?.includes('admin')) {
-        console.log('[Admin API] Access forbidden: user is not an admin. Roles:', staffRow?.roles);
-        return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
+      const hasAdmin = staffRow?.roles?.includes('admin')
+      const hasMarketing = staffRow?.roles?.includes('marketing')
+
+      if (!staffRow || (!hasAdmin && !hasMarketing)) {
+        console.log('[Admin API] Access forbidden: user is not authorized. Roles:', staffRow?.roles);
+        return NextResponse.json({ error: 'Forbidden: admin or marketing role required' }, { status: 403 })
       }
       
-      isAdmin = true;
+      userRoles = staffRow.roles;
       
       // Update the cache safely globally
       if (!(global as any).__adminAuthCache) {
@@ -198,21 +201,71 @@ export async function POST(request: NextRequest) {
       // Keep map small to avoid silent OOMs 
       if ((global as any).__adminAuthCache.size > 200) (global as any).__adminAuthCache.clear();
       
-      (global as any).__adminAuthCache.set(accessToken, { expiresAt: Date.now() + CACHE_TTL_MS });
+      (global as any).__adminAuthCache.set(accessToken, { 
+        roles: staffRow.roles,
+        expiresAt: Date.now() + CACHE_TTL_MS 
+      });
     }
 
-    if (!isAdmin) {
+    if (!userRoles || (!userRoles.includes('admin') && !userRoles.includes('marketing'))) {
        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Create service client for data operations
     const serviceClient = getServiceClient()
 
-
     // 3. Parse and validate request
     const body: AdminRequestBody = await request.json()
     console.log('[Admin API] Parsed body:', JSON.stringify(body));
     const { action, table, data, select: selectClause, filters, order, limit, single } = body
+
+    // 4. Role-based API permission boundary check for non-admins (marketing role)
+    const isAdmin = userRoles.includes('admin')
+    const isMarketing = userRoles.includes('marketing')
+
+    if (!isAdmin) {
+      if (!isMarketing) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      // Check if it is a write/mutate operation
+      const isWrite = ['insert', 'update', 'delete', 'upsert'].includes(action)
+
+      // Whitelisted CRM tables for write/mutate operations
+      const CRM_WRITE_WHITELIST = new Set([
+        'crm_sequences',
+        'crm_sequence_enrollments',
+        'crm_audiences',
+        'crm_data_sources',
+        'crm_promotions',
+        'crm_landing_pages',
+        'crm_leads',
+        'crm_assets',
+        'tutorial_sections',
+      ])
+
+      // Blacklisted sensitive tables for read operations
+      const SENSITIVE_READ_BLACKLIST = new Set([
+        'staff_members',
+        'platform_bank_ledger',
+        'market_settlements',
+        'settlement_captures',
+        'user_settlements',
+      ])
+
+      if (isWrite) {
+        if (!table || !CRM_WRITE_WHITELIST.has(table)) {
+          console.log('[Admin API] Write blocked for marketing user on table:', table);
+          return NextResponse.json({ error: 'Forbidden: Write access not allowed on this table' }, { status: 403 })
+        }
+      } else {
+        // Read operations (select, rpc, invoke_function)
+        if (table && SENSITIVE_READ_BLACKLIST.has(table)) {
+          console.log('[Admin API] Read blocked for marketing user on sensitive table:', table);
+          return NextResponse.json({ error: 'Forbidden: Access to this table is restricted' }, { status: 403 })
+        }
+      }
+    }
 
     // Handle function invocation separately — no table needed
     if (action === 'invoke_function') {

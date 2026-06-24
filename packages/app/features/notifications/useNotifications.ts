@@ -60,7 +60,7 @@ export function useNotifications(userId: string | undefined) {
                     table: "notifications",
                     filter: `user_id=eq.${userId}`,
                 },
-                (payload) => {
+                (payload: any) => {
                     const newNotif = payload.new as Notification;
                     setNotifications((prev) =>
                         [newNotif, ...prev].slice(0, 50)

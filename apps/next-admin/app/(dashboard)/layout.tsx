@@ -10,6 +10,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import { useAdminPush } from '../../lib/useAdminPush'
 import { colors } from '@casagrown/app/design-tokens'
+import { checkIsStaffByEmail } from '@casagrown/app/features/feedback/feedback-service'
 import ClientOnly from '../ClientOnly'
 import './quill-overrides.css'
 
@@ -153,9 +154,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isMobile = !isDesktop
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [roles, setRoles] = useState<string[] | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const { user, signOut } = useAuth()
+
+  useEffect(() => {
+    if (user?.email) {
+      // 1. Try to read roles from metadata
+      const metaRoles = user.user_metadata?.roles
+      if (Array.isArray(metaRoles)) {
+        setRoles(metaRoles)
+        return
+      }
+
+      // 2. Fallback to RPC
+      checkIsStaffByEmail(user.email).then(res => {
+        if (res.isStaff) {
+          setRoles(res.roles)
+        } else {
+          setRoles([])
+        }
+      })
+    }
+  }, [user])
 
   // Silently subscribe admin to push notifications on first load
   useAdminPush(user?.id)
@@ -170,85 +192,104 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMenuOpen(false)
   }
 
-  // Sidebar content component to reuse for both desktop AND mobile sheet
-  const SidebarContent = () => (
-    <YStack flex={1} padding="$4" gap="$4">
-      <XStack alignItems="center" gap="$2" paddingBottom="$2">
-        <img 
-          src="/logo.png" 
-          alt="CasaGrown" 
-          style={{ width: 24, height: 24, objectFit: 'contain' }}
-        />
-        <Text fontSize="$6" fontWeight="bold" color={colors.green[800]}>
-          CasaGrown Admin
-        </Text>
-      </XStack>
-      
-      <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-        <YStack gap="$6" paddingBottom="$8">
-          {MENU_GROUPS.map((group) => (
-            <YStack key={group.title} gap="$2">
-              <XStack alignItems="center" gap="$2" paddingHorizontal="$2" paddingBottom="$1">
-                <group.icon size={16} color={colors.gray[500]} />
-                <Text fontSize="$2" fontWeight="700" color={colors.gray[500]} letterSpacing={0.5}>
-                  {group.title}
-                </Text>
-              </XStack>
-              <YStack gap="$1">
-                {group.items.map((item) => {
-                  if (item.action === 'logout') {
-                    return (
-                      <Button
-                        key="logout"
-                        chromeless
-                        justifyContent="space-between"
-                        paddingHorizontal="$3"
-                        height="$4"
-                        borderRadius="$2"
-                        backgroundColor="transparent"
-                        pressStyle={{ backgroundColor: colors.red[100] }}
-                        hoverStyle={{ backgroundColor: colors.red[50] }}
-                        onPress={handleLogout}
-                      >
-                        <Text color={colors.red[600]} fontWeight="600">
-                          {item.label}
-                        </Text>
-                      </Button>
-                    )
-                  }
+  const hasOnlyMarketing = roles && roles.includes('marketing') && !roles.includes('admin')
 
-                  const isActive = pathname === item.path
-                  return (
-                    <Link key={item.path || item.label} href={item.path === '#' ? '' : (item.path || '')} passHref>
-                      <Button
-                        chromeless
-                        justifyContent="space-between"
-                        paddingHorizontal="$3"
-                        height="$4"
-                        borderRadius="$2"
-                        backgroundColor={isActive ? colors.green[100] : 'transparent'}
-                        pressStyle={{ backgroundColor: colors.green[200] }}
-                        hoverStyle={{ backgroundColor: colors.green[50] }}
-                        onPress={() => setMenuOpen(false)}
-                      >
-                        <Text 
-                          color={isActive ? colors.green[800] : colors.gray[700]} 
-                          fontWeight={isActive ? "600" : "400"}
-                        >
-                          {item.label}
-                        </Text>
-                        {isActive && <ChevronRight size={16} color={colors.green[600]} />}
-                      </Button>
-                    </Link>
-                  )
-                })}
-              </YStack>
-            </YStack>
-          ))}
+  // Sidebar content component to reuse for both desktop AND mobile sheet
+  const SidebarContent = () => {
+    if (roles === null) {
+      return (
+        <YStack flex={1} padding="$4" gap="$4" alignItems="center" justifyContent="center">
+          <Text color={colors.gray[500]}>Loading...</Text>
         </YStack>
-      </ScrollView>
-    </YStack>
-  )
+      )
+    }
+
+    const visibleGroups = MENU_GROUPS.filter(group => {
+      if (hasOnlyMarketing) {
+        return group.title === 'CRM & MARKETING' || group.title === 'ACCOUNT'
+      }
+      return true
+    })
+
+    return (
+      <YStack flex={1} padding="$4" gap="$4">
+        <XStack alignItems="center" gap="$2" paddingBottom="$2">
+          <img 
+            src="/logo.png" 
+            alt="CasaGrown" 
+            style={{ width: 24, height: 24, objectFit: 'contain' }}
+          />
+          <Text fontSize="$6" fontWeight="bold" color={colors.green[800]}>
+            {hasOnlyMarketing ? 'CasaGrown CRM' : 'CasaGrown Admin'}
+          </Text>
+        </XStack>
+        
+        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+          <YStack gap="$6" paddingBottom="$8">
+            {visibleGroups.map((group) => (
+              <YStack key={group.title} gap="$2">
+                <XStack alignItems="center" gap="$2" paddingHorizontal="$2" paddingBottom="$1">
+                  <group.icon size={16} color={colors.gray[500]} />
+                  <Text fontSize="$2" fontWeight="700" color={colors.gray[500]} letterSpacing={0.5}>
+                    {group.title}
+                  </Text>
+                </XStack>
+                <YStack gap="$1">
+                  {group.items.map((item) => {
+                    if (item.action === 'logout') {
+                      return (
+                        <Button
+                          key="logout"
+                          chromeless
+                          justifyContent="space-between"
+                          paddingHorizontal="$3"
+                          height="$4"
+                          borderRadius="$2"
+                          backgroundColor="transparent"
+                          pressStyle={{ backgroundColor: colors.red[100] }}
+                          hoverStyle={{ backgroundColor: colors.red[50] }}
+                          onPress={handleLogout}
+                        >
+                          <Text color={colors.red[600]} fontWeight="600">
+                            {item.label}
+                          </Text>
+                        </Button>
+                      )
+                    }
+
+                    const isActive = pathname === item.path
+                    return (
+                      <Link key={item.path || item.label} href={item.path === '#' ? '' : (item.path || '')} passHref>
+                        <Button
+                          chromeless
+                          justifyContent="space-between"
+                          paddingHorizontal="$3"
+                          height="$4"
+                          borderRadius="$2"
+                          backgroundColor={isActive ? colors.green[100] : 'transparent'}
+                          pressStyle={{ backgroundColor: colors.green[200] }}
+                          hoverStyle={{ backgroundColor: colors.green[50] }}
+                          onPress={() => setMenuOpen(false)}
+                        >
+                          <Text 
+                            color={isActive ? colors.green[800] : colors.gray[700]} 
+                            fontWeight={isActive ? "600" : "400"}
+                          >
+                            {item.label}
+                          </Text>
+                          {isActive && <ChevronRight size={16} color={colors.green[600]} />}
+                        </Button>
+                      </Link>
+                    )
+                  })}
+                </YStack>
+              </YStack>
+            ))}
+          </YStack>
+        </ScrollView>
+      </YStack>
+    )
+  }
 
   return (
     <ClientOnly>
@@ -282,7 +323,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               alt="CasaGrown" 
               style={{ width: 24, height: 24, objectFit: 'contain' }}
             />
-            <Text fontSize="$5" fontWeight="bold" color={colors.green[800]}>CasaGrown Admin</Text>
+            <Text fontSize="$5" fontWeight="bold" color={colors.green[800]}>
+              {hasOnlyMarketing ? 'CasaGrown CRM' : 'CasaGrown Admin'}
+            </Text>
           </XStack>
           <Button icon={Menu} chromeless size="$4" onPress={() => setMenuOpen(true)} />
         </XStack>

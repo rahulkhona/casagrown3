@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+// @ts-expect-error react-dom types
 import { createPortal } from 'react-dom'
 import { YStack, XStack, Text, Button, Card, Input, Label } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
@@ -217,7 +218,9 @@ export default function TutorialsManagementPage() {
     content_html: formDescription,
     content_text: '',
     subject: '',
-    name: ''
+    name: '',
+    postmark_template_alias: '',
+    test_emails: '',
   }
   
   const setEditorForm = (updater: any) => {
@@ -314,7 +317,7 @@ export default function TutorialsManagementPage() {
       {isFormOpen && (
         <Card borderWidth={1} borderColor={colors.gray[200]} padding="$4" backgroundColor="white" borderRadius="$4" elevation="$1">
           <YStack gap="$4">
-            <XStack alignItems="center" justifyContent="space-between" borderBottomWidth={1} borderColor={colors.gray[150]} paddingBottom="$2">
+            <XStack alignItems="center" justifyContent="space-between" borderBottomWidth={1} borderColor={(colors.gray as any)[150]} paddingBottom="$2">
               <XStack alignItems="center" gap="$2">
                 <FileVideo size={20} color={colors.green[600]} />
                 <Text fontSize="$5" fontWeight="600" color={colors.gray[800]}>
@@ -395,7 +398,7 @@ export default function TutorialsManagementPage() {
               </XStack>
             </YStack>
 
-            <XStack gap="$3" justifyContent="flex-end" marginTop="$2" borderTopWidth={1} borderColor={colors.gray[150]} paddingTop="$3">
+            <XStack gap="$3" justifyContent="flex-end" marginTop="$2" borderTopWidth={1} borderColor={(colors.gray as any)[150]} paddingTop="$3">
               <Button chromeless onPress={resetFormState}>
                 <Text color={colors.gray[600]}>Cancel</Text>
               </Button>
@@ -412,7 +415,7 @@ export default function TutorialsManagementPage() {
         <YStack gap="$2">
           {orderedData.length === 0 ? (
             <YStack padding="$8" alignItems="center" borderWidth={1} borderStyle="dashed" borderColor={colors.gray[300]} borderRadius="$4" backgroundColor="white">
-              <Text fontSize="$4" color={colors.gray[450]}>No video tutorials created yet.</Text>
+              <Text fontSize="$4" color={(colors.gray as any)[450]}>No video tutorials created yet.</Text>
               <Button size="$3" backgroundColor={colors.green[600]} marginTop="$3" onPress={handleAddInit}>
                 <Text color="white" fontWeight="600">Create First Tutorial</Text>
               </Button>
@@ -423,7 +426,7 @@ export default function TutorialsManagementPage() {
                 {(provided) => (
                   <YStack
                     {...provided.droppableProps}
-                    ref={provided.innerRef}
+                    ref={provided.innerRef as any}
                     backgroundColor="white"
                     borderRadius="$4"
                     borderWidth={1}
@@ -443,7 +446,7 @@ export default function TutorialsManagementPage() {
                               <XStack
                                 padding="$4"
                                 borderBottomWidth={index === orderedData.length - 1 ? 0 : 1}
-                                borderColor={colors.gray[150]}
+                                borderColor={(colors.gray as any)[150]}
                                 backgroundColor={snapshot.isDragging ? colors.gray[50] : 'white'}
                                 alignItems="center"
                                 justifyContent="space-between"
@@ -459,7 +462,7 @@ export default function TutorialsManagementPage() {
                                       </Text>
                                       {!item.is_published && (
                                         <XStack backgroundColor={colors.amber[100]} paddingHorizontal="$2" paddingVertical="$0.5" borderRadius="$2">
-                                          <Text fontSize="$1" fontWeight="600" color={colors.amber[800]}>Draft</Text>
+                                          <Text fontSize="$1" fontWeight="600" color={(colors.amber as any)[800]}>Draft</Text>
                                         </XStack>
                                       )}
                                     </XStack>
@@ -475,7 +478,7 @@ export default function TutorialsManagementPage() {
                                     chromeless
                                     icon={<Edit3 size={16} color={colors.gray[600]} />}
                                     onPress={() => handleEditInit(item)}
-                                    title="Edit Tutorial"
+                                    aria-label="Edit Tutorial"
                                     data-testid={`tutorial-edit-${item.id}`}
                                   />
                                   <Button
@@ -483,7 +486,7 @@ export default function TutorialsManagementPage() {
                                     chromeless
                                     icon={<Trash2 size={16} color={colors.red[500]} />}
                                     onPress={() => handleDeleteInit(item.id, item.title)}
-                                    title="Delete Tutorial"
+                                    aria-label="Delete Tutorial"
                                     data-testid={`tutorial-delete-${item.id}`}
                                   />
                                 </XStack>

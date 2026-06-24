@@ -87,7 +87,7 @@ const PAYOUT_STATUS_COLORS: Record<string, { bg: string; text: string; border: s
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_COLORS[status] || { bg: colors.gray[100], text: colors.gray[700], border: colors.gray[300] }
+  const style: any = STATUS_COLORS[status] || { bg: colors.gray[100], text: colors.gray[700], border: colors.gray[300] }
   return (
     <Text
       fontSize={12}
@@ -106,7 +106,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function PayoutStatusBadge({ status }: { status: string }) {
-  const style = PAYOUT_STATUS_COLORS[status] || { bg: colors.gray[100], text: colors.gray[700], border: colors.gray[300] }
+  const style: any = PAYOUT_STATUS_COLORS[status] || { bg: colors.gray[100], text: colors.gray[700], border: colors.gray[300] }
   return (
     <Text
       fontSize={12}

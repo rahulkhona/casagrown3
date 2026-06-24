@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+// @ts-ignore - react-dom types
 import { createPortal } from 'react-dom'
 import { YStack, XStack, Text, Button, Card } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'

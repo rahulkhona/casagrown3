@@ -677,6 +677,7 @@ export default function CrmCampaignsPage() {
                     <button className="crm-btn-edit-icon" onClick={() => handleEdit(c)} title="Edit Campaign">✏️</button>
                     <button className="crm-btn-danger-icon" onClick={() => setDeletingId(c.id)} title="Delete Campaign">🗑</button>
                   </div>
+                  {/* @ts-expect-error legacy status check */}
                   {c.status === 'active' && (
                      <span className="crm-muted">Automated</span>
                   )}

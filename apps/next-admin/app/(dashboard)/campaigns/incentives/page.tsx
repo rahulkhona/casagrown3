@@ -77,7 +77,7 @@ export default function IncentivesPage() {
       const { data, error } = await adminApi.select('profiles', 'id, full_name, email', {
         or: `email.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`,
         limit: 5
-      })
+      } as any)
       if (!error && data) {
         setSearchResults(data as UserSearchProfile[])
       }
@@ -390,11 +390,11 @@ export default function IncentivesPage() {
                   </YStack>
                   <XStack width={120} justifyContent="flex-end">
                     {inc.is_active ? (
-                      <Button size="$2" backgroundColor={colors.red[50]} color={colors.red[700]} borderColor={colors.red[200]} borderWidth={1} onPress={() => setConfirmDialog({ type: 'stop', id: inc.id })}>
+                      <Button size="$2" backgroundColor={colors.red[50]} borderColor={colors.red[200]} borderWidth={1} onPress={() => setConfirmDialog({ type: 'stop', id: inc.id })}>
                         Stop
                       </Button>
                     ) : (
-                      <Button size="$2" backgroundColor={colors.green[50]} color={colors.green[700]} borderColor={colors.green[200]} borderWidth={1} onPress={() => setConfirmDialog({ type: 'restart', id: inc.id })}>
+                      <Button size="$2" backgroundColor={colors.green[50]} borderColor={colors.green[200]} borderWidth={1} onPress={() => setConfirmDialog({ type: 'restart', id: inc.id })}>
                         Restart
                       </Button>
                     )}

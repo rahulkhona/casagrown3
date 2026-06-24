@@ -258,7 +258,7 @@ export async function fetchTickets(
             .in("feedback_id", ticketIds);
 
         if (votes) {
-            const votedIds = new Set(votes.map((v) => v.feedback_id));
+            const votedIds = new Set(votes.map((v: any) => v.feedback_id));
             tickets = tickets.map((t) => ({
                 ...t,
                 is_voted: votedIds.has(t.id),
@@ -276,7 +276,7 @@ export async function fetchTickets(
 
         if (flags) {
             const flagCounts: Record<string, number> = {};
-            flags.forEach((f) => {
+            flags.forEach((f: any) => {
                 flagCounts[f.feedback_id] = (flagCounts[f.feedback_id] || 0) +
                     1;
             });
@@ -294,7 +294,7 @@ export async function fetchTickets(
                 .eq("user_id", currentUserId)
                 .in("feedback_id", ticketIds);
             if (userFlags) {
-                const flaggedIds = new Set(userFlags.map((f) => f.feedback_id));
+                const flaggedIds = new Set(userFlags.map((f: any) => f.feedback_id));
                 tickets = tickets.map((t) => ({
                     ...t,
                     is_flagged: flaggedIds.has(t.id),
@@ -440,7 +440,7 @@ export async function fetchTicketById(
     if (flags) {
         result.flag_count = flags.length;
         if (currentUserId) {
-            result.is_flagged = flags.some((f) => f.user_id === currentUserId);
+            result.is_flagged = flags.some((f: any) => f.user_id === currentUserId);
         }
     }
 
@@ -702,7 +702,7 @@ export async function toggleVote(
 // Staff types
 // =============================================================================
 
-export type StaffRole = "admin" | "moderator" | "support";
+export type StaffRole = "admin" | "moderator" | "support" | "marketing";
 
 export interface StaffMember {
     id: string;
@@ -727,29 +727,24 @@ export async function checkIsStaffByEmail(
     email: string,
 ): Promise<StaffCheckResult> {
     // Use SECURITY DEFINER RPC — works before auth (bypasses RLS)
-    const { data: isStaff, error: rpcError } = await supabase
-        .rpc("is_staff_email", { check_email: email.toLowerCase() });
+    const { data, error } = await supabase
+        .rpc("get_staff_member_by_email", { check_email: email.toLowerCase() });
 
-    if (rpcError) {
-        console.error("checkIsStaffByEmail rpc error:", rpcError.message);
+    if (error) {
+        console.error("checkIsStaffByEmail rpc error:", error.message);
         return { isStaff: false, roles: [], staffId: null };
     }
 
-    if (!isStaff) {
+    if (!data || data.length === 0) {
         return { isStaff: false, roles: [], staffId: null };
     }
 
-    // Try to get roles (may fail if not authed yet — that's ok for pre-login check)
-    const { data } = await supabase
-        .from("staff_members")
-        .select("id, roles")
-        .eq("email", email.toLowerCase())
-        .maybeSingle();
+    const row = data[0];
 
     return {
         isStaff: true,
-        roles: data?.roles || [],
-        staffId: data?.id || null,
+        roles: row.roles || [],
+        staffId: row.id || null,
     };
 }
 
@@ -1002,7 +997,7 @@ export async function fetchReportStats(
     ];
     const voteBuckets = buckets.map((b) => ({
         range: b.range,
-        count: voteCounts.filter((v) => v >= b.min && v <= b.max).length,
+        count: voteCounts.filter((v: any) => v >= b.min && v <= b.max).length,
     }));
 
     return {

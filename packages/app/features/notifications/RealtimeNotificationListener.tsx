@@ -86,7 +86,7 @@ export function RealtimeNotificationListener() {
           schema: 'public',
           table: 'chat_messages',
         },
-        async (payload) => {
+        async (payload: any) => {
           if (!mountedRef.current) return
           const message = payload.new
           console.log('[SystemChannel] New message payload received:', message)
@@ -150,7 +150,7 @@ export function RealtimeNotificationListener() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (!mountedRef.current) return
           const notif = payload.new
 
@@ -183,7 +183,7 @@ export function RealtimeNotificationListener() {
           table: 'seller_subscriptions',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (!mountedRef.current) return
           const sub = payload.new as any
           if (sub?.status === 'active' || sub?.status === 'trialing') {
@@ -198,7 +198,7 @@ export function RealtimeNotificationListener() {
         }
       )
 
-      channel.subscribe((status) => {
+      channel.subscribe((status: any) => {
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true
           // Show accumulated unreads on first subscribe (app launch)

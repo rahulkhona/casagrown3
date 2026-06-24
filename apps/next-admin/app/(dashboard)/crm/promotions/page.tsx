@@ -508,7 +508,7 @@ export default function CrmPromotionsBuilderPage() {
       
       // Instead of collapsing the form, we reload the data so the newly generated URLs appear!
       await fetchPromotions()
-      await handleEdit(promoId)
+      await handleEdit(promoId!)
       
     } catch (e: any) {
       toast(`Error: ${e.message}`)
@@ -672,7 +672,7 @@ export default function CrmPromotionsBuilderPage() {
                   theme="snow" 
                   modules={quillModules}
                   value={form.description_html} 
-                  onChange={val => setForm(f => ({...f, description_html: val}))} 
+                  onChange={(val: string) => setForm(f => ({...f, description_html: val}))} 
                   style={{ minHeight: '150px' }}
                 />
               </div>
@@ -742,7 +742,7 @@ export default function CrmPromotionsBuilderPage() {
                     theme="snow" 
                     modules={quillModules}
                     value={form.giveaway_desc} 
-                    onChange={val => setForm(f => ({...f, giveaway_desc: val}))} 
+                    onChange={(val: string) => setForm(f => ({...f, giveaway_desc: val}))} 
                     style={{ minHeight: '100px' }}
                   />
                 </div>
