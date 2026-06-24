@@ -78,18 +78,47 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
-  // 1. Fetch pending enrollments
-  const { data: enrollments, error } = await supabase
-    .from('crm_sequence_enrollments')
-    .select('*, crm_sequences(id, definition, status)')
-    .eq('status', 'active')
-    .lte('next_evaluation_at', new Date().toISOString())
-    .limit(100)
-
-  if (error || !enrollments) {
-    console.error("Error fetching enrollments", error);
-    return new Response(JSON.stringify({ error: error?.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  // Parse optional request body for test_run_all mode
+  let testRunAll = false;
+  let filterSequenceId: string | null = null;
+  try {
+    const body = await req.json();
+    testRunAll = body?.test_run_all === true;
+    filterSequenceId = body?.sequence_id || null;
+  } catch {
+    // No body or invalid JSON — normal cron invocation
   }
+
+  const MAX_TEST_ITERATIONS = 50; // Safety cap to prevent infinite loops
+  let iterationCount = 0;
+  const allResults: any[] = [];
+
+  // Outer loop: in test_run_all mode, keep processing until all enrollments complete
+  do {
+    iterationCount++;
+
+    // 1. Fetch pending enrollments
+    let query = supabase
+      .from('crm_sequence_enrollments')
+      .select('*, crm_sequences(id, definition, status)')
+      .eq('status', 'active');
+
+    if (testRunAll && filterSequenceId) {
+      // In test mode: only this sequence, ignore next_evaluation_at (skip wait delays)
+      query = query.eq('sequence_id', filterSequenceId);
+    } else {
+      // Normal cron mode: only process enrollments whose wait has elapsed
+      query = query.lte('next_evaluation_at', new Date().toISOString());
+    }
+
+    const { data: enrollments, error } = await query.limit(100);
+
+    if (error || !enrollments) {
+      console.error("Error fetching enrollments", error);
+      return new Response(JSON.stringify({ error: error?.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (enrollments.length === 0) break; // No more active enrollments to process
 
   const results: any[] = [];
 
@@ -163,12 +192,17 @@ serve(async (req) => {
         const edge = def.edges.find((e: any) => e.source === node.id);
         if (edge) nextNodeId = edge.target;
       } else if (nodeLogicType === 'wait') {
-        const days = node.data.delayDays || 0;
-        const hours = node.data.delayHours || 0;
-        const minutes = node.data.delayMinutes || 0;
-        nextEvalAt.setUTCDate(nextEvalAt.getUTCDate() + days);
-        nextEvalAt.setUTCHours(nextEvalAt.getUTCHours() + hours);
-        nextEvalAt.setUTCMinutes(nextEvalAt.getUTCMinutes() + minutes);
+        if (testRunAll) {
+          // In test mode: skip all wait delays — advance immediately
+          console.log(`[TEST MODE] Skipping wait node ${node.id} (${node.data.delayDays || 0}d ${node.data.delayHours || 0}h ${node.data.delayMinutes || 0}m)`);
+        } else {
+          const days = node.data.delayDays || 0;
+          const hours = node.data.delayHours || 0;
+          const minutes = node.data.delayMinutes || 0;
+          nextEvalAt.setUTCDate(nextEvalAt.getUTCDate() + days);
+          nextEvalAt.setUTCHours(nextEvalAt.getUTCHours() + hours);
+          nextEvalAt.setUTCMinutes(nextEvalAt.getUTCMinutes() + minutes);
+        }
         
         const edge = def.edges.find((e: any) => e.source === node.id);
         if (edge) nextNodeId = edge.target;
@@ -196,7 +230,7 @@ serve(async (req) => {
         } else if (!acceptsEmail) {
           errorMsg = 'opted_out';
         } else {
-          console.log(`[POSTMARK EMIT] Sending Sequence Email: ${subject} to ${email}`);
+          console.log(`[POSTMARK EMIT] Sending Sequence Email: ${subject} to ${email}${testRunAll ? ' (TEST MODE)' : ''}`);
           const res = await sendBroadcastEmail({
             to: email,
             subject,
@@ -245,7 +279,7 @@ serve(async (req) => {
         } else if (!acceptsSms) {
           errorMsg = 'opted_out';
         } else {
-          console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${phone}`);
+          console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${phone}${testRunAll ? ' (TEST MODE)' : ''}`);
           const res = await sendMarketingSms(phone, textBody);
           if (res.success) {
             sentAt = new Date().toISOString();
@@ -345,10 +379,10 @@ serve(async (req) => {
           current_node_id: nextNodeId,
           next_evaluation_at: nextEvalAt.toISOString()
         }).eq('id', enrollment.id);
-        results.push({ id: enrollment.id, action: 'advanced', to: nextNodeId });
+        results.push({ id: enrollment.id, action: 'advanced', to: nextNodeId, node_type: nodeLogicType });
       } else {
         await supabase.from('crm_sequence_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
-        results.push({ id: enrollment.id, action: 'completed' });
+        results.push({ id: enrollment.id, action: 'completed', node_type: nodeLogicType });
       }
 
     } catch (e: any) {
@@ -357,7 +391,18 @@ serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ success: true, processed: results.length, results }), {
+    allResults.push(...results);
+
+    // In normal mode, only run once. In test_run_all mode, loop until done.
+    if (!testRunAll) break;
+
+  } while (iterationCount < MAX_TEST_ITERATIONS);
+
+  if (testRunAll) {
+    console.log(`[TEST MODE] Completed after ${iterationCount} iteration(s), ${allResults.length} step(s) processed`);
+  }
+
+  return new Response(JSON.stringify({ success: true, processed: allResults.length, results: allResults, ...(testRunAll ? { iterations: iterationCount } : {}) }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })

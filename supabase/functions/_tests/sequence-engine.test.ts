@@ -536,3 +536,86 @@ dbTest("process-sequence-step: Correctly handles recipient_type='member' via pro
   await cleanup({ table: "crm_sequences", id: seq.id });
   // Don't delete the profile — it's a seeded test user
 });
+
+// ── Test: test_run_all sends entire drip sequence at once ────────────────────
+dbTest("Sequence Engine: test_run_all processes ALL steps, skips wait delays", async () => {
+  const lead = await createLead({ email: `testrunall.${crypto.randomUUID()}@casagrown.local` });
+
+  // Build a multi-step drip: input → email-1 → wait(3 days) → email-2 → sms
+  const seq = await createSequence({
+    startNodeId: "start",
+    nodes: [
+      { id: "start", type: "input", data: { type: "input", trigger: "manual" } },
+      { id: "email-1", type: "action_email", data: { type: "action_email", subject: "Drip Email 1", html: "<p>Welcome {{name}}!</p>" } },
+      { id: "wait-3d", type: "wait", data: { type: "wait", delayDays: 3, delayHours: 0, delayMinutes: 0 } },
+      { id: "email-2", type: "action_email", data: { type: "action_email", subject: "Drip Email 2 — Follow Up", html: "<p>Just checking in, {{name}}</p>" } },
+      { id: "sms-final", type: "action_sms", data: { type: "action_sms", text: "Hi {{name}}, last chance!" } },
+    ],
+    edges: [
+      { id: "e1", source: "start", target: "email-1" },
+      { id: "e2", source: "email-1", target: "wait-3d" },
+      { id: "e3", source: "wait-3d", target: "email-2" },
+      { id: "e4", source: "email-2", target: "sms-final" },
+    ],
+  });
+
+  // Enroll lead
+  const enrollRes = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  const enrollData = await enrollRes.json();
+  assertEquals(enrollRes.status, 200, `Enroll failed: ${JSON.stringify(enrollData)}`);
+
+  // Call process-sequence-step with test_run_all: true
+  const processRes = await processStep({ sequence_id: seq.id, test_run_all: true });
+  const processData = await processRes.json();
+  assertEquals(processRes.status, 200, `Process failed: ${JSON.stringify(processData)}`);
+
+  console.log(`[DEBUG] processData:`, JSON.stringify(processData, null, 2));
+
+  // Should have processed multiple steps (input + email-1 + wait + email-2 + sms = 5 steps)
+  assert(processData.processed >= 5, `Expected ≥5 steps processed, got ${processData.processed}. Results: ${JSON.stringify(processData.results)}`);
+  assert(processData.iterations >= 2, `Expected multiple iterations, got ${processData.iterations}`);
+
+  // Verify enrollment is completed (reached end of sequence)
+  const { data: enrollment } = await supabase.from("crm_sequence_enrollments")
+    .select("status")
+    .eq("sequence_id", seq.id)
+    .eq("recipient_id", lead.id)
+    .single();
+  assertEquals(enrollment?.status, "completed", `Enrollment should be completed, got: ${enrollment?.status}`);
+
+  // Verify crm_campaign_sends records for both emails and the SMS
+  const { data: sends, error: sendsErr } = await supabase.from("crm_campaign_sends")
+    .select("node_id, email, phone, sent_at, error")
+    .eq("sequence_id", seq.id)
+    .eq("recipient_id", lead.id);
+
+  console.log(`[DEBUG] sends query: data=${JSON.stringify(sends)}, error=${JSON.stringify(sendsErr)}`);
+  assert(sends && sends.length >= 3, `Expected ≥3 send records (2 emails + 1 sms), got ${sends?.length}`);
+
+  // Email 1 should have been sent
+  const email1Send = sends!.find((s: any) => s.node_id === "email-1");
+  assertExists(email1Send, "Should have send record for email-1");
+  assertEquals(email1Send.email, lead.email, "Email-1 should target the lead's email");
+
+  // Email 2 should have been sent (wait was SKIPPED)
+  const email2Send = sends!.find((s: any) => s.node_id === "email-2");
+  assertExists(email2Send, "Should have send record for email-2 (wait delay should have been skipped)");
+  assertEquals(email2Send.email, lead.email, "Email-2 should target the lead's email");
+
+  // SMS should have been sent (will be stub error since no Twilio config)
+  const smsSend = sends!.find((s: any) => s.node_id === "sms-final");
+  assertExists(smsSend, "Should have send record for sms-final");
+
+  console.log(`[TEST_RUN_ALL] ✅ All ${processData.processed} steps processed in ${processData.iterations} iterations. ` +
+    `Send records: ${sends!.length} (email-1: ${email1Send?.sent_at ? 'sent' : email1Send?.error}, ` +
+    `email-2: ${email2Send?.sent_at ? 'sent' : email2Send?.error}, ` +
+    `sms: ${smsSend?.sent_at ? 'sent' : smsSend?.error})`);
+
+  // Cleanup
+  await supabase.from("crm_campaign_sends").delete().eq("sequence_id", seq.id);
+  await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});

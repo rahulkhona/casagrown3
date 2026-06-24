@@ -26,7 +26,7 @@ export default function DeprecationLogsPage() {
   }
 
   return (
-    <ScrollView padding="$4" space>
+    <ScrollView padding="$4">
       <XStack justifyContent="space-between" alignItems="center">
         <H1>Deprecation Logs</H1>
         <Button onPress={fetchLogs} disabled={loading}>Refresh</Button>
@@ -41,17 +41,17 @@ export default function DeprecationLogsPage() {
       {loading ? (
         <ActivityIndicator size="large" />
       ) : (
-        <YStack space="$6">
-          <YStack space>
+        <YStack gap="$6">
+          <YStack gap="$4">
             <H2 size="$6">Recent Usage (Last 100)</H2>
             {logs.length === 0 ? (
-              <Card padded bordered>
+              <Card padding="$4" borderWidth={1}>
                 <Paragraph>No obsolete usage logs found. Systems look clean!</Paragraph>
               </Card>
             ) : (
-              <YStack space="$2">
+              <YStack gap="$2">
                 {logs.map(log => (
-                  <Card key={log.id} padded bordered>
+                  <Card key={log.id} padding="$4" borderWidth={1}>
                     <XStack justifyContent="space-between">
                       <YStack>
                         <Paragraph fontWeight="bold">[{log.object_type.toUpperCase()}] {log.object_name}</Paragraph>
@@ -65,16 +65,16 @@ export default function DeprecationLogsPage() {
             )}
           </YStack>
 
-          <YStack space>
+          <YStack gap="$4">
             <H2 size="$6">Cron Cleanup History</H2>
             {cleanupLogs.length === 0 ? (
-              <Card padded bordered>
+              <Card padding="$4" borderWidth={1}>
                 <Paragraph>No cleanup history yet. The 30-day cron has not purged any rows.</Paragraph>
               </Card>
             ) : (
-              <YStack space="$2">
+              <YStack gap="$2">
                 {cleanupLogs.map(log => (
-                  <Card key={log.id} padded bordered theme="alt1">
+                  <Card key={log.id} padding="$4" borderWidth={1} theme={"alt1" as any}>
                     <XStack justifyContent="space-between">
                       <Paragraph>Deleted {log.rows_deleted} old rows</Paragraph>
                       <Paragraph size="$2">{new Date(log.cleared_at).toLocaleString()}</Paragraph>

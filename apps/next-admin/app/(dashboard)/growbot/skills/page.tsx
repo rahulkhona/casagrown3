@@ -250,7 +250,7 @@ export default function SkillsPage() {
       )}
 
       {editingSkill && (
-        <Card borderWidth={1} borderColor={colors.blue[200]} padding="$4" backgroundColor="white" elevation="$1">
+        <Card borderWidth={1} borderColor={(colors.blue as any)[200]} padding="$4" backgroundColor="white" elevation="$1">
           <YStack gap="$4">
             <XStack alignItems="center" gap="$2">
               <SquarePen size={20} color={colors.blue[600]} />

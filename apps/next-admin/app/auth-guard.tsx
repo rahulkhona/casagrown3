@@ -60,22 +60,58 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Determine if they are an admin
+    // Determine if they are an admin or marketing user
     const checkAdmin = async () => {
       try {
         if (user.email) {
-          const res = await checkIsStaffByEmail(user.email)
-          if (res.isStaff && res.roles.includes('admin')) {
-            setAuthorized(true)
+          // 1. First, check user metadata for roles
+          let roles: string[] = user.user_metadata?.roles || []
+          let isStaff = roles.length > 0
+          console.log('[AuthGuard] Checking user:', user.email, 'metadata roles:', roles, 'isStaff:', isStaff)
+
+          // 2. If no roles in metadata, fallback to database RPC
+          if (roles.length === 0) {
+            const res = await checkIsStaffByEmail(user.email)
+            isStaff = res.isStaff
+            roles = res.roles
+            console.log('[AuthGuard] Fallback to RPC. isStaff:', isStaff, 'roles:', roles)
+          }
+
+          if (isStaff) {
+            const hasAdmin = roles.includes('admin')
+            const hasMarketing = roles.includes('marketing')
+            console.log('[AuthGuard] Staff status resolved. hasAdmin:', hasAdmin, 'hasMarketing:', hasMarketing, 'pathname:', pathname)
+
+            if (hasAdmin) {
+              setAuthorized(true)
+            } else if (hasMarketing) {
+              // Marketing can only access '/' or '/crm/*'
+              const isCrmPath = pathname === '/' || pathname.startsWith('/crm/')
+              console.log('[AuthGuard] Marketing user check. isCrmPath:', isCrmPath)
+              if (isCrmPath) {
+                setAuthorized(true)
+              } else {
+                console.log('[AuthGuard] Marketing user denied access to non-CRM path:', pathname)
+                setAuthorized(false)
+                router.replace('/unauthorized')
+              }
+            } else {
+              console.log('[AuthGuard] User has no authorized roles:', roles)
+              setAuthorized(false)
+              router.replace('/unauthorized')
+            }
           } else {
+            console.log('[AuthGuard] User is not staff')
             setAuthorized(false)
             router.replace('/unauthorized')
           }
         } else {
+          console.log('[AuthGuard] No email on user object')
           setAuthorized(false)
           router.replace('/unauthorized')
         }
       } catch (e) {
+        console.error('[AuthGuard] Error in checkAdmin:', e)
         setAuthorized(false)
         router.replace('/unauthorized')
       } finally {

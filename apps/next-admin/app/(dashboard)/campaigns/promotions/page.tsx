@@ -472,7 +472,7 @@ export default function PromotionsPage() {
                     {promo.giveaway && (
                       <XStack backgroundColor={colors.pink[50]} paddingHorizontal="$2" paddingVertical="$1" borderRadius="$2" alignSelf="flex-start" alignItems="center" gap="$2">
                         <Gift size={14} color={colors.pink[700]} />
-                        <Text fontSize={12} fontWeight="600" color={colors.pink[800]}>Giveaway</Text>
+                        <Text fontSize={12} fontWeight="600" color={(colors.pink as any)[800]}>Giveaway</Text>
                       </XStack>
                     )}
                     {promo.credits && (

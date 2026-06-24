@@ -423,7 +423,7 @@ export default function PayoutsPage() {
           <Text color={colors.gray[600]}>Manual human-review for corporate cashouts</Text>
         </YStack>
         <XStack gap="$2">
-          <Button icon={RefreshCw} backgroundColor={colors.white} color={colors.gray[800]} borderWidth={1} borderColor={colors.gray[300]} onPress={fetchData}>
+          <Button icon={RefreshCw} backgroundColor={colors.white} borderWidth={1} borderColor={colors.gray[300]} onPress={fetchData}>
             Refresh Queue
           </Button>
         </XStack>
@@ -459,7 +459,7 @@ export default function PayoutsPage() {
                 placeholder="1000" 
                 keyboardType="numeric" 
               />
-              <Button size="$3" backgroundColor={colors.gray[100]} color={colors.gray[800]} onPress={selectOldestUpToLimit}>
+              <Button size="$3" backgroundColor={colors.gray[100]} onPress={selectOldestUpToLimit}>
                 Auto-Select
               </Button>
             </XStack>
@@ -474,7 +474,6 @@ export default function PayoutsPage() {
                   size="$3" 
                   icon={Download}
                   backgroundColor={colors.white}
-                  color={colors.gray[800]}
                   borderWidth={1}
                   borderColor={colors.gray[300]}
                   onPress={downloadCSV}
@@ -487,7 +486,6 @@ export default function PayoutsPage() {
                   size="$3"
                   icon={Upload}
                   backgroundColor={colors.white}
-                  color={colors.gray[800]}
                   borderWidth={1}
                   borderColor={colors.gray[300]}
                   onPress={() => { setCsvUploadOpen(true); setCsvParsedRows([]); setCsvFileName('') }}
@@ -561,10 +559,10 @@ export default function PayoutsPage() {
             </YStack>
 
             <XStack gap="$3" justifyContent="flex-end" marginTop="$2">
-              <Button size="$3" backgroundColor="white" color="#991b1b" borderWidth={1} borderColor="#fecaca" onPress={() => setRejectModalOpen(false)}>
+              <Button size="$3" backgroundColor="white" borderWidth={1} borderColor="#fecaca" onPress={() => setRejectModalOpen(false)}>
                 Cancel
               </Button>
-              <Button size="$3" backgroundColor="#dc2626" color="white" onPress={executeRejectPayouts} disabled={processing || !rejectReason.trim()}>
+              <Button size="$3" backgroundColor="#dc2626" onPress={executeRejectPayouts} disabled={processing || !rejectReason.trim()}>
                 {processing ? <Spinner color="white" /> : `Confirm Rejection (${selectedIds.size})`}
               </Button>
             </XStack>
@@ -601,8 +599,8 @@ export default function PayoutsPage() {
             })}
             
             <XStack gap="$3" justifyContent="flex-end" marginTop="$2">
-              <Button onPress={() => setManualFulfillModalOpen(false)} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1" color="#475569">Cancel</Button>
-              <Button backgroundColor="#0ea5e9" color="white" onPress={executeManualFulfill} disabled={processing} icon={processing ? <Spinner color="white" /> : undefined}>{processing ? 'Submitting...' : 'Mark as Successfully Paid'}</Button>
+              <Button onPress={() => setManualFulfillModalOpen(false)} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1">Cancel</Button>
+              <Button backgroundColor="#0ea5e9" onPress={executeManualFulfill} disabled={processing} icon={processing ? <Spinner color="white" /> : undefined}>{processing ? 'Submitting...' : 'Mark as Successfully Paid'}</Button>
             </XStack>
           </YStack>
         )}
@@ -621,7 +619,7 @@ export default function PayoutsPage() {
           <YStack backgroundColor="#f0f9ff" padding="$4" borderRadius="$2" gap="$4" borderWidth={1} borderColor="#7dd3fc" marginTop="$2">
             <XStack justifyContent="space-between" alignItems="center">
               <Text fontSize={16} fontWeight="bold" color="#0c4a6e">Import Provider Response CSV</Text>
-              <Button size="$2" onPress={() => { setCsvUploadOpen(false); setCsvParsedRows([]) }} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1" color="#475569">✕</Button>
+              <Button size="$2" onPress={() => { setCsvUploadOpen(false); setCsvParsedRows([]) }} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1">✕</Button>
             </XStack>
             <Text fontSize={13} color="#0369a1">Upload the response CSV from a provider portal. The system will match rows back to pending redemptions using the Redemption ID column.</Text>
 
@@ -634,7 +632,6 @@ export default function PayoutsPage() {
                       key={key}
                       size="$3"
                       backgroundColor={csvProvider === key ? '#0284c7' : 'white'}
-                      color={csvProvider === key ? 'white' : '#334155'}
                       borderWidth={1}
                       borderColor={csvProvider === key ? '#0284c7' : '#cbd5e1'}
                       onPress={() => { setCsvProvider(key); setCsvParsedRows([]); setCsvFileName('') }}
@@ -707,11 +704,10 @@ export default function PayoutsPage() {
                 </ScrollView>
 
                 <XStack gap="$3" justifyContent="flex-end" marginTop="$2">
-                  <Button onPress={() => { setCsvUploadOpen(false); setCsvParsedRows([]) }} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1" color="#475569">Cancel</Button>
+                  <Button onPress={() => { setCsvUploadOpen(false); setCsvParsedRows([]) }} backgroundColor="white" borderWidth={1} borderColor="#cbd5e1">Cancel</Button>
                   <Button
                     backgroundColor={csvParsedRows.some(r => r.matched && isSuccessStatus(r.status)) ? '#0284c7' : colors.gray[300]}
                     disabled={!csvParsedRows.some(r => r.matched && isSuccessStatus(r.status)) || csvProcessing}
-                    color="white"
                     onPress={executeCSVUpload}
                     icon={csvProcessing ? <Spinner color="white" /> : undefined}
                   >

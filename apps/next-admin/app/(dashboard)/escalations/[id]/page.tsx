@@ -631,7 +631,7 @@ export default function EscalationDetailPage() {
             <Separator />
 
             {/* Messages */}
-            <YStack gap="$3" maxHeight={400} overflow="auto">
+            <YStack gap="$3" maxHeight={400} overflow="scroll">
               {(!messages || messages.length === 0) ? (
                 <Text fontSize={13} color="#9CA3AF" textAlign="center" padding="$4">
                   No messages yet

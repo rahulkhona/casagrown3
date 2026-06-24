@@ -65,6 +65,7 @@ export const NextTamaguiProvider = ({ children, disableNotifications }: { childr
   })
 
   return (
+    // @ts-expect-error React type version mismatch
     <NextThemeProvider
       skipNextHead
       defaultTheme="light"

@@ -77,7 +77,8 @@ export default function UsersPage() {
       options: [
         { label: 'Admin (Superuser)', value: 'admin' },
         { label: 'Moderator', value: 'moderator' },
-        { label: 'Support', value: 'support' }
+        { label: 'Support', value: 'support' },
+        { label: 'Marketing', value: 'marketing' }
       ]
     }
   ]

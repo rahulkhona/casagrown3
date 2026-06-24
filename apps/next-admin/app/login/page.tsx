@@ -7,6 +7,7 @@ import { colors } from '@casagrown/app/design-tokens'
 import { ArrowLeft, Mail } from 'lucide-react'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import ClientOnly from '../ClientOnly'
+import { checkIsStaffByEmail } from '@casagrown/app/features/feedback/feedback-service'
 
 function LoginContent() {
   const router = useRouter()
@@ -25,7 +26,30 @@ function LoginContent() {
   useEffect(() => {
     if (authLoading) return
     if (user) {
-      router.replace(returnTo)
+      const handleRedirect = async () => {
+        let roles: string[] = user.user_metadata?.roles || []
+        if (roles.length === 0 && user.email) {
+          try {
+            const res = await checkIsStaffByEmail(user.email)
+            roles = res.roles
+          } catch (e) {
+            console.error('Error fetching roles in login redirect:', e)
+          }
+        }
+        
+        const hasAdmin = roles.includes('admin')
+        const hasMarketing = roles.includes('marketing')
+        
+        let target = returnTo
+        if (hasMarketing && !hasAdmin) {
+          const isCrmPath = returnTo === '/' || returnTo.startsWith('/crm/')
+          if (!isCrmPath) {
+            target = '/'
+          }
+        }
+        router.replace(target)
+      }
+      handleRedirect()
     }
   }, [user, authLoading, router, returnTo])
 

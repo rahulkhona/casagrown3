@@ -211,7 +211,7 @@ export default function CrmLeadsPage() {
     if (selected.size === 0) return
     if (!confirm(`Delete ${selected.size} lead(s)? This cannot be undone.`)) return
     setDeleting(true)
-    const ids = [...selected]
+    const ids = Array.from(selected)
     await supabase.from('crm_leads').delete().in('id', ids)
     setLeads(prev => prev.filter(l => !ids.includes(l.id)))
     setSelected(new Set())

@@ -52,6 +52,16 @@ export default function PlatformSettingsPage() {
   const [toast, setToast] = useState('')
   const [toastType, setToastType] = useState<'success' | 'error'>('success')
 
+  // Fee form state (used by handleCreateFee)
+  const [isAddingFee, setIsAddingFee] = useState(false)
+  const [feePercentage, setFeePercentage] = useState('')
+  const [feeProPercentage, setFeeProPercentage] = useState('')
+  const [feeSubPrice, setFeeSubPrice] = useState('')
+  const [feeStripeHandling, setFeeStripeHandling] = useState('pass_through')
+  const [feeError, setFeeError] = useState('')
+  const [submittingFee, setSubmittingFee] = useState(false)
+  const [refreshFees, setRefreshFees] = useState(() => () => {})
+
   useEffect(() => {
     loadSettings()
     loadTiers()
@@ -650,7 +660,7 @@ export default function PlatformSettingsPage() {
 
               {/* Dynamic Feature Flags & Limits */}
               <YStack gap="$3" marginTop="$2" borderTopWidth={1} borderTopColor={colors.gray[200]} paddingTop="$3">
-                <Text fontWeight="700" fontSize="$3.5" color={colors.green[800]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
+                <Text fontWeight="700" fontSize={"$4" as any} color={colors.green[800]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
                 
                 <XStack alignItems="center" justifyContent="space-between" maxWidth={400} style={{ marginBottom: 6 }}>
                   <Text fontSize="$3" fontWeight="600" color={colors.gray[700]}>Offer / Enable this Tier</Text>
@@ -670,7 +680,7 @@ export default function PlatformSettingsPage() {
                 <XStack alignItems="center" justifyContent="space-between" maxWidth={400} style={{ marginBottom: 6 }}>
                   <YStack>
                     <Text fontSize="$3" fontWeight="600" color={colors.gray[700]}>Max Booths / Stands Limit *</Text>
-                    <Text fontSize="$2.5" color={colors.gray[500]}>Enter -1 for unlimited</Text>
+                    <Text fontSize={"$2" as any} color={colors.gray[500]}>Enter -1 for unlimited</Text>
                   </YStack>
                   <Input
                     value={newTierMaxBooths}
@@ -684,21 +694,21 @@ export default function PlatformSettingsPage() {
                 <YStack gap="$2" style={{ textAlign: 'left' }}>
 
 
-                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
+                  <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
                   {renderNewTierFeatureToggle('facebook_posts', 'Facebook Auto-Posting')}
                   {renderNewTierFeatureToggle('instagram_posts', 'Instagram Auto-Posting')}
 
-                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
+                  <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
                   {renderNewTierFeatureToggle('growbot_copilot', 'CasaGrown DM Auto-Replies')}
                   {renderNewTierFeatureToggle('facebook_chat', 'Facebook DM Auto-Replies')}
                   {renderNewTierFeatureToggle('facebook_comments', 'Facebook Comment Auto-Replies')}
                   {renderNewTierFeatureToggle('instagram_chat', 'Instagram DM Auto-Replies')}
                   {renderNewTierFeatureToggle('instagram_comments', 'Instagram Comment Auto-Replies')}
 
-                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
+                  <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
                   {renderNewTierFeatureToggle('video_posts', 'Video Auto-Posting (FB & IG)')}
 
-                  <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
+                  <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
                   {renderNewTierFeatureToggle('google_places', 'Post to Google Maps / Places')}
                 </YStack>
               </YStack>
@@ -757,7 +767,7 @@ export default function PlatformSettingsPage() {
                       borderRadius="$2"
                     >
                       <Text 
-                        fontSize="$2.5" 
+                        fontSize={"$2" as any} 
                         fontWeight="700" 
                         color={tier.offered !== false ? colors.green[700] : colors.gray[600]}
                       >
@@ -769,7 +779,7 @@ export default function PlatformSettingsPage() {
                   {/* Fields */}
                   <YStack gap="$3">
                     <YStack gap="$1">
-                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Display Name</Text>
+                      <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[500]}>Display Name</Text>
                       <Input 
                         value={tier.display_name} 
                         onChangeText={(val) => handleTierChange(tier.tier_name, 'display_name', val)} 
@@ -779,7 +789,7 @@ export default function PlatformSettingsPage() {
                     </YStack>
 
                     <YStack gap="$1">
-                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Monthly Price (USD)</Text>
+                      <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[500]}>Monthly Price (USD)</Text>
                       <XStack alignItems="center" gap="$2">
                         <Text color={colors.gray[400]}>$</Text>
                         <Input 
@@ -794,7 +804,7 @@ export default function PlatformSettingsPage() {
                     </YStack>
 
                     <YStack gap="$1">
-                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Platform Sales Fee (%)</Text>
+                      <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[500]}>Platform Sales Fee (%)</Text>
                       <XStack alignItems="center" gap="$2">
                         <Input 
                           value={tier.platform_fee_pct?.toString()} 
@@ -808,7 +818,7 @@ export default function PlatformSettingsPage() {
                     </YStack>
 
                     <YStack gap="$2">
-                      <Text fontSize="$2.5" fontWeight="600" color={colors.gray[500]}>Stripe Fee Handling</Text>
+                      <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[500]}>Stripe Fee Handling</Text>
                       <XStack gap="$3">
                         <XStack alignItems="center" gap="$1.5" cursor="pointer" onPress={() => handleTierChange(tier.tier_name, 'stripe_fee_handling', 'pass_through')}>
                           <YStack width={14} height={14} borderRadius={7} borderWidth={2}
@@ -817,7 +827,7 @@ export default function PlatformSettingsPage() {
                           >
                             {tier.stripe_fee_handling === 'pass_through' && <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.green[600]} />}
                           </YStack>
-                          <Text fontSize="$2.5" fontWeight="500">Pass-through</Text>
+                          <Text fontSize={"$2" as any} fontWeight="500">Pass-through</Text>
                         </XStack>
                         <XStack alignItems="center" gap="$1.5" cursor="pointer" onPress={() => handleTierChange(tier.tier_name, 'stripe_fee_handling', 'absorb')}>
                           <YStack width={14} height={14} borderRadius={7} borderWidth={2}
@@ -826,16 +836,16 @@ export default function PlatformSettingsPage() {
                           >
                             {tier.stripe_fee_handling === 'absorb' && <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.green[600]} />}
                           </YStack>
-                          <Text fontSize="$2.5" fontWeight="500">Absorbed</Text>
+                          <Text fontSize={"$2" as any} fontWeight="500">Absorbed</Text>
                         </XStack>
                       </XStack>
                     </YStack>
 
                     <YStack gap="$2.5" marginTop="$2" borderTopWidth={1} borderTopColor={colors.gray[100]} paddingTop="$3">
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.gray[400]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
+                      <Text fontSize={"$2" as any} fontWeight="700" color={colors.gray[400]} letterSpacing={0.5}>PLAN LIMITS & FEATURE FLAGS</Text>
                       
                       <XStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 6 }}>
-                        <Text fontSize="$2.5" fontWeight="600" color={colors.gray[600]}>Offer / Enable this Tier</Text>
+                        <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[600]}>Offer / Enable this Tier</Text>
                         <XStack
                           width={16} height={16} borderRadius={4}
                           borderWidth={2}
@@ -851,7 +861,7 @@ export default function PlatformSettingsPage() {
 
                       <XStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 6 }}>
                         <YStack>
-                          <Text fontSize="$2.5" fontWeight="600" color={colors.gray[600]}>Max Booths / Stands Limit *</Text>
+                          <Text fontSize={"$2" as any} fontWeight="600" color={colors.gray[600]}>Max Booths / Stands Limit *</Text>
                           <Text fontSize="$2" color={colors.gray[500]}>Enter -1 for unlimited</Text>
                         </YStack>
                         <Input 
@@ -869,21 +879,21 @@ export default function PlatformSettingsPage() {
 
 
 
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
+                      <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO POSTING</Text>
                       {renderFeatureToggle(tier, 'facebook_posts', 'Facebook Auto-Posting')}
                       {renderFeatureToggle(tier, 'instagram_posts', 'Instagram Auto-Posting')}
 
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
+                      <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>AUTO RESPONDERS & AI</Text>
                       {renderFeatureToggle(tier, 'growbot_copilot', 'CasaGrown DM Auto-Replies')}
                       {renderFeatureToggle(tier, 'facebook_chat', 'Facebook DM Auto-Replies')}
                       {renderFeatureToggle(tier, 'facebook_comments', 'Facebook Comment Auto-Replies')}
                       {renderFeatureToggle(tier, 'instagram_chat', 'Instagram DM Auto-Replies')}
                       {renderFeatureToggle(tier, 'instagram_comments', 'Instagram Comment Auto-Replies')}
 
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
+                      <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>VIDEO POSTS</Text>
                       {renderFeatureToggle(tier, 'video_posts', 'Video Auto-Posting (FB & IG)')}
 
-                      <Text fontSize="$2.5" fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
+                      <Text fontSize={"$2" as any} fontWeight="700" color={colors.green[800]} marginTop="$2" style={{ letterSpacing: 0.5 }}>GOOGLE PLACES API</Text>
                       {renderFeatureToggle(tier, 'google_places', 'Post to Google Maps / Places')}
                     </YStack>
                   </YStack>

@@ -134,7 +134,7 @@ export default function CampaignMessageEditor({
     left: number
     width: string
     alt: string
-    align: 'left' | 'center' | 'right' | ''
+    align: 'left' | 'center' | 'right' | '' | 'wrap-left' | 'wrap-right' | 'break'
   } | null>(null)
 
   // Table Popover State
@@ -184,11 +184,11 @@ export default function CampaignMessageEditor({
     if (fetchedShortLinks) setShortLinks(fetchedShortLinks)
     if (promos) {
       // Attach shortlinks to promos if found
-      const promosWithTokens = promos.map(p => {
-        const lp = (lps || []).find(l => l.id === p.landing_page_id);
+      const promosWithTokens = promos.map((p: any) => {
+        const lp = (lps || []).find((l: any) => l.id === p.landing_page_id);
         if (lp) {
           const suffix = `/p/${lp.slug}?promo=${p.id}`;
-          const sl = (fetchedShortLinks || []).find(s => s.destination_url?.endsWith(suffix));
+          const sl = (fetchedShortLinks || []).find((s: any) => s.destination_url?.endsWith(suffix));
           if (sl) p.short_token = sl.token;
         }
         return p;
@@ -208,7 +208,7 @@ export default function CampaignMessageEditor({
         setLoadingAssets(true)
         const { data } = await supabase.from('crm_assets').select('*').eq('type', 'image').order('created_at', { ascending: false })
         if (data) {
-          const formatted = data.map((a: any) => {
+          const formatted = (data as any[]).map((a: { name: string, storage_path: string }) => {
             const url = a.storage_path 
               ? supabase.storage.from('marketing-assets').getPublicUrl(a.storage_path).data.publicUrl
               : ''
@@ -272,7 +272,7 @@ export default function CampaignMessageEditor({
           .select('destination_url')
           .eq('token', shortMatch[1])
           .maybeSingle()
-          .then(({ data: sl }) => {
+          .then(({ data: sl }: { data: any }) => {
             if (sl?.destination_url) resolvedUrl = sl.destination_url
             setTrackLinkUrl(resolvedUrl)
             try {
@@ -337,7 +337,7 @@ export default function CampaignMessageEditor({
           url: url
         }
       })
-      setAssets(formatted.filter(a => a.url))
+      setAssets(formatted.filter((a: {name: string, url: string}) => a.url))
     }
     setLoadingAssets(false)
   }, [supabase])

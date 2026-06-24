@@ -13,56 +13,69 @@ const SUPABASE_ANON_KEY =
 const SERVICE_ROLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
-// Seed an escalation directly via DB for E2E testing
+// Seed an escalation directly via DB for E2E testing (with retry for transient DB timeouts)
 async function seedEscalation(fulfillmentType: 'delivery' | 'pickup' = 'delivery') {
-  const ts = Date.now()
-  const suffix = fulfillmentType === 'delivery' ? '0' : '1'
-  const orderId = `e2e00000-e5c${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
-  const disputeId = `e2e00000-d5b${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
+  const MAX_RETRIES = 3
 
-  try {
-    const headers = { 
-      apikey: SERVICE_ROLE_KEY, 
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal'
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const ts = Date.now()
+    const suffix = fulfillmentType === 'delivery' ? '0' : '1'
+    const orderId = `e2e00000-e5c${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
+    const disputeId = `e2e00000-d5b${suffix}-0000-0000-${ts.toString(16).padStart(12, '0')}`
+
+    try {
+      const headers = { 
+        apikey: SERVICE_ROLE_KEY, 
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      }
+
+      const boothRes = await fetch(`${SUPABASE_URL}/rest/v1/market_booths?select=id,owner_id&limit=1`, { headers })
+      const booth = (await boothRes.json())[0]
+
+      const buyerRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id&id=neq.${booth.owner_id}&limit=1`, { headers })
+      const buyerId = (await buyerRes.json())[0].id
+
+      const prodRes = await fetch(`${SUPABASE_URL}/rest/v1/market_products?select=id&limit=1`, { headers })
+      const productId = (await prodRes.json())[0].id
+
+      const orderData: any = {
+        id: orderId, buyer_id: buyerId, seller_id: booth.owner_id, booth_id: booth.id, product_id: productId,
+        product_name: fulfillmentType === 'delivery' ? 'E2E Escalation Tomatoes' : 'E2E Pickup Tomatoes',
+        quantity: 2, unit_price_usd: 12.50, subtotal_usd: 25.00, total_usd: 25.00,
+        fulfillment_type: fulfillmentType, status: 'escalated', platform_fee_pct: 10, platform_fee_usd: 2.50,
+        tax_rate_pct: 0, tax_amount_usd: 0
+      }
+
+      if (fulfillmentType === 'pickup') {
+        orderData.ready_for_pickup_at = new Date(Date.now() - 2 * 3600000).toISOString()
+        orderData.delivered_at = new Date(Date.now() - 3600000).toISOString()
+      }
+
+      const orderReq = await fetch(`${SUPABASE_URL}/rest/v1/market_orders`, { method: 'POST', headers, body: JSON.stringify(orderData) })
+      if (!orderReq.ok) throw new Error(await orderReq.text())
+
+      const disputeReq = await fetch(`${SUPABASE_URL}/rest/v1/order_disputes`, { method: 'POST', headers, body: JSON.stringify({
+        id: disputeId, order_id: orderId, initiated_by: buyerId, reason: 'E2E Test Issue', status: 'open'
+      }) })
+      if (!disputeReq.ok) throw new Error(await disputeReq.text())
+
+      return { orderId, disputeId }
+    } catch (e) {
+      const errStr = String(e)
+      const isTransient = errStr.includes('57014') || errStr.includes('statement timeout') || errStr.includes('ECONNREFUSED')
+      if (isTransient && attempt < MAX_RETRIES) {
+        const delay = Math.pow(2, attempt) * 1000 // 2s, 4s, 8s
+        console.warn(`[SEED] ${fulfillmentType} escalation attempt ${attempt}/${MAX_RETRIES} failed (transient), retrying in ${delay}ms...`)
+        await new Promise(r => setTimeout(r, delay))
+        continue
+      }
+      console.warn(`Seed ${fulfillmentType} escalation failed after ${attempt} attempt(s):`, e)
+      return null
     }
-
-    const boothRes = await fetch(`${SUPABASE_URL}/rest/v1/market_booths?select=id,owner_id&limit=1`, { headers })
-    const booth = (await boothRes.json())[0]
-
-    const buyerRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id&id=neq.${booth.owner_id}&limit=1`, { headers })
-    const buyerId = (await buyerRes.json())[0].id
-
-    const prodRes = await fetch(`${SUPABASE_URL}/rest/v1/market_products?select=id&limit=1`, { headers })
-    const productId = (await prodRes.json())[0].id
-
-    const orderData: any = {
-      id: orderId, buyer_id: buyerId, seller_id: booth.owner_id, booth_id: booth.id, product_id: productId,
-      product_name: fulfillmentType === 'delivery' ? 'E2E Escalation Tomatoes' : 'E2E Pickup Tomatoes',
-      quantity: 2, unit_price_usd: 12.50, subtotal_usd: 25.00, total_usd: 25.00,
-      fulfillment_type: fulfillmentType, status: 'escalated', platform_fee_pct: 10, platform_fee_usd: 2.50,
-      tax_rate_pct: 0, tax_amount_usd: 0
-    }
-
-    if (fulfillmentType === 'pickup') {
-      orderData.ready_for_pickup_at = new Date(Date.now() - 2 * 3600000).toISOString()
-      orderData.delivered_at = new Date(Date.now() - 3600000).toISOString()
-    }
-
-    const orderReq = await fetch(`${SUPABASE_URL}/rest/v1/market_orders`, { method: 'POST', headers, body: JSON.stringify(orderData) })
-    if (!orderReq.ok) throw new Error(await orderReq.text())
-
-    const disputeReq = await fetch(`${SUPABASE_URL}/rest/v1/order_disputes`, { method: 'POST', headers, body: JSON.stringify({
-      id: disputeId, order_id: orderId, initiated_by: buyerId, reason: 'E2E Test Issue', status: 'open'
-    }) })
-    if (!disputeReq.ok) throw new Error(await disputeReq.text())
-
-    return { orderId, disputeId }
-  } catch (e) {
-    console.warn(`Seed ${fulfillmentType} escalation failed:`, e)
-    return null
   }
+  return null
 }
 
 

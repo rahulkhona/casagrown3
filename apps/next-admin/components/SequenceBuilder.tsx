@@ -532,9 +532,9 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       setConditionConfig({ query: (node.data.query as any) || initialQuery })
       if (node.data.conditionMode === 'ai') {
         setConditionNodeMode('ai')
-        setConditionAiPrompt(node.data.aiPrompt || '')
-        setConditionAiSql(node.data.aiSql || '')
-        setConditionAiExplanation(node.data.aiExplanation || '')
+        setConditionAiPrompt((node.data.aiPrompt as string) || '')
+        setConditionAiSql((node.data.aiSql as string) || '')
+        setConditionAiExplanation((node.data.aiExplanation as string) || '')
       } else {
         setConditionNodeMode('rules')
         setConditionAiPrompt('')
@@ -789,6 +789,112 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
       setToastMsg('✅ Test run triggered successfully!')
       setTimeout(() => setToastMsg(''), 4000)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred during testing')
+      setTimeout(() => setErrorMsg(''), 5000)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  // Send ALL messages in the drip sequence at once (skipping wait delays)
+  const handleTestRunAll = async () => {
+    const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const phones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
+    if (emails.length === 0 && phones.length === 0) {
+      alert('Please enter at least one test email or phone number.')
+      return
+    }
+
+    setTesting(true)
+    setToastMsg('Saving test contacts...')
+    try {
+      await adminApi.update('crm_sequences', { 
+        test_emails: emails,
+        test_phones: phones
+      }, { eq: { id: sequenceId } })
+
+      setToastMsg('Preparing test leads...')
+      const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
+
+      for (const email of emails) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${email})`,
+            email: email,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      for (const phone of phones) {
+        const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('phone', phone)
+        let leadId = existingLeads?.[0]?.id
+        if (leadId) {
+          await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+        } else {
+          const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+            name: `Test Lead (${phone})`,
+            phone: phone,
+            accepts_email: true,
+            accepts_sms: true,
+            metadata: { is_test: true }
+          }).select('id').single()
+          if (insertError) throw new Error(`Failed to create lead for ${phone}: ${insertError.message}`)
+          leadId = newLead.id
+        }
+        recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+      }
+
+      setToastMsg('Enrolling test leads...')
+      const enrollRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enroll-in-sequence`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true }),
+        }
+      )
+      const enrollData = await enrollRes.json()
+      if (!enrollRes.ok) {
+        throw new Error(enrollData.error || 'Failed to enroll leads')
+      }
+
+      setToastMsg('📨 Sending all test messages (skipping wait delays)...')
+      const processRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: sequenceId, test_run_all: true }),
+        }
+      )
+      const processData = await processRes.json()
+      if (!processRes.ok) {
+        throw new Error(processData.error || 'Failed to process sequence steps')
+      }
+
+      const emailsSent = processData.results?.filter((r: any) => r.node_type === 'action_email' && r.action === 'advanced').length || 0
+      const smsSent = processData.results?.filter((r: any) => r.node_type === 'action_sms' && r.action === 'advanced').length || 0
+      setToastMsg(`✅ All test messages sent! ${emailsSent} email(s), ${smsSent} SMS — check your inbox!`)
+      setTimeout(() => setToastMsg(''), 8000)
     } catch (err: any) {
       setErrorMsg(err.message || 'An error occurred during testing')
       setTimeout(() => setErrorMsg(''), 5000)
@@ -1067,25 +1173,48 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       </div>
 
                       {sequence.status === 'active' ? (
-                        <button
-                          type="button"
-                          onClick={handleTriggerTest}
-                          disabled={testing}
-                          style={{
-                            padding: '10px',
-                            background: '#4f46e5',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 6,
-                            fontWeight: 600,
-                            cursor: testing ? 'not-allowed' : 'pointer',
-                            opacity: testing ? 0.7 : 1,
-                            fontSize: '0.9rem',
-                            marginTop: 4
-                          }}
-                        >
-                          {testing ? 'Executing Test Run...' : '⚡ Save & Trigger Test Enrollment'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={handleTriggerTest}
+                            disabled={testing}
+                            style={{
+                              padding: '10px',
+                              background: '#4f46e5',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 6,
+                              fontWeight: 600,
+                              cursor: testing ? 'not-allowed' : 'pointer',
+                              opacity: testing ? 0.7 : 1,
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {testing ? 'Executing Test Run...' : '⚡ Test Next Step'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleTestRunAll}
+                            disabled={testing}
+                            style={{
+                              padding: '10px',
+                              background: 'linear-gradient(135deg, #059669, #10b981)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 6,
+                              fontWeight: 600,
+                              cursor: testing ? 'not-allowed' : 'pointer',
+                              opacity: testing ? 0.7 : 1,
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {testing ? 'Sending All Messages...' : '📨 Send All Test Messages'}
+                          </button>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280', lineHeight: 1.4 }}>
+                            <strong>Test Next Step</strong> processes one node at a time.<br />
+                            <strong>Send All</strong> skips wait delays and sends every email &amp; SMS at once — check your inbox to verify the full drip before going live.
+                          </p>
+                        </div>
                       ) : (
                         <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#92400e', lineHeight: 1.4 }}>
                           ⚠️ <strong>Sequence is in Draft</strong>. You must activate this sequence before triggering a test run. Click "Activate Sequence" at the top right first.

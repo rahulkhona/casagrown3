@@ -43,16 +43,18 @@ export function Provider({
 
   const wrappedChildren = (
     <TamaguiProvider config={config} defaultTheme={theme} {...rest}>
+      {/* @ts-expect-error React type version mismatch */}
       <ToastProvider swipeDirection="horizontal" duration={5000}>
         <SupabaseProvider>
-          {disableNotifications ? children : (
+          {disableNotifications ? (children as any) : (
             <NotificationProvider>
-              {children}
+              {children as any}
             </NotificationProvider>
           )}
           {mounted && (
             <>
               <CustomToast />
+              {/* @ts-expect-error React type version mismatch */}
               <ToastViewport 
                 left={0} 
                 right={0} 

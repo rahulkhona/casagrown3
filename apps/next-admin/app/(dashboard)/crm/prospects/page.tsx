@@ -296,8 +296,8 @@ export default function ExternalLeadsPage() {
       </YStack>
 
       <XStack gap="$2" marginBottom="$2">
-        <Button size="$3" theme={source === 'usda' ? 'active' : 'alt1'} onPress={() => setSource('usda')}>USDA Directory</Button>
-        <Button size="$3" theme={source === 'ofn' ? 'active' : 'alt1'} onPress={() => setSource('ofn')}>Open Food Network</Button>
+        <Button size="$3" theme={(source === 'usda' ? 'active' : 'alt1') as any} onPress={() => setSource('usda')}>USDA Directory</Button>
+        <Button size="$3" theme={(source === 'ofn' ? 'active' : 'alt1') as any} onPress={() => setSource('ofn')}>Open Food Network</Button>
       </XStack>
 
       {/* Search form — plain div avoids Card web issues */}
@@ -322,7 +322,7 @@ export default function ExternalLeadsPage() {
           </YStack>
           <Button
             icon={loading ? () => <Spinner color="white" /> : Search}
-            theme="active"
+            theme={"active" as any}
             onPress={handleSearch}
             disabled={loading || !zipcode.trim()}
           >

@@ -368,6 +368,42 @@ Deno.serve(async (req: Request) => {
         }).eq("id", campaign.id);
       }
 
+      // ── Enroll in follow-up sequence ──────────────────────────────
+      if (campaign.sequence_id && recipients.length > 0) {
+        console.log(`[SEND-CAMPAIGN] Enrolling ${recipients.length} recipients in follow-up sequence: ${campaign.sequence_id}`);
+        const { data: sequence, error: seqError } = await supabase
+          .from("crm_sequences")
+          .select("definition, status")
+          .eq("id", campaign.sequence_id)
+          .single();
+
+        if (seqError || !sequence) {
+          console.error(`[SEND-CAMPAIGN] Failed to fetch follow-up sequence ${campaign.sequence_id}:`, seqError);
+        } else if (sequence.status !== "active") {
+          console.warn(`[SEND-CAMPAIGN] Follow-up sequence ${campaign.sequence_id} is not active. Skipping enrollment.`);
+        } else {
+          const startNodeId = sequence.definition?.startNodeId;
+          const enrollments = recipients.map((r) => ({
+            sequence_id: campaign.sequence_id,
+            recipient_type: r.recipient_type,
+            recipient_id: r.id,
+            current_node_id: startNodeId,
+            next_evaluation_at: new Date().toISOString(),
+            status: "active",
+          }));
+
+          const { error: enrollError } = await supabase
+            .from("crm_sequence_enrollments")
+            .upsert(enrollments, { onConflict: "sequence_id,recipient_type,recipient_id" });
+
+          if (enrollError) {
+            console.error(`[SEND-CAMPAIGN] Failed to enroll recipients in sequence ${campaign.sequence_id}:`, enrollError);
+          } else {
+            console.log(`[SEND-CAMPAIGN] Successfully enrolled recipients in follow-up sequence.`);
+          }
+        }
+      }
+
       totalProcessed++;
       console.log(`[SEND-CAMPAIGN] Done: ${sent} sent, ${failed} failed`);
     } catch (err) {
