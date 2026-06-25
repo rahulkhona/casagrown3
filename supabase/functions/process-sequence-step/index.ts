@@ -673,6 +673,8 @@ serve(async (req) => {
           results.push({ id: enrollment.id, action: 'joined', allDone, node_type: 'join' });
           continue; // Skip the normal advance logic
         }
+      } else if (nodeLogicType === 'terminal') {
+        console.log(`[TERMINAL] Reached terminal node ${node.id} for ${enrollment.recipient_id}`);
       }
 
       if (nextNodeId) {

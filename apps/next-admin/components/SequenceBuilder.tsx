@@ -159,6 +159,171 @@ const formatQueryString = (query: any, fields: any[]): string => {
   return formattedRules.join(` ${query.combinator.toUpperCase()} `);
 };
 
+// ─── Rich Node Label Builder ────────────────────────────────────────────────
+// Generates a React element with:
+//   1. Title line (icon + type or custom userLabel)
+//   2. Summary lines (1-3 lines of config detail, always visible)
+//   3. Hover tooltip (full detail on mouseover)
+const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.ReactNode => {
+  let icon = '';
+  let title = nodeType;
+  let summaryLines: string[] = [];
+  let tooltipLines: string[] = [];
+
+  const userLabel = data?.userLabel;
+
+  switch (nodeType) {
+    case 'action_email': {
+      icon = '✉️';
+      title = userLabel || 'Send Email';
+      if (data?.postmark_template_alias) {
+        summaryLines.push(`Template: ${data.postmark_template_alias}`);
+      } else if (data?.subject) {
+        summaryLines.push(`Subject: ${data.subject.length > 45 ? data.subject.slice(0, 42) + '...' : data.subject}`);
+        tooltipLines.push(`Subject: ${data.subject}`);
+      }
+      if (data?.data_source_id) summaryLines.push(`📊 Data source attached`);
+      if (data?.html) tooltipLines.push(`HTML body: ${data.html.length} chars`);
+      if (data?.text) tooltipLines.push(`Text body: ${data.text.length > 80 ? data.text.slice(0, 77) + '...' : data.text}`);
+      break;
+    }
+    case 'action_sms': {
+      icon = '💬';
+      title = userLabel || 'Send SMS';
+      if (data?.text) {
+        const preview = data.text.length > 50 ? data.text.slice(0, 47) + '...' : data.text;
+        summaryLines.push(preview);
+        tooltipLines.push(`Message: ${data.text}`);
+      }
+      if (data?.data_source_id) summaryLines.push(`📊 Data source attached`);
+      break;
+    }
+    case 'wait': {
+      icon = '⏳';
+      const d = data?.delayDays || 0;
+      const h = data?.delayHours || 0;
+      const m = data?.delayMinutes || 0;
+      const parts = [];
+      if (d > 0) parts.push(`${d} day${d > 1 ? 's' : ''}`);
+      if (h > 0) parts.push(`${h} hr${h > 1 ? 's' : ''}`);
+      if (m > 0) parts.push(`${m} min`);
+      title = userLabel || `Wait ${parts.length > 0 ? parts.join(' ') : '0m'}`;
+      break;
+    }
+    case 'condition': {
+      if (data?.conditionMode === 'ai') {
+        icon = '🤖';
+        title = userLabel || 'AI Condition';
+        if (data?.aiExplanation) {
+          const expl = data.aiExplanation;
+          summaryLines.push(expl.length > 55 ? expl.slice(0, 52) + '...' : expl);
+          tooltipLines.push(`Explanation: ${expl}`);
+        }
+        if (data?.aiSql) tooltipLines.push(`SQL: ${data.aiSql}`);
+      } else {
+        icon = '🔀';
+        title = userLabel || 'Condition';
+        const query = data?.query;
+        if (query?.rules?.length > 0 && flatFields) {
+          const rules = query.rules;
+          const combinator = (query.combinator || 'and').toUpperCase();
+          summaryLines.push(`${combinator} · ${rules.length} rule${rules.length > 1 ? 's' : ''}`);
+          // Show first 2 rules
+          const formatRule = (rule: any): string => {
+            if ('rules' in rule) return `(${rule.rules.length} sub-rules)`;
+            const fieldDef = flatFields.find((f: any) => f.name === rule.field);
+            const fieldLabel = fieldDef ? fieldDef.label : rule.field;
+            let valueLabel = rule.value;
+            if (fieldDef?.values) {
+              const valDef = fieldDef.values.find((v: any) => v.name === rule.value || String(v.name) === String(rule.value));
+              if (valDef) valueLabel = valDef.label;
+            }
+            return `${fieldLabel} ${rule.operator} ${valueLabel}`;
+          };
+          for (let i = 0; i < Math.min(2, rules.length); i++) {
+            summaryLines.push(`• ${formatRule(rules[i])}`);
+          }
+          if (rules.length > 2) summaryLines.push(`• +${rules.length - 2} more...`);
+          // Full rules for tooltip
+          tooltipLines.push(`Condition: ${combinator}`);
+          rules.forEach((r: any) => tooltipLines.push(`  • ${formatRule(r)}`));
+        }
+      }
+      break;
+    }
+    case 'wait_for_slot': {
+      icon = '🕐';
+      title = userLabel || 'Wait for Optimal Slot';
+      const slots = data?.slots || [];
+      const preset = data?.slotPreset;
+      if (preset && preset !== 'custom') {
+        summaryLines.push(`${preset === 'email' ? '📧' : '💬'} ${preset.charAt(0).toUpperCase() + preset.slice(1)} preset · ${slots.length} window${slots.length !== 1 ? 's' : ''}`);
+      } else if (slots.length > 0) {
+        summaryLines.push(`⚙️ Custom · ${slots.length} window${slots.length !== 1 ? 's' : ''}`);
+      } else {
+        summaryLines.push(`No slots configured`);
+      }
+      // Show first 2 slot windows
+      for (let i = 0; i < Math.min(2, slots.length); i++) {
+        const s = slots[i];
+        const dayStr = s.day || (s.days?.join(', ')) || '';
+        summaryLines.push(`• ${dayStr} ${s.start}–${s.end}`);
+      }
+      if (slots.length > 2) summaryLines.push(`• +${slots.length - 2} more...`);
+      // Full slots for tooltip
+      if (slots.length > 0) {
+        tooltipLines.push(`Send Windows:`);
+        slots.forEach((s: any) => {
+          const dayStr = s.day || (s.days?.join(', ')) || '';
+          tooltipLines.push(`  ${dayStr}: ${s.start} – ${s.end}`);
+        });
+      }
+      break;
+    }
+    case 'fork': {
+      icon = '🔱';
+      title = userLabel || 'Fork (Parallel)';
+      break;
+    }
+    case 'join': {
+      icon = '🔗';
+      title = userLabel || 'Join (Wait for All)';
+      break;
+    }
+    case 'terminal': {
+      icon = '🛑';
+      title = userLabel || 'Terminal (End)';
+      summaryLines.push('End of flow sequence');
+      break;
+    }
+  }
+
+  const hasTooltip = tooltipLines.length > 0;
+  const tooltipText = tooltipLines.join('\n');
+
+  return React.createElement('div', {
+    style: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120, maxWidth: 220, position: 'relative' },
+    title: hasTooltip ? tooltipText : undefined
+  },
+    React.createElement('div', {
+      style: { fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+    }, `${icon} ${title}`),
+    ...summaryLines.map((line, i) =>
+      React.createElement('div', {
+        key: i,
+        style: {
+          fontSize: '0.72rem',
+          color: '#6b7280',
+          lineHeight: 1.3,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }
+      }, line)
+    )
+  );
+};
+
 const initialQuery: RuleGroupType = { combinator: 'and', rules: [{ field: 'email_enabled', operator: '=', value: 'true' }] }
 
 const getTriggerLabel = (val: string, audienceId?: string, audiences?: any[]) => {
@@ -275,6 +440,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [sendSlotDefaults, setSendSlotDefaults] = useState<any>(null)
   // Backfill on activation state
   const [backfillOnActivate, setBackfillOnActivate] = useState(false)
+  // User label state for custom node naming
+  const [userLabel, setUserLabel] = useState('')
 
   const queryFields = useMemo(() => {
     const flatFields = [
@@ -380,47 +547,26 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         if (seqRes.data[0].definition?.nodes?.length > 0) {
           const safeNodes = seqRes.data[0].definition.nodes.map((n: any, idx: number) => {
             const nodeType = n.data?.type || n.type;
-            let label = n.data?.label || nodeType;
             let bgColor = 'white';
             let border = '1px solid #d1d5db';
             let color = '#374151';
 
-            if (nodeType === 'action_email') { label = n.data?.label || '✉️ Send Email'; border = '2px solid #3b82f6'; }
-            else if (nodeType === 'action_sms') { label = n.data?.label || '💬 Send SMS'; border = '2px solid #10b981'; }
-            else if (nodeType === 'wait') { 
-              const d = n.data?.delayDays || 0;
-              const h = n.data?.delayHours || 0;
-              const m = n.data?.delayMinutes || 0;
-              label = n.data?.label || `⏳ Wait ${d}d ${h}h ${m}m`; 
-              bgColor = '#fef3c7'; 
-              border = '1px solid #f59e0b'; 
-            }
-            else if (nodeType === 'condition') { 
-              label = n.data?.label || '🔀 Condition'; 
-              bgColor = '#e0e7ff'; 
-              border = '1px solid #6366f1'; 
-            }
-            else if (nodeType === 'wait_for_slot') {
-              label = n.data?.label || '🕐 Wait for Optimal Slot';
-              bgColor = '#fdf4ff';
-              border = '2px solid #a855f7';
-            }
-            else if (nodeType === 'fork') {
-              label = n.data?.label || '🔱 Fork';
-              bgColor = '#f0fdf4';
-              border = '2px solid #22c55e';
-            }
-            else if (nodeType === 'join') {
-              label = n.data?.label || '🔗 Join';
-              bgColor = '#f0fdf4';
-              border = '2px solid #16a34a';
-            }
-            
+            if (nodeType === 'action_email') { border = '2px solid #3b82f6'; }
+            else if (nodeType === 'action_sms') { border = '2px solid #10b981'; }
+            else if (nodeType === 'wait') { bgColor = '#fef3c7'; border = '1px solid #f59e0b'; }
+            else if (nodeType === 'condition') { bgColor = '#e0e7ff'; border = '1px solid #6366f1'; }
+            else if (nodeType === 'wait_for_slot') { bgColor = '#fdf4ff'; border = '2px solid #a855f7'; }
+            else if (nodeType === 'fork') { bgColor = '#f0fdf4'; border = '2px solid #22c55e'; }
+            else if (nodeType === 'join') { bgColor = '#f0fdf4'; border = '2px solid #16a34a'; }
+
+            let label: React.ReactNode;
             if (n.id === 'start' || nodeType === 'input') {
               label = getTriggerLabel(seqRes.data[0].trigger_event || '', n.data.audienceId, audRes.data || []);
               bgColor = '#10b981';
               color = 'white';
               border = 'none';
+            } else {
+              label = buildNodeLabel(nodeType, n.data, queryBuilderFields);
             }
 
             return {
@@ -464,6 +610,9 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         
         // If connecting FROM a condition node, label the edges as True/False
         const sourceNode = nodes.find(n => n.id === params.source);
+        if (sourceNode?.data?.type === 'terminal') {
+          return eds; // Terminal nodes cannot have outbound links
+        }
         if (sourceNode?.data?.type === 'condition') {
           const existingOutboundEdges = eds.filter(e => e.source === params.source);
           if (existingOutboundEdges.length === 0) {
@@ -530,31 +679,33 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         y: event.clientY,
       })
       
-      let label = type
       let bgColor = 'white'
       let border = '1px solid #d1d5db'
       
-      if (type === 'action_email') { label = '✉️ Send Email'; border = '2px solid #3b82f6' }
-      if (type === 'action_sms') { label = '💬 Send SMS'; border = '2px solid #10b981' }
-      if (type === 'wait') { label = '⏳ Wait'; bgColor = '#fef3c7'; border = '1px solid #f59e0b' }
-      if (type === 'condition') { label = '🔀 Condition'; bgColor = '#e0e7ff'; border = '1px solid #6366f1' }
-      if (type === 'wait_for_slot') { label = '🕐 Wait for Optimal Slot'; bgColor = '#fdf4ff'; border = '2px solid #a855f7' }
-      if (type === 'fork') { label = '🔱 Fork (Parallel)'; bgColor = '#f0fdf4'; border = '2px solid #22c55e' }
-      if (type === 'join') { label = '🔗 Join (Wait)'; bgColor = '#f0fdf4'; border = '2px solid #16a34a' }
+      if (type === 'action_email') { border = '2px solid #3b82f6' }
+      if (type === 'action_sms') { border = '2px solid #10b981' }
+      if (type === 'wait') { bgColor = '#fef3c7'; border = '1px solid #f59e0b' }
+      if (type === 'condition') { bgColor = '#e0e7ff'; border = '1px solid #6366f1' }
+      if (type === 'wait_for_slot') { bgColor = '#fdf4ff'; border = '2px solid #a855f7' }
+      if (type === 'fork') { bgColor = '#f0fdf4'; border = '2px solid #22c55e' }
+      if (type === 'join') { bgColor = '#f0fdf4'; border = '2px solid #16a34a' }
+      if (type === 'terminal') { bgColor = '#fee2e2'; border = '2px solid #ef4444' }
+
+      const nodeData: any = { 
+        type, 
+        subject: '', html: '', text: '', // for actions
+        delayDays: 0, delayHours: 0, delayMinutes: 0, // for wait
+        query: initialQuery, // for condition
+        slots: type === 'wait_for_slot' ? (sendSlotDefaults?.email_slots || []) : undefined, // for wait_for_slot
+        slotPreset: type === 'wait_for_slot' ? 'email' : undefined
+      }
+      nodeData.label = buildNodeLabel(type, nodeData)
 
       const newNode: Node = {
         id: `${type}_${Date.now()}`,
         type: 'default',
         position,
-        data: { 
-          label, 
-          type, 
-          subject: '', html: '', text: '', // for actions
-          delayDays: 0, delayHours: 0, delayMinutes: 0, // for wait
-          query: initialQuery, // for condition
-          slots: type === 'wait_for_slot' ? (sendSlotDefaults?.email_slots || []) : undefined, // for wait_for_slot
-          slotPreset: type === 'wait_for_slot' ? 'email' : undefined
-        },
+        data: nodeData,
         style: { background: bgColor, border, borderRadius: '8px', padding: '10px' }
       }
 
@@ -565,6 +716,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
     setSelectedNode(node)
+    setUserLabel((node.data.userLabel as string) || '')
     
     if (node.data.type === 'action_email' || node.data.type === 'action_sms') {
       setEditorForm({
@@ -631,29 +783,28 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           newData.delayDays = d;
           newData.delayHours = h;
           newData.delayMinutes = m;
-          newData.label = `⏳ Wait ${d}d ${h}h ${m}m`
         } else if (n.data.type === 'condition') {
           if (conditionNodeMode === 'ai') {
             newData.conditionMode = 'ai'
             newData.aiPrompt = conditionAiPrompt
             newData.aiSql = conditionAiSql
             newData.aiExplanation = conditionAiExplanation
-            newData.label = `🤖 ${conditionAiExplanation?.slice(0, 40) || 'AI Condition'}...`
           } else {
             newData.conditionMode = 'rules'
             newData.query = conditionConfig.query
-            const flatFields = queryFields.flatMap((g: any) => g.options)
-            newData.label = `🔀 ${formatQueryString(conditionConfig.query, flatFields)}`
           }
         } else if (n.data.type === 'wait_for_slot') {
           newData.slots = slotConfig.slots;
           newData.slotPreset = slotConfig.preset;
-          const slotDesc = slotConfig.slots.length > 0 
-            ? `${slotConfig.slots.map(s => `${s.day || s.days?.join(',') || ''} ${s.start}-${s.end}`).join('; ')}`
-            : 'No slots configured';
-          newData.label = `🕐 ${slotDesc}`;
         } else if (n.id === 'start') {
           newData.label = getTriggerLabel(triggerEvent, n.data.audienceId as string, audiences)
+        }
+
+        // Persist userLabel and rebuild rich label for non-start nodes
+        if (n.id !== 'start') {
+          newData.userLabel = userLabel || n.data.userLabel || ''
+          const flatFields = queryFields.flatMap((g: any) => g.options)
+          newData.label = buildNodeLabel(n.data.type as string, newData, flatFields)
         }
         
         return { ...n, data: newData }
@@ -1083,6 +1234,9 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'join')} style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #16a34a', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
               🔗 Join (Wait for All)
             </div>
+            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'terminal')} style={{ padding: '12px', background: '#fee2e2', border: '2px solid #ef4444', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              🛑 Terminal (End)
+            </div>
           </div>
         )}
 
@@ -1120,6 +1274,24 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             </div>
             
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              {/* Node Label — available for all non-start nodes */}
+              {selectedNode.id !== 'start' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Node Label <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span></label>
+                  <input
+                    type="text"
+                    value={userLabel}
+                    onChange={e => setUserLabel(e.target.value)}
+                    placeholder="e.g. Welcome Email, Exclude inactive leads..."
+                    disabled={isLocked}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem' }}
+                  />
+                  <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: 4, lineHeight: 1.4 }}>
+                    Custom name shown on the node card. Leave blank for auto-generated labels.
+                  </p>
+                </div>
+              )}
+
               {selectedNode.id === 'start' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div className="crm-field">
@@ -1621,6 +1793,22 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       <li>Accepts multiple inbound edges</li>
                       <li>Waits until every inbound branch has reached this point</li>
                       <li>Then continues to the next node</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {selectedNode.data.type === 'terminal' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ padding: 16, background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8 }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#991b1b' }}>🛑 Terminal (End of Sequence)</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: 1.6, margin: 0 }}>
+                      A terminal node marks the final step of a sequence flow branch.
+                    </p>
+                    <ul style={{ fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.6, margin: '8px 0 0 0', paddingLeft: 20 }}>
+                      <li>Marks the completion of this sequence path</li>
+                      <li>Cannot have any outbound links/edges</li>
+                      <li>Accepts inbound connections from other nodes</li>
                     </ul>
                   </div>
                 </div>
