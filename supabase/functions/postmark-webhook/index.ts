@@ -2,7 +2,8 @@
  * postmark-webhook
  *
  * Receives Postmark webhook events for email tracking.
- * Updates crm_campaign_sends with opened_at and bounced_at timestamps.
+ * Updates crm_campaign_sends with delivered_at, opened_at, clicked_at,
+ * and bounced_at timestamps.
  *
  * Postmark fires these events for campaigns sent via the Broadcast stream.
  * Configure the webhook URL in Postmark dashboard → Settings → Webhooks.
@@ -55,6 +56,25 @@ Deno.serve(async (req: Request) => {
   console.log(`[POSTMARK-WEBHOOK] Event: ${recordType} for ${recipient} (SendID: ${sendId ?? 'none'})`);
 
   switch (recordType) {
+    case "Delivery": {
+      if (sendId) {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ delivered_at: new Date().toISOString() })
+          .eq("id", sendId)
+          .is("delivered_at", null);
+      } else {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ delivered_at: new Date().toISOString() })
+          .eq("email", recipient)
+          .is("delivered_at", null)
+          .order("sent_at", { ascending: false })
+          .limit(1);
+      }
+      break;
+    }
+
     case "Open": {
       if (sendId) {
         await supabase
@@ -63,12 +83,32 @@ Deno.serve(async (req: Request) => {
           .eq("id", sendId)
           .is("opened_at", null);
       } else {
-        // Fallback for legacy sends without unique send_ids
         await supabase
           .from("crm_campaign_sends")
           .update({ opened_at: new Date().toISOString() })
           .eq("email", recipient)
           .is("opened_at", null)
+          .order("sent_at", { ascending: false })
+          .limit(1);
+      }
+      break;
+    }
+
+    case "Click": {
+      // Postmark Click event — fires when a tracked link in the email is clicked.
+      // Complementary to our /r/[token] branded short-link tracking.
+      if (sendId) {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ clicked_at: new Date().toISOString() })
+          .eq("id", sendId)
+          .is("clicked_at", null);
+      } else {
+        await supabase
+          .from("crm_campaign_sends")
+          .update({ clicked_at: new Date().toISOString() })
+          .eq("email", recipient)
+          .is("clicked_at", null)
           .order("sent_at", { ascending: false })
           .limit(1);
       }

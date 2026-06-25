@@ -392,9 +392,22 @@ Deno.serve(async (req: Request) => {
             status: "active",
           }));
 
+          // Delete existing parent enrollments first to avoid duplicates/conflicts
+          const recipientIds = recipients.map((r) => r.id);
+          const { error: deleteError } = await supabase
+            .from("crm_sequence_enrollments")
+            .delete()
+            .eq("sequence_id", campaign.sequence_id)
+            .is("parent_enrollment_id", null)
+            .in("recipient_id", recipientIds);
+
+          if (deleteError) {
+            console.error(`[SEND-CAMPAIGN] Failed to clear existing enrollments in sequence ${campaign.sequence_id}:`, deleteError);
+          }
+
           const { error: enrollError } = await supabase
             .from("crm_sequence_enrollments")
-            .upsert(enrollments, { onConflict: "sequence_id,recipient_type,recipient_id" });
+            .insert(enrollments);
 
           if (enrollError) {
             console.error(`[SEND-CAMPAIGN] Failed to enroll recipients in sequence ${campaign.sequence_id}:`, enrollError);

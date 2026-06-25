@@ -110,6 +110,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'USDA Farm Prospects', path: '/crm/prospects' },
       { label: 'Email / SMS Campaigns', path: '/crm/campaigns' },
       { label: 'Drip Sequences', path: '/crm/sequences' },
+      { label: 'Send Windows', path: '/crm/send-slots' },
       { label: 'Audiences', path: '/crm/audiences' },
       { label: 'Audience Functions', path: '/crm/audience-functions' },
       { label: 'Assets', path: '/crm/assets' },

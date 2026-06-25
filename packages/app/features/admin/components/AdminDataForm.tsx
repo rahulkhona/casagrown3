@@ -118,26 +118,40 @@ export function AdminDataForm({
       case 'checkbox_group': {
         const selectedValues = Array.isArray(value) ? value : []
         return (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {(field.options || []).map(opt => {
               const isChecked = selectedValues.includes(opt.value)
               return (
-                <label key={String(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: colors.gray[700] }}>
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={e => {
-                      if (e.target.checked) {
-                        handleChange(field.name, [...selectedValues, opt.value])
-                      } else {
-                        handleChange(field.name, selectedValues.filter((v: any) => v !== opt.value))
-                      }
-                    }}
-                    disabled={disabled}
-                    style={{ width: 14, height: 14, accentColor: colors.green[600] }}
-                  />
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  onClick={() => {
+                    if (disabled) return
+                    if (isChecked) {
+                      handleChange(field.name, selectedValues.filter((v: any) => v !== opt.value))
+                    } else {
+                      handleChange(field.name, [...selectedValues, opt.value])
+                    }
+                  }}
+                  disabled={disabled}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    border: `2px solid ${isChecked ? colors.green[600] : colors.gray[300]}`,
+                    background: isChecked ? colors.green[50] : 'white',
+                    color: isChecked ? colors.green[800] : colors.gray[600],
+                    fontWeight: isChecked ? 600 : 400,
+                    fontSize: 14,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{isChecked ? '✓' : '○'}</span>
                   {opt.label}
-                </label>
+                </button>
               )
             })}
           </div>
@@ -243,7 +257,7 @@ export function AdminDataForm({
           backgroundColor={colors.green[600]}
           disabled={isSubmitting}
           onPress={handleSubmit}
-          icon={isSubmitting ? (Spinner as any)({ color: "white" }) : undefined}
+          icon={isSubmitting ? (React.createElement(Spinner as any, { color: "white", size: "small" }) as any) : undefined}
         >
           {/* @ts-expect-error React type version mismatch */}
           {!isSubmitting && <Text color="white" fontWeight="600">{submitLabel}</Text>}

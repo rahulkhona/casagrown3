@@ -64,6 +64,21 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Delivered status → mark delivered
+  if (messagingStatus === "delivered") {
+    const { error } = await supabase
+      .from("crm_campaign_sends")
+      .update({ delivered_at: new Date().toISOString() })
+      .eq("phone", to)
+      .is("delivered_at", null)
+      .order("sent_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error("[TWILIO-WEBHOOK] Delivered update error:", error.message);
+    }
+  }
+
   // Twilio expects an empty 200 or TwiML response
   return new Response("", { status: 200 });
 });

@@ -69,6 +69,7 @@ const ALLOWED_TABLES = new Set([
   'campaign_zones',
   'crm_sequences',
   'crm_sequence_enrollments',
+  'crm_send_slot_defaults',
   'crm_audiences',
   'crm_data_sources',
   'crm_promotions',
@@ -235,6 +236,7 @@ export async function POST(request: NextRequest) {
       const CRM_WRITE_WHITELIST = new Set([
         'crm_sequences',
         'crm_sequence_enrollments',
+        'crm_send_slot_defaults',
         'crm_audiences',
         'crm_data_sources',
         'crm_promotions',

@@ -845,6 +845,15 @@ else
     STRESS4_FAILED=$(echo "$STRESS4" | grep -c "^not ok" || echo "0")
     log_suite "Stripe Connect Safety" "$STRESS4_PASSED" "$STRESS4_FAILED"
   fi
+
+  echo "  Running Drip Sequence live batch & timezone stress test..."
+  if deno run --allow-net --allow-env --allow-read scripts/run-wait-stress-test.ts 2>&1; then
+    echo -e "  ${GREEN}✅ Drip Sequence Stress: 360 emails verified — PASS${NC}"
+    log_suite "Drip Sequence Stress" "1"
+  else
+    echo -e "  ${RED}❌ Drip Sequence Stress — FAIL${NC}"
+    log_suite "Drip Sequence Stress" "0" "1"
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

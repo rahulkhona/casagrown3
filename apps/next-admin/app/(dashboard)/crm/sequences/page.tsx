@@ -162,7 +162,7 @@ export default function SequencesPage() {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: seq.id, recipients, reset: true }),
+          body: JSON.stringify({ sequence_id: seq.id, recipients, reset: true, is_test: true }),
         }
       )
       const enrollData = await enrollRes.json()
@@ -170,7 +170,7 @@ export default function SequencesPage() {
         throw new Error(enrollData.error || 'Failed to enroll leads')
       }
 
-      toast("Executing sequence step...")
+      toast("📨 Sending all test messages (skipping wait delays)...")
       const processRes = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
         {
@@ -180,15 +180,17 @@ export default function SequencesPage() {
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: seq.id }),
+          body: JSON.stringify({ sequence_id: seq.id, test_run_all: true, is_test: true }),
         }
       )
       const processData = await processRes.json()
       if (!processRes.ok) {
-        throw new Error(processData.error || 'Failed to process sequence step')
+        throw new Error(processData.error || 'Failed to process sequence steps')
       }
 
-      toast("Test run triggered successfully!")
+      const emailsSent = processData.results?.filter((r: any) => r.node_type === 'action_email' && r.action === 'advanced').length || 0
+      const smsSent = processData.results?.filter((r: any) => r.node_type === 'action_sms' && r.action === 'advanced').length || 0
+      toast(`✅ All test messages sent! ${emailsSent} email(s), ${smsSent} SMS — check your inbox!`, 8000)
     } catch (err: any) {
       toast(`Error: ${err.message}`)
     } finally {
@@ -310,7 +312,7 @@ export default function SequencesPage() {
                       }}>
                         Delete
                       </button>
-                      {s.status === 'active' && (
+                      {(s.status === 'active' || s.status === 'draft') && (
                         <button
                           onClick={() => triggerTestRun(s)}
                           disabled={testingId === s.id}

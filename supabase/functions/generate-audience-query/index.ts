@@ -15,12 +15,6 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
-const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3.5-flash";
-const AI_MOCK = Deno.env.get("AI_MOCK") === "true";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
 // ── Forbidden-statement guard ────────────────────────────────────────────────
 const DML_DDL_RE = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|EXECUTE|COPY)\b/i;
 
@@ -47,8 +41,11 @@ async function callGemini(
   userMessages: Array<{ role: string; text: string }>,
   opts: { maxTokens?: number; temperature?: number } = {},
 ): Promise<{ text: string; error?: string }> {
+  const aiKey = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
+  const aiModel = Deno.env.get("AI_MODEL") ?? "gemini-3.5-flash";
+
   const models = [
-    AI_MODEL,
+    aiModel,
     "gemini-3.5-flash",
   ];
 
@@ -63,7 +60,7 @@ async function callGemini(
     try {
       console.log(`[AUDIENCE-AI] Attempting generation with model: ${model}`);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -114,7 +111,8 @@ Deno.serve(async (req: Request) => {
   try {
     const { prompt, currentSql, conversationHistory, testMock } = await req.json();
 
-    const shouldMock = AI_MOCK && (testMock === true || req.headers.get("x-playwright-test") === "true");
+    const aiMock = Deno.env.get("AI_MOCK") === "true";
+    const shouldMock = aiMock && (testMock === true || req.headers.get("x-playwright-test") === "true");
 
     // ── Mock mode for local dev / integration tests ────────────────────
     if (shouldMock) {
@@ -156,15 +154,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (!AI_KEY) {
+    const aiKey = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
+    if (!aiKey) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
     // ── Supabase client (service role for RPC access) ──────────────────
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // ── Step 1: Fetch compact schema (text format, ~23KB vs 187KB JSON) ─
     const { data: schema, error: schemaError } = await supabase.rpc("get_queryable_schema_compact");

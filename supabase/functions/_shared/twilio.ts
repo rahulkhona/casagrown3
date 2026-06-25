@@ -237,6 +237,13 @@ export async function sendMarketingSms(
     }
     params.set("Body", body);
 
+    // Set StatusCallback so Twilio POSTs delivery status updates
+    // (delivered, failed, undelivered) to our webhook
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if (supabaseUrl) {
+        params.set("StatusCallback", `${supabaseUrl}/functions/v1/twilio-campaign-webhook`);
+    }
+
     try {
         const res = await fetch(url, {
             method: "POST",

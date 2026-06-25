@@ -57,6 +57,9 @@ const queryBuilderFields: Field[] = [
   },
   { name: 'has_signed_tos', label: 'Signed TOS', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_completed_profile', label: 'Profile Completed', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
+  { name: 'has_only_email', label: 'Has Only Email', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
+  { name: 'has_only_phone', label: 'Has Only Phone Number', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
+  { name: 'has_both_email_and_phone', label: 'Has Both Email and Phone', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'days_since_last_active', label: 'Days Since Last Active', inputType: 'number', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
   { name: 'profile_completed_at', label: 'Profile Completed At', inputType: 'text', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
   { name: 'email_enabled', label: 'Email Enabled', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
@@ -111,6 +114,7 @@ const queryBuilderFields: Field[] = [
   { name: 'seller_avg_rating', label: 'Seller Avg Rating', inputType: 'number', valueEditorType: 'text', optGroup: 'Seller Activity' },
   { name: 'payout_verified', label: 'Payout Verified', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Seller Activity' },
   { name: 'total_posts_created', label: 'Posts Created', inputType: 'number', valueEditorType: 'text', optGroup: 'Seller Activity' },
+  { name: 'has_created_listings', label: 'Has Created At Least 1 Listing', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Seller Activity' },
   
   // Trust & Support
   { name: 'total_disputes_initiated', label: 'Disputes Initiated', inputType: 'number', valueEditorType: 'text', optGroup: 'Trust & Safety' },
@@ -119,6 +123,18 @@ const queryBuilderFields: Field[] = [
   // CRM Tracking
   { name: 'active_campaigns_enrolled', label: 'Active Campaigns', inputType: 'number', valueEditorType: 'text', optGroup: 'CRM Health' },
   { name: 'lifetime_campaigns_enrolled', label: 'Lifetime Campaigns', inputType: 'number', valueEditorType: 'text', optGroup: 'CRM Health' },
+
+  // Message Engagement (populated from crm_campaign_sends in sequence context)
+  { name: 'last_email_opened', label: 'Last Email Was Opened', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'last_email_clicked', label: 'Last Email Was Clicked', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'last_email_bounced', label: 'Last Email Bounced', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'last_email_delivered', label: 'Last Email Delivered', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'last_sms_delivered', label: 'Last SMS Delivered', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'last_sms_bounced', label: 'Last SMS Bounced', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Message Engagement' },
+  { name: 'emails_opened_count', label: 'Emails Opened Count', inputType: 'number', valueEditorType: 'text', optGroup: 'Message Engagement' },
+  { name: 'emails_clicked_count', label: 'Emails Clicked Count', inputType: 'number', valueEditorType: 'text', optGroup: 'Message Engagement' },
+  { name: 'emails_bounced_count', label: 'Emails Bounced Count', inputType: 'number', valueEditorType: 'text', optGroup: 'Message Engagement' },
+  { name: 'total_sends_in_sequence', label: 'Total Sends in Sequence', inputType: 'number', valueEditorType: 'text', optGroup: 'Message Engagement' },
 ]
 
 const formatQueryString = (query: any, fields: any[]): string => {
@@ -254,6 +270,11 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [conditionAiExplanation, setConditionAiExplanation] = useState('')
   const [conditionAiLoading, setConditionAiLoading] = useState(false)
   const [conditionAiError, setConditionAiError] = useState('')
+  // Wait for Optimal Slot state
+  const [slotConfig, setSlotConfig] = useState<{ slots: Array<{ day?: string, days?: string[], start: string, end: string }>, preset: string }>({ slots: [], preset: 'email' })
+  const [sendSlotDefaults, setSendSlotDefaults] = useState<any>(null)
+  // Backfill on activation state
+  const [backfillOnActivate, setBackfillOnActivate] = useState(false)
 
   const queryFields = useMemo(() => {
     const flatFields = [
@@ -334,12 +355,19 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       if (lpRes.data) setLandingPages(lpRes.data)
       if (promoRes.data) setPromotions(promoRes.data)
       if (allSeqsRes.data) setAllSequences(allSeqsRes.data)
+
+      // Fetch send slot defaults
+      const slotDefaultsRes = await adminApi.select('crm_send_slot_defaults', '*')
+      if (slotDefaultsRes.data && slotDefaultsRes.data.length > 0) {
+        setSendSlotDefaults(slotDefaultsRes.data[0])
+      }
       
       if (seqRes.data && seqRes.data.length > 0) {
         setSequence(seqRes.data[0])
         setTriggerEvent(seqRes.data[0].trigger_event || '')
         setTestEmails((seqRes.data[0].test_emails || []).join(', '))
         setTestPhones((seqRes.data[0].test_phones || []).join(', '))
+        setBackfillOnActivate(seqRes.data[0].backfill_on_activate || false)
         // Restore AI condition state from start node if applicable
         if (seqRes.data[0].trigger_event === 'ai_condition' && seqRes.data[0].definition?.nodes) {
           const startNode = seqRes.data[0].definition.nodes.find((n: any) => n.id === 'start')
@@ -371,6 +399,21 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
               label = n.data?.label || '🔀 Condition'; 
               bgColor = '#e0e7ff'; 
               border = '1px solid #6366f1'; 
+            }
+            else if (nodeType === 'wait_for_slot') {
+              label = n.data?.label || '🕐 Wait for Optimal Slot';
+              bgColor = '#fdf4ff';
+              border = '2px solid #a855f7';
+            }
+            else if (nodeType === 'fork') {
+              label = n.data?.label || '🔱 Fork';
+              bgColor = '#f0fdf4';
+              border = '2px solid #22c55e';
+            }
+            else if (nodeType === 'join') {
+              label = n.data?.label || '🔗 Join';
+              bgColor = '#f0fdf4';
+              border = '2px solid #16a34a';
             }
             
             if (n.id === 'start' || nodeType === 'input') {
@@ -432,6 +475,14 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             return eds;
           }
         }
+
+        // Fork nodes: allow exactly 2 outbound edges (like condition but without labels)
+        if (sourceNode?.data?.type === 'fork') {
+          const existingOutboundEdges = eds.filter(e => e.source === params.source);
+          if (existingOutboundEdges.length >= 2) {
+            return eds; // Can't have more than 2 edges from a fork
+          }
+        }
         
         return addEdge({ 
           ...params, 
@@ -487,6 +538,9 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       if (type === 'action_sms') { label = '💬 Send SMS'; border = '2px solid #10b981' }
       if (type === 'wait') { label = '⏳ Wait'; bgColor = '#fef3c7'; border = '1px solid #f59e0b' }
       if (type === 'condition') { label = '🔀 Condition'; bgColor = '#e0e7ff'; border = '1px solid #6366f1' }
+      if (type === 'wait_for_slot') { label = '🕐 Wait for Optimal Slot'; bgColor = '#fdf4ff'; border = '2px solid #a855f7' }
+      if (type === 'fork') { label = '🔱 Fork (Parallel)'; bgColor = '#f0fdf4'; border = '2px solid #22c55e' }
+      if (type === 'join') { label = '🔗 Join (Wait)'; bgColor = '#f0fdf4'; border = '2px solid #16a34a' }
 
       const newNode: Node = {
         id: `${type}_${Date.now()}`,
@@ -497,14 +551,16 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           type, 
           subject: '', html: '', text: '', // for actions
           delayDays: 0, delayHours: 0, delayMinutes: 0, // for wait
-          query: initialQuery // for condition
+          query: initialQuery, // for condition
+          slots: type === 'wait_for_slot' ? (sendSlotDefaults?.email_slots || []) : undefined, // for wait_for_slot
+          slotPreset: type === 'wait_for_slot' ? 'email' : undefined
         },
         style: { background: bgColor, border, borderRadius: '8px', padding: '10px' }
       }
 
       setNodes((nds) => nds.concat(newNode))
     },
-    [reactFlowInstance, setNodes],
+    [reactFlowInstance, setNodes, sendSlotDefaults],
   )
 
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
@@ -541,6 +597,11 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         setConditionAiSql('')
         setConditionAiExplanation('')
       }
+    } else if (node.data.type === 'wait_for_slot') {
+      setSlotConfig({
+        slots: (node.data.slots as any[]) || [],
+        preset: (node.data.slotPreset as string) || 'email'
+      })
     }
   }
 
@@ -584,6 +645,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             const flatFields = queryFields.flatMap((g: any) => g.options)
             newData.label = `🔀 ${formatQueryString(conditionConfig.query, flatFields)}`
           }
+        } else if (n.data.type === 'wait_for_slot') {
+          newData.slots = slotConfig.slots;
+          newData.slotPreset = slotConfig.preset;
+          const slotDesc = slotConfig.slots.length > 0 
+            ? `${slotConfig.slots.map(s => `${s.day || s.days?.join(',') || ''} ${s.start}-${s.end}`).join('; ')}`
+            : 'No slots configured';
+          newData.label = `🕐 ${slotDesc}`;
         } else if (n.id === 'start') {
           newData.label = getTriggerLabel(triggerEvent, n.data.audienceId as string, audiences)
         }
@@ -617,7 +685,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       definition, 
       trigger_event: triggerEvent || null,
       test_emails: parsedEmails,
-      test_phones: parsedPhones
+      test_phones: parsedPhones,
+      backfill_on_activate: backfillOnActivate
     }, { eq: { id: sequenceId } })
 
     setToastMsg('Node saved locally and auto-saved to database draft.')
@@ -650,7 +719,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       definition, 
       trigger_event: triggerEvent || null,
       test_emails: parsedEmails,
-      test_phones: parsedPhones
+      test_phones: parsedPhones,
+      backfill_on_activate: backfillOnActivate
     }, { eq: { id: sequenceId } })
     setSaving(false)
     if (error) {
@@ -675,6 +745,24 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       setSequence({ ...sequence, status: 'active' })
       setToastMsg('Sequence activated!')
       setTimeout(() => setToastMsg(''), 3000)
+
+      // Trigger backfill if checkbox was checked
+      if (backfillOnActivate && triggerEvent && triggerEvent !== '' && triggerEvent !== 'ai_condition') {
+        try {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          const { data: sessionData } = await supabase.auth.getSession()
+          const token = sessionData?.session?.access_token
+          await fetch(`${supabaseUrl}/functions/v1/enroll-in-sequence`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ sequence_id: sequenceId, backfill: true })
+          })
+          setToastMsg('Sequence activated and backfill started!')
+        } catch (err) {
+          console.error('Backfill error:', err)
+          setToastMsg('Sequence activated! (Backfill may have failed)')
+        }
+      }
     }
   }
 
@@ -761,7 +849,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true }),
+          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
         }
       )
       const enrollData = await enrollRes.json()
@@ -779,7 +867,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: sequenceId }),
+          body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
         }
       )
       const processData = await processRes.json()
@@ -865,7 +953,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true }),
+          body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
         }
       )
       const enrollData = await enrollRes.json()
@@ -883,7 +971,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
-          body: JSON.stringify({ sequence_id: sequenceId, test_run_all: true }),
+          body: JSON.stringify({ sequence_id: sequenceId, test_run_all: true, is_test: true }),
         }
       )
       const processData = await processRes.json()
@@ -986,6 +1074,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'condition')} style={{ padding: '12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
               🔀 Condition Split
             </div>
+            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'wait_for_slot')} style={{ padding: '12px', background: '#fdf4ff', border: '2px solid #a855f7', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              🕐 Wait for Optimal Slot
+            </div>
+            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'fork')} style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              🔱 Fork (Parallel)
+            </div>
+            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'join')} style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #16a34a', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              🔗 Join (Wait for All)
+            </div>
           </div>
         )}
 
@@ -1052,6 +1149,26 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                     <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '8px', lineHeight: 1.5 }}>
                       Choose what automatically kicks off this sequence. If you want this sequence to only trigger from a specific Solo Campaign blast or an Audience Snapshot, choose Manual.
                     </p>
+                    {triggerEvent && triggerEvent !== '' && triggerEvent !== 'ai_condition' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: '0.85rem', color: '#374151', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={backfillOnActivate}
+                          onChange={(e) => setBackfillOnActivate(e.target.checked)}
+                          disabled={isLocked}
+                          style={{ 
+                            width: 16, 
+                            height: 16, 
+                            cursor: 'pointer',
+                            accentColor: '#10b981',
+                            appearance: 'checkbox',
+                            WebkitAppearance: 'checkbox',
+                            MozAppearance: 'checkbox'
+                          }}
+                        />
+                        Backfill existing recipients on activation
+                      </label>
+                    )}
                   </div>
                   
                   {triggerEvent === '' && (
@@ -1172,8 +1289,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                         />
                       </div>
 
-                      {sequence.status === 'active' ? (
+                      {sequence.status === 'active' || sequence.status === 'draft' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {sequence.status === 'draft' && (
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#1e40af', lineHeight: 1.4, marginBottom: 4 }}>
+                              ℹ️ <strong>Draft Mode</strong>: You can test the sequence structure and send messages to test contacts before activating.
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={handleTriggerTest}
@@ -1217,7 +1339,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                         </div>
                       ) : (
                         <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#92400e', lineHeight: 1.4 }}>
-                          ⚠️ <strong>Sequence is in Draft</strong>. You must activate this sequence before triggering a test run. Click "Activate Sequence" at the top right first.
+                          ⚠️ <strong>Sequence is Archived</strong>. You cannot trigger a test run.
                         </div>
                       )}
                     </div>
@@ -1328,6 +1450,179 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       />
                     </div>
                   )}
+                </div>
+              )}
+
+              {selectedNode.data.type === 'wait_for_slot' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.5, margin: 0 }}>
+                    Configure time windows when messages should be sent. The sequence will wait until the next matching slot before proceeding.
+                  </p>
+
+                  {/* Preset selector */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>Slot Preset</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {['email', 'sms', 'custom'].map(preset => (
+                        <button
+                          key={preset}
+                          onClick={() => {
+                            setSlotConfig(prev => ({
+                              ...prev,
+                              preset,
+                              slots: preset === 'email' ? (sendSlotDefaults?.email_slots || []) 
+                                   : preset === 'sms' ? (sendSlotDefaults?.sms_slots || []) 
+                                   : prev.slots
+                            }))
+                          }}
+                          style={{
+                            flex: 1, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6,
+                            cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                            background: slotConfig.preset === preset ? '#a855f7' : '#f9fafb',
+                            color: slotConfig.preset === preset ? 'white' : '#374151'
+                          }}
+                        >
+                          {preset === 'email' ? '📧 Email Default' : preset === 'sms' ? '💬 SMS Default' : '⚙️ Custom'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Slot list */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>Send Windows</label>
+                    {slotConfig.slots.length === 0 ? (
+                      <p style={{ fontSize: '0.82rem', color: '#9ca3af', fontStyle: 'italic' }}>No slots configured. Messages will send immediately.</p>
+                    ) : (
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#4b5563' }}>Day</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#4b5563' }}>Start</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#4b5563' }}>End</th>
+                              {slotConfig.preset === 'custom' && <th style={{ width: 40 }}></th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {slotConfig.slots.map((slot, idx) => {
+                              const currentDay = slot.day || slot.days?.[0] || 'mon';
+                              return (
+                                <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                  <td style={{ padding: '6px 12px' }}>
+                                    <select
+                                      value={currentDay}
+                                      onChange={(e) => {
+                                        if (slotConfig.preset !== 'custom') return;
+                                        setSlotConfig(prev => ({
+                                          ...prev,
+                                          slots: prev.slots.map((s, i) => i === idx ? { ...s, day: e.target.value, days: undefined } : s)
+                                        }))
+                                      }}
+                                      disabled={slotConfig.preset !== 'custom'}
+                                      style={{ width: '100%', padding: '6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem', background: 'white' }}
+                                    >
+                                      <option value="mon">Monday</option>
+                                      <option value="tue">Tuesday</option>
+                                      <option value="wed">Wednesday</option>
+                                      <option value="thu">Thursday</option>
+                                      <option value="fri">Friday</option>
+                                      <option value="sat">Saturday</option>
+                                      <option value="sun">Sunday</option>
+                                    </select>
+                                  </td>
+                                  <td style={{ padding: '6px 12px' }}>
+                                    <input
+                                      type="time"
+                                      value={slot.start}
+                                      onChange={(e) => {
+                                        if (slotConfig.preset !== 'custom') return;
+                                        setSlotConfig(prev => ({
+                                          ...prev,
+                                          slots: prev.slots.map((s, i) => i === idx ? { ...s, start: e.target.value } : s)
+                                        }))
+                                      }}
+                                      disabled={slotConfig.preset !== 'custom'}
+                                      style={{ width: '100%', padding: '6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '6px 12px' }}>
+                                    <input
+                                      type="time"
+                                      value={slot.end}
+                                      onChange={(e) => {
+                                        if (slotConfig.preset !== 'custom') return;
+                                        setSlotConfig(prev => ({
+                                          ...prev,
+                                          slots: prev.slots.map((s, i) => i === idx ? { ...s, end: e.target.value } : s)
+                                        }))
+                                      }}
+                                      disabled={slotConfig.preset !== 'custom'}
+                                      style={{ width: '100%', padding: '6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem' }}
+                                    />
+                                  </td>
+                                  {slotConfig.preset === 'custom' && (
+                                    <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                                      <button
+                                        onClick={() => setSlotConfig(prev => ({ ...prev, slots: prev.slots.filter((_, i) => i !== idx) }))}
+                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {slotConfig.preset === 'custom' && (
+                      <button
+                        onClick={() => setSlotConfig(prev => ({ ...prev, slots: [...prev.slots, { day: 'mon', start: '09:00', end: '17:00' }] }))}
+                        style={{ padding: '8px', border: '2px dashed #d1d5db', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', color: '#6b7280', marginTop: 4 }}
+                      >
+                        + Add Send Window
+                      </button>
+                    )}
+                  </div>
+
+                  {!isLocked && (
+                    <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#a855f7', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>Save Slot Configuration</button>
+                  )}
+                </div>
+              )}
+
+              {selectedNode.data.type === 'fork' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ padding: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#166534' }}>🔱 Fork (Parallel Execution)</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: 1.6, margin: 0 }}>
+                      A fork node splits the sequence into <strong>two parallel paths</strong>. Both outbound branches execute simultaneously for each recipient.
+                    </p>
+                    <ul style={{ fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.6, margin: '8px 0 0 0', paddingLeft: 20 }}>
+                      <li>Connect exactly 2 outbound edges</li>
+                      <li>Both paths run in parallel</li>
+                      <li>Use a <strong>Join</strong> node downstream to wait for both paths to complete</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {selectedNode.data.type === 'join' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ padding: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#14532d' }}>🔗 Join (Wait for All)</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: 1.6, margin: 0 }}>
+                      A join node waits for <strong>all inbound paths</strong> to complete before the sequence continues. Place this after a Fork node to synchronize parallel branches.
+                    </p>
+                    <ul style={{ fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.6, margin: '8px 0 0 0', paddingLeft: 20 }}>
+                      <li>Accepts multiple inbound edges</li>
+                      <li>Waits until every inbound branch has reached this point</li>
+                      <li>Then continues to the next node</li>
+                    </ul>
+                  </div>
                 </div>
               )}
             </div>
