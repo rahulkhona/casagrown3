@@ -50,6 +50,7 @@ export default function TutorialsPage() {
   const [tutorials, setTutorials] = useState<TutorialSection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [autoplayId, setAutoplayId] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -68,6 +69,21 @@ export default function TutorialsPage() {
         setLoading(false)
       })
   }, [])
+
+  // Detect hash anchor and scroll to + autoplay the targeted tutorial
+  useEffect(() => {
+    if (loading || tutorials.length === 0) return
+    const hash = window.location.hash
+    if (!hash || !hash.startsWith('#tutorial-section-')) return
+    const targetId = hash.replace('#tutorial-section-', '')
+    const targetEl = document.getElementById(`tutorial-section-${targetId}`)
+    if (targetEl) {
+      setAutoplayId(targetId)
+      setTimeout(() => {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
+    }
+  }, [loading, tutorials])
 
   if (loading) {
     return (
@@ -118,10 +134,16 @@ export default function TutorialsPage() {
       ) : (
         <div className={styles.list}>
           {tutorials.map((item, index) => {
-            const embedUrl = getYoutubeEmbedUrl(item.video_url)
+            let embedUrl = getYoutubeEmbedUrl(item.video_url)
             const ratio = getAspectRatio(item.video_url)
             const isLandscape = ratio === '16:9'
             const isDirectFile = isDirectVideoFile(item.video_url)
+            const shouldAutoplay = autoplayId === item.id
+
+            // Append autoplay param for the targeted video
+            if (shouldAutoplay && embedUrl && !isDirectFile) {
+              embedUrl += '&autoplay=1'
+            }
 
             return (
               <section 
@@ -136,6 +158,7 @@ export default function TutorialsPage() {
                       src={item.video_url}
                       controls
                       playsInline
+                      autoPlay={shouldAutoplay}
                       className={styles.iframe}
                     />
                   ) : (
