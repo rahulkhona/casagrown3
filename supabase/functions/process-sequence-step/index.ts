@@ -585,6 +585,8 @@ serve(async (req) => {
               user_macro_state: macroState,
               enrolled_promotion_ids: enrolledPromotionIds,
               enrolled_sequence_ids: enrolledSequenceIds,
+              has_email: hasEmail,
+              has_phone: hasPhone,
               has_only_email: hasOnlyEmail,
               has_only_phone: hasOnlyPhone,
               has_both_email_and_phone: hasBothEmailAndPhone,
