@@ -660,14 +660,15 @@ dbTest("process-sequence-step: Deprecated sequence continues processing existing
   // Enroll while active
   const enrollRes = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
   assertEquals(enrollRes.status, 200, "Enrollment should succeed while active");
+  await enrollRes.json(); // consume body
 
   // Now deprecate the sequence
   const { error: deprecateErr } = await supabase.from("crm_sequences")
     .update({ status: "deprecated" }).eq("id", seq.id);
   assert(!deprecateErr, `Deprecate failed: ${JSON.stringify(deprecateErr)}`);
 
-  // Process - should still advance the enrollment
-  const stepRes = await processStep({ sequence_id: seq.id, is_test: true });
+  // Process with test_run_all - should still advance the enrollment
+  const stepRes = await processStep({ test_run_all: true, sequence_id: seq.id });
   assertEquals(stepRes.status, 200, "processStep should succeed for deprecated sequence");
   const stepBody = await stepRes.json();
   assert(stepBody.processed > 0, `Should have processed at least 1 enrollment, got ${stepBody.processed}`);
@@ -692,20 +693,29 @@ dbTest("process-sequence-step: Auto-transitions deprecated to ready_for_deletion
   const seq = await createSequence({
     startNodeId: "n1",
     nodes: [
-      { id: "n1", type: "terminal", data: { type: "terminal" } },
+      { id: "n1", type: "action_sms", data: { type: "action_sms", text: "Auto-complete test" } },
+      { id: "n2", type: "terminal", data: { type: "terminal" } },
     ],
-    edges: [],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+    ],
   }, "active");
 
-  // Enroll and process to completion while active
-  await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  // Enroll
+  const enrollRes = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  await enrollRes.json(); // consume body
 
   // Deprecate
   await supabase.from("crm_sequences").update({ status: "deprecated" }).eq("id", seq.id);
 
-  // Process — terminal node completes the enrollment immediately
-  // Note: we need to call without is_test so the auto-complete logic runs
-  await processStep();
+  // Process with test_run_all to complete all steps, then process again in normal mode for auto-complete
+  const runRes = await processStep({ test_run_all: true, sequence_id: seq.id });
+  await runRes.json(); // consume body
+
+  // Now run in normal mode — the auto-complete check only runs in non-testRunAll mode
+  // All enrollments should already be completed, so this triggers the check
+  const normalRes = await processStep();
+  await normalRes.json(); // consume body
 
   // Check sequence status — should be ready_for_deletion
   const { data: seqAfter } = await supabase.from("crm_sequences")
@@ -714,6 +724,7 @@ dbTest("process-sequence-step: Auto-transitions deprecated to ready_for_deletion
     `Sequence should be ready_for_deletion, got ${seqAfter?.status}`);
 
   // Cleanup
+  await supabase.from("crm_campaign_sends").delete().eq("sequence_id", seq.id);
   await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
   await cleanup(
     { table: "crm_sequences", id: seq.id },
@@ -735,6 +746,7 @@ dbTest("Sequence lifecycle: Reactivate from deprecated re-enables enrollment", a
   // Enrollment should fail while deprecated
   const res1 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
   assertEquals(res1.status, 400, "Should reject while deprecated");
+  await res1.json(); // consume body to avoid leak
 
   // Reactivate
   const { error: reactivateErr } = await supabase.from("crm_sequences")
@@ -769,6 +781,7 @@ dbTest("Sequence lifecycle: Reactivate from ready_for_deletion re-enables enroll
   // Enrollment should fail while ready_for_deletion
   const res1 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
   assertEquals(res1.status, 400, "Should reject while ready_for_deletion");
+  await res1.json(); // consume body to avoid leak
 
   // Reactivate
   const { error: reactivateErr } = await supabase.from("crm_sequences")

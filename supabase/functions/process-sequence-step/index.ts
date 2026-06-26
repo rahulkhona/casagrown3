@@ -736,36 +736,27 @@ serve(async (req) => {
   }
 
   // ── Auto-complete deprecated sequences with no remaining active enrollments ──
-  // Track sequences where enrollments were completed during this run
-  const completedInSequences = new Set<string>();
-  for (const r of allResults) {
-    if (r.action === 'completed' && r.sequenceId) {
-      completedInSequences.add(r.sequenceId);
-    }
-  }
+  if (!testRunAll) {
+    const { data: deprecatedSeqs } = await supabase
+      .from('crm_sequences')
+      .select('id')
+      .eq('status', 'deprecated');
 
-  if (!testRunAll && completedInSequences.size > 0) {
-    for (const seqId of completedInSequences) {
-      const { data: seqData } = await supabase
-        .from('crm_sequences')
-        .select('status')
-        .eq('id', seqId)
-        .single();
+    if (deprecatedSeqs && deprecatedSeqs.length > 0) {
+      for (const dSeq of deprecatedSeqs) {
+        const { count } = await supabase
+          .from('crm_sequence_enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('sequence_id', dSeq.id)
+          .eq('status', 'active');
 
-      if (seqData?.status !== 'deprecated') continue;
-
-      const { count } = await supabase
-        .from('crm_sequence_enrollments')
-        .select('id', { count: 'exact', head: true })
-        .eq('sequence_id', seqId)
-        .eq('status', 'active');
-
-      if (count === 0) {
-        await supabase
-          .from('crm_sequences')
-          .update({ status: 'ready_for_deletion' })
-          .eq('id', seqId);
-        console.log(`[AUTO-COMPLETE] Deprecated sequence ${seqId} has no active enrollments — marked ready_for_deletion`);
+        if (count === 0) {
+          await supabase
+            .from('crm_sequences')
+            .update({ status: 'ready_for_deletion' })
+            .eq('id', dSeq.id);
+          console.log(`[AUTO-COMPLETE] Deprecated sequence ${dSeq.id} has no active enrollments — marked ready_for_deletion`);
+        }
       }
     }
   }
