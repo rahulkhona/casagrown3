@@ -266,9 +266,9 @@ export default function SequenceMonitorPage() {
               ) : hourlyBuckets.map(b => (
                 <tr key={b.hour} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '10px 16px', fontWeight: 500 }}>
-                    {new Date(b.hour).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(b.hour).toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} UTC
                     <span style={{ color: '#9ca3af', fontSize: '0.75rem', marginLeft: 6 }}>
-                      ({new Date(b.hour).toLocaleString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: true })} UTC)
+                      ({new Date(b.hour).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', hour12: true })} PT)
                     </span>
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#15803d' }}>{b.sent}</td>
