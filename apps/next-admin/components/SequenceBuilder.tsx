@@ -57,6 +57,8 @@ const queryBuilderFields: Field[] = [
   },
   { name: 'has_signed_tos', label: 'Signed TOS', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_completed_profile', label: 'Profile Completed', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
+  { name: 'has_email', label: 'Has Email', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
+  { name: 'has_phone', label: 'Has Phone Number', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_only_email', label: 'Has Only Email', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_only_phone', label: 'Has Only Phone Number', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_both_email_and_phone', label: 'Has Both Email and Phone', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
