@@ -1759,22 +1759,54 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                         setTesting(true)
                         setToastMsg(`Sending test email for "${selectedNode.data.label || 'this node'}"...`)
                         try {
-                          // Send each test email via the admin API route
+                          // Prepare test leads
+                          const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
                           for (const email of emails) {
-                            const res = await fetch('/api/crm/send-test-email', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                to: email,
-                                subject: `[TEST] ${editorForm.subject}`,
-                                html_body: editorForm.content_html,
-                                text_body: editorForm.content_text || '',
-                              }),
-                            })
-                            if (!res.ok) {
-                              const data = await res.json().catch(() => ({}))
-                              throw new Error(data.error || `Failed sending to ${email} (${res.status})`)
+                            const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
+                            let leadId = existingLeads?.[0]?.id
+                            if (leadId) {
+                              await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+                            } else {
+                              const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+                                name: `Test Lead (${email})`, email, accepts_email: true, accepts_sms: true, metadata: { is_test: true }
+                              }).select('id').single()
+                              if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
+                              leadId = newLead.id
                             }
+                            recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+                          }
+
+                          // Enroll at the selected node (not the start node)
+                          const recipientIds = recipients.map(r => r.recipient_id)
+                          await supabase.from('crm_sequence_enrollments').delete()
+                            .eq('sequence_id', sequenceId).in('recipient_id', recipientIds)
+                          await supabase.from('crm_sequence_enrollments').insert(
+                            recipients.map(r => ({
+                              sequence_id: sequenceId,
+                              recipient_type: r.recipient_type,
+                              recipient_id: r.recipient_id,
+                              current_node_id: selectedNode.id,
+                              next_evaluation_at: new Date().toISOString(),
+                              status: 'active',
+                            }))
+                          )
+
+                          // Fire process-sequence-step for this node
+                          const res = await fetch(
+                            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+                            {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                              },
+                              body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
+                            }
+                          )
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}))
+                            throw new Error(data.error || `Failed (${res.status})`)
                           }
                           setToastMsg(`✅ Test email sent to ${emails.join(', ')}`)
                           setTimeout(() => setToastMsg(''), 5000)
