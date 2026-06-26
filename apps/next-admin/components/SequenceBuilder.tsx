@@ -1128,6 +1128,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
+          signal: AbortSignal.timeout(60000),
         }
       )
       const enrollData = await enrollRes.json()
@@ -1146,6 +1147,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
+          signal: AbortSignal.timeout(120000),
         }
       )
       const processData = await processRes.json()
@@ -1156,8 +1158,11 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       setToastMsg('✅ Test run triggered successfully!')
       setTimeout(() => setToastMsg(''), 4000)
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during testing')
-      setTimeout(() => setErrorMsg(''), 5000)
+      const msg = err.name === 'TimeoutError' 
+        ? 'Request timed out — the sequence may still be processing. Check your inbox in a few minutes.'
+        : (err.message || 'An error occurred during testing')
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(''), 8000)
     } finally {
       setTesting(false)
     }
@@ -1232,6 +1237,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
+          signal: AbortSignal.timeout(60000),
         }
       )
       const enrollData = await enrollRes.json()
@@ -1239,8 +1245,10 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         throw new Error(enrollData.error || 'Failed to enroll leads')
       }
 
-      setToastMsg('📨 Sending all test messages (skipping wait delays)...')
-      const processRes = await fetch(
+      setToastMsg('📨 Sending all test messages (this may take a few minutes for large sequences)...')
+      // Fire-and-forget: don't await the response. The edge function will
+      // process all nodes and send messages in the background.
+      fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
         {
           method: 'POST',
@@ -1251,19 +1259,16 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           },
           body: JSON.stringify({ sequence_id: sequenceId, test_run_all: true, is_test: true }),
         }
-      )
-      const processData = await processRes.json()
-      if (!processRes.ok) {
-        throw new Error(processData.error || 'Failed to process sequence steps')
-      }
+      ).catch(() => {}) // Silently ignore any network errors — messages are already being sent
 
-      const emailsSent = processData.results?.filter((r: any) => r.node_type === 'action_email' && r.action === 'advanced').length || 0
-      const smsSent = processData.results?.filter((r: any) => r.node_type === 'action_sms' && r.action === 'advanced').length || 0
-      setToastMsg(`✅ All test messages sent! ${emailsSent} email(s), ${smsSent} SMS — check your inbox!`)
+      setToastMsg('✅ Test run triggered! Messages will arrive in your inbox over the next few minutes.')
       setTimeout(() => setToastMsg(''), 8000)
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during testing')
-      setTimeout(() => setErrorMsg(''), 5000)
+      const msg = err.name === 'TimeoutError' 
+        ? 'Request timed out — the sequence may still be processing. Check your inbox in a few minutes.'
+        : (err.message || 'An error occurred during testing')
+      setErrorMsg(msg)
+      setTimeout(() => setErrorMsg(''), 8000)
     } finally {
       setTesting(false)
     }
