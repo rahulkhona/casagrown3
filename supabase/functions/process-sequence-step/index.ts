@@ -264,8 +264,8 @@ serve(async (req) => {
             ...data,
             ...(data.metadata || {})
           };
-          acceptsEmail = data.accepts_email !== false;
-          acceptsSms = data.accepts_sms !== false;
+          // Consent handled by Postmark (suppression lists) and Twilio (STOP/START)
+          // at the provider level — no need to gate on accepts_email/accepts_sms flags
         }
       }
 
