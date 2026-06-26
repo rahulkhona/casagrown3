@@ -46,7 +46,7 @@ serve(async (req) => {
 
       if (sequence.status !== 'active') {
         return new Response(
-          JSON.stringify({ error: 'Cannot backfill a non-active sequence' }),
+          JSON.stringify({ error: `Cannot backfill a ${sequence.status} sequence. Only active sequences accept new enrollments.` }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -263,7 +263,7 @@ serve(async (req) => {
 
     const isTest = body.is_test === true
     if (sequence.status !== 'active' && !isTest) {
-      return new Response(JSON.stringify({ error: 'Cannot enroll in a non-active sequence' }), { status: 400 })
+      return new Response(JSON.stringify({ error: `Cannot enroll in a ${sequence.status} sequence. Only active sequences accept new enrollments.` }), { status: 400 })
     }
 
     const startNodeId = sequence.definition?.startNodeId

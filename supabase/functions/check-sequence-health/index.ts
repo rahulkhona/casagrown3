@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     const { data: sequences, error: seqErr } = await supabase
       .from("crm_sequences")
       .select("id, name, definition")
-      .eq("status", "active");
+      .in("status", ["active", "deprecated"]);
 
     if (seqErr) throw seqErr;
     if (!sequences || sequences.length === 0) {

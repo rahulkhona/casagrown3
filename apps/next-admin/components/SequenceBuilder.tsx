@@ -411,7 +411,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [dryRunLoading, setDryRunLoading] = useState(false)
   const [dryRunResults, setDryRunResults] = useState<any>(null)
   const [isSimulationMode, setIsSimulationMode] = useState(false)
-  const isLocked = sequence?.status === 'active'
+  const isLocked = sequence?.status === 'active' || sequence?.status === 'deprecated' || sequence?.status === 'ready_for_deletion'
   const isCanvasLocked = isLocked || isSimulationMode
   const isSidebarDisabled = isLocked || isSimulationMode
 
@@ -1074,6 +1074,38 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     }
   }
 
+  const handleDeprecate = async () => {
+    if (!confirm('Deprecate this sequence? It will stop accepting new enrollments but continue processing existing ones until all are complete.')) return
+    
+    setSaving(true)
+    const { error } = await adminApi.update('crm_sequences', { status: 'deprecated' }, { eq: { id: sequenceId } })
+    setSaving(false)
+    if (error) {
+      setErrorMsg(`Error deprecating: ${error}`)
+      setTimeout(() => setErrorMsg(''), 5000)
+    } else {
+      setSequence({ ...sequence, status: 'deprecated' })
+      setToastMsg('Sequence deprecated — no new enrollments will be accepted.')
+      setTimeout(() => setToastMsg(''), 4000)
+    }
+  }
+
+  const handleUndeprecate = async () => {
+    if (!confirm('Reactivate this sequence? It will start accepting new enrollments again.')) return
+    
+    setSaving(true)
+    const { error } = await adminApi.update('crm_sequences', { status: 'active' }, { eq: { id: sequenceId } })
+    setSaving(false)
+    if (error) {
+      setErrorMsg(`Error reactivating: ${error}`)
+      setTimeout(() => setErrorMsg(''), 5000)
+    } else {
+      setSequence({ ...sequence, status: 'active' })
+      setToastMsg('Sequence reactivated!')
+      setTimeout(() => setToastMsg(''), 3000)
+    }
+  }
+
   const handleTriggerTest = async () => {
     const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
     const phones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
@@ -1321,7 +1353,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
               style={{ margin: 0, fontSize: '1.4rem', fontWeight: 'bold', border: 'none', background: 'transparent', outline: 'none', width: 'auto', minWidth: '350px', borderBottom: '1px dashed #d1d5db', padding: '0 0 2px 0' }}
               placeholder="Sequence Name"
             />
-            <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: 12, background: isLocked ? '#dcfce7' : '#f3f4f6', color: isLocked ? '#166534' : '#374151', marginLeft: 12, verticalAlign: 'middle' }}>{sequence.status.toUpperCase()}</span>
+            <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: 12, background: sequence.status === 'active' ? '#dcfce7' : sequence.status === 'deprecated' ? '#fef3c7' : sequence.status === 'ready_for_deletion' ? '#fee2e2' : '#f3f4f6', color: sequence.status === 'active' ? '#166534' : sequence.status === 'deprecated' ? '#92400e' : sequence.status === 'ready_for_deletion' ? '#991b1b' : '#374151', marginLeft: 12, verticalAlign: 'middle' }}>{sequence.status === 'ready_for_deletion' ? 'READY FOR DELETION' : sequence.status.toUpperCase()}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
@@ -1347,10 +1379,21 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
               {dryRunLoading ? 'Simulating...' : '🔍 Dry Run'}
             </button>
           )}
-          {isLocked ? (
+          {sequence.status === 'active' ? (
             <>
               <button disabled style={{ padding: '8px 16px', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 6, fontWeight: 600 }}>Active - Structural Edits Locked</button>
+              <button onClick={handleDeprecate} style={{ padding: '8px 16px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>⚠️ Deprecate</button>
               <button onClick={handleDeactivate} style={{ padding: '8px 16px', background: '#fff1f2', color: '#be123c', border: '1px solid #fecdd3', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>Deactivate</button>
+            </>
+          ) : sequence.status === 'deprecated' ? (
+            <>
+              <button disabled style={{ padding: '8px 16px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 6, fontWeight: 600 }}>Deprecated - Draining</button>
+              <button onClick={handleUndeprecate} style={{ padding: '8px 16px', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>↩️ Reactivate</button>
+            </>
+          ) : sequence.status === 'ready_for_deletion' ? (
+            <>
+              <button disabled style={{ padding: '8px 16px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontWeight: 600 }}>Ready for Deletion</button>
+              <button onClick={handleUndeprecate} style={{ padding: '8px 16px', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>↩️ Reactivate</button>
             </>
           ) : (
             <button onClick={handleActivate} disabled={isSimulationMode} style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: isSimulationMode ? 'not-allowed' : 'pointer', opacity: isSimulationMode ? 0.5 : 1 }}>Activate Sequence</button>
