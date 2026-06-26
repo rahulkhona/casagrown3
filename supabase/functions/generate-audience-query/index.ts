@@ -206,7 +206,8 @@ CRITICAL DOMAIN KNOWLEDGE:
 - To find "leads who have NOT signed up" or "leads without an account": use \`WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE LOWER(u.email) = LOWER(l.email))\` — do NOT use profiles for this check.
 - To find "converted leads" (leads who later signed up): use \`WHERE EXISTS (SELECT 1 FROM auth.users u WHERE LOWER(u.email) = LOWER(l.email))\`.
 - \`market_orders\` contains orders. \`buyer_id\` and \`seller_id\` are FKs to \`profiles.id\`. To find users who have bought/sold, JOIN with market_orders.
-- The \`crm_leads\` table does NOT have state_code, city, zipcode, or community_h3 columns — those only exist in \`profiles\`. When querying crm_leads you MUST use: NULL AS state_code, NULL AS city, NULL AS zip_code, NULL AS community_h3.
+- The \`crm_leads.zipcode\` column is named \`zipcode\` (no underscore), but the output must alias it as \`zip_code\`.
+- \`crm_leads\` also has \`city\`, \`state_code\`, \`county\`, and \`country\` columns. Use NULL AS community_h3 since leads don't have an h3 index.
 
 OUTPUT REQUIREMENTS:
 - If the user asks about the schema (e.g. "what tables do we have?", "what columns does market_orders have?"), respond with a helpful plain-text answer describing the schema. Do NOT generate SQL for schema questions.
@@ -216,7 +217,7 @@ OUTPUT REQUIREMENTS:
   state_code TEXT, city TEXT, zip_code TEXT, community_h3 TEXT,
   joined_at TIMESTAMPTZ, accepts_email BOOLEAN, accepts_sms BOOLEAN
 - For queries against \`profiles\` table: map full_name→name, phone_number→phone, home_community_h3_index→community_h3, created_at→joined_at, use 'user' as recipient_type. For accepts_email use (email IS NOT NULL) since all registered users can receive email. For accepts_sms use COALESCE(sms_enabled, false).
-- For queries against \`crm_leads\` table: use 'lead' as recipient_type, map created_at→joined_at. Use the accepts_email and accepts_sms columns directly. The available columns are: id, name, email, phone, source_platform, source_url, source_ad_id, utm_campaign, utm_content, utm_medium, form_version, landing_page_id, referring_user_id, accepts_email, accepts_sms, status, converted_user_id, metadata (JSONB), notes, created_at.
+- For queries against \`crm_leads\` table: use 'lead' as recipient_type, map zipcode→zip_code, created_at→joined_at, NULL AS community_h3. Use the accepts_email and accepts_sms columns directly. The available columns are: id, name, email, phone, zipcode, city, state_code, county, country, source_platform, source_url, source_ad_id, utm_campaign, utm_content, utm_medium, form_version, landing_page_id, referring_user_id, accepts_email, accepts_sms, status, converted_user_id, metadata (JSONB), notes, created_at, has_backyard, produce_interests.
 - Use COALESCE for nullable fields when needed.
 - You can JOIN any table in the schema to build complex audience segments.
 - Use proper PostgreSQL syntax.
