@@ -254,7 +254,7 @@ Rules:
               generationConfig: {
                 maxOutputTokens: 2048, // Large enough to prevent campaign truncation
                 temperature: 0.7,
-                ...(model.includes('gemini-2.5') || model.includes('gemini-3.') ? {
+                ...(model.includes('gemini-2.5') || model.includes('gemini-3.') || model.includes('gemma-4') ? {
                   thinkingConfig: {
                     thinkingBudget: 0 // Completely disable thoughts to save tokens & prevent chatter
                   }
@@ -289,22 +289,30 @@ Rules:
     let resultText = parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('') || 
                       parts.map((p: any) => p.text || '').join('');
 
+    // Strip <think>...</think> blocks (some models emit these as plain text)
+    resultText = resultText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
     // Strip markdown fences if AI included them despite instructions
     resultText = resultText.replace(/^```html\n?/i, "").replace(/^```\n?/i, "").replace(/```\n?$/i, "").trim();
 
-    // Strip echoed instructions: find the first line that starts a real HTML block element
+    // Strip chain-of-thought reasoning leaked as plain text before the HTML
     if (channel === 'email') {
-      // First try to match the actual start tag of the email container (must have a style attribute as required)
-      const realHtmlMatch = resultText.match(/(<(?:div|table)[^>]+style=[^>]+>)/i);
-      if (realHtmlMatch && realHtmlMatch.index !== undefined) {
-        const idx = resultText.indexOf(realHtmlMatch[1], realHtmlMatch.index);
-        if (idx > 0) resultText = resultText.slice(idx);
-      } else {
-        // Fallback: Match start of a block tag at the beginning of a line
-        const htmlStartMatch = resultText.match(/(?:^|\n)(<(?:div|table|section|article|header|main|h[1-6]|p|ul|ol|span|a|img|figure|center|body)[^>]*>)/i);
-        if (htmlStartMatch && htmlStartMatch.index !== undefined) {
-          const idx = resultText.indexOf(htmlStartMatch[1], htmlStartMatch.index);
-          if (idx > 0) resultText = resultText.slice(idx);
+      // Find the very first HTML tag (< followed by a letter) — everything before it is reasoning
+      const firstTagIdx = resultText.search(/<[a-zA-Z]/);
+      if (firstTagIdx > 0) {
+        resultText = resultText.slice(firstTagIdx);
+      }
+
+      // Also strip any trailing reasoning after the last closing tag
+      const lastCloseTag = resultText.lastIndexOf('</');
+      if (lastCloseTag > 0) {
+        const endOfTag = resultText.indexOf('>', lastCloseTag);
+        if (endOfTag > 0 && endOfTag < resultText.length - 1) {
+          const trailing = resultText.slice(endOfTag + 1).trim();
+          // Only strip if trailing text doesn't contain HTML
+          if (!trailing.match(/<[a-zA-Z]/)) {
+            resultText = resultText.slice(0, endOfTag + 1);
+          }
         }
       }
     } else {
