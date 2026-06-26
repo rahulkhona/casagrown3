@@ -233,8 +233,37 @@ serve(async (req) => {
         const nodeType = node.data?.type || node.type
 
         if (nodeType === 'condition') {
-          const ctx = evalContexts.get(v.recipient_id)
-          const matched = evaluateQuery(node.data?.query, ctx)
+          let matched = false
+
+          if (node.data?.conditionMode === 'ai' && node.data?.aiSql) {
+            // AI condition: run the SQL and check if this recipient is in the results
+            // Cache results per node to avoid re-running the same SQL for every candidate
+            const cacheKey = `ai_condition_${node.id}`
+            let aiMatchSet = nodeRecipients.get(cacheKey)
+            if (!aiMatchSet) {
+              aiMatchSet = new Set<string>()
+              try {
+                const { data: aiResults, error: aiError } = await supabase.rpc('execute_audience_query', {
+                  p_query: node.data.aiSql
+                })
+                if (aiError) {
+                  console.error(`[DRY-RUN AI CONDITION ERR] ${node.id}: ${aiError.message}`)
+                } else if (Array.isArray(aiResults)) {
+                  for (const row of aiResults) {
+                    if (row.id) aiMatchSet.add(row.id)
+                  }
+                }
+              } catch (e: any) {
+                console.error(`[DRY-RUN AI CONDITION ERR] ${node.id}: ${e.message}`)
+              }
+              nodeRecipients.set(cacheKey, aiMatchSet)
+            }
+            matched = aiMatchSet.has(v.recipient_id)
+          } else {
+            // Rule-based condition
+            const ctx = evalContexts.get(v.recipient_id)
+            matched = evaluateQuery(node.data?.query, ctx)
+          }
 
           // Track true/false branch split on the condition node
           const branchKey = matched ? '_true' : '_false'
