@@ -1847,79 +1847,186 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                     Open Message Editor Modal
                   </button>
 
-                  {selectedNode.data.type === 'action_email' && testEmails.trim() && (
-                    <button
-                      disabled={testing}
-                      onClick={async () => {
-                        const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
-                        if (emails.length === 0) { alert('Add test email addresses first.'); return }
-                        if (!editorForm.subject || !editorForm.content_html) { alert('This node has no email content yet. Open the editor and add content first.'); return }
-                        setTesting(true)
-                        setToastMsg(`Sending test email for "${selectedNode.data.label || 'this node'}"...`)
-                        try {
-                          // Prepare test leads
-                          const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
-                          for (const email of emails) {
-                            const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
-                            let leadId = existingLeads?.[0]?.id
-                            if (leadId) {
-                              await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
-                            } else {
-                              const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
-                                name: `Test Lead (${email})`, email, accepts_email: true, accepts_sms: true, metadata: { is_test: true }
-                              }).select('id').single()
-                              if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
-                              leadId = newLead.id
-                            }
-                            recipients.push({ recipient_type: 'lead', recipient_id: leadId })
-                          }
+                  {/* Per-node test section */}
+                  <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 16, paddingTop: 16 }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: 700, color: '#1f2937' }}>🧪 Test This Node</h4>
+                    {selectedNode.data.type === 'action_email' && (
+                      <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>Test Email Addresses</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. test@example.com"
+                          value={testEmails}
+                          onChange={e => setTestEmails(e.target.value)}
+                          style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                    )}
+                    {selectedNode.data.type === 'action_sms' && (
+                      <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>Test Phone Numbers</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. +15551234567"
+                          value={testPhones}
+                          onChange={e => setTestPhones(e.target.value)}
+                          style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                    )}
 
-                          // Enroll at the selected node (not the start node)
-                          const recipientIds = recipients.map(r => r.recipient_id)
-                          await supabase.from('crm_sequence_enrollments').delete()
-                            .eq('sequence_id', sequenceId).in('recipient_id', recipientIds)
-                          await supabase.from('crm_sequence_enrollments').insert(
-                            recipients.map(r => ({
-                              sequence_id: sequenceId,
-                              recipient_type: r.recipient_type,
-                              recipient_id: r.recipient_id,
-                              current_node_id: selectedNode.id,
-                              next_evaluation_at: new Date().toISOString(),
-                              status: 'active',
-                            }))
-                          )
-
-                          // Fire process-sequence-step for this node
-                          const res = await fetch(
-                            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
-                            {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
-                              },
-                              body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
+                    {selectedNode.data.type === 'action_email' && testEmails.trim() && (
+                      <button
+                        disabled={testing}
+                        onClick={async () => {
+                          const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+                          if (emails.length === 0) { alert('Add test email addresses first.'); return }
+                          if (!editorForm.subject || !editorForm.content_html) { alert('This node has no email content yet. Open the editor and add content first.'); return }
+                          setTesting(true)
+                          setToastMsg(`Sending test email for "${selectedNode.data.label || 'this node'}"...`)
+                          try {
+                            // Prepare test leads
+                            const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
+                            for (const email of emails) {
+                              const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('email', email)
+                              let leadId = existingLeads?.[0]?.id
+                              if (leadId) {
+                                await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+                              } else {
+                                const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+                                  name: `Test Lead (${email})`, email, accepts_email: true, accepts_sms: true, metadata: { is_test: true }
+                                }).select('id').single()
+                                if (insertError) throw new Error(`Failed to create lead for ${email}: ${insertError.message}`)
+                                leadId = newLead.id
+                              }
+                              recipients.push({ recipient_type: 'lead', recipient_id: leadId })
                             }
-                          )
-                          if (!res.ok) {
-                            const data = await res.json().catch(() => ({}))
-                            throw new Error(data.error || `Failed (${res.status})`)
+
+                            // Enroll at the selected node (not the start node)
+                            const recipientIds = recipients.map(r => r.recipient_id)
+                            await supabase.from('crm_sequence_enrollments').delete()
+                              .eq('sequence_id', sequenceId).in('recipient_id', recipientIds)
+                            await supabase.from('crm_sequence_enrollments').insert(
+                              recipients.map(r => ({
+                                sequence_id: sequenceId,
+                                recipient_type: r.recipient_type,
+                                recipient_id: r.recipient_id,
+                                current_node_id: selectedNode.id,
+                                next_evaluation_at: new Date().toISOString(),
+                                status: 'active',
+                              }))
+                            )
+
+                            // Fire process-sequence-step for this node
+                            const res = await fetch(
+                              `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                                  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                                },
+                                body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
+                              }
+                            )
+                            if (!res.ok) {
+                              const data = await res.json().catch(() => ({}))
+                              throw new Error(data.error || `Failed (${res.status})`)
+                            }
+                            setToastMsg(`✅ Test email sent to ${emails.join(', ')}`)
+                            setTimeout(() => setToastMsg(''), 5000)
+                          } catch (err: any) {
+                            setErrorMsg(err.message || 'Failed to send test email')
+                            setTimeout(() => setErrorMsg(''), 5000)
+                          } finally {
+                            setTesting(false)
                           }
-                          setToastMsg(`✅ Test email sent to ${emails.join(', ')}`)
-                          setTimeout(() => setToastMsg(''), 5000)
-                        } catch (err: any) {
-                          setErrorMsg(err.message || 'Failed to send test email')
-                          setTimeout(() => setErrorMsg(''), 5000)
-                        } finally {
-                          setTesting(false)
-                        }
-                      }}
-                      style={{ padding: '10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                    >
-                      📧 Send Test Email to {testEmails.split(',').filter(e => e.trim()).length} recipient(s)
-                    </button>
-                  )}
+                        }}
+                        style={{ padding: '10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}
+                      >
+                        📧 Send Test Email to {testEmails.split(',').filter(e => e.trim()).length} recipient(s)
+                      </button>
+                    )}
+
+                    {selectedNode.data.type === 'action_sms' && testPhones.trim() && (
+                      <button
+                        disabled={testing}
+                        onClick={async () => {
+                          const phones = testPhones.split(',').map(p => p.trim()).filter(Boolean)
+                          if (phones.length === 0) { alert('Add test phone numbers first.'); return }
+                          if (!editorForm.content_text) { alert('This node has no SMS content yet. Open the editor and add content first.'); return }
+                          setTesting(true)
+                          setToastMsg(`Sending test SMS for "${selectedNode.data.label || 'this node'}"...`)
+                          try {
+                            const recipients: { recipient_type: 'lead', recipient_id: string }[] = []
+                            for (const phone of phones) {
+                              const { data: existingLeads } = await supabase.from('crm_leads').select('id').eq('phone', phone)
+                              let leadId = existingLeads?.[0]?.id
+                              if (leadId) {
+                                await supabase.from('crm_leads').update({ accepts_email: true, accepts_sms: true }).eq('id', leadId)
+                              } else {
+                                const { data: newLead, error: insertError } = await supabase.from('crm_leads').insert({
+                                  name: `Test Lead (${phone})`, phone, accepts_email: true, accepts_sms: true, metadata: { is_test: true }
+                                }).select('id').single()
+                                if (insertError) throw new Error(`Failed to create lead for ${phone}: ${insertError.message}`)
+                                leadId = newLead.id
+                              }
+                              recipients.push({ recipient_type: 'lead', recipient_id: leadId })
+                            }
+
+                            const recipientIds = recipients.map(r => r.recipient_id)
+                            await supabase.from('crm_sequence_enrollments').delete()
+                              .eq('sequence_id', sequenceId).in('recipient_id', recipientIds)
+                            await supabase.from('crm_sequence_enrollments').insert(
+                              recipients.map(r => ({
+                                sequence_id: sequenceId,
+                                recipient_type: r.recipient_type,
+                                recipient_id: r.recipient_id,
+                                current_node_id: selectedNode.id,
+                                next_evaluation_at: new Date().toISOString(),
+                                status: 'active',
+                              }))
+                            )
+
+                            const res = await fetch(
+                              `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-sequence-step`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                                  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                                },
+                                body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
+                              }
+                            )
+                            if (!res.ok) {
+                              const data = await res.json().catch(() => ({}))
+                              throw new Error(data.error || `Failed (${res.status})`)
+                            }
+                            setToastMsg(`✅ Test SMS sent to ${phones.join(', ')}`)
+                            setTimeout(() => setToastMsg(''), 5000)
+                          } catch (err: any) {
+                            setErrorMsg(err.message || 'Failed to send test SMS')
+                            setTimeout(() => setErrorMsg(''), 5000)
+                          } finally {
+                            setTesting(false)
+                          }
+                        }}
+                        style={{ padding: '10px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}
+                      >
+                        💬 Send Test SMS to {testPhones.split(',').filter(p => p.trim()).length} recipient(s)
+                      </button>
+                    )}
+
+                    {!testEmails.trim() && selectedNode.data.type === 'action_email' && (
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#9ca3af' }}>Enter a test email above to enable per-node testing.</p>
+                    )}
+                    {!testPhones.trim() && selectedNode.data.type === 'action_sms' && (
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#9ca3af' }}>Enter a test phone number above to enable per-node testing.</p>
+                    )}
+                  </div>
                   
                   {!isLocked && (
                     <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 16 }}>Save Node Configuration</button>
