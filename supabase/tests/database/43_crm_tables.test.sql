@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(32);
+select plan(33);
 
 -- ════════════════════════════════════════════════════════════════
 -- 1. Table existence checks
@@ -90,6 +90,12 @@ select results_eq(
   $$ select destination_url from public.crm_short_links where token = 'testtkn1' $$,
   $$ values ('https://casagrown.com/market'::text) $$,
   '26 crm_short_links token lookup works'
+);
+
+select results_eq(
+  $$ select is_shared from public.crm_short_links where token = 'testtkn1' $$,
+  $$ values (false) $$,
+  '26.5 crm_short_links is_shared defaults to false'
 );
 
 -- duplicate token should fail

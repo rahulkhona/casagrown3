@@ -23,6 +23,7 @@ export async function createShortLink(
     node_id: options.nodeId || null,
     recipient_id: recipientId,
     recipient_type: recipientType,
+    is_shared: true,
   });
 
   return token;

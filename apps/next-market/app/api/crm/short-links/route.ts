@@ -77,3 +77,41 @@ export async function POST(req: NextRequest) {
     short_url: `${host}/r/${finalToken}`,
   })
 }
+
+export async function PATCH(req: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const { token, is_shared } = body as {
+    token?: string
+    is_shared?: boolean
+  }
+
+  if (!token) {
+    return NextResponse.json({ error: 'token is required' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('crm_short_links')
+    .update({ is_shared: is_shared !== undefined ? is_shared : true })
+    .eq('token', token)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}

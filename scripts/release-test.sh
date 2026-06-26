@@ -352,6 +352,22 @@ else
   log_suite "CRM Edge Functions" "$CRM_PASSED" "$CRM_FAILED"
 fi
 
+# 5e2: CRM Short Links & Attribution tests
+echo "  Running CRM Short Links & Attribution tests..."
+SHORTLINK_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+  functions/_tests/short-links-is-shared.test.ts 2>&1)
+SHORTLINK_PASSED=$(echo "$SHORTLINK_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+SHORTLINK_FAILED=$(echo "$SHORTLINK_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+
+if [ "${SHORTLINK_FAILED:-0}" -eq 0 ] || [ -z "$SHORTLINK_FAILED" ]; then
+  echo -e "  ${GREEN}✅ CRM Short Links & Attribution: ${SHORTLINK_PASSED} tests — ALL PASS${NC}"
+  log_suite "CRM Short Links & Attribution" "$SHORTLINK_PASSED"
+else
+  echo -e "  ${RED}❌ CRM Short Links & Attribution: ${SHORTLINK_PASSED} passed, ${SHORTLINK_FAILED} failed${NC}"
+  echo "$SHORTLINK_OUTPUT" | grep "FAILED" | head -10
+  log_suite "CRM Short Links & Attribution" "$SHORTLINK_PASSED" "$SHORTLINK_FAILED"
+fi
+
 # 5f: Drip Sequence Engine integration tests
 echo "  Running Drip Sequence Engine integration tests..."
 SEQ_OUTPUT=$(SUPABASE_URL=http://127.0.0.1:54321 \

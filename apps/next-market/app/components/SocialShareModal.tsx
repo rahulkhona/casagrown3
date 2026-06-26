@@ -361,19 +361,38 @@ export default function SocialShareModal({
     setTimeout(() => setToastMessage(null), 2500)
   }
 
+  const confirmShareLink = useCallback(async (platform: SharePlatform) => {
+    const url = trackedUrls[platform]
+    if (!url) return
+    const token = url.split('/r/')[1]
+    if (!token) return
+    try {
+      await fetch('/api/crm/short-links', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, is_shared: true }),
+      })
+    } catch (err) {
+      console.warn('[SocialShareModal] Failed to confirm share link', err)
+    }
+  }, [trackedUrls])
+
   const handleShareSMS = () => {
+    confirmShareLink('sms')
     const tracked = trackedUrls['sms'] || shareUrl
     const text = encodeURIComponent(getPayload(tracked, 'sms'))
     window.location.href = `sms:?body=${text}`
   }
 
   const handleShareWhatsApp = () => {
+    confirmShareLink('whatsapp')
     const tracked = trackedUrls['whatsapp'] || shareUrl
     const text = encodeURIComponent(getPayload(tracked, 'whatsapp'))
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
   const handleShareEmail = () => {
+    confirmShareLink('email')
     const tracked = trackedUrls['email'] || shareUrl
     const subject = encodeURIComponent(entityName || title)
     const body = encodeURIComponent(getPayload(tracked, 'email'))
@@ -401,6 +420,7 @@ export default function SocialShareModal({
   }
 
   const handleShareNextdoorStep2 = () => {
+    confirmShareLink('nextdoor')
     const tracked = trackedUrls['nextdoor'] || shareUrl
     const commentText = getCommentPayload(tracked)
     navigator.clipboard.writeText(commentText).catch(()=>{})
@@ -415,6 +435,7 @@ export default function SocialShareModal({
   }
 
   const handleShareFacebookStep2 = () => {
+    confirmShareLink('facebook')
     const tracked = trackedUrls['facebook'] || shareUrl
     const commentText = getCommentPayload(tracked)
     navigator.clipboard.writeText(commentText).catch(()=>{})
@@ -423,6 +444,7 @@ export default function SocialShareModal({
 
   const handleCopyLink = () => {
     try {
+      confirmShareLink('copy')
       const tracked = trackedUrls['copy'] || shareUrl
       const payload = getPayload(tracked, 'copy')
       navigator.clipboard.writeText(payload).catch(()=>{})
@@ -433,6 +455,7 @@ export default function SocialShareModal({
   const handleShareNative = () => {
     if (navigator.share) {
       try {
+        confirmShareLink('native')
         const tracked = trackedUrls['native'] || shareUrl
         navigator.share({ title: entityName, text: customMessages['native'] || resolveMessage('native'), url: tracked }).catch(()=>{})
       } catch {}

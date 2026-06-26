@@ -52,7 +52,7 @@ export default function OverviewPage() {
         supabase.from('crm_leads').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('market_products').select('created_at').eq('is_active', true).eq('is_deleted', false).gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('growbot_shared_responses').select('created_at').gte('created_at', fourteenDaysAgo.toISOString()),
-        supabase.from('crm_short_links').select('created_at, click_count, label').or('label.ilike.product_share:%,label.ilike.new_product_share:%').gte('created_at', fourteenDaysAgo.toISOString()),
+        supabase.from('crm_short_links').select('created_at, click_count, label').or('label.ilike.product_share:%,label.ilike.new_product_share:%').eq('is_shared', true).gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('profiles').select('created_at, utm_source').in('utm_campaign', ['product_share', 'new_product_share']).gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('market_orders').select('id, total_usd, created_at, profiles!buyer_id!inner(utm_campaign, utm_source)').in('profiles.utm_campaign', ['product_share', 'new_product_share']).gte('created_at', fourteenDaysAgo.toISOString()),
         fetchWeeklyTrends(8)

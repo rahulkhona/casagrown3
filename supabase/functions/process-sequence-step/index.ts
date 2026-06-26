@@ -578,7 +578,6 @@ serve(async (req) => {
               ...sendEngagement,
               ...nodeEngagement
             };
-            
             conditionMet = evaluateQuery(node.data.query, evalContext);
             console.log(`[CONDITION MET] Ruleset Evaluated for ${enrollment.recipient_id}: ${conditionMet}`);
         } else if (metaRes.error) {
