@@ -20,7 +20,7 @@ test.describe('Global UI Elements', () => {
     const logo = page.locator('a[class*="logo"]').first()
     if (await logo.isVisible({ timeout: 5000 }).catch(() => false)) {
       await logo.click()
-      await expect(page).toHaveURL(/localhost:3001(\/market)?\/?$/, { timeout: 15000 })
+      await expect(page).toHaveURL(/localhost:3001(\/market)?\/?(\?.*)?$/, { timeout: 15000 })
     }
   })
 

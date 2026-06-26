@@ -187,4 +187,80 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
       await expect(page.locator('h1')).toContainText('Sequences');
     }
   });
+
+  test('Test 6: Sequence Builder — Dry Run UI Flow', async ({ page }) => {
+    // Navigate to sequences list and create a new sequence
+    await page.goto('/crm/sequences');
+    const newSeqBtn = page.getByRole('button', { name: '+ New Sequence' });
+    await expect(newSeqBtn).toBeVisible();
+    await newSeqBtn.click();
+    await page.waitForURL(/\/crm\/sequences\/[a-zA-Z0-9-]+/);
+
+    // Wait for builder page to load
+    const saveBtn = page.locator('button:has-text("Save Sequence")');
+    await expect(saveBtn).toBeVisible({ timeout: 10000 });
+
+    // Assert: "🔍 Dry Run" button is visible
+    const dryRunBtn = page.locator('button:has-text("🔍 Dry Run")');
+    await expect(dryRunBtn).toBeVisible();
+
+    // Interact: Click "🔍 Dry Run"
+    await dryRunBtn.click();
+
+    // Assert: Exit Simulation button appears
+    const exitSimBtn = page.getByRole('button', { name: 'Exit Simulation', exact: true });
+    await expect(exitSimBtn).toBeVisible({ timeout: 10000 });
+
+    // Click on the Start node to open its sidebar
+    const startNode = page.locator('.react-flow__node:has-text("Start")');
+    await expect(startNode).toBeVisible();
+    await startNode.click();
+
+    // Assert: Simulation Results section is visible inside the sidebar
+    await expect(page.locator('text=Simulation Results')).toBeVisible();
+
+    // Assert: Exit Simulation Mode button is visible in the sidebar footer
+    await expect(page.locator('button:has-text("Exit Simulation Mode")')).toBeVisible();
+
+    // Interact: Click Exit Simulation in the header
+    await exitSimBtn.click();
+
+    // Assert: The Simulation Results block disappears
+    await expect(page.locator('text=Simulation Results')).not.toBeVisible();
+
+    // Re-click Start node to re-open sidebar
+    await startNode.click();
+    await expect(page.locator('button:has-text("Save Node configuration")')).toBeVisible();
+  });
+
+  test('Test 7: Sequences List Page — Dry Run Modal', async ({ page }) => {
+    // Go to sequences list
+    await page.goto('/crm/sequences');
+
+    // Assert: Page header loaded
+    await expect(page.locator('h1')).toContainText('Sequences');
+
+    // Wait for the sequences list table to load
+    await page.waitForTimeout(1000);
+
+    // Locate the first Dry Run button in the table rows
+    const firstDryRunBtn = page.locator('button').filter({ hasText: /🔍 Dry Run/ }).first();
+    
+    // If a sequence exists, run the test on it
+    if (await firstDryRunBtn.count() > 0) {
+      await firstDryRunBtn.click();
+
+      // Assert: Modal overlay opens with heading "Dry Run"
+      const modalHeading = page.locator('h2:has-text("Dry Run")');
+      await expect(modalHeading).toBeVisible({ timeout: 10000 });
+
+      // Assert: Either the results table or the "no nodes" message appears after simulation completes
+      const resultsOrEmpty = page.locator('text=simulated distribution of recipients').or(page.locator('text=No nodes were simulated'));
+      await expect(resultsOrEmpty.first()).toBeVisible({ timeout: 15000 });
+
+      // Close the modal
+      await page.getByRole('button', { name: 'Close' }).click();
+      await expect(modalHeading).not.toBeVisible();
+    }
+  });
 });

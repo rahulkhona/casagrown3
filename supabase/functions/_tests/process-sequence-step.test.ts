@@ -5,8 +5,10 @@ import { getNextSlotTime } from '../process-sequence-step/index.ts'
 const SUPABASE_URL = 'http://127.0.0.1:54321'
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+// GoTrue admin ops require the new sb_secret_ key; fall back to SERVICE_ROLE_KEY for older CLI versions
+const AUTH_ADMIN_KEY = Deno.env.get('SUPABASE_SECRET_KEY') ?? SERVICE_ROLE_KEY
 
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+const supabase = createClient(SUPABASE_URL, AUTH_ADMIN_KEY)
 
 async function callFn(name: string, body: unknown, method = 'POST') {
   return fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
@@ -189,17 +191,27 @@ Deno.test('process-sequence-step: evaluates contact preferences and seller listi
     body: JSON.stringify({ id: testLeadId, email: testLeadEmail, phone: '', name: 'Lead Only Email', status: 'new' }),
   })).text()
 
-  // 3. Setup Users, Profiles, Booth and Listing via Supabase client
-  // Create user 1 (both email & phone)
-  const { data: userBoth, error: errBoth } = await supabase.auth.admin.createUser({
-    email: testUserBothEmail,
-    email_confirm: true,
-    user_metadata: { full_name: 'User Both' }
-  })
-  if (errBoth) console.error("errBoth:", errBoth)
-  const userBothId = userBoth?.user?.id
+  // 3. Setup Users, Profiles, Booth and Listing via direct DB inserts
+  // (GoTrue admin APIs require ES256 JWKS in newer Supabase — bypassing with direct inserts)
+  const userBothId = testUserIdBoth
+  const userListingsId = testUserIdListings
 
-  // Update/insert profile with phone
+  // Insert auth.users via PostgREST (service_role has access)
+  const authHeaders = { 'Content-Type': 'application/json', apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` }
+
+  await (await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_test_auth_user`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ p_id: userBothId, p_email: testUserBothEmail }),
+  })).text().catch(() => {})
+
+  await (await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_test_auth_user`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ p_id: userListingsId, p_email: testUserListingsEmail }),
+  })).text().catch(() => {})
+
+  // Create user 1 profile (both email & phone)
   await supabase.from('profiles').upsert({
     id: userBothId,
     email: testUserBothEmail,
@@ -213,15 +225,7 @@ Deno.test('process-sequence-step: evaluates contact preferences and seller listi
     recipient_type: 'user'
   })
 
-  // Create user 2 (only email, listings)
-  const { data: userListings, error: errListings } = await supabase.auth.admin.createUser({
-    email: testUserListingsEmail,
-    email_confirm: true,
-    user_metadata: { full_name: 'User Listings' }
-  })
-  if (errListings) console.error("errListings:", errListings)
-  const userListingsId = userListings?.user?.id
-
+  // Create user 2 profile (only email, listings)
   await supabase.from('profiles').upsert({
     id: userListingsId,
     email: testUserListingsEmail,
@@ -290,8 +294,9 @@ Deno.test('process-sequence-step: evaluates contact preferences and seller listi
   await supabase.from('market_booths').delete().eq('owner_id', userListingsId)
   await supabase.from('crm_user_metadata').delete().in('recipient_id', [userBothId, userListingsId])
   await supabase.from('profiles').delete().in('id', [userBothId, userListingsId])
-  if (userBothId) await supabase.auth.admin.deleteUser(userBothId)
-  if (userListingsId) await supabase.auth.admin.deleteUser(userListingsId)
+  // Clean up auth.users via RPC
+  await (await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_test_auth_user`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ p_id: userBothId }) })).text().catch(() => {})
+  await (await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_test_auth_user`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ p_id: userListingsId }) })).text().catch(() => {})
 })
 
 Deno.test('process-sequence-step: calculates optimal slot window timezone-aware scheduling', async () => {

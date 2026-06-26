@@ -197,7 +197,8 @@ Write a highly-converting email campaign.
 Tone: ${tone || 'Professional and Welcoming'}
 Rules:
 - Return ONLY valid HTML that can be placed inside an email body (e.g. starting with a <div> or <table> wrapper). Do not include <html>, <head>, or <body> tags. Just the content itself.
-- Use inline CSS for styling (e.g., style="color: #333; font-family: sans-serif;").
+- Use inline CSS for ALL styling (e.g., style="color: #333; font-family: sans-serif;"). Email clients do NOT support <style> blocks or CSS classes — every element must have its own inline style.
+- IMPORTANT: All <a> tags MUST have an explicit inline color style (e.g., style="color: #ffffff; text-decoration: underline;") because email clients default links to dark blue which is unreadable on dark backgrounds.
 - Include a clear, attractive Call to Action button. The CTA href MUST be "${SITE_URL}" — never use "#" or an empty href.
 - Make it visually appealing with good spacing.
 - Do NOT wrap your response in markdown code blocks (\`\`\`html or \`\`\`). Return raw HTML only.

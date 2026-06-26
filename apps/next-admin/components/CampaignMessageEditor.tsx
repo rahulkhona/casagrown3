@@ -87,7 +87,7 @@ export default function CampaignMessageEditor({
     return currentContent.replace(/<[^>]*>/g, '').trim().length > 0;
   }, [currentContent]);
 
-  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw'>('wysiwyg')
+  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw' | 'preview'>('wysiwyg')
   const [previewEmail, setPreviewEmail] = useState<{ html: string; text?: string } | null>(null)
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
 
@@ -781,7 +781,7 @@ export default function CampaignMessageEditor({
     } else {
       const newContent = mode === 'replace' ? aiDraft : (form.content_html + '<br><br>' + aiDraft);
       setForm(f => ({ ...f, content_html: newContent }));
-      setHtmlMode('raw');
+      setHtmlMode('preview');
     }
     setAiModalOpen(false);
     setAiPrompt('');
@@ -873,9 +873,10 @@ export default function CampaignMessageEditor({
                   </button>
                 </>
               )}
-              <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
+              <select value={htmlMode} onChange={e => setHtmlMode(e.target.value as 'wysiwyg' | 'raw' | 'preview')} style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}>
                 <option value="wysiwyg">Inline Editor (WYSIWYG)</option>
                 <option value="raw">Raw HTML (Paste Template)</option>
+                <option value="preview">👁 Preview</option>
               </select>
               {showVariablesSelector && (
                 <select onChange={appendVar} style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #d1d5db' }}>
@@ -894,7 +895,26 @@ export default function CampaignMessageEditor({
               </button>
             </div>
           </div>
-          {htmlMode === 'wysiwyg' ? (
+          {htmlMode === 'preview' ? (
+            <div style={{ background: '#f3f4f6', borderRadius: 8, padding: 0, border: '1px solid #d1d5db', minHeight: 300 }}>
+              <div style={{ padding: '6px 12px', background: '#e5e7eb', borderRadius: '8px 8px 0 0', fontSize: '0.78rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>📧 Email Preview — rendered exactly as the recipient will see it</span>
+                <button
+                  type="button"
+                  onClick={() => setHtmlMode('raw')}
+                  style={{ padding: '2px 8px', fontSize: '0.75rem', background: 'white', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer' }}
+                >
+                  ✏️ Edit HTML
+                </button>
+              </div>
+              <iframe
+                srcDoc={form.content_html || '<p style="padding:20px;color:#999;">No content yet — switch to Raw HTML to add your template.</p>'}
+                sandbox=""
+                style={{ width: '100%', minHeight: 400, border: 'none', borderRadius: '0 0 8px 8px', background: 'white' }}
+                title="Email Preview"
+              />
+            </div>
+          ) : htmlMode === 'wysiwyg' ? (
             <div style={{ background: 'white', borderRadius: 8, overflow: 'visible', position: 'relative' }}>
               <style>{`
                 .crm-message-editor .ql-container {
@@ -910,6 +930,10 @@ export default function CampaignMessageEditor({
                 .crm-message-editor .ql-editor img:hover {
                   outline: 2px solid #3b82f6;
                   outline-offset: 2px;
+                }
+                .crm-message-editor .ql-editor a {
+                  color: #2563eb !important;
+                  text-decoration: underline;
                 }
                 .crm-message-editor .ql-editor table {
                   border-collapse: collapse;

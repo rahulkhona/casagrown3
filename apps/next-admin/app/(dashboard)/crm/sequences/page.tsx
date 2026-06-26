@@ -28,6 +28,10 @@ export default function SequencesPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const [toastMsg, setToastMsg] = useState('')
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [dryRunLoading, setDryRunLoading] = useState(false)
+  const [dryRunResults, setDryRunResults] = useState<any>(null)
+  const [selectedSequenceName, setSelectedSequenceName] = useState('')
+  const [showDryRunModal, setShowDryRunModal] = useState(false)
   const router = useRouter()
 
   const toast = (msg: string, ms = 5000) => {
@@ -200,6 +204,64 @@ export default function SequencesPage() {
     }
   }
 
+  const triggerDryRun = async (seq: Sequence) => {
+    try {
+      setDryRunLoading(true)
+      setSelectedSequenceName(seq.name)
+      setShowDryRunModal(true)
+      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/dry-run-sequence`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: seq.id }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to simulate dry run')
+      }
+      setDryRunResults(data.nodes || {})
+    } catch (err: any) {
+      toast(`Error: ${err.message}`)
+      setShowDryRunModal(false)
+    } finally {
+      setDryRunLoading(false)
+    }
+  }
+
+  const exportToCSV = (nodeId: string, nodeLabel: string, recipients: any[]) => {
+    if (!recipients || recipients.length === 0) return
+    const headers = ['Recipient ID', 'Name', 'Email', 'Phone', 'Type']
+    const rows = recipients.map(r => [
+      r.id,
+      r.name,
+      r.email || '',
+      r.phone || '',
+      r.recipient_type
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    const sanitizedLabel = nodeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    link.setAttribute('download', `dry_run_${sanitizedLabel}_recipients.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const STATUS_COLORS: Record<string, string> = {
     draft: '#9ca3af',
     active: '#22c55e',
@@ -313,23 +375,42 @@ export default function SequencesPage() {
                         Delete
                       </button>
                       {(s.status === 'active' || s.status === 'draft') && (
-                        <button
-                          onClick={() => triggerTestRun(s)}
-                          disabled={testingId === s.id}
-                          style={{
-                            padding: '4px 12px',
-                            background: '#f5f3ff',
-                            border: '1px solid #ddd6fe',
-                            borderRadius: '4px',
-                            cursor: testingId === s.id ? 'not-allowed' : 'pointer',
-                            color: '#7c3aed',
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            opacity: testingId === s.id ? 0.7 : 1
-                          }}
-                        >
-                          {testingId === s.id ? 'Testing...' : '🧪 Test'}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => triggerTestRun(s)}
+                            disabled={testingId === s.id}
+                            style={{
+                              padding: '4px 12px',
+                              background: '#f5f3ff',
+                              border: '1px solid #ddd6fe',
+                              borderRadius: '4px',
+                              cursor: testingId === s.id ? 'not-allowed' : 'pointer',
+                              color: '#7c3aed',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              opacity: testingId === s.id ? 0.7 : 1
+                            }}
+                          >
+                            {testingId === s.id ? 'Testing...' : '🧪 Test'}
+                          </button>
+                          <button
+                            onClick={() => triggerDryRun(s)}
+                            disabled={dryRunLoading}
+                            style={{
+                              padding: '4px 12px',
+                              background: '#f0fdf4',
+                              border: '1px solid #bbf7d0',
+                              borderRadius: '4px',
+                              cursor: dryRunLoading ? 'not-allowed' : 'pointer',
+                              color: '#166534',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              opacity: dryRunLoading ? 0.7 : 1
+                            }}
+                          >
+                            🔍 Dry Run
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -339,6 +420,85 @@ export default function SequencesPage() {
           </tbody>
         </table>
       </div>
+
+      {showDryRunModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal-container" style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>🔍 Dry Run: {selectedSequenceName}</h2>
+              <button onClick={() => { setShowDryRunModal(false); setDryRunResults(null); }} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>×</button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              {dryRunLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#4b5563' }}>
+                  <svg className="animate-spin" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 16px auto', display: 'block', height: '30px', width: '30px', color: '#1a2e1a' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p style={{ margin: 0, fontWeight: 500 }}>Running in-memory sequence simulation...</p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '0.8rem', color: '#9ca3af' }}>Evaluating all conditions against target audience</p>
+                </div>
+              ) : dryRunResults && Object.keys(dryRunResults).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b5563' }}>
+                    Below is the simulated distribution of recipients at each node step.
+                  </p>
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '10px 16px', fontWeight: 600, color: '#4b5563' }}>Step Node</th>
+                          <th style={{ padding: '10px 16px', fontWeight: 600, color: '#4b5563' }}>Type</th>
+                          <th style={{ padding: '10px 16px', fontWeight: 600, color: '#4b5563', textAlign: 'center' }}>Count</th>
+                          <th style={{ padding: '10px 16px', fontWeight: 600, color: '#4b5563', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(dryRunResults).map(([nodeId, data]: [string, any]) => (
+                          <tr key={nodeId} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: 500 }}>{nodeId}</td>
+                            <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: '0.85rem' }}>{nodeId.split('_')[0].toUpperCase()}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: '#16a34a' }}>{data.count}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => exportToCSV(nodeId, nodeId, data.recipients)}
+                                disabled={data.count === 0}
+                                style={{
+                                  padding: '4px 8px',
+                                  background: data.count === 0 ? '#f3f4f6' : '#1a2e1a',
+                                  color: data.count === 0 ? '#9ca3af' : 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: data.count === 0 ? 'not-allowed' : 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 500
+                                }}
+                              >
+                                Export CSV
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: '#6b7280' }}>
+                  No nodes were simulated. Make sure the sequence has a start trigger and nodes.
+                </div>
+              )}
+            </div>
+            
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', background: '#f9fafb' }}>
+              <button onClick={() => { setShowDryRunModal(false); setDryRunResults(null); }} style={{ padding: '8px 16px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .crm-page { }
@@ -351,6 +511,9 @@ export default function SequencesPage() {
         .crm-table { width: 100%; border-collapse: collapse; text-align: left; }
         .crm-table th { padding: 12px 24px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 0.8rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
         .crm-table td { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
       `}</style>
     </div>
   )

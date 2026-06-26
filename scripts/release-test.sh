@@ -136,6 +136,9 @@ if [ -z "$SERVICE_ROLE_KEY" ]; then
   echo -e "  ${RED}❌ Could not get SERVICE_ROLE_KEY${NC}"
   exit 1
 fi
+# GoTrue admin ops now require the new sb_secret_ key format
+SECRET_KEY=$(npx supabase status -o env 2>/dev/null | grep '^SECRET_KEY=' | cut -d'"' -f2)
+export SUPABASE_SECRET_KEY="${SECRET_KEY:-$SERVICE_ROLE_KEY}"
 
 # ── Initialize storage buckets ──
 echo "  Initializing storage buckets..."

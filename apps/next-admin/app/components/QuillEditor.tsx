@@ -64,6 +64,72 @@ class ImageBlot extends InlineEmbed {
 
 Quill.register(ImageBlot, true);
 
+// ── Custom Link Blot ─────────────────────────────────────────────────
+// Quill's default Link format strips all attributes except href/target.
+// For HTML emails, we need inline `style` on <a> tags (e.g. color for
+// dark backgrounds) to survive the editor's sanitization. This custom
+// blot preserves the style attribute through the Quill format pipeline.
+const InlineBlot: any = Quill.import('blots/inline');
+
+class LinkBlot extends InlineBlot {
+  static blotName = 'link';
+  static tagName = 'A';
+
+  static create(value: any) {
+    const node = super.create() as HTMLAnchorElement;
+    if (typeof value === 'string') {
+      node.setAttribute('href', value);
+    } else {
+      node.setAttribute('href', value.href || value);
+      if (value.style) node.setAttribute('style', value.style);
+    }
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+    return node;
+  }
+
+  static formats(node: HTMLAnchorElement) {
+    const href = node.getAttribute('href') || '';
+    const style = node.getAttribute('style') || '';
+    if (style) {
+      return { href, style };
+    }
+    return href;
+  }
+
+  static value(node: HTMLAnchorElement) {
+    return node.getAttribute('href') || '';
+  }
+
+  format(name: string, value: any) {
+    if (name === 'link') {
+      if (value) {
+        if (typeof value === 'string') {
+          (this as any).domNode.setAttribute('href', value);
+        } else {
+          (this as any).domNode.setAttribute('href', value.href || value);
+          if (value.style) {
+            (this as any).domNode.setAttribute('style', value.style);
+          }
+        }
+      } else {
+        // Remove link: unwrap the blot
+        (this as any).domNode.removeAttribute('href');
+      }
+    } else if (name === 'style') {
+      if (value) {
+        (this as any).domNode.setAttribute('style', value);
+      } else {
+        (this as any).domNode.removeAttribute('style');
+      }
+    } else {
+      super.format(name, value);
+    }
+  }
+}
+
+Quill.register(LinkBlot, true);
+
 // ── Table Module ──────────────────────────────────────────────────────
 // Quill 2.0 ships with a dedicated Table module (modules/table.js) that
 // uses proper Delta operations. Its static register() method auto-registers

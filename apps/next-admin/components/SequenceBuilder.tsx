@@ -305,6 +305,21 @@ const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.
     style: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120, maxWidth: 220, position: 'relative' },
     title: hasTooltip ? tooltipText : undefined
   },
+    data?.dryRunCount !== undefined && React.createElement('div', {
+      style: {
+        position: 'absolute',
+        top: -24,
+        right: -10,
+        background: '#10b981',
+        color: 'white',
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        padding: '2px 6px',
+        borderRadius: '10px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        zIndex: 10
+      }
+    }, `${data.dryRunCount} reached`),
     React.createElement('div', {
       style: { fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
     }, `${icon} ${title}`),
@@ -391,7 +406,12 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const [saving, setSaving] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [dryRunLoading, setDryRunLoading] = useState(false)
+  const [dryRunResults, setDryRunResults] = useState<any>(null)
+  const [isSimulationMode, setIsSimulationMode] = useState(false)
   const isLocked = sequence?.status === 'active'
+  const isCanvasLocked = isLocked || isSimulationMode
+  const isSidebarDisabled = isLocked || isSimulationMode
 
   // Sidebar state
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
@@ -648,7 +668,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   )
 
   const onEdgeDoubleClick = useCallback((event: React.MouseEvent, edge: Edge) => {
-    if (isLocked) return;
+    if (isCanvasLocked) return;
     const sourceNode = nodes.find(n => n.id === edge.source);
     if (sourceNode?.data?.type === 'condition') {
       setEdges(eds => eds.map(e => {
@@ -659,7 +679,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         return e;
       }));
     }
-  }, [isLocked, nodes, setEdges]);
+  }, [isCanvasLocked, nodes, setEdges]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -713,6 +733,113 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     },
     [reactFlowInstance, setNodes, sendSlotDefaults],
   )
+
+  const runSimulation = async () => {
+    try {
+      setDryRunLoading(true)
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/dry-run-sequence`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          },
+          body: JSON.stringify({ sequence_id: sequenceId }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Simulation failed')
+      
+      setDryRunResults(data.nodes || {})
+      setIsSimulationMode(true)
+      
+      setNodes(nds => nds.map(n => {
+        const countData = data.nodes?.[n.id];
+        const count = countData ? countData.count : 0;
+        
+        const newData = { ...n.data, dryRunCount: count } as any;
+        const flatFields = queryFields.flatMap((g: any) => g.options)
+        if (n.id !== 'start') {
+          newData.label = buildNodeLabel(n.data.type as string, newData, flatFields)
+        } else {
+          const baseLabel = getTriggerLabel(triggerEvent, n.data.audienceId as string, audiences)
+          newData.label = React.createElement('div', { style: { position: 'relative' } },
+            React.createElement('div', {
+              style: {
+                position: 'absolute',
+                top: -24,
+                right: -10,
+                background: '#10b981',
+                color: 'white',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: '10px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                zIndex: 10
+              }
+            }, `${count} reached`),
+            React.createElement('div', null, baseLabel)
+          )
+        }
+        return { ...n, data: newData }
+      }))
+      
+      setToastMsg('Simulation complete! Distribution counts are visible on all nodes.')
+      setTimeout(() => setToastMsg(''), 4000)
+    } catch (err: any) {
+      setErrorMsg(`Simulation failed: ${err.message}`)
+      setTimeout(() => setErrorMsg(''), 4000)
+    } finally {
+      setDryRunLoading(false)
+    }
+  }
+
+  const clearSimulation = () => {
+    setIsSimulationMode(false)
+    setDryRunResults(null)
+    setNodes(nds => nds.map(n => {
+      const cleanData = { ...n.data } as any;
+      delete cleanData.dryRunCount;
+      if (n.id !== 'start') {
+        const flatFields = queryFields.flatMap((g: any) => g.options)
+        cleanData.label = buildNodeLabel(n.data.type as string, cleanData, flatFields)
+      } else {
+        cleanData.label = getTriggerLabel(triggerEvent, n.data.audienceId as string, audiences)
+      }
+      return { ...n, data: cleanData }
+    }))
+    setSelectedNode(null)
+  }
+
+  const exportToCSV = (nodeId: string, nodeLabel: string, recipients: any[]) => {
+    if (!recipients || recipients.length === 0) return
+    const headers = ['Recipient ID', 'Name', 'Email', 'Phone', 'Type']
+    const rows = recipients.map(r => [
+      r.id,
+      r.name,
+      r.email || '',
+      r.phone || '',
+      r.recipient_type
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    const sanitizedLabel = nodeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    link.setAttribute('download', `dry_run_${sanitizedLabel}_recipients.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
     setSelectedNode(node)
@@ -1179,15 +1306,37 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
+          {isSimulationMode ? (
+            <button onClick={clearSimulation} style={{ padding: '8px 16px', background: '#be123c', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+              Exit Simulation
+            </button>
+          ) : (
+            <button 
+              onClick={runSimulation} 
+              disabled={dryRunLoading} 
+              style={{ 
+                padding: '8px 16px', 
+                background: '#4f46e5', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: 6, 
+                fontWeight: 600, 
+                cursor: dryRunLoading ? 'not-allowed' : 'pointer',
+                opacity: dryRunLoading ? 0.7 : 1
+              }}
+            >
+              {dryRunLoading ? 'Simulating...' : '🔍 Dry Run'}
+            </button>
+          )}
           {isLocked ? (
             <>
               <button disabled style={{ padding: '8px 16px', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 6, fontWeight: 600 }}>Active - Structural Edits Locked</button>
               <button onClick={handleDeactivate} style={{ padding: '8px 16px', background: '#fff1f2', color: '#be123c', border: '1px solid #fecdd3', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>Deactivate</button>
             </>
           ) : (
-            <button onClick={handleActivate} style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>Activate Sequence</button>
+            <button onClick={handleActivate} disabled={isSimulationMode} style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: isSimulationMode ? 'not-allowed' : 'pointer', opacity: isSimulationMode ? 0.5 : 1 }}>Activate Sequence</button>
           )}
-          <button onClick={handleSaveSequence} disabled={saving} style={{ padding: '8px 16px', background: '#1a2e1a', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={handleSaveSequence} disabled={saving || isSimulationMode} style={{ padding: '8px 16px', background: '#1a2e1a', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: isSimulationMode ? 'not-allowed' : 'pointer', opacity: isSimulationMode ? 0.5 : 1 }}>
             {saving ? 'Saving...' : 'Save Sequence'}
           </button>
         </div>
@@ -1208,7 +1357,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* LEFT SIDEBAR (Palette) */}
-        {!isLocked && (
+        {!isCanvasLocked && (
           <div style={{ width: 250, background: '#f9fafb', borderRight: '1px solid #e5e7eb', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#374151' }}>Node Types</h3>
             <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 16px 0' }}>Drag nodes onto the canvas.</p>
@@ -1246,16 +1395,16 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             <ReactFlow
               nodes={nodes}
               edges={edges}
-              onNodesChange={isLocked ? undefined : onNodesChange}
-              onEdgesChange={isLocked ? undefined : onEdgesChange}
-              onConnect={isLocked ? undefined : onConnect}
+              onNodesChange={isCanvasLocked ? undefined : onNodesChange}
+              onEdgesChange={isCanvasLocked ? undefined : onEdgesChange}
+              onConnect={isCanvasLocked ? undefined : onConnect}
               onInit={setReactFlowInstance}
-              onDrop={isLocked ? undefined : onDrop}
-              onDragOver={isLocked ? undefined : onDragOver}
+              onDrop={isCanvasLocked ? undefined : onDrop}
+              onDragOver={isCanvasLocked ? undefined : onDragOver}
               onNodeClick={handleNodeClick}
               onPaneClick={handlePaneClick}
-              onEdgeDoubleClick={isLocked ? undefined : onEdgeDoubleClick}
-              nodesDraggable={!isLocked}
+              onEdgeDoubleClick={isCanvasLocked ? undefined : onEdgeDoubleClick}
+              nodesDraggable={!isCanvasLocked}
               elementsSelectable={true}
               fitView
             >
@@ -1274,6 +1423,65 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             </div>
             
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              {isSimulationMode && (
+                <div style={{ padding: '16px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: 8, marginBottom: 16 }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🟢 Simulation Results
+                  </h4>
+                  <p style={{ fontSize: '0.85rem', color: '#047857', margin: '0 0 12px 0' }}>
+                    Recipients reaching this node: <strong>{dryRunResults?.[selectedNode.id]?.count || 0}</strong>
+                  </p>
+                  
+                  {dryRunResults?.[selectedNode.id]?.recipients && dryRunResults[selectedNode.id].recipients.length > 0 ? (
+                    <>
+                      <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12, background: 'white' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: '#f3f4f6' }}>
+                              <th style={{ padding: '6px 12px', borderBottom: '1px solid #e5e7eb' }}>Name</th>
+                              <th style={{ padding: '6px 12px', borderBottom: '1px solid #e5e7eb' }}>Email/Phone</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dryRunResults[selectedNode.id].recipients.slice(0, 5).map((r: any, idx: number) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '6px 12px', fontWeight: 500 }}>{r.name}</td>
+                                <td style={{ padding: '6px 12px', color: '#4b5563' }}>{r.email || r.phone || ''}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      <button
+                        onClick={() => exportToCSV(
+                          selectedNode.id,
+                          (selectedNode.data.userLabel as string) || (selectedNode.id === 'start' ? 'Start Trigger' : selectedNode.data.type as string),
+                          dryRunResults[selectedNode.id].recipients
+                        )}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Export Recipients to CSV
+                      </button>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.8rem', color: '#065f46', fontStyle: 'italic', margin: 0 }}>
+                      No recipients reached this node during the simulation.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Node Label — available for all non-start nodes */}
               {selectedNode.id !== 'start' && (
                 <div style={{ marginBottom: 16 }}>
@@ -1283,7 +1491,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                     value={userLabel}
                     onChange={e => setUserLabel(e.target.value)}
                     placeholder="e.g. Welcome Email, Exclude inactive leads..."
-                    disabled={isLocked}
+                    disabled={isSidebarDisabled}
                     style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem' }}
                   />
                   <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: 4, lineHeight: 1.4 }}>
@@ -1816,9 +2024,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             </div>
             
             <div style={{ padding: '16px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
-              <button onClick={saveSelectedNode} style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
-                Save Node configuration
-              </button>
+              {isSimulationMode ? (
+                <button onClick={clearSimulation} style={{ width: '100%', padding: '10px', background: '#be123c', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+                  Exit Simulation Mode
+                </button>
+              ) : (
+                <button onClick={saveSelectedNode} style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+                  Save Node configuration
+                </button>
+              )}
             </div>
           </div>
         )}
