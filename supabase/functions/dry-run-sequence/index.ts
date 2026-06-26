@@ -163,6 +163,37 @@ serve(async (req) => {
     const profileMap = new Map<string, any>()
     profilesList.forEach(p => profileMap.set(p.id, p))
 
+    // 3b. Batch-check which candidates have created listings
+    // For leads: use converted_user_id → seller_id lookup
+    // For users: use their id directly
+    const sellerIdMap = new Map<string, string>() // candidateId → sellerId
+    for (const c of candidates) {
+      if (c.recipient_type === 'user') {
+        sellerIdMap.set(c.id, c.id)
+      } else {
+        const meta = metaMap.get(c.id)
+        if (meta?.converted_user_id) {
+          sellerIdMap.set(c.id, meta.converted_user_id)
+        }
+      }
+    }
+    const sellerIds = [...new Set(sellerIdMap.values())]
+    const sellersWithListings = new Set<string>()
+    if (sellerIds.length > 0) {
+      // Query in batches of 100
+      for (let i = 0; i < sellerIds.length; i += 100) {
+        const batch = sellerIds.slice(i, i + 100)
+        const { data: products } = await supabase
+          .from('market_products')
+          .select('seller_id')
+          .in('seller_id', batch)
+          .limit(1000)
+        if (products) {
+          products.forEach((p: any) => sellersWithListings.add(p.seller_id))
+        }
+      }
+    }
+
     const evalContexts = new Map<string, any>()
     for (const c of candidates) {
       const metadata = metaMap.get(c.id) || {}
@@ -188,6 +219,10 @@ serve(async (req) => {
       const hasOnlyPhone = hasPhone && !hasEmail
       const hasBothEmailAndPhone = hasEmail && hasPhone
 
+      // Check has_created_listings via seller ID mapping
+      const sellerId = sellerIdMap.get(c.id)
+      const hasCreatedListings = sellerId ? sellersWithListings.has(sellerId) : false
+
       evalContexts.set(c.id, {
         ...metadata,
         has_signed_tos: hasSignedTos,
@@ -197,6 +232,7 @@ serve(async (req) => {
         has_only_email: hasOnlyEmail,
         has_only_phone: hasOnlyPhone,
         has_both_email_and_phone: hasBothEmailAndPhone,
+        has_created_listings: hasCreatedListings,
         email_enabled: metadata.accepts_email !== false,
         sms_enabled: metadata.accepts_sms !== false,
       })

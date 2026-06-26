@@ -566,7 +566,7 @@ serve(async (req) => {
             let hasCreatedListings = false;
             const sellerId = (enrollment.recipient_type === 'user' || enrollment.recipient_type === 'member')
               ? enrollment.recipient_id
-              : null;
+              : metadata?.converted_user_id || null;
             if (sellerId) {
               const { count, error: countErr } = await supabase
                 .from('market_products')
