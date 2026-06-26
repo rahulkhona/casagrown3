@@ -87,7 +87,9 @@ export default function CampaignMessageEditor({
     return currentContent.replace(/<[^>]*>/g, '').trim().length > 0;
   }, [currentContent]);
 
-  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw' | 'preview'>('wysiwyg')
+  const [htmlMode, setHtmlMode] = useState<'wysiwyg' | 'raw' | 'preview'>(() => 
+    form.content_html && form.content_html.replace(/<[^>]*>/g, '').trim().length > 0 ? 'preview' : 'wysiwyg'
+  )
   const [previewEmail, setPreviewEmail] = useState<{ html: string; text?: string } | null>(null)
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html')
 
