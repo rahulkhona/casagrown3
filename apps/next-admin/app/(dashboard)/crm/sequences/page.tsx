@@ -40,6 +40,31 @@ export default function SequencesPage() {
   }
 
   const [globalStats, setGlobalStats] = useState<{ totalSent: number; totalUnsubscribed: number } | null>(null)
+  const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, { active: number; total: number }>>({})
+
+  const fetchEnrollmentCounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('crm_sequence_enrollments')
+        .select('sequence_id, status')
+      if (error) throw error
+      if (data) {
+        const countsMap: Record<string, { active: number; total: number }> = {}
+        for (const e of data) {
+          if (!countsMap[e.sequence_id]) {
+            countsMap[e.sequence_id] = { active: 0, total: 0 }
+          }
+          countsMap[e.sequence_id].total++
+          if (e.status === 'active') {
+            countsMap[e.sequence_id].active++
+          }
+        }
+        setEnrollmentCounts(countsMap)
+      }
+    } catch (err) {
+      console.error('Failed to fetch enrollment counts:', err)
+    }
+  }
 
   useEffect(() => {
     const fetchSequences = async () => {
@@ -71,6 +96,7 @@ export default function SequencesPage() {
     }
     fetchSequences()
     fetchGlobalStats()
+    fetchEnrollmentCounts()
   }, [])
 
   const handleCreate = async () => {
@@ -225,6 +251,7 @@ export default function SequencesPage() {
       setTestingId(null)
       const { data } = await adminApi.select('crm_sequences', '*', undefined, { order: { column: 'created_at', ascending: false } })
       if (data) setSequences(data)
+      fetchEnrollmentCounts()
     }
   }
 
@@ -370,15 +397,16 @@ export default function SequencesPage() {
               <th>Status</th>
               <th>Name</th>
               <th>Trigger</th>
+              <th>Enrolled</th>
               <th>Created</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Loading...</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Loading...</td></tr>
             ) : sequences.length === 0 ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>No sequences found. Create one to get started.</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No sequences found. Create one to get started.</td></tr>
             ) : (
               sequences.map(s => (
                 <tr key={s.id}>
@@ -397,6 +425,16 @@ export default function SequencesPage() {
                   </td>
                   <td style={{ fontWeight: 500, color: '#1f2937' }}>{s.name}</td>
                   <td style={{ color: '#6b7280', fontSize: '0.9rem' }}>{s.trigger_event || 'Manual Enrollment'}</td>
+                  <td style={{ color: '#1f2937', fontSize: '0.9rem', fontWeight: 600 }}>
+                    {enrollmentCounts[s.id] ? (
+                      <span>
+                        <span style={{ color: '#2563eb' }}>{enrollmentCounts[s.id].active}</span>
+                        <span style={{ color: '#6b7280', fontWeight: 400 }}> / {enrollmentCounts[s.id].total}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>0 / 0</span>
+                    )}
+                  </td>
                   <td style={{ color: '#6b7280', fontSize: '0.9rem' }}>{new Date(s.created_at).toLocaleDateString()}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px' }}>

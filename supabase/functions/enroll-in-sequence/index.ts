@@ -155,35 +155,37 @@ serve(async (req) => {
         )
       }
 
-      // 4. Consent filtering — same logic as the normal enrollment path
+      // 4. Consent filtering — check consent based on channels used in the sequence
       const startNodeId = sequence.definition?.startNodeId
       const nodes = sequence.definition?.nodes ?? []
-      const firstActionNode = nodes.find((n: any) =>
-        n.type === 'action_email' || n.data?.type === 'action_email' ||
-        n.type === 'action_sms'   || n.data?.type === 'action_sms'
-      )
-      const channelType: 'email' | 'sms' | null = firstActionNode
-        ? ((firstActionNode.type === 'action_email' || firstActionNode.data?.type === 'action_email') ? 'email' : 'sms')
-        : null
+      const hasEmailActions = nodes.some((n: any) => n.type === 'action_email' || n.data?.type === 'action_email')
+      const hasSmsActions = nodes.some((n: any) => n.type === 'action_sms' || n.data?.type === 'action_sms')
 
       // Consent-check for lead-type recipients
       const leadCandidates = newCandidates.filter((c) => c.recipient_type === 'lead')
       const leadCandidateIds = leadCandidates.map((c) => c.id)
       let consentedLeadIds = new Set<string>(leadCandidateIds)
 
-      if (leadCandidateIds.length > 0 && channelType) {
-        const consentField = channelType === 'email' ? 'accepts_email' : 'accepts_sms'
+      if (leadCandidateIds.length > 0 && (hasEmailActions || hasSmsActions)) {
         consentedLeadIds = new Set<string>()
         for (let i = 0; i < leadCandidateIds.length; i += batchSize) {
           const batch = leadCandidateIds.slice(i, i + batchSize)
           const { data: leads } = await supabase
             .from('crm_leads')
-            .select(`id, ${consentField}`)
+            .select('id, email, phone, accepts_email, accepts_sms')
             .in('id', batch)
           if (leads) {
-            leads
-              .filter((l: any) => l[consentField] === true)
-              .forEach((l: any) => consentedLeadIds.add(l.id))
+            leads.forEach((l: any) => {
+              const hasEmail = typeof l.email === 'string' && l.email.trim().length > 0
+              const hasPhone = typeof l.phone === 'string' && l.phone.trim().length > 0
+              
+              const emailConsented = hasEmailActions && hasEmail && l.accepts_email === true
+              const smsConsented = hasSmsActions && hasPhone && l.accepts_sms === true
+              
+              if (emailConsented || smsConsented) {
+                consentedLeadIds.add(l.id)
+              }
+            })
           }
         }
       }
@@ -268,15 +270,10 @@ serve(async (req) => {
 
     const startNodeId = sequence.definition?.startNodeId
 
-    // Determine the channel from the sequence definition's first action node
+    // Determine the channel from the sequence definition's action nodes
     const nodes = sequence.definition?.nodes ?? []
-    const firstActionNode = nodes.find((n: any) =>
-      n.type === 'action_email' || n.data?.type === 'action_email' ||
-      n.type === 'action_sms'   || n.data?.type === 'action_sms'
-    )
-    const channelType: 'email' | 'sms' | null = firstActionNode
-      ? ((firstActionNode.type === 'action_email' || firstActionNode.data?.type === 'action_email') ? 'email' : 'sms')
-      : null
+    const hasEmailActions = nodes.some((n: any) => n.type === 'action_email' || n.data?.type === 'action_email')
+    const hasSmsActions = nodes.some((n: any) => n.type === 'action_sms' || n.data?.type === 'action_sms')
 
     // ── Consent Filtering ────────────────────────────────────────────────────
     // For lead recipients, fetch consent fields and skip non-consenting recipients.
@@ -286,17 +283,29 @@ serve(async (req) => {
 
     let consentedLeadIds = new Set<string>(leadIds)
 
-    if (leadIds.length > 0 && channelType) {
-      const consentField = channelType === 'email' ? 'accepts_email' : 'accepts_sms'
-      const { data: leads } = await supabase
-        .from('crm_leads')
-        .select(`id, ${consentField}`)
-        .in('id', leadIds)
-
-      if (leads) {
-        consentedLeadIds = new Set(
-          leads.filter((l: any) => l[consentField] === true).map((l: any) => l.id)
-        )
+    if (leadIds.length > 0 && (hasEmailActions || hasSmsActions)) {
+      consentedLeadIds = new Set<string>()
+      // Query in batches of 500
+      const batchSize = 500
+      for (let i = 0; i < leadIds.length; i += batchSize) {
+        const batch = leadIds.slice(i, i + batchSize)
+        const { data: leads } = await supabase
+          .from('crm_leads')
+          .select('id, email, phone, accepts_email, accepts_sms')
+          .in('id', batch)
+        if (leads) {
+          leads.forEach((l: any) => {
+            const hasEmail = typeof l.email === 'string' && l.email.trim().length > 0
+            const hasPhone = typeof l.phone === 'string' && l.phone.trim().length > 0
+            
+            const emailConsented = hasEmailActions && hasEmail && l.accepts_email === true
+            const smsConsented = hasSmsActions && hasPhone && l.accepts_sms === true
+            
+            if (emailConsented || smsConsented) {
+              consentedLeadIds.add(l.id)
+            }
+          })
+        }
       }
     }
 
