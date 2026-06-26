@@ -783,7 +783,7 @@ export default function CampaignMessageEditor({
     } else {
       const newContent = mode === 'replace' ? aiDraft : (form.content_html + '<br><br>' + aiDraft);
       setForm(f => ({ ...f, content_html: newContent }));
-      setHtmlMode('preview');
+      setHtmlMode('raw');
     }
     setAiModalOpen(false);
     setAiPrompt('');
@@ -1813,7 +1813,20 @@ export default function CampaignMessageEditor({
               <button type="button" onClick={() => {
                 const quill = quillRef.current?.getEditor()
                 if (quill && trackLinkRange) {
-                  quill.formatText(trackLinkRange.index, trackLinkRange.length, 'link', false)
+                  const [leaf] = quill.getLeaf(trackLinkRange.index)
+                  const domNode = leaf?.domNode
+                  const element = domNode && domNode.nodeType === 3 ? domNode.parentElement : domNode as HTMLElement | null
+                  const anchor = element?.closest?.('a')
+                  if (anchor) {
+                    const parent = anchor.parentNode
+                    while (anchor.firstChild) {
+                      parent?.insertBefore(anchor.firstChild, anchor)
+                    }
+                    parent?.removeChild(anchor)
+                    quill.update()
+                  } else {
+                    quill.formatText(trackLinkRange.index, trackLinkRange.length, 'link', false)
+                  }
                 }
                 setTrackModalOpen(false)
                 toast('Link removed!')
