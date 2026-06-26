@@ -228,6 +228,17 @@ serve(async (req) => {
         if (nodeType === 'condition') {
           const ctx = evalContexts.get(v.recipient_id)
           const matched = evaluateQuery(node.data?.query, ctx)
+
+          // Track true/false branch split on the condition node
+          const branchKey = matched ? '_true' : '_false'
+          const branchSetKey = `${node.id}${branchKey}`
+          let branchSet = nodeRecipients.get(branchSetKey)
+          if (!branchSet) {
+            branchSet = new Set<string>()
+            nodeRecipients.set(branchSetKey, branchSet)
+          }
+          branchSet.add(v.recipient_id)
+
           const edge = def.edges.find((e: any) => e.source === node.id && e.label === (matched ? 'true' : 'false'))
           const fallbackEdge = def.edges.find((e: any) => e.source === node.id)
           const targetNodeId = edge ? edge.target : (fallbackEdge ? fallbackEdge.target : null)
@@ -257,13 +268,28 @@ serve(async (req) => {
     }
 
     // 5. Structure and return results
-    const results: Record<string, { count: number; recipients: typeof candidates }> = {}
+    const results: Record<string, { count: number; recipients: typeof candidates; true_count?: number; false_count?: number; true_recipients?: typeof candidates; false_recipients?: typeof candidates }> = {}
     for (const [nodeId, recipientIds] of nodeRecipients.entries()) {
+      // Skip internal branch tracking keys
+      if (nodeId.endsWith('_true') || nodeId.endsWith('_false')) continue
+
       const nodeCandidates = candidates.filter(c => recipientIds.has(c.id))
-      results[nodeId] = {
+      const entry: typeof results[string] = {
         count: nodeCandidates.length,
         recipients: nodeCandidates
       }
+
+      // Attach branch data for condition nodes
+      const trueSet = nodeRecipients.get(`${nodeId}_true`)
+      const falseSet = nodeRecipients.get(`${nodeId}_false`)
+      if (trueSet || falseSet) {
+        entry.true_count = trueSet?.size ?? 0
+        entry.false_count = falseSet?.size ?? 0
+        entry.true_recipients = trueSet ? candidates.filter(c => trueSet.has(c.id)) : []
+        entry.false_recipients = falseSet ? candidates.filter(c => falseSet.has(c.id)) : []
+      }
+
+      results[nodeId] = entry
     }
 
     return new Response(JSON.stringify({ success: true, nodes: results }), {

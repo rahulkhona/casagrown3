@@ -1436,6 +1436,20 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   <p style={{ fontSize: '0.85rem', color: '#047857', margin: '0 0 12px 0' }}>
                     Recipients reaching this node: <strong>{dryRunResults?.[selectedNode.id]?.count || 0}</strong>
                   </p>
+
+                  {/* Condition node: show true/false branch split */}
+                  {dryRunResults?.[selectedNode.id]?.true_count !== undefined && (
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                      <div style={{ flex: 1, padding: '10px 12px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534', marginBottom: 2 }}>✅ TRUE</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#15803d' }}>{dryRunResults[selectedNode.id].true_count}</div>
+                      </div>
+                      <div style={{ flex: 1, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', marginBottom: 2 }}>❌ FALSE</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#dc2626' }}>{dryRunResults[selectedNode.id].false_count}</div>
+                      </div>
+                    </div>
+                  )}
                   
                   {dryRunResults?.[selectedNode.id]?.recipients && dryRunResults[selectedNode.id].recipients.length > 0 ? (
                     <>
@@ -1445,39 +1459,77 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                             <tr style={{ background: '#f3f4f6' }}>
                               <th style={{ padding: '6px 12px', borderBottom: '1px solid #e5e7eb' }}>Name</th>
                               <th style={{ padding: '6px 12px', borderBottom: '1px solid #e5e7eb' }}>Email/Phone</th>
+                              {dryRunResults[selectedNode.id].true_count !== undefined && (
+                                <th style={{ padding: '6px 12px', borderBottom: '1px solid #e5e7eb' }}>Branch</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
-                            {dryRunResults[selectedNode.id].recipients.slice(0, 5).map((r: any, idx: number) => (
-                              <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                <td style={{ padding: '6px 12px', fontWeight: 500 }}>{r.name}</td>
-                                <td style={{ padding: '6px 12px', color: '#4b5563' }}>{r.email || r.phone || ''}</td>
-                              </tr>
-                            ))}
+                            {dryRunResults[selectedNode.id].recipients.slice(0, 5).map((r: any, idx: number) => {
+                              const trueIds = new Set((dryRunResults[selectedNode.id].true_recipients || []).map((t: any) => t.id))
+                              const branch = dryRunResults[selectedNode.id].true_count !== undefined
+                                ? (trueIds.has(r.id) ? '✅ True' : '❌ False')
+                                : null
+                              return (
+                                <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                  <td style={{ padding: '6px 12px', fontWeight: 500 }}>{r.name}</td>
+                                  <td style={{ padding: '6px 12px', color: '#4b5563' }}>{r.email || r.phone || ''}</td>
+                                  {branch !== null && (
+                                    <td style={{ padding: '6px 12px', color: trueIds.has(r.id) ? '#15803d' : '#dc2626', fontWeight: 600, fontSize: '0.75rem' }}>{branch}</td>
+                                  )}
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
                       
-                      <button
-                        onClick={() => exportToCSV(
-                          selectedNode.id,
-                          (selectedNode.data.userLabel as string) || (selectedNode.id === 'start' ? 'Start Trigger' : selectedNode.data.type as string),
-                          dryRunResults[selectedNode.id].recipients
-                        )}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          background: '#10b981',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 6,
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Export Recipients to CSV
-                      </button>
+                      {/* Export buttons: separate CSVs for true/false on condition nodes */}
+                      {dryRunResults[selectedNode.id].true_count !== undefined ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => {
+                              const nodeLabel = (selectedNode.data.userLabel as string) || 'condition'
+                              const trueRecipients = dryRunResults[selectedNode.id].true_recipients || []
+                              exportToCSV(selectedNode.id, `${nodeLabel}_TRUE`, trueRecipients)
+                            }}
+                            style={{ flex: 1, padding: '8px 12px', background: '#15803d', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Export TRUE ({dryRunResults[selectedNode.id].true_count})
+                          </button>
+                          <button
+                            onClick={() => {
+                              const nodeLabel = (selectedNode.data.userLabel as string) || 'condition'
+                              const falseRecipients = dryRunResults[selectedNode.id].false_recipients || []
+                              exportToCSV(selectedNode.id, `${nodeLabel}_FALSE`, falseRecipients)
+                            }}
+                            style={{ flex: 1, padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Export FALSE ({dryRunResults[selectedNode.id].false_count})
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => exportToCSV(
+                            selectedNode.id,
+                            (selectedNode.data.userLabel as string) || (selectedNode.id === 'start' ? 'Start Trigger' : selectedNode.data.type as string),
+                            dryRunResults[selectedNode.id].recipients
+                          )}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 6,
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Export Recipients to CSV
+                        </button>
+                      )}
                     </>
                   ) : (
                     <p style={{ fontSize: '0.8rem', color: '#065f46', fontStyle: 'italic', margin: 0 }}>
