@@ -23,6 +23,7 @@ type Send = {
   opened_at: string | null
   clicked_at: string | null
   bounced_at: string | null
+  unsubscribed_at: string | null
   error: string | null
 }
 
@@ -33,6 +34,7 @@ type HourlyBucket = {
   opened: number
   clicked: number
   bounced: number
+  unsubscribed: number
   errors: number
 }
 
@@ -47,6 +49,7 @@ export default function SequenceMonitorPage() {
   const [enrollments, setEnrollments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [globalStats, setGlobalStats] = useState<{ totalSent: number; totalUnsubscribed: number } | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -73,6 +76,31 @@ export default function SequenceMonitorPage() {
     return () => clearInterval(interval)
   }, [fetchData])
 
+  useEffect(() => {
+    const fetchGlobalStats = async () => {
+      try {
+        const { count: totalSentCount } = await supabase
+          .from('crm_campaign_sends')
+          .select('*', { count: 'exact', head: true })
+          .is('error', null)
+          .not('sent_at', 'is', null)
+
+        const { count: totalUnsubCount } = await supabase
+          .from('crm_campaign_sends')
+          .select('*', { count: 'exact', head: true })
+          .not('unsubscribed_at', 'is', null)
+
+        setGlobalStats({
+          totalSent: totalSentCount || 0,
+          totalUnsubscribed: totalUnsubCount || 0,
+        })
+      } catch (err) {
+        console.error('Failed to fetch global stats:', err)
+      }
+    }
+    fetchGlobalStats()
+  }, [])
+
   // Calculate expected sends from sequence definition
   const getExpected = () => {
     if (!seqDef || !enrollments.length) return { expectedEmails: 0, expectedSms: 0 }
@@ -92,9 +120,44 @@ export default function SequenceMonitorPage() {
   const totalOpened = sends.filter(s => s.opened_at).length
   const totalClicked = sends.filter(s => s.clicked_at).length
   const totalBounced = sends.filter(s => s.bounced_at).length
+  const totalUnsubscribed = sends.filter(s => s.unsubscribed_at).length
   const totalErrors = sends.filter(s => s.error).length
   const totalEmailSends = sends.filter(s => s.email && s.sent_at && !s.error).length
   const totalSmsSends = sends.filter(s => s.phone && !s.email && s.sent_at && !s.error).length
+
+  const unsubscribedSends = sends.filter(s => s.unsubscribed_at)
+  
+  // Calculate average steps before opt-out
+  let avgStepsBeforeOptOut = 0
+  if (unsubscribedSends.length > 0) {
+    const stepsPerRecipient = unsubscribedSends.map(u => {
+      const recipientSends = sends.filter(s => s.recipient_id === u.recipient_id && s.sent_at)
+      return recipientSends.length
+    })
+    const totalSteps = stepsPerRecipient.reduce((sum, val) => sum + val, 0)
+    avgStepsBeforeOptOut = totalSteps / unsubscribedSends.length
+  }
+
+  // Calculate average days active before opt-out
+  let avgDaysBeforeOptOut = 0
+  if (unsubscribedSends.length > 0) {
+    const daysPerRecipient = unsubscribedSends.map(u => {
+      const recipientSends = sends.filter(s => s.recipient_id === u.recipient_id && s.sent_at)
+      if (recipientSends.length === 0) return 0
+      const sentTimes = recipientSends.map(s => new Date(s.sent_at!).getTime())
+      const firstSent = Math.min(...sentTimes)
+      const unsubTime = new Date(u.unsubscribed_at!).getTime()
+      const diffMs = unsubTime - firstSent
+      return Math.max(0, diffMs / (1000 * 60 * 60 * 24))
+    })
+    const totalDays = daysPerRecipient.reduce((sum, val) => sum + val, 0)
+    avgDaysBeforeOptOut = totalDays / unsubscribedSends.length
+  }
+
+  // Global opt-out average
+  const globalOptOutPct = globalStats && globalStats.totalSent > 0
+    ? (globalStats.totalUnsubscribed / globalStats.totalSent) * 100
+    : null
 
   const { expectedEmails, expectedSms } = getExpected()
   const enrollActive = enrollments.filter(e => e.status === 'active').length
@@ -105,12 +168,12 @@ export default function SequenceMonitorPage() {
   // Hourly buckets
   const hourlyMap = new Map<string, HourlyBucket>()
   for (const s of sends) {
-    const ts = s.sent_at || s.bounced_at
+    const ts = s.sent_at || s.bounced_at || s.unsubscribed_at
     if (!ts) continue
     const hour = new Date(ts).toISOString().slice(0, 13) + ':00'
     let bucket = hourlyMap.get(hour)
     if (!bucket) {
-      bucket = { hour, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, errors: 0 }
+      bucket = { hour, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, errors: 0 }
       hourlyMap.set(hour, bucket)
     }
     if (s.sent_at && !s.error) bucket.sent++
@@ -118,16 +181,17 @@ export default function SequenceMonitorPage() {
     if (s.opened_at) bucket.opened++
     if (s.clicked_at) bucket.clicked++
     if (s.bounced_at) bucket.bounced++
+    if (s.unsubscribed_at) bucket.unsubscribed++
     if (s.error) bucket.errors++
   }
   const hourlyBuckets = Array.from(hourlyMap.values()).sort((a, b) => b.hour.localeCompare(a.hour))
 
   // Export raw log
   const exportCSV = () => {
-    const headers = ['Recipient ID', 'Type', 'Email', 'Phone', 'Node', 'Sent At', 'Delivered', 'Opened', 'Clicked', 'Bounced', 'Error']
+    const headers = ['Recipient ID', 'Type', 'Email', 'Phone', 'Node', 'Sent At', 'Delivered', 'Opened', 'Clicked', 'Bounced', 'Unsubscribed At', 'Error']
     const rows = sends.map(s => [
       s.recipient_id, s.recipient_type, s.email || '', s.phone || '', s.node_id || '',
-      s.sent_at || '', s.delivered_at || '', s.opened_at || '', s.clicked_at || '', s.bounced_at || '', s.error || ''
+      s.sent_at || '', s.delivered_at || '', s.opened_at || '', s.clicked_at || '', s.bounced_at || '', s.unsubscribed_at || '', s.error || ''
     ])
     const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -182,6 +246,7 @@ export default function SequenceMonitorPage() {
                   <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Sent</th>
                   <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Delivered</th>
                   <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Delivery %</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Opt-Out</th>
                   <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Bounced</th>
                   <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Errors</th>
                 </tr>
@@ -195,6 +260,9 @@ export default function SequenceMonitorPage() {
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalEmailSends > 0 && sends.filter(s => s.email && s.delivered_at).length / totalEmailSends < 0.8 ? '#dc2626' : '#16a34a' }}>
                     {pct(sends.filter(s => s.email && s.delivered_at).length, totalEmailSends)}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.email && s.unsubscribed_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.email && s.unsubscribed_at).length}
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.email && s.bounced_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
                     {sends.filter(s => s.email && s.bounced_at).length}
@@ -211,6 +279,9 @@ export default function SequenceMonitorPage() {
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalSmsSends > 0 && sends.filter(s => s.phone && !s.email && s.delivered_at).length / totalSmsSends < 0.8 ? '#dc2626' : '#16a34a' }}>
                     {pct(sends.filter(s => s.phone && !s.email && s.delivered_at).length, totalSmsSends)}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.phone && !s.email && s.unsubscribed_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.phone && !s.email && s.unsubscribed_at).length}
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.phone && !s.email && s.bounced_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
                     {sends.filter(s => s.phone && !s.email && s.bounced_at).length}
@@ -260,6 +331,33 @@ export default function SequenceMonitorPage() {
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ea580c' }}>{totalClicked}</div>
           <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>{pct(totalClicked, totalOpened)}</div>
         </div>
+        <div style={{
+          ...cardStyle('#fff1f2', '#fecdd3'),
+          minWidth: 200,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#9f1239', marginBottom: 4, textTransform: 'uppercase' }}>Opt-Out</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e11d48' }}>
+            {totalUnsubscribed}
+            <span style={{ fontSize: '0.85rem', color: '#9f1239', fontWeight: 500, marginLeft: 6 }}>
+              ({pct(totalUnsubscribed, totalSent)})
+            </span>
+          </div>
+          {globalOptOutPct !== null && (
+            <div style={{ fontSize: '0.7rem', color: '#b91c1c', marginTop: 2, fontWeight: 500 }}>
+              vs. Global Avg: {globalOptOutPct.toFixed(2)}%
+            </div>
+          )}
+          {totalUnsubscribed > 0 && (
+            <div style={{ borderTop: '1px solid #fda4af', width: '100%', marginTop: 8, paddingTop: 4, fontSize: '0.65rem', color: '#4c0519', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div>• Avg. active: <strong>{avgDaysBeforeOptOut.toFixed(1)} days</strong></div>
+              <div>• Avg. steps: <strong>{avgStepsBeforeOptOut.toFixed(1)} messages</strong></div>
+            </div>
+          )}
+        </div>
         <div style={cardStyle('#fef2f2', '#fca5a5')}>
           <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#991b1b', marginBottom: 4, textTransform: 'uppercase' }}>Bounced</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#dc2626' }}>{totalBounced}</div>
@@ -285,13 +383,14 @@ export default function SequenceMonitorPage() {
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#2563eb' }}>Delivered</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#7c3aed' }}>Opened</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#ea580c' }}>Clicked</th>
+                <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#e11d48' }}>Opt-Out</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#dc2626' }}>Bounced</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#dc2626' }}>Errors</th>
               </tr>
             </thead>
             <tbody>
               {hourlyBuckets.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
               ) : hourlyBuckets.map(b => (
                 <tr key={b.hour} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '10px 16px', fontWeight: 500 }}>
@@ -304,6 +403,7 @@ export default function SequenceMonitorPage() {
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#2563eb' }}>{b.delivered}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#7c3aed' }}>{b.opened}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ea580c' }}>{b.clicked}</td>
+                  <td style={{ padding: '10px 16px', textAlign: 'center', color: b.unsubscribed > 0 ? '#e11d48' : '#9ca3af' }}>{b.unsubscribed}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: b.bounced > 0 ? '#dc2626' : '#9ca3af' }}>{b.bounced}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: b.errors > 0 ? '#dc2626' : '#9ca3af' }}>{b.errors}</td>
                 </tr>
@@ -329,12 +429,13 @@ export default function SequenceMonitorPage() {
                 <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280' }}>Opened</th>
                 <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280' }}>Clicked</th>
                 <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280' }}>Bounced</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280' }}>Opt-Out</th>
                 <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280' }}>Error</th>
               </tr>
             </thead>
             <tbody>
               {sends.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
               ) : sends.slice(0, 500).map(s => (
                 <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: s.error ? '#fef2f2' : 'transparent' }}>
                   <td style={{ padding: '8px 12px', fontWeight: 500 }}>{s.email || s.phone || s.recipient_id.slice(0, 8)}</td>
@@ -353,6 +454,9 @@ export default function SequenceMonitorPage() {
                   </td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '0.75rem' }}>
                     {s.bounced_at ? `❌ ${new Date(s.bounced_at).toLocaleTimeString()}` : '—'}
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '0.75rem' }}>
+                    {s.unsubscribed_at ? `🛑 ${new Date(s.unsubscribed_at).toLocaleTimeString()}` : '—'}
                   </td>
                   <td style={{ padding: '8px 12px', color: '#dc2626', fontSize: '0.75rem' }}>{s.error || ''}</td>
                 </tr>

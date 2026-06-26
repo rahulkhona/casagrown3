@@ -39,6 +39,8 @@ export default function SequencesPage() {
     setTimeout(() => setToastMsg(prev => prev === msg ? '' : prev), ms)
   }
 
+  const [globalStats, setGlobalStats] = useState<{ totalSent: number; totalUnsubscribed: number } | null>(null)
+
   useEffect(() => {
     const fetchSequences = async () => {
       setLoading(true)
@@ -46,7 +48,29 @@ export default function SequencesPage() {
       if (data) setSequences(data)
       setLoading(false)
     }
+    const fetchGlobalStats = async () => {
+      try {
+        const { count: totalSentCount } = await supabase
+          .from('crm_campaign_sends')
+          .select('*', { count: 'exact', head: true })
+          .is('error', null)
+          .not('sent_at', 'is', null)
+
+        const { count: totalUnsubCount } = await supabase
+          .from('crm_campaign_sends')
+          .select('*', { count: 'exact', head: true })
+          .not('unsubscribed_at', 'is', null)
+
+        setGlobalStats({
+          totalSent: totalSentCount || 0,
+          totalUnsubscribed: totalUnsubCount || 0,
+        })
+      } catch (err) {
+        console.error('Failed to fetch global stats:', err)
+      }
+    }
     fetchSequences()
+    fetchGlobalStats()
   }, [])
 
   const handleCreate = async () => {
@@ -279,6 +303,41 @@ export default function SequencesPage() {
           {isCreating ? 'Creating...' : '+ New Sequence'}
         </button>
       </div>
+
+      {globalStats && (
+        <div style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#334155' }}>🟢 CRM List Health (Global Metrics)</h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>Aggregated across all sequences and campaigns to monitor fatigue.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '32px' }}>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 }}>Total Outbound Sends</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>{globalStats.totalSent.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 }}>Global Opt-Outs</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
+                {globalStats.totalUnsubscribed.toLocaleString()} 
+                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500, marginLeft: '6px' }}>
+                  ({globalStats.totalSent > 0 ? ((globalStats.totalUnsubscribed / globalStats.totalSent) * 100).toFixed(2) : 0}%)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {errorMsg && (
         <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #f87171', color: '#b91c1c', borderRadius: '8px', marginBottom: '24px', fontWeight: 500 }}>
