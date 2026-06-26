@@ -77,6 +77,26 @@ serve(async (req) => {
         if (pError) throw pError
         candidates = (profiles ?? []).map((row: any) => ({ id: row.id, name: row.full_name || 'Unknown User', email: row.email, phone: row.phone_number, recipient_type: 'user' }))
       }
+    } else if (triggerEvent === 'ai_condition') {
+      // AI condition trigger: execute the conditionSql from the start node
+      const startNode = (def.nodes || []).find((n: any) => n.id === startNodeId)
+      const conditionSql = startNode?.data?.conditionSql
+      if (conditionSql) {
+        const { data: aiData, error: aiError } = await supabase.rpc('execute_audience_query', { p_query: conditionSql })
+        if (aiError) {
+          console.error('[DRY-RUN] AI condition SQL error:', aiError.message)
+        } else if (aiData) {
+          candidates = (aiData as any[]).map((row: any) => ({
+            id: row.id,
+            name: row.name || 'Unknown User',
+            email: row.email,
+            phone: row.phone,
+            recipient_type: (row.recipient_type || 'user') as 'lead' | 'user'
+          }))
+        }
+      } else {
+        console.warn('[DRY-RUN] ai_condition trigger but no conditionSql on start node')
+      }
     } else {
       // Manual trigger: fallback to existing active enrollments, or if none, select first 100 leads
       const { data: enrollRes } = await supabase.from('crm_sequence_enrollments').select('recipient_id, recipient_type').eq('sequence_id', sequence_id).limit(500)
