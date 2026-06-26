@@ -15,28 +15,8 @@ import { corsHeaders } from "../_shared/cors.ts";
 const ALERT_EMAIL = "admin@casagrown.com";
 const THRESHOLD = 0.5; // alert if actual < 50% of expected
 
-function evaluateRule(rule: any, data: any): boolean {
-  if ('combinator' in rule) return evaluateQuery(rule, data);
-  const { field, operator, value } = rule;
-  const dataValue = data[field];
-  if (value === 'true' || value === true) return dataValue === true || String(dataValue).toLowerCase() === 'true';
-  if (value === 'false' || value === false) return dataValue === false || String(dataValue).toLowerCase() === 'false';
-  switch (operator) {
-    case '=': return String(dataValue) == String(value);
-    case '!=': return String(dataValue) != String(value);
-    case '>': return Number(dataValue || 0) > Number(value);
-    case '<': return Number(dataValue || 0) < Number(value);
-    case '>=': return Number(dataValue || 0) >= Number(value);
-    case '<=': return Number(dataValue || 0) <= Number(value);
-    default: return false;
-  }
-}
+import { evaluateRule, evaluateQuery } from '../_shared/evaluate.ts';
 
-function evaluateQuery(query: any, data: any): boolean {
-  if (!query || !query.rules || query.rules.length === 0) return true;
-  if (query.combinator === 'and') return query.rules.every((r: any) => evaluateRule(r, data));
-  return query.rules.some((r: any) => evaluateRule(r, data));
-}
 
 /**
  * Walk the graph from startNodeId, simulating condition branches using evalContext,

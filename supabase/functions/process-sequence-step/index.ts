@@ -22,47 +22,8 @@ const DefinitionSchema = z.object({
   startNodeId: z.string()
 });
 
-function evaluateRule(rule: any, data: any): boolean {
-  if ('combinator' in rule) {
-    return evaluateQuery(rule, data);
-  }
-  const { field, operator, value } = rule;
-  const dataValue = data[field];
-  
-  // Handle empty or boolean fields effectively
-  if (value === 'true' || value === true) return dataValue === true || String(dataValue).toLowerCase() === 'true';
-  if (value === 'false' || value === false) return dataValue === false || String(dataValue).toLowerCase() === 'false';
+import { evaluateRule, evaluateQuery } from '../_shared/evaluate.ts';
 
-  switch (operator) {
-    case '=': return dataValue == value;
-    case '!=': return dataValue != value;
-    case '<': return Number(dataValue) < Number(value);
-    case '>': return Number(dataValue) > Number(value);
-    case '<=': return Number(dataValue) <= Number(value);
-    case '>=': return Number(dataValue) >= Number(value);
-    case 'contains': 
-      if (Array.isArray(dataValue)) return dataValue.includes(value);
-      return String(dataValue).toLowerCase().includes(String(value).toLowerCase());
-    case 'doesNotContain':
-      if (Array.isArray(dataValue)) return !dataValue.includes(value);
-      return !String(dataValue).toLowerCase().includes(String(value).toLowerCase());
-    case 'beginsWith': return String(dataValue).toLowerCase().startsWith(String(value).toLowerCase());
-    case 'endsWith': return String(dataValue).toLowerCase().endsWith(String(value).toLowerCase());
-    case 'null': return dataValue === null || dataValue === undefined;
-    case 'notNull': return dataValue !== null && dataValue !== undefined;
-    default: return false;
-  }
-}
-
-function evaluateQuery(query: any, data: any): boolean {
-  if (!query || !query.rules || query.rules.length === 0) return true;
-  
-  if (query.combinator === 'and') {
-    return query.rules.every((r: any) => evaluateRule(r, data));
-  } else {
-    return query.rules.some((r: any) => evaluateRule(r, data));
-  }
-}
 import { buildTemplateModel, interpolateTemplate } from "../_shared/template-interpolation.ts";
 import { sendBroadcastEmail, sendBroadcastEmailBatch } from "../_shared/postmark.ts";
 import { sendMarketingSms } from "../_shared/twilio.ts";

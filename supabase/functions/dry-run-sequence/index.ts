@@ -2,46 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { corsHeaders } from '../_shared/cors.ts'
 
-function evaluateRule(rule: any, data: any): boolean {
-  if ('combinator' in rule) {
-    return evaluateQuery(rule, data);
-  }
-  const { field, operator, value } = rule;
-  const dataValue = data[field];
-  
-  if (value === 'true' || value === true) return dataValue === true || String(dataValue).toLowerCase() === 'true';
-  if (value === 'false' || value === false) return dataValue === false || String(dataValue).toLowerCase() === 'false';
+import { evaluateRule, evaluateQuery } from '../_shared/evaluate.ts';
 
-  switch (operator) {
-    case '=': return dataValue == value;
-    case '!=': return dataValue != value;
-    case '<': return Number(dataValue) < Number(value);
-    case '>': return Number(dataValue) > Number(value);
-    case '<=': return Number(dataValue) <= Number(value);
-    case '>=': return Number(dataValue) >= Number(value);
-    case 'contains': 
-      if (Array.isArray(dataValue)) return dataValue.includes(value);
-      return String(dataValue).toLowerCase().includes(String(value).toLowerCase());
-    case 'doesNotContain':
-      if (Array.isArray(dataValue)) return !dataValue.includes(value);
-      return !String(dataValue).toLowerCase().includes(String(value).toLowerCase());
-    case 'beginsWith': return String(dataValue).toLowerCase().startsWith(String(value).toLowerCase());
-    case 'endsWith': return String(dataValue).toLowerCase().endsWith(String(value).toLowerCase());
-    case 'null': return dataValue === null || dataValue === undefined;
-    case 'notNull': return dataValue !== null && dataValue !== undefined;
-    default: return false;
-  }
-}
-
-function evaluateQuery(query: any, data: any): boolean {
-  if (!query || !query.rules || query.rules.length === 0) return true;
-  
-  if (query.combinator === 'and') {
-    return query.rules.every((r: any) => evaluateRule(r, data));
-  } else {
-    return query.rules.some((r: any) => evaluateRule(r, data));
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
