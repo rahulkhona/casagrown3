@@ -22,12 +22,14 @@ import { evaluateRule, evaluateQuery } from '../_shared/evaluate.ts';
  * Walk the graph from startNodeId, simulating condition branches using evalContext,
  * and collect all action nodes the lead SHOULD pass through on their path.
  */
-function getExpectedActions(
+async function getExpectedActions(
   def: any,
   startNodeId: string,
   currentNodeId: string,
-  evalContext: any
-): { expectedEmails: string[]; expectedSms: string[] } {
+  evalContext: any,
+  supabase: any,
+  recipientId: string
+): Promise<{ expectedEmails: string[]; expectedSms: string[] }> {
   const nodes = new Map<string, any>();
   for (const n of def.nodes) nodes.set(n.id, n);
   
@@ -64,8 +66,22 @@ function getExpectedActions(
     
     if (type === 'condition') {
       const mode = d.conditionMode || 'rules';
-      // AI conditions: skip (assume false — conservative)
-      const met = mode === 'ai' ? false : evaluateQuery(d.query, evalContext);
+      let met = false;
+      if (mode === 'ai' && d.aiSql) {
+        try {
+          const checkSql = `SELECT 1 FROM (${d.aiSql}) AS aq WHERE aq.id = '${recipientId}'::uuid LIMIT 1`;
+          const { data, error } = await supabase.rpc('execute_audience_query', {
+            p_query: checkSql
+          });
+          if (!error && Array.isArray(data) && data.length > 0) {
+            met = true;
+          }
+        } catch (e) {
+          console.error("[HEALTH AI CONDITION ERROR]", e);
+        }
+      } else {
+        met = evaluateQuery(d.query, evalContext);
+      }
       const outgoing = adj.get(nodeId) || [];
       const branch = met ? 'true' : 'false';
       const edge = outgoing.find(e => e.label === branch) || outgoing[0];
@@ -183,11 +199,13 @@ Deno.serve(async (req: Request) => {
           sms_enabled: lead.accepts_sms !== false,
         };
 
-        const { expectedEmails, expectedSms } = getExpectedActions(
+        const { expectedEmails, expectedSms } = await getExpectedActions(
           def,
           def.startNodeId,
           enr.current_node_id,
-          evalContext
+          evalContext,
+          supabase,
+          enr.recipient_id
         );
 
         totalExpectedEmails += expectedEmails.length;
