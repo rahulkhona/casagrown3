@@ -63,6 +63,8 @@ const queryBuilderFields: Field[] = [
   { name: 'has_only_phone', label: 'Has Only Phone Number', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'has_both_email_and_phone', label: 'Has Both Email and Phone', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'days_since_last_active', label: 'Days Since Last Active', inputType: 'number', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
+  { name: 'days_since_created', label: 'Days Since Created', inputType: 'number', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
+  { name: 'hours_since_created', label: 'Hours Since Created', inputType: 'number', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
   { name: 'profile_completed_at', label: 'Profile Completed At', inputType: 'text', valueEditorType: 'text', optGroup: 'Engagement & Retention' },
   { name: 'email_enabled', label: 'Email Enabled', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },
   { name: 'sms_enabled', label: 'SMS Enabled', inputType: 'select', valueEditorType: 'select', values: booleanValues, optGroup: 'Identity & Preferences' },

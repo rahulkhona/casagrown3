@@ -538,11 +538,18 @@ serve(async (req) => {
               }
             }
 
+            // Compute days/hours since lead/user was created
+            const recipientCreatedAt = metadata.created_at ? new Date(metadata.created_at).getTime() : now;
+            const daysSinceCreated = Math.floor((now - recipientCreatedAt) / (1000 * 60 * 60 * 24));
+            const hoursSinceCreated = Math.floor((now - recipientCreatedAt) / (1000 * 60 * 60));
+
             const evalContext = {
               ...metadata,
               has_signed_tos: hasSignedTos,
               has_completed_profile: hasCompletedProfile,
               days_since_last_active: daysSinceActive,
+              days_since_created: daysSinceCreated,
+              hours_since_created: hoursSinceCreated,
               user_macro_state: macroState,
               enrolled_promotion_ids: enrolledPromotionIds,
               enrolled_sequence_ids: enrolledSequenceIds,

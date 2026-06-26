@@ -84,17 +84,17 @@ serve(async (req) => {
         const leadIds = enrollRes.filter((r: any) => r.recipient_type === 'lead').map((r: any) => r.recipient_id)
         const userIds = enrollRes.filter((r: any) => r.recipient_type === 'user').map((r: any) => r.recipient_id)
         if (leadIds.length > 0) {
-          const { data: leads } = await supabase.from('crm_leads').select('id, name, email, phone').in('id', leadIds)
-          if (leads) candidates.push(...leads.map((l: any) => ({ id: l.id, name: l.name || 'Unknown Lead', email: l.email, phone: l.phone, recipient_type: 'lead' as const })))
+          const { data: leads } = await supabase.from('crm_leads').select('id, name, email, phone, created_at').in('id', leadIds)
+          if (leads) candidates.push(...leads.map((l: any) => ({ id: l.id, name: l.name || 'Unknown Lead', email: l.email, phone: l.phone, created_at: l.created_at, recipient_type: 'lead' as const })))
         }
         if (userIds.length > 0) {
           const { data: users } = await supabase.from('profiles').select('id, full_name, email, phone_number').in('id', userIds)
           if (users) candidates.push(...users.map((u: any) => ({ id: u.id, name: u.full_name || 'Unknown User', email: u.email, phone: u.phone_number, recipient_type: 'user' as const })))
         }
       } else {
-        const { data, error } = await supabase.from('crm_leads').select('id, name, email, phone').limit(100)
+        const { data, error } = await supabase.from('crm_leads').select('id, name, email, phone, created_at').limit(100)
         if (!error && data) {
-          candidates = data.map((row: any) => ({ id: row.id, name: row.name || 'Unknown Lead', email: row.email, phone: row.phone, recipient_type: 'lead' }))
+          candidates = data.map((row: any) => ({ id: row.id, name: row.name || 'Unknown Lead', email: row.email, phone: row.phone, created_at: row.created_at, recipient_type: 'lead' }))
         }
       }
     }
@@ -185,11 +185,18 @@ serve(async (req) => {
       const sellerId = sellerIdMap.get(c.id)
       const hasCreatedListings = sellerId ? sellersWithListings.has(sellerId) : false
 
+      // Compute days since lead was created (for lead age conditions)
+      const createdAt = c.created_at ? new Date(c.created_at).getTime() : now
+      const daysSinceCreated = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24))
+      const hoursSinceCreated = Math.floor((now - createdAt) / (1000 * 60 * 60))
+
       evalContexts.set(c.id, {
         ...metadata,
         has_signed_tos: hasSignedTos,
         has_completed_profile: hasCompletedProfile,
         days_since_last_active: daysSinceActive,
+        days_since_created: daysSinceCreated,
+        hours_since_created: hoursSinceCreated,
         user_macro_state: macroState,
         has_email: hasEmail,
         has_phone: hasPhone,
