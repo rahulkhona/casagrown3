@@ -119,7 +119,10 @@ Deno.serve(async (req: Request) => {
         }
 
         if (fileUrls.length > 0) {
-          imagesContext = `\n\nYou have access to the following marketing images. If relevant, embed 1-2 of them in your HTML using <img> tags (ensure max-width: 100% style):\n${fileUrls.join('\n')}`;
+          imagesContext = `\n\nYou have access to the following marketing images:
+${fileUrls.join('\n')}
+
+CRITICAL RULE: Do NOT insert, embed, or suggest any of these marketing images unless the user explicitly requests to include/insert/use an image or photo in their prompt. If and only if the user explicitly asks for an image, select the most relevant one from the list above and embed it using an <img> tag (ensuring style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0;"). Otherwise, do not include any of these images.`;
         }
       }
     } catch (err) {
@@ -181,6 +184,19 @@ Rules:
       systemPrompt = `You are an expert marketing copywriter for CasaGrown, a local neighborhood produce marketplace.
 Write a highly-converting plain text email campaign.
 Tone: ${tone || 'Professional and Welcoming'}
+
+Brand Guidelines:
+- Company Name: CasaGrown
+- Tagline: Fresh * Local * Trusted
+- Support Email: support@casagrown.com
+
+Email Structure Rules:
+1. Every plain text email MUST begin with a header containing:
+   CasaGrown
+   Fresh * Local * Trusted
+2. Every plain text email MUST end with a footer line:
+   Reach out to support@casagrown.com if you need help.
+
 Rules:
 - Return ONLY valid plain text. Do NOT include any HTML tags (like <div>, <p>, <a>, etc.).
 - Use clean formatting, line breaks, and clear spacing for readability.
@@ -188,25 +204,41 @@ Rules:
 - Ensure all text, details, value propositions, and calls-to-actions from the HTML content are preserved exactly.
 - Any hyperlinks/anchor tags from the HTML must be converted to plain text with the URL displayed (e.g. "Explore the marketplace (https://casagrown.com)"). The URLs must be exactly preserved and not modified or invented.
 - Do NOT wrap your response in markdown code blocks.
-- Do NOT include any unsubscribe, support, or footer links — these are added automatically.
 - Do NOT echo back or include these instructions in your output.
 - Do NOT generate any thought process, reasoning (e.g. within <think> tags), comments, or chat context. Return ONLY the final clean copy ready to be used.${linksContext}`;
     } else {
       systemPrompt = `You are an expert marketing copywriter for CasaGrown, a local neighborhood produce marketplace.
 Write a highly-converting email campaign.
 Tone: ${tone || 'Professional and Welcoming'}
-Rules:
+
+Brand Guidelines:
+- Company Name: CasaGrown
+- Logo URL: https://casagrown.com/logo.png
+- Tagline: Fresh * Local * Trusted
+- Support Email: support@casagrown.com
+
+Email Structure Rules:
+1. Every HTML email MUST begin with a beautifully styled header containing:
+   - The logo image: <img src="https://casagrown.com/logo.png" alt="CasaGrown" style="height: 40px; width: auto; display: block; margin: 0 auto 8px auto;" />
+   - The company name: CasaGrown (styled with e.g. font-size: 24px; font-weight: bold; color: #16a34a; text-align: center; display: block;)
+   - The tagline below the company name: Fresh * Local * Trusted (styled with e.g. font-size: 11px; color: #6b7280; text-align: center; display: block; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; margin-bottom: 24px;)
+2. Every HTML email MUST end with a beautifully styled footer containing:
+   - A line telling the user to reach out to support@casagrown.com if they need help.
+   - Example footer styling: <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; line-height: 1.5;">Reach out to support@casagrown.com if you need help.</div>
+3. Do NOT include unsubscribe links in your generated content — these are managed automatically.
+
+Technical Rules:
 - Return ONLY valid HTML that can be placed inside an email body (e.g. starting with a <div> or <table> wrapper). Do not include <html>, <head>, or <body> tags. Just the content itself.
 - Use inline CSS for ALL styling (e.g., style="color: #333; font-family: sans-serif;"). Email clients do NOT support <style> blocks or CSS classes — every element must have its own inline style.
 - IMPORTANT: All <a> tags MUST have an explicit inline color style (e.g., style="color: #ffffff; text-decoration: underline;") because email clients default links to dark blue which is unreadable on dark backgrounds.
 - Include a clear, attractive Call to Action button. The CTA href MUST be "${SITE_URL}" — never use "#" or an empty href.
 - Make it visually appealing with good spacing.
 - Do NOT wrap your response in markdown code blocks (\`\`\`html or \`\`\`). Return raw HTML only.
-- Do NOT include any unsubscribe, support, or footer links — these are added automatically by our email provider.
 - Do NOT echo back or include these instructions in your output.
 - Do NOT generate any thought process, reasoning (e.g. within <think> tags), comments, or chat context. Return ONLY the final clean copy ready to be used.${imagesContext}${linksContext}`;
       if (hasRealContent) {
         systemPrompt += `\n- The user has provided existing HTML content. Use their instructions to edit, revise, or translate that content.
+- Ensure the header (with logo, company name, tagline) and the footer (with support email help message) are included and formatted correctly. If they are already present, preserve them or update them to match the required branding guidelines.
 - Preserve the HTML structure, tags, layout, and inline styles exactly where possible unless explicitly instructed by the user to change them.
 - Your output must be ONLY the final, complete, revised HTML campaign code, starting with <div> or <table>. Do NOT truncate, summarize, or omit any section of the original content. Do NOT wrap tags in backticks or place HTML inside markdown bullet lists. Return raw HTML only.
 - Do NOT append any text, comments, explanation, or "Hope this helps" after the closing HTML tag. Your output must end with the closing HTML tag (e.g. </div> or </table>).`;
