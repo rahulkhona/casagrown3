@@ -343,7 +343,7 @@ const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.
   );
 };
 
-const initialQuery: RuleGroupType = { combinator: 'and', rules: [{ field: 'email_enabled', operator: '=', value: 'true' }] }
+const initialQuery: RuleGroupType = { combinator: 'and', rules: [] }
 
 const getTriggerLabel = (val: string, audienceId?: string, audiences?: any[]) => {
   if (!val || val === '') {

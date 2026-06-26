@@ -543,6 +543,20 @@ serve(async (req) => {
             const daysSinceCreated = Math.floor((now - recipientCreatedAt) / (1000 * 60 * 60 * 24));
             const hoursSinceCreated = Math.floor((now - recipientCreatedAt) / (1000 * 60 * 60));
 
+            let emailEnabled = true;
+            let smsEnabled = true;
+
+            if (enrollment.recipient_type === 'user') {
+              emailEnabled = metadata?.email_enabled !== false;
+              smsEnabled = metadata?.sms_enabled === true;
+            } else if (enrollment.recipient_type === 'member') {
+              emailEnabled = true;
+              smsEnabled = true;
+            } else {
+              emailEnabled = metadata?.accepts_email !== false;
+              smsEnabled = metadata?.accepts_sms !== false;
+            }
+
             const evalContext = {
               ...metadata,
               has_signed_tos: hasSignedTos,
@@ -559,6 +573,8 @@ serve(async (req) => {
               has_only_phone: hasOnlyPhone,
               has_both_email_and_phone: hasBothEmailAndPhone,
               has_created_listings: hasCreatedListings,
+              email_enabled: emailEnabled,
+              sms_enabled: smsEnabled,
               ...sendEngagement,
               ...nodeEngagement
             };
