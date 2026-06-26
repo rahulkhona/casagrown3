@@ -816,14 +816,26 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
   const exportToCSV = (nodeId: string, nodeLabel: string, recipients: any[]) => {
     if (!recipients || recipients.length === 0) return
+    const nodeData = dryRunResults?.[nodeId]
+    const isCondition = nodeData?.true_count !== undefined
+    const trueIds = isCondition ? new Set((nodeData.true_recipients || []).map((t: any) => t.id)) : null
+
     const headers = ['Recipient ID', 'Name', 'Email', 'Phone', 'Type']
-    const rows = recipients.map(r => [
-      r.id,
-      r.name,
-      r.email || '',
-      r.phone || '',
-      r.recipient_type
-    ])
+    if (isCondition) headers.push('Branch')
+
+    const rows = recipients.map(r => {
+      const row = [
+        r.id,
+        r.name,
+        r.email || '',
+        r.phone || '',
+        r.recipient_type
+      ]
+      if (isCondition && trueIds) {
+        row.push(trueIds.has(r.id) ? 'TRUE' : 'FALSE')
+      }
+      return row
+    })
     
     const csvContent = [
       headers.join(','),
@@ -1486,26 +1498,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                       
                       {/* Export buttons: separate CSVs for true/false on condition nodes */}
                       {dryRunResults[selectedNode.id].true_count !== undefined ? (
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <button
                             onClick={() => {
                               const nodeLabel = (selectedNode.data.userLabel as string) || 'condition'
-                              const trueRecipients = dryRunResults[selectedNode.id].true_recipients || []
-                              exportToCSV(selectedNode.id, `${nodeLabel}_TRUE`, trueRecipients)
+                              exportToCSV(selectedNode.id, nodeLabel, dryRunResults[selectedNode.id].recipients)
                             }}
-                            style={{ flex: 1, padding: '8px 12px', background: '#15803d', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                            style={{ width: '100%', padding: '8px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                           >
-                            Export TRUE ({dryRunResults[selectedNode.id].true_count})
-                          </button>
-                          <button
-                            onClick={() => {
-                              const nodeLabel = (selectedNode.data.userLabel as string) || 'condition'
-                              const falseRecipients = dryRunResults[selectedNode.id].false_recipients || []
-                              exportToCSV(selectedNode.id, `${nodeLabel}_FALSE`, falseRecipients)
-                            }}
-                            style={{ flex: 1, padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            Export FALSE ({dryRunResults[selectedNode.id].false_count})
+                            Export CSV with Branch Column
                           </button>
                         </div>
                       ) : (
