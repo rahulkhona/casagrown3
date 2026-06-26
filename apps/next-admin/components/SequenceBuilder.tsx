@@ -1748,6 +1748,48 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   >
                     Open Message Editor Modal
                   </button>
+
+                  {selectedNode.data.type === 'action_email' && testEmails.trim() && (
+                    <button
+                      disabled={testing}
+                      onClick={async () => {
+                        const emails = testEmails.split(',').map(e => e.trim()).filter(Boolean)
+                        if (emails.length === 0) { alert('Add test email addresses first.'); return }
+                        if (!editorForm.subject || !editorForm.content_html) { alert('This node has no email content yet. Open the editor and add content first.'); return }
+                        setTesting(true)
+                        setToastMsg(`Sending test email for "${selectedNode.data.label || 'this node'}"...`)
+                        try {
+                          // Send each test email via the admin API route
+                          for (const email of emails) {
+                            const res = await fetch('/api/crm/send-test-email', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                to: email,
+                                subject: `[TEST] ${editorForm.subject}`,
+                                html_body: editorForm.content_html,
+                                text_body: editorForm.content_text || '',
+                              }),
+                            })
+                            if (!res.ok) {
+                              const data = await res.json().catch(() => ({}))
+                              throw new Error(data.error || `Failed sending to ${email} (${res.status})`)
+                            }
+                          }
+                          setToastMsg(`✅ Test email sent to ${emails.join(', ')}`)
+                          setTimeout(() => setToastMsg(''), 5000)
+                        } catch (err: any) {
+                          setErrorMsg(err.message || 'Failed to send test email')
+                          setTimeout(() => setErrorMsg(''), 5000)
+                        } finally {
+                          setTesting(false)
+                        }
+                      }}
+                      style={{ padding: '10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      📧 Send Test Email to {testEmails.split(',').filter(e => e.trim()).length} recipient(s)
+                    </button>
+                  )}
                   
                   {!isLocked && (
                     <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 16 }}>Save Node Configuration</button>
