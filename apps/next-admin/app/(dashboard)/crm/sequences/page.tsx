@@ -363,6 +363,18 @@ export default function SequencesPage() {
                       }}>
                         Clone
                       </button>
+                      <Link href={`/crm/sequences/${s.id}/monitor`} style={{
+                        padding: '4px 12px',
+                        background: '#fef9c3',
+                        border: '1px solid #fde68a',
+                        borderRadius: '4px',
+                        textDecoration: 'none',
+                        color: '#854d0e',
+                        fontSize: '0.85rem',
+                        fontWeight: 600
+                      }}>
+                        📊 Monitor
+                      </Link>
                       <button onClick={() => deleteSequence(s.id)} style={{
                         padding: '4px 12px',
                         background: '#fef2f2',
