@@ -170,32 +170,54 @@ export default function SequenceMonitorPage() {
         </div>
       </div>
 
-      {/* Expected vs Actual */}
+      {/* Delivery Health */}
       <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: '#854d0e' }}>🎯 Expected vs Actual</h3>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', color: '#854d0e' }}>🎯 Delivery Health</h3>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ flex: 1, minWidth: 280 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #fde68a' }}>
                   <th style={{ textAlign: 'left', padding: '6px 0', color: '#854d0e' }}>Channel</th>
-                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Expected</th>
-                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Actual Sent</th>
-                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Progress</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Sent</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Delivered</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Delivery %</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Bounced</th>
+                  <th style={{ textAlign: 'center', padding: '6px 8px', color: '#854d0e' }}>Errors</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td style={{ padding: '6px 0', fontWeight: 600 }}>📧 Email</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{expectedEmails}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: totalEmailSends >= expectedEmails && expectedEmails > 0 ? '#16a34a' : '#b45309' }}>{totalEmailSends}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{pct(totalEmailSends, expectedEmails)}</td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalEmailSends}</td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: '#2563eb' }}>
+                    {sends.filter(s => s.email && s.delivered_at).length}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalEmailSends > 0 && sends.filter(s => s.email && s.delivered_at).length / totalEmailSends < 0.8 ? '#dc2626' : '#16a34a' }}>
+                    {pct(sends.filter(s => s.email && s.delivered_at).length, totalEmailSends)}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.email && s.bounced_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.email && s.bounced_at).length}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.email && s.error).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.email && s.error).length}
+                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: '6px 0', fontWeight: 600 }}>💬 SMS</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{expectedSms}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: totalSmsSends >= expectedSms && expectedSms > 0 ? '#16a34a' : '#b45309' }}>{totalSmsSends}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{pct(totalSmsSends, expectedSms)}</td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalSmsSends}</td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: '#2563eb' }}>
+                    {sends.filter(s => s.phone && !s.email && s.delivered_at).length}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalSmsSends > 0 && sends.filter(s => s.phone && !s.email && s.delivered_at).length / totalSmsSends < 0.8 ? '#dc2626' : '#16a34a' }}>
+                    {pct(sends.filter(s => s.phone && !s.email && s.delivered_at).length, totalSmsSends)}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.phone && !s.email && s.bounced_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.phone && !s.email && s.bounced_at).length}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.phone && !s.email && s.error).length > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {sends.filter(s => s.phone && !s.email && s.error).length}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -205,6 +227,13 @@ export default function SequenceMonitorPage() {
               <div style={{ marginBottom: 6 }}>Enrollments: <strong>{enrollments.length}</strong> total</div>
               <div style={{ marginBottom: 6 }}>Active: <strong style={{ color: '#2563eb' }}>{enrollActive}</strong> • Completed: <strong style={{ color: '#16a34a' }}>{enrollCompleted}</strong></div>
               <div>Errors: <strong style={{ color: totalErrors > 0 ? '#dc2626' : '#16a34a' }}>{totalErrors}</strong></div>
+              {totalErrors > 0 && (
+                <div style={{ marginTop: 8, padding: '8px 10px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, fontSize: '0.8rem' }}>
+                  {Array.from(new Set(sends.filter(s => s.error).map(s => s.error))).map((err, i) => (
+                    <div key={i} style={{ color: '#dc2626' }}>⚠️ {err} ({sends.filter(s => s.error === err).length}x)</div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
