@@ -619,3 +619,197 @@ dbTest("Sequence Engine: test_run_all processes ALL steps, skips wait delays", a
     { table: "crm_leads", id: lead.id }
   );
 });
+
+// ── Test 15: Deprecated sequence rejects new enrollments ─────────────────────
+dbTest("enroll-in-sequence: Rejects enrollment in deprecated sequence", async () => {
+  const lead = await createLead();
+  const seq = await createSequence({
+    startNodeId: "s1",
+    nodes: [
+      { id: "s1", type: "action_sms", data: { type: "action_sms", text: "Hello" } },
+    ],
+    edges: [],
+  }, "deprecated");
+
+  const res = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(res.status, 400, "Should reject enrollment in deprecated sequence");
+  const body = await res.json();
+  assert(body.error.includes("deprecated"), `Error should mention deprecated: ${body.error}`);
+
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});
+
+// ── Test 16: Deprecated sequence still processes existing enrollments ─────────
+dbTest("process-sequence-step: Deprecated sequence continues processing existing enrollments", async () => {
+  // Create an active sequence and enroll a lead
+  const lead = await createLead();
+  const seq = await createSequence({
+    startNodeId: "n1",
+    nodes: [
+      { id: "n1", type: "action_sms", data: { type: "action_sms", text: "Deprecated test SMS" } },
+      { id: "n2", type: "terminal", data: { type: "terminal" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+    ],
+  }, "active");
+
+  // Enroll while active
+  const enrollRes = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(enrollRes.status, 200, "Enrollment should succeed while active");
+
+  // Now deprecate the sequence
+  const { error: deprecateErr } = await supabase.from("crm_sequences")
+    .update({ status: "deprecated" }).eq("id", seq.id);
+  assert(!deprecateErr, `Deprecate failed: ${JSON.stringify(deprecateErr)}`);
+
+  // Process - should still advance the enrollment
+  const stepRes = await processStep({ sequence_id: seq.id, is_test: true });
+  assertEquals(stepRes.status, 200, "processStep should succeed for deprecated sequence");
+  const stepBody = await stepRes.json();
+  assert(stepBody.processed > 0, `Should have processed at least 1 enrollment, got ${stepBody.processed}`);
+
+  // Verify enrollment was completed
+  const { data: enrollment } = await supabase.from("crm_sequence_enrollments")
+    .select("status").eq("sequence_id", seq.id).eq("recipient_id", lead.id).single();
+  assertEquals(enrollment?.status, "completed", "Enrollment should be completed after processing");
+
+  // Cleanup
+  await supabase.from("crm_campaign_sends").delete().eq("sequence_id", seq.id);
+  await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});
+
+// ── Test 17: Deprecated → ready_for_deletion when all enrollments complete ──
+dbTest("process-sequence-step: Auto-transitions deprecated to ready_for_deletion when all enrollments done", async () => {
+  const lead = await createLead();
+  const seq = await createSequence({
+    startNodeId: "n1",
+    nodes: [
+      { id: "n1", type: "terminal", data: { type: "terminal" } },
+    ],
+    edges: [],
+  }, "active");
+
+  // Enroll and process to completion while active
+  await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+
+  // Deprecate
+  await supabase.from("crm_sequences").update({ status: "deprecated" }).eq("id", seq.id);
+
+  // Process — terminal node completes the enrollment immediately
+  // Note: we need to call without is_test so the auto-complete logic runs
+  await processStep();
+
+  // Check sequence status — should be ready_for_deletion
+  const { data: seqAfter } = await supabase.from("crm_sequences")
+    .select("status").eq("id", seq.id).single();
+  assertEquals(seqAfter?.status, "ready_for_deletion",
+    `Sequence should be ready_for_deletion, got ${seqAfter?.status}`);
+
+  // Cleanup
+  await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});
+
+// ── Test 18: Reactivate from deprecated ──────────────────────────────────────
+dbTest("Sequence lifecycle: Reactivate from deprecated re-enables enrollment", async () => {
+  const lead = await createLead();
+  const seq = await createSequence({
+    startNodeId: "s1",
+    nodes: [
+      { id: "s1", type: "action_sms", data: { type: "action_sms", text: "Hello again" } },
+    ],
+    edges: [],
+  }, "deprecated");
+
+  // Enrollment should fail while deprecated
+  const res1 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(res1.status, 400, "Should reject while deprecated");
+
+  // Reactivate
+  const { error: reactivateErr } = await supabase.from("crm_sequences")
+    .update({ status: "active" }).eq("id", seq.id);
+  assert(!reactivateErr, `Reactivate failed: ${JSON.stringify(reactivateErr)}`);
+
+  // Enrollment should now succeed
+  const res2 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(res2.status, 200, "Should accept after reactivation");
+  const body = await res2.json();
+  assert(body.enrolled > 0, `Should have enrolled at least 1, got ${body.enrolled}`);
+
+  // Cleanup
+  await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});
+
+// ── Test 19: Reactivate from ready_for_deletion ──────────────────────────────
+dbTest("Sequence lifecycle: Reactivate from ready_for_deletion re-enables enrollment", async () => {
+  const lead = await createLead();
+  const seq = await createSequence({
+    startNodeId: "s1",
+    nodes: [
+      { id: "s1", type: "action_sms", data: { type: "action_sms", text: "Back from the dead" } },
+    ],
+    edges: [],
+  }, "ready_for_deletion");
+
+  // Enrollment should fail while ready_for_deletion
+  const res1 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(res1.status, 400, "Should reject while ready_for_deletion");
+
+  // Reactivate
+  const { error: reactivateErr } = await supabase.from("crm_sequences")
+    .update({ status: "active" }).eq("id", seq.id);
+  assert(!reactivateErr, `Reactivate failed: ${JSON.stringify(reactivateErr)}`);
+
+  // Enrollment should now succeed
+  const res2 = await enroll(seq.id, [{ recipient_type: "lead", recipient_id: lead.id }]);
+  assertEquals(res2.status, 200, "Should accept after reactivation from ready_for_deletion");
+  const body = await res2.json();
+  assert(body.enrolled > 0, `Should have enrolled at least 1, got ${body.enrolled}`);
+
+  // Cleanup
+  await supabase.from("crm_sequence_enrollments").delete().eq("sequence_id", seq.id);
+  await cleanup(
+    { table: "crm_sequences", id: seq.id },
+    { table: "crm_leads", id: lead.id }
+  );
+});
+
+// ── Test 20: Backfill rejects deprecated sequence ────────────────────────────
+dbTest("enroll-in-sequence: Backfill rejects deprecated sequence", async () => {
+  const seq = await createSequence({
+    startNodeId: "s1",
+    nodes: [
+      { id: "s1", type: "action_sms", data: { type: "action_sms", text: "Backfill test" } },
+    ],
+    edges: [],
+  }, "deprecated");
+
+  // Set a trigger_event so backfill path is taken
+  await supabase.from("crm_sequences").update({ trigger_event: "lead.created" }).eq("id", seq.id);
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/enroll-in-sequence`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+    body: JSON.stringify({ sequence_id: seq.id, backfill: true }),
+  });
+  assertEquals(res.status, 400, "Backfill should reject deprecated sequence");
+  const body = await res.json();
+  assert(body.error.includes("deprecated"), `Error should mention deprecated: ${body.error}`);
+
+  await cleanup({ table: "crm_sequences", id: seq.id });
+});

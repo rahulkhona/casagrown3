@@ -216,7 +216,7 @@ serve(async (req) => {
       if (!node) {
         // Complete the sequence if no node found (end of flow)
         await supabase.from('crm_sequence_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
-        results.push({ id: enrollment.id, action: 'completed' });
+        results.push({ id: enrollment.id, action: 'completed', sequenceId: sequence.id });
         continue;
       }
 
@@ -345,7 +345,7 @@ serve(async (req) => {
             results.push({ id: enrollment.id, action: 'advanced', to: nextNodeId, node_type: 'action_email' });
           } else {
             await supabase.from('crm_sequence_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
-            results.push({ id: enrollment.id, action: 'completed', node_type: 'action_email' });
+            results.push({ id: enrollment.id, action: 'completed', node_type: 'action_email', sequenceId: sequence.id });
           }
         } else if (!acceptsEmail) {
           await supabase.from('crm_campaign_sends').insert({
@@ -366,7 +366,7 @@ serve(async (req) => {
             results.push({ id: enrollment.id, action: 'advanced', to: nextNodeId, node_type: 'action_email' });
           } else {
             await supabase.from('crm_sequence_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
-            results.push({ id: enrollment.id, action: 'completed', node_type: 'action_email' });
+            results.push({ id: enrollment.id, action: 'completed', node_type: 'action_email', sequenceId: sequence.id });
           }
         } else {
           emailsToBatch.push({
@@ -648,7 +648,7 @@ serve(async (req) => {
         results.push({ id: enrollment.id, action: 'advanced', to: nextNodeId, node_type: nodeLogicType });
       } else {
         await supabase.from('crm_sequence_enrollments').update({ status: 'completed' }).eq('id', enrollment.id);
-        results.push({ id: enrollment.id, action: 'completed', node_type: nodeLogicType });
+        results.push({ id: enrollment.id, action: 'completed', node_type: nodeLogicType, sequenceId: sequence.id });
       }
 
     } catch (e: any) {
