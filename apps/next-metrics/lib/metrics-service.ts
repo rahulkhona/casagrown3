@@ -220,6 +220,7 @@ export interface WeeklyTrendPoint {
   signups: number;
   listings: number;
   leads: number;
+  shares: number;
 }
 
 export async function fetchWeeklyTrends(weeksCount = 8): Promise<WeeklyTrendPoint[]> {
@@ -239,15 +240,17 @@ export async function fetchWeeklyTrends(weeksCount = 8): Promise<WeeklyTrendPoin
   const startDateStr = startOfPeriod.toISOString();
 
   // Query database tables directly
-  const [profilesRes, productsRes, leadsRes] = await Promise.all([
+  const [profilesRes, productsRes, leadsRes, sharesRes] = await Promise.all([
     supabase.from('profiles').select('created_at').gte('created_at', startDateStr),
     supabase.from('market_products').select('created_at').eq('is_deleted', false).gte('created_at', startDateStr),
-    supabase.from('crm_leads').select('created_at').gte('created_at', startDateStr)
+    supabase.from('crm_leads').select('created_at').gte('created_at', startDateStr),
+    supabase.from('growbot_shared_responses').select('created_at').gte('created_at', startDateStr)
   ]);
 
   const profiles = profilesRes.data || [];
   const products = productsRes.data || [];
   const leads = leadsRes.data || [];
+  const shares = sharesRes.data || [];
 
   const trendPoints: WeeklyTrendPoint[] = [];
   for (let i = 0; i < weeksCount; i++) {
@@ -273,11 +276,17 @@ export async function fetchWeeklyTrends(weeksCount = 8): Promise<WeeklyTrendPoin
       return d >= weekStart && d < weekEnd;
     }).length;
 
+    const sharesCount = shares.filter((p: any) => {
+      const d = new Date(p.created_at);
+      return d >= weekStart && d < weekEnd;
+    }).length;
+
     trendPoints.push({
       weekLabel: label,
       signups: signupsCount,
       listings: listingsCount,
-      leads: leadsCount
+      leads: leadsCount,
+      shares: sharesCount
     });
   }
 

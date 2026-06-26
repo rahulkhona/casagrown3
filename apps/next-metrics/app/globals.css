@@ -616,9 +616,25 @@ a:hover { text-decoration: underline; }
   margin-bottom: 24px;
 }
 
+.chart-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .chart-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 1024px) {
   .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 768px) {
+  .chart-grid-4 { grid-template-columns: 1fr; }
+}
+
 
 /* --------------------------------------------------------------------------
    Loading / Spinner
