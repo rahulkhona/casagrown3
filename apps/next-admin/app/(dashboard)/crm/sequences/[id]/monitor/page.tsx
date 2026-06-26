@@ -265,7 +265,12 @@ export default function SequenceMonitorPage() {
                 <tr><td colSpan={7} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
               ) : hourlyBuckets.map(b => (
                 <tr key={b.hour} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '10px 16px', fontWeight: 500 }}>{new Date(b.hour).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                  <td style={{ padding: '10px 16px', fontWeight: 500 }}>
+                    {new Date(b.hour).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    <span style={{ color: '#9ca3af', fontSize: '0.75rem', marginLeft: 6 }}>
+                      ({new Date(b.hour).toLocaleString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: true })} UTC)
+                    </span>
+                  </td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#15803d' }}>{b.sent}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#2563eb' }}>{b.delivered}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#7c3aed' }}>{b.opened}</td>
