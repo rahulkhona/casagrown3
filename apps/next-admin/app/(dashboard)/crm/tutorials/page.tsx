@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { YStack, XStack, Text, Button, Card, Input, Label } from 'tamagui'
 import { colors } from '@casagrown/app/design-tokens'
-import { Plus, Trash2, Edit3, GripVertical, FileVideo, Save, ArrowLeft } from '@tamagui/lucide-icons'
+import { Plus, Trash2, Edit3, GripVertical, FileVideo, Save, ArrowLeft, Link2 } from '@tamagui/lucide-icons'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { adminApi } from '../../../../lib/adminApi'
 import { supabase } from '@casagrown/app/utils/supabase'
@@ -473,6 +473,19 @@ export default function TutorialsManagementPage() {
                                 </XStack>
 
                                 <XStack gap="$2">
+                                  <Button
+                                    size="$2"
+                                    chromeless
+                                    icon={<Link2 size={16} color={colors.gray[600]} />}
+                                    onPress={() => {
+                                      const url = `https://casagrown.com/tutorials#tutorial-section-${item.id}`
+                                      navigator.clipboard.writeText(url)
+                                      setSuccessMessage('Link copied!')
+                                      setTimeout(() => setSuccessMessage(''), 2000)
+                                    }}
+                                    aria-label="Copy Link"
+                                    data-testid={`tutorial-link-${item.id}`}
+                                  />
                                   <Button
                                     size="$2"
                                     chromeless
