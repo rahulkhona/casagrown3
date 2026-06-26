@@ -142,7 +142,7 @@ export default function TutorialsPage() {
 
             // Append autoplay param for the targeted video
             if (shouldAutoplay && embedUrl && !isDirectFile) {
-              embedUrl += '&autoplay=1'
+              embedUrl += '&autoplay=1&mute=1'
             }
 
             return (
@@ -159,6 +159,7 @@ export default function TutorialsPage() {
                       controls
                       playsInline
                       autoPlay={shouldAutoplay}
+                      muted={shouldAutoplay}
                       className={styles.iframe}
                     />
                   ) : (
