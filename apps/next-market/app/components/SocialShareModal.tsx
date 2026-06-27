@@ -334,8 +334,6 @@ export default function SocialShareModal({
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
   /** Resolve the share message for a given platform */
   const resolveMessage = (platform: SharePlatformType): string => {
     return typeof shareMessage === 'function' ? shareMessage(platform) : shareMessage
@@ -469,6 +467,8 @@ export default function SocialShareModal({
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
     transition: 'transform 0.1s ease, box-shadow 0.15s ease',
   }
+
+  if (!isOpen) return null
 
   return (
     <>
