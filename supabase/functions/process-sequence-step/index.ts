@@ -170,7 +170,9 @@ serve(async (req) => {
     // No body or invalid JSON — normal cron invocation
   }
 
-  const MAX_TEST_ITERATIONS = 50; // Safety cap to prevent infinite loops
+  const MAX_ITERATIONS = 50; // Safety cap to prevent infinite loops
+  const WALL_CLOCK_LIMIT_MS = 120_000; // 2 min hard stop — leave 30s buffer before 150s edge function timeout
+  const startWallClock = Date.now();
   let iterationCount = 0;
   const allResults: any[] = [];
 
@@ -192,7 +194,7 @@ serve(async (req) => {
       query = query.lte('next_evaluation_at', new Date().toISOString());
     }
 
-    const { data: enrollments, error } = await query.limit(100);
+    const { data: enrollments, error } = await query.limit(200);
 
     if (error || !enrollments) {
       console.error("Error fetching enrollments", error);
@@ -748,14 +750,15 @@ serve(async (req) => {
 
     allResults.push(...results);
 
-    // In normal mode, only run once. In test_run_all mode, loop until done.
-    if (!testRunAll) break;
+    // Wall-clock guard: stop if we're approaching the edge function timeout
+    if (Date.now() - startWallClock > WALL_CLOCK_LIMIT_MS) {
+      console.log(`[WALL CLOCK] Reached ${WALL_CLOCK_LIMIT_MS}ms limit after ${iterationCount} iteration(s), ${allResults.length} step(s) — stopping to avoid timeout`);
+      break;
+    }
 
-  } while (iterationCount < MAX_TEST_ITERATIONS);
+  } while (iterationCount < MAX_ITERATIONS);
 
-  if (testRunAll) {
-    console.log(`[TEST MODE] Completed after ${iterationCount} iteration(s), ${allResults.length} step(s) processed`);
-  }
+  console.log(`[PROCESS-SEQ] Completed after ${iterationCount} iteration(s), ${allResults.length} step(s) processed${testRunAll ? ' (TEST MODE)' : ''}`);
 
   // ── Auto-complete deprecated sequences with no remaining active enrollments ──
   if (!testRunAll) {
