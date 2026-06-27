@@ -206,6 +206,33 @@ serve(async (req) => {
   const results: any[] = [];
   const emailsToBatch: any[] = [];
 
+  // ── Batch-prefetch metadata for all enrollments (3 queries instead of N×3) ──
+  const leadRecipientIds = enrollments
+    .filter((e: any) => !e.recipient_type || e.recipient_type === 'lead')
+    .map((e: any) => e.recipient_id);
+  const userRecipientIds = enrollments
+    .filter((e: any) => e.recipient_type === 'user')
+    .map((e: any) => e.recipient_id);
+  const memberRecipientIds = enrollments
+    .filter((e: any) => e.recipient_type === 'member')
+    .map((e: any) => e.recipient_id);
+
+  const [batchLeads, batchProfiles, batchUserMeta] = await Promise.all([
+    leadRecipientIds.length > 0
+      ? supabase.from('crm_leads').select('*').in('id', leadRecipientIds)
+      : Promise.resolve({ data: [] as any[] }),
+    (userRecipientIds.length > 0 || memberRecipientIds.length > 0)
+      ? supabase.from('profiles').select('id, full_name, email, phone_number, tos_accepted_at').in('id', [...userRecipientIds, ...memberRecipientIds])
+      : Promise.resolve({ data: [] as any[] }),
+    userRecipientIds.length > 0
+      ? supabase.from('crm_user_metadata').select('*').in('recipient_id', userRecipientIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const leadMap = new Map((batchLeads.data || []).map((l: any) => [l.id, l]));
+  const profileMap = new Map((batchProfiles.data || []).map((p: any) => [p.id, p]));
+  const userMetaMap = new Map((batchUserMeta.data || []).map((m: any) => [m.recipient_id, m]));
+
   for (const enrollment of enrollments) {
     const sequence = enrollment.crm_sequences;
     if (sequence.status !== 'active' && sequence.status !== 'deprecated' && !isTest) continue;
@@ -227,45 +254,32 @@ serve(async (req) => {
 
       const nodeLogicType = node.data?.type || node.type;
 
-      // ── Fetch Metadata for Interpolation & Conditions ──
-      let metaRes: any = {}, profileRes: any = {}, enrolledPromoRes: any = {};
+      // ── Resolve recipient metadata from batch-prefetched maps (0 queries) ──
+      let metaRes: any = {}, profileRes: any = {};
       let acceptsEmail = true;
       let acceptsSms = true;
 
       if (enrollment.recipient_type === 'user') {
-        const [mRes, pRes, epRes] = await Promise.all([
-          supabase.from('crm_user_metadata').select('*').eq('recipient_id', enrollment.recipient_id).single(),
-          supabase.from('profiles').select('full_name, email, phone_number, tos_accepted_at').eq('id', enrollment.recipient_id).single(),
-          supabase.from('crm_promo_enrollments').select('promotion_id').eq('user_id', enrollment.recipient_id)
-        ]);
-        if (mRes.data) metaRes.data = mRes.data;
-        if (pRes.data) profileRes.data = pRes.data;
-        if (epRes.data) enrolledPromoRes.data = epRes.data;
-
+        const meta = userMetaMap.get(enrollment.recipient_id);
+        const profile = profileMap.get(enrollment.recipient_id);
+        if (meta) metaRes.data = meta;
+        if (profile) profileRes.data = profile;
         acceptsEmail = metaRes.data?.email_enabled !== false;
         acceptsSms = metaRes.data?.sms_enabled === true;
       } else if (enrollment.recipient_type === 'member') {
-        // Market members — fetch directly from profiles, no CRM metadata
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, phone_number, tos_accepted_at')
-          .eq('id', enrollment.recipient_id)
-          .single();
-        if (data) {
-          profileRes.data = { full_name: data.full_name, email: data.email, phone_number: data.phone_number };
+        const profile = profileMap.get(enrollment.recipient_id);
+        if (profile) {
+          profileRes.data = { full_name: profile.full_name, email: profile.email, phone_number: profile.phone_number };
           metaRes.data = {};
         }
         acceptsEmail = true;
         acceptsSms = true;
       } else {
         // Default: lead recipient
-        const { data } = await supabase.from('crm_leads').select('*').eq('id', enrollment.recipient_id).single();
-        if (data) {
-          profileRes.data = { full_name: data.name, email: data.email, phone_number: data.phone };
-          metaRes.data = {
-            ...data,
-            ...(data.metadata || {})
-          };
+        const lead = leadMap.get(enrollment.recipient_id);
+        if (lead) {
+          profileRes.data = { full_name: lead.name, email: lead.email, phone_number: lead.phone };
+          metaRes.data = { ...lead, ...(lead.metadata || {}) };
           // Consent handled by Postmark (suppression lists) and Twilio (STOP/START)
           // at the provider level — no need to gate on accepts_email/accepts_sms flags
         }
@@ -464,8 +478,15 @@ serve(async (req) => {
              macroState = 'signup_abandoned';
            }
            
-           let enrolledPromotionIds = enrolledPromoRes?.data ? enrolledPromoRes.data.map((r:any) => r.promotion_id) : [];
-            if (enrollment.recipient_type === 'lead' && metadata.enrolled_promotion_ids) {
+           // Fetch promo enrollments lazily — only needed for condition evaluation
+           let enrolledPromotionIds: string[] = [];
+            if (enrollment.recipient_type === 'user') {
+              const { data: promoData } = await supabase
+                .from('crm_promo_enrollments')
+                .select('promotion_id')
+                .eq('user_id', enrollment.recipient_id);
+              enrolledPromotionIds = promoData ? promoData.map((r: any) => r.promotion_id) : [];
+            } else if (enrollment.recipient_type === 'lead' && metadata.enrolled_promotion_ids) {
               enrolledPromotionIds = Array.isArray(metadata.enrolled_promotion_ids) ? metadata.enrolled_promotion_ids : [metadata.enrolled_promotion_ids];
             }
            
