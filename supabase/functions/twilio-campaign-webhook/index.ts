@@ -44,6 +44,27 @@ Deno.serve(async (req: Request) => {
     return new Response("Missing required fields", { status: 400 });
   }
 
+  // Generate all possible phone number formats to handle database format inconsistencies
+  const cleanDigits = to.replace(/\D/g, "");
+  const tenDigits = cleanDigits.length === 11 && cleanDigits.startsWith("1") ? cleanDigits.slice(1) : cleanDigits;
+  
+  const phoneFormats = [
+    to,
+    `+${cleanDigits}`,
+    cleanDigits,
+    tenDigits
+  ];
+  
+  if (tenDigits.length === 10) {
+    const areaCode = tenDigits.slice(0, 3);
+    const prefix = tenDigits.slice(3, 6);
+    const line = tenDigits.slice(6, 10);
+    phoneFormats.push(`(${areaCode}) ${prefix}-${line}`);
+    phoneFormats.push(`(${areaCode}) ${prefix} ${line}`);
+    phoneFormats.push(`${areaCode}-${prefix}-${line}`);
+  }
+  const uniqueFormats = [...new Set(phoneFormats.filter(Boolean))];
+
   // Failed statuses → mark bounced
   const failedStatuses = ["failed", "undelivered"];
 
@@ -54,7 +75,7 @@ Deno.serve(async (req: Request) => {
         bounced_at: new Date().toISOString(),
         error: `SMS ${messagingStatus}: ${messageSid}`,
       })
-      .eq("phone", to)
+      .in("phone", uniqueFormats)
       .is("bounced_at", null)
       .order("sent_at", { ascending: false })
       .limit(1);
@@ -69,7 +90,7 @@ Deno.serve(async (req: Request) => {
     const { error } = await supabase
       .from("crm_campaign_sends")
       .update({ delivered_at: new Date().toISOString() })
-      .eq("phone", to)
+      .in("phone", uniqueFormats)
       .is("delivered_at", null)
       .order("sent_at", { ascending: false })
       .limit(1);
