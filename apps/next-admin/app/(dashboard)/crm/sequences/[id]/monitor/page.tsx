@@ -29,6 +29,7 @@ type Send = {
 
 type HourlyBucket = {
   hour: string
+  channel: 'email' | 'sms'
   sent: number
   delivered: number
   opened: number
@@ -165,16 +166,19 @@ export default function SequenceMonitorPage() {
 
   const pct = (n: number, d: number) => d > 0 ? `${Math.round((n / d) * 100)}%` : '—'
 
-  // Hourly buckets
+  // Hourly buckets grouped by hour and channel
   const hourlyMap = new Map<string, HourlyBucket>()
   for (const s of sends) {
     const ts = s.sent_at || s.bounced_at || s.unsubscribed_at
     if (!ts) continue
     const hour = new Date(ts).toISOString().slice(0, 13) + ':00'
-    let bucket = hourlyMap.get(hour)
+    const channel = s.email ? 'email' : 'sms'
+    const key = `${hour}_${channel}`
+    
+    let bucket = hourlyMap.get(key)
     if (!bucket) {
-      bucket = { hour, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, errors: 0 }
-      hourlyMap.set(hour, bucket)
+      bucket = { hour, channel, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, errors: 0 }
+      hourlyMap.set(key, bucket)
     }
     if (s.sent_at && !s.error) bucket.sent++
     if (s.delivered_at) bucket.delivered++
@@ -184,7 +188,11 @@ export default function SequenceMonitorPage() {
     if (s.unsubscribed_at) bucket.unsubscribed++
     if (s.error) bucket.errors++
   }
-  const hourlyBuckets = Array.from(hourlyMap.values()).sort((a, b) => b.hour.localeCompare(a.hour))
+  const hourlyBuckets = Array.from(hourlyMap.values()).sort((a, b) => {
+    const timeCompare = b.hour.localeCompare(a.hour)
+    if (timeCompare !== 0) return timeCompare
+    return a.channel.localeCompare(b.channel)
+  })
 
   // Export raw log
   const exportCSV = () => {
@@ -379,6 +387,7 @@ export default function SequenceMonitorPage() {
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#6b7280' }}>Hour</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#6b7280' }}>Channel</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#15803d' }}>Sent</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#2563eb' }}>Delivered</th>
                 <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#7c3aed' }}>Opened</th>
@@ -390,14 +399,17 @@ export default function SequenceMonitorPage() {
             </thead>
             <tbody>
               {hourlyBuckets.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>No sends yet</td></tr>
               ) : hourlyBuckets.map(b => (
-                <tr key={b.hour} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <tr key={`${b.hour}_${b.channel}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '10px 16px', fontWeight: 500 }}>
                     {new Date(b.hour).toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} UTC
                     <span style={{ color: '#9ca3af', fontSize: '0.75rem', marginLeft: 6 }}>
                       ({new Date(b.hour).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })} PT)
                     </span>
+                  </td>
+                  <td style={{ padding: '10px 16px', fontWeight: 600, color: '#4b5563' }}>
+                    {b.channel === 'email' ? '📧 Email' : '💬 SMS'}
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#15803d' }}>{b.sent}</td>
                   <td style={{ padding: '10px 16px', textAlign: 'center', color: '#2563eb' }}>{b.delivered}</td>
