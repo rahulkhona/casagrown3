@@ -26,7 +26,7 @@ export async function GET(
     // Look up the link
     const { data: link, error } = await supabase
       .from('crm_short_links')
-      .select('id, destination_url, campaign_id, recipient_id, recipient_type, clicked_at, click_count')
+      .select('id, destination_url, campaign_id, sequence_id, recipient_id, recipient_type, clicked_at, click_count')
       .eq('token', token)
       .single()
 
@@ -48,14 +48,21 @@ export async function GET(
       .then(() => {})
 
     // Update crm_campaign_sends.clicked_at for this recipient
-    if (link.campaign_id && link.recipient_id) {
-      void supabase
+    if (link.recipient_id && (link.campaign_id || link.sequence_id)) {
+      const updateData = { clicked_at: now }
+      const query = supabase
         .from('crm_campaign_sends')
-        .update({ clicked_at: now })
-        .eq('campaign_id', link.campaign_id)
+        .update(updateData)
         .eq('recipient_id', link.recipient_id)
         .is('clicked_at', null)
-        .then(() => {})
+
+      if (link.campaign_id) {
+        query.eq('campaign_id', link.campaign_id)
+      } else {
+        query.eq('sequence_id', link.sequence_id)
+      }
+
+      void query.then(() => {})
     }
 
     let finalUrl = link.destination_url
