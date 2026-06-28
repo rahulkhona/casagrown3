@@ -385,8 +385,15 @@ serve(async (req) => {
             results.push({ id: enrollment.id, action: 'completed', node_type: 'action_email', sequenceId: sequence.id });
           }
         } else {
+          const sendId = crypto.randomUUID();
           emailsToBatch.push({
-            payload: { to: email, subject, htmlBody },
+            id: sendId,
+            payload: {
+              to: email,
+              subject,
+              htmlBody,
+              metadata: { send_id: sendId }
+            },
             enrollmentId: enrollment.id,
             sequenceId: sequence.id,
             nodeId: node.id,
@@ -709,6 +716,7 @@ serve(async (req) => {
     
     if (batchRes.success) {
       const campaignSends = emailsToBatch.map(item => ({
+        id: item.id,
         campaign_id: null,
         sequence_id: item.sequenceId,
         node_id: item.nodeId,
@@ -753,6 +761,7 @@ serve(async (req) => {
     } else {
       console.error(`[BATCH SEND FAILED]`, batchRes.error);
       const campaignSends = emailsToBatch.map(item => ({
+        id: item.id,
         campaign_id: null,
         sequence_id: item.sequenceId,
         node_id: item.nodeId,
