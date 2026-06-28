@@ -422,6 +422,7 @@ serve(async (req) => {
 
         let errorMsg: string | null = null;
         let sentAt: string | null = null;
+        const sendId = crypto.randomUUID();
 
         if (!phone) {
           errorMsg = 'missing_phone';
@@ -429,7 +430,7 @@ serve(async (req) => {
           errorMsg = 'opted_out';
         } else {
           console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${phone}${testRunAll ? ' (TEST MODE)' : ''}`);
-          const res = await sendMarketingSms(phone, textBody);
+          const res = await sendMarketingSms(phone, textBody, sendId);
           if (res.success) {
             sentAt = new Date().toISOString();
           } else {
@@ -438,6 +439,7 @@ serve(async (req) => {
         }
 
         const { error: insertError } = await supabase.from('crm_campaign_sends').insert({
+          id: sendId,
           campaign_id: null,
           sequence_id: sequence.id,
           node_id: node.id,
@@ -448,6 +450,17 @@ serve(async (req) => {
           error: errorMsg,
         });
         if (insertError) console.error("Insert error:", insertError);
+
+        // If there was a transient send failure (e.g. rate limit, carrier block, network),
+        // postpone evaluation by 15 minutes and retry instead of skipping.
+        if (errorMsg && errorMsg !== 'missing_phone' && errorMsg !== 'opted_out') {
+          const retryEvalAt = new Date(Date.now() + 15 * 60 * 1000);
+          await supabase.from('crm_sequence_enrollments').update({
+            next_evaluation_at: retryEvalAt.toISOString()
+          }).eq('id', enrollment.id);
+          results.push({ id: enrollment.id, action: 'postponed_retry', node_type: 'action_sms', error: errorMsg });
+          continue;
+        }
         
         const edge = def.edges.find((e: any) => e.source === node.id);
         if (edge) nextNodeId = edge.target;

@@ -338,8 +338,10 @@ Deno.serve(async (req: Request) => {
               { campaignId: campaign.id }
             );
 
-            const result = await sendMarketingSms(r.phone!, smsBody);
+            const sendId = crypto.randomUUID();
+            const result = await sendMarketingSms(r.phone!, smsBody, sendId);
             await supabase.from("crm_campaign_sends").insert({
+              id: sendId,
               campaign_id: campaign.id,
               recipient_type: r.recipient_type,
               recipient_id: r.id,

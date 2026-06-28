@@ -34,11 +34,14 @@ Deno.serve(async (req: Request) => {
     return new Response("Invalid body", { status: 400 });
   }
 
+  const url = new URL(req.url);
+  const sendId = url.searchParams.get("send_id");
+
   const messageSid = body.get("MessageSid");
   const messagingStatus = body.get("MessageStatus");
   const to = body.get("To"); // recipient phone number
 
-  console.log(`[TWILIO-WEBHOOK] SID=${messageSid} Status=${messagingStatus} To=${to}`);
+  console.log(`[TWILIO-WEBHOOK] SID=${messageSid} Status=${messagingStatus} To=${to} SendID=${sendId ?? 'none'}`);
 
   if (!to || !messagingStatus) {
     return new Response("Missing required fields", { status: 400 });
@@ -69,34 +72,30 @@ Deno.serve(async (req: Request) => {
   const failedStatuses = ["failed", "undelivered"];
 
   if (failedStatuses.includes(messagingStatus)) {
-    const { error } = await supabase
+    const query = supabase
       .from("crm_campaign_sends")
       .update({
         bounced_at: new Date().toISOString(),
         error: `SMS ${messagingStatus}: ${messageSid}`,
-      })
-      .in("phone", uniqueFormats)
-      .is("bounced_at", null)
-      .order("sent_at", { ascending: false })
-      .limit(1);
+      });
 
-    if (error) {
-      console.error("[TWILIO-WEBHOOK] Update error:", error.message);
+    if (sendId) {
+      await query.eq("id", sendId).is("bounced_at", null);
+    } else {
+      await query.in("phone", uniqueFormats).is("bounced_at", null).order("sent_at", { ascending: false }).limit(1);
     }
   }
 
   // Delivered status → mark delivered
   if (messagingStatus === "delivered") {
-    const { error } = await supabase
+    const query = supabase
       .from("crm_campaign_sends")
-      .update({ delivered_at: new Date().toISOString() })
-      .in("phone", uniqueFormats)
-      .is("delivered_at", null)
-      .order("sent_at", { ascending: false })
-      .limit(1);
+      .update({ delivered_at: new Date().toISOString() });
 
-    if (error) {
-      console.error("[TWILIO-WEBHOOK] Delivered update error:", error.message);
+    if (sendId) {
+      await query.eq("id", sendId).is("delivered_at", null);
+    } else {
+      await query.in("phone", uniqueFormats).is("delivered_at", null).order("sent_at", { ascending: false }).limit(1);
     }
   }
 

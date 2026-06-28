@@ -212,6 +212,7 @@ export async function sendSms(
 export async function sendMarketingSms(
     to: string,
     body: string,
+    sendId?: string,
 ): Promise<{ success: boolean; error?: string }> {
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -241,7 +242,11 @@ export async function sendMarketingSms(
     // (delivered, failed, undelivered) to our webhook
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     if (supabaseUrl) {
-        params.set("StatusCallback", `${supabaseUrl}/functions/v1/twilio-campaign-webhook`);
+        const callbackUrl = new URL(`${supabaseUrl}/functions/v1/twilio-campaign-webhook`);
+        if (sendId) {
+            callbackUrl.searchParams.set("send_id", sendId);
+        }
+        params.set("StatusCallback", callbackUrl.toString());
     }
 
     try {
