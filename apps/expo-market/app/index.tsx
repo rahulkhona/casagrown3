@@ -238,45 +238,40 @@ export default function AppShell() {
 
       if (data.type === 'START_SOCIAL_LOGIN') {
         const provider = data.provider;
-        console.log('[NATIVE_AUTH] Starting social login with provider:', provider);
+        Alert.alert('Step 1', `Starting social login: ${provider}\nBASE_URL: ${BASE_URL}`);
         try {
           const authUrl = `${BASE_URL}/login?provider=${provider}&native=true`;
           const redirectUrl = 'casagrown://auth-callback';
-          console.log('[NATIVE_AUTH] Launching WebBrowser with authUrl:', authUrl, 'and redirectUrl:', redirectUrl);
           const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
           
-          console.log('[NATIVE_AUTH] WebBrowser result type:', result.type);
+          Alert.alert('Step 2', `Browser result type: ${result.type}\nURL: ${'url' in result ? (result as any).url?.substring(0, 100) : 'none'}`);
           if (result.type === 'success' && result.url) {
-            console.log('[NATIVE_AUTH] WebBrowser returned success URL:', result.url);
-            
-            // Bulletproof raw URL parsing to prevent any expo-linking platform discrepancies
             const matchAccess = result.url.match(/[?&#]access_token=([^&]+)/);
             const matchRefresh = result.url.match(/[?&#]refresh_token=([^&]+)/);
             const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
             const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
             
-            console.log('[NATIVE_AUTH] Extracted accessToken (exists):', !!accessToken, 'refreshToken (exists):', !!refreshToken);
+            Alert.alert('Step 3', `Tokens found:\naccess: ${accessToken ? 'YES (' + accessToken.substring(0, 20) + '...)' : 'NO'}\nrefresh: ${refreshToken ? 'YES' : 'NO'}\nWebView ref: ${webViewRef.current ? 'EXISTS' : 'NULL'}`);
             
             if (accessToken && refreshToken) {
-              console.log('[NATIVE_AUTH] Tokens successfully retrieved. Injecting into WebView...');
               const js = `
-                console.log('[WEB_BRIDGE] receiveNativeSession JS injected execution starting...');
                 if (typeof window !== 'undefined' && window.receiveNativeSession) {
                   window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
                 } else {
-                  console.error('[WEB_BRIDGE] window.receiveNativeSession is not defined on global window object!');
+                  document.title = 'ERROR: receiveNativeSession not found';
                 }
                 true;
               `;
               webViewRef.current?.injectJavaScript(js);
+              Alert.alert('Step 4', 'JS injected into WebView');
             } else {
-              console.warn('[NATIVE_AUTH] Failed to parse access_token or refresh_token from redirect URL:', result.url);
+              Alert.alert('Step 3 FAIL', `Could not parse tokens.\nFull URL: ${result.url.substring(0, 200)}`);
             }
           } else {
-            console.warn('[NATIVE_AUTH] WebBrowser did not return success or URL was empty. Result:', result);
+            Alert.alert('Step 2 FAIL', `Browser did not return success.\nType: ${result.type}`);
           }
-        } catch (authErr) {
-          console.error('[NATIVE_AUTH] Social login native error:', authErr);
+        } catch (authErr: any) {
+          Alert.alert('ERROR', `Social login error: ${authErr?.message || authErr}`);
         }
         return;
       }
