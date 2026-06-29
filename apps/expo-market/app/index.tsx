@@ -100,6 +100,7 @@ export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
   const isPageLoadedRef = useRef(false);
+  const pendingAuthUrlRef = useRef<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
   const [canGoBack, setCanGoBack] = useState(false);
 
@@ -122,10 +123,19 @@ export default function AppShell() {
 
   // ─── 1. Deep Linking & AppState ───
   useEffect(() => {
-    // AppState listener to sync notification permission back when returning to app
+    // AppState listener — when app comes to foreground, check for pending auth tokens
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
         checkAndSendNotificationPermission();
+        // Apply any pending auth URL from deep link
+        const pendingUrl = pendingAuthUrlRef.current;
+        if (pendingUrl) {
+          pendingAuthUrlRef.current = null;
+          // Small delay to ensure WebView is fully active after resume
+          setTimeout(() => {
+            setCurrentUrl(pendingUrl);
+          }, 300);
+        }
       }
     };
     const appStateSub = AppState.addEventListener('change', handleAppStateChange);
@@ -181,12 +191,12 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          // Navigate the WebView to auth-callback with tokens in the hash fragment.
-          // Supabase JS client automatically detects tokens in the URL hash and sets the session.
-          // We use setCurrentUrl (React state) instead of injectJavaScript because
-          // injectJavaScript silently fails on Android after resuming from Chrome Custom Tabs.
+          // Store the auth URL for the AppState 'active' handler to apply.
+          // We don't call setCurrentUrl here directly because during the app resume
+          // transition from Chrome Custom Tab, React state updates may be batched/deferred.
           const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
-          setCurrentUrl(authCallbackUrl);
+          pendingAuthUrlRef.current = authCallbackUrl;
+          Alert.alert('Auth Ready', 'Tokens stored. Will navigate when app resumes.');
           return true;
         }
       }
