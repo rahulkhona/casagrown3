@@ -122,15 +122,17 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
 
-    // Check for auth tokens passed via URL query params from the native app's deep link handler.
+    // Check for auth tokens passed via URL hash fragment from the native app's deep link handler.
+    // Hash fragments are never sent to the server (security).
     // This handles the Android social login flow where tokens arrive via deep link.
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
+      const hash = window.location.hash.substring(1) // Remove leading #
+      const params = new URLSearchParams(hash)
       const at = params.get('__at')
       const rt = params.get('__rt')
       if (at && rt) {
         // Clean the tokens from the URL immediately
-        window.history.replaceState(null, '', window.location.pathname)
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
         supabase.auth.setSession({
           access_token: at,
           refresh_token: rt,

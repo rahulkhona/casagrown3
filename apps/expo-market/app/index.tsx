@@ -193,9 +193,10 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          // Simplest approach: encode tokens directly in the URL query params.
-          // The web app's useBootstrap reads them from window.location.search.
-          const marketWithTokens = `${BASE_URL}/market?__at=${encodeURIComponent(accessToken)}&__rt=${encodeURIComponent(refreshToken)}`;
+          // Encode tokens in URL hash fragment (not query params) for security.
+          // Hash fragments are never sent to the server or logged.
+          // The web app's useBootstrap reads them from window.location.hash.
+          const marketWithTokens = `${BASE_URL}/market#__at=${encodeURIComponent(accessToken)}&__rt=${encodeURIComponent(refreshToken)}`;
           setCurrentUrl(marketWithTokens);
           setWebViewKey(k => k + 1); // Force WebView remount
           return true;
