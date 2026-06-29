@@ -102,6 +102,7 @@ export default function AppShell() {
   const isPageLoadedRef = useRef(false);
   const pendingAuthUrlRef = useRef<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
+  const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
 
   const checkAndSendNotificationPermission = async () => {
@@ -191,12 +192,12 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          // Store the auth URL for the AppState 'active' handler to apply.
-          // We don't call setCurrentUrl here directly because during the app resume
-          // transition from Chrome Custom Tab, React state updates may be batched/deferred.
           const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
-          pendingAuthUrlRef.current = authCallbackUrl;
-          Alert.alert('Auth Ready', 'Tokens stored. Will navigate when app resumes.');
+          // Force WebView remount by changing its key. This guarantees React
+          // unmounts the old WebView and mounts a fresh one with the new URL.
+          // Simply changing source.uri can be silently ignored by Android WebView.
+          setCurrentUrl(authCallbackUrl);
+          setWebViewKey(k => k + 1);
           return true;
         }
       }
@@ -499,6 +500,7 @@ export default function AppShell() {
 
   const webview = (
     <WebView
+      key={webViewKey}
       ref={webViewRef}
       source={{ uri: currentUrl }}
       injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
