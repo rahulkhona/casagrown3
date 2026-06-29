@@ -195,9 +195,9 @@ export default function AppShell() {
           const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
           // Force WebView remount by changing its key. This guarantees React
           // unmounts the old WebView and mounts a fresh one with the new URL.
-          // Simply changing source.uri can be silently ignored by Android WebView.
           setCurrentUrl(authCallbackUrl);
           setWebViewKey(k => k + 1);
+          Alert.alert('DeepLink OK', `Navigating WebView to:\n${authCallbackUrl.substring(0, 80)}...`);
           return true;
         }
       }

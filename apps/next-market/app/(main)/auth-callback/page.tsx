@@ -18,9 +18,31 @@ function AuthCallbackInner() {
       (typeof window !== 'undefined' && window.sessionStorage.getItem('is_native_auth') === 'true') ||
       hasNativeCookie
 
-    // We wait briefly for Supabase to parse the URL hash and set the session
+    // Manually extract tokens from hash fragment — Supabase's auto-detection
+    // may not work if the client singleton was already initialized on another page.
+    const hash = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
+    const hashParams = new URLSearchParams(hash)
+    const hashAccessToken = hashParams.get('access_token')
+    const hashRefreshToken = hashParams.get('refresh_token')
+
     const checkSession = async () => {
       try {
+        // If tokens are in the hash, set the session explicitly
+        if (hashAccessToken && hashRefreshToken) {
+          const { error: setErr } = await supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken,
+          })
+          if (setErr) {
+            setError('Failed to set session: ' + setErr.message)
+            return
+          }
+          // Clear hash from URL to prevent re-processing
+          if (typeof window !== 'undefined') {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession()
         const redirectPath = searchParams.get('redirect') || '/market'
         if (session) {
