@@ -99,6 +99,7 @@ const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test
 // Configure Google Sign-In with the Web client ID (required for signInWithIdToken)
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+  iosClientId: '747779164552-fv7ljc1jnpt5ocrhcv0p7qsmhbqp00ep.apps.googleusercontent.com',
   offlineAccess: false,
 });
 

@@ -38,7 +38,14 @@
         "NSPhotoLibraryUsageDescription": "CasaGrown needs photo library access to add images to your listings.",
         "NSPhotoLibraryAddUsageDescription": "CasaGrown needs permission to save delivery proof photos to your photo library.",
         "NSLocationWhenInUseUsageDescription": "CasaGrown uses your location to show nearby produce and set your community.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.747779164552-fv7ljc1jnpt5ocrhcv0p7qsmhbqp00ep"
+            ]
+          }
+        ]
       }
     },
     "android": {
