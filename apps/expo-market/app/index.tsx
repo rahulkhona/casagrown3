@@ -183,15 +183,10 @@ export default function AppShell() {
         if (accessToken && refreshToken) {
           // Navigate the WebView to auth-callback with tokens in the hash fragment.
           // Supabase JS client automatically detects tokens in the URL hash and sets the session.
-          // This is far more reliable than JS injection which can silently fail on Android WebViews.
+          // We use setCurrentUrl (React state) instead of injectJavaScript because
+          // injectJavaScript silently fails on Android after resuming from Chrome Custom Tabs.
           const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
-          if (isPageLoadedRef.current && webViewRef.current) {
-            webViewRef.current.injectJavaScript(
-              `window.location.href = ${JSON.stringify(authCallbackUrl)}; true;`
-            );
-          } else {
-            pendingDeepLinkRef.current = authCallbackUrl;
-          }
+          setCurrentUrl(authCallbackUrl);
           return true;
         }
       }
