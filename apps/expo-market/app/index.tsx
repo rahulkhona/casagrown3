@@ -527,9 +527,15 @@ export default function AppShell() {
         }
         return true; // Internal CasaGrown / auth pages stay in WebView
       }}
-      onLoadEnd={() => {
+      onLoadEnd={(event) => {
+        const loadedUrl = event.nativeEvent.url;
         // Mark the page as loaded so warm deep links can inject JS directly
         isPageLoadedRef.current = true;
+
+        // Diagnostic: show what URL the WebView actually loaded
+        if (loadedUrl && loadedUrl.includes('auth-callback')) {
+          Alert.alert('WebView Loaded', `URL: ${loadedUrl.substring(0, 120)}`);
+        }
 
         // Hide splash screen once the webview finishes its initial load
         const p = SplashScreen.hideAsync();
