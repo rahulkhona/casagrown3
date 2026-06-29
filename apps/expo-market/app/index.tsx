@@ -181,25 +181,16 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          const js = `
-            if (typeof window !== 'undefined' && window.receiveNativeSession) {
-              window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
-            }
-            true;
-          `;
+          // Navigate the WebView to auth-callback with tokens in the hash fragment.
+          // Supabase JS client automatically detects tokens in the URL hash and sets the session.
+          // This is far more reliable than JS injection which can silently fail on Android WebViews.
+          const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
           if (isPageLoadedRef.current && webViewRef.current) {
-            webViewRef.current.injectJavaScript(js);
+            webViewRef.current.injectJavaScript(
+              `window.location.href = ${JSON.stringify(authCallbackUrl)}; true;`
+            );
           } else {
-            // Page not loaded yet — store a pending action for after onLoadEnd
-            pendingDeepLinkRef.current = null; // Clear any pending navigation
-            const waitForLoad = setInterval(() => {
-              if (isPageLoadedRef.current && webViewRef.current) {
-                clearInterval(waitForLoad);
-                webViewRef.current.injectJavaScript(js);
-              }
-            }, 200);
-            // Safety: stop waiting after 10 seconds
-            setTimeout(() => clearInterval(waitForLoad), 10000);
+            pendingDeepLinkRef.current = authCallbackUrl;
           }
           return true;
         }
