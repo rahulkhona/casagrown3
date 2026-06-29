@@ -240,10 +240,14 @@ export default function AppShell() {
           console.log('[NATIVE_AUTH] WebBrowser result type:', result.type);
           if (result.type === 'success' && result.url) {
             console.log('[NATIVE_AUTH] WebBrowser returned success URL:', result.url);
-            const parsed = Linking.parse(result.url);
-            console.log('[NATIVE_AUTH] Parsed URL query params:', parsed.queryParams);
-            const accessToken = parsed.queryParams?.access_token as string;
-            const refreshToken = parsed.queryParams?.refresh_token as string;
+            
+            // Bulletproof raw URL parsing to prevent any expo-linking platform discrepancies
+            const matchAccess = result.url.match(/[?&#]access_token=([^&]+)/);
+            const matchRefresh = result.url.match(/[?&#]refresh_token=([^&]+)/);
+            const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
+            const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
+            
+            console.log('[NATIVE_AUTH] Extracted accessToken (exists):', !!accessToken, 'refreshToken (exists):', !!refreshToken);
             
             if (accessToken && refreshToken) {
               console.log('[NATIVE_AUTH] Tokens successfully retrieved. Injecting into WebView...');
@@ -258,7 +262,7 @@ export default function AppShell() {
               `;
               webViewRef.current?.injectJavaScript(js);
             } else {
-              console.warn('[NATIVE_AUTH] Missing access_token or refresh_token in query params');
+              console.warn('[NATIVE_AUTH] Failed to parse access_token or refresh_token from redirect URL:', result.url);
             }
           } else {
             console.warn('[NATIVE_AUTH] WebBrowser did not return success or URL was empty. Result:', result);
