@@ -18,8 +18,9 @@ function AuthCallbackInner() {
       (typeof window !== 'undefined' && window.sessionStorage.getItem('is_native_auth') === 'true') ||
       hasNativeCookie
 
-    // Manually extract tokens from hash fragment — Supabase's auto-detection
-    // may not work if the client singleton was already initialized on another page.
+    // Manually extract tokens from hash fragment as a fallback — try setSession
+    // but if it fails, fall through to the normal getSession check which relies
+    // on Supabase's auto-detection.
     const hash = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
     const hashParams = new URLSearchParams(hash)
     const hashAccessToken = hashParams.get('access_token')
@@ -27,20 +28,12 @@ function AuthCallbackInner() {
 
     const checkSession = async () => {
       try {
-        // If tokens are in the hash, set the session explicitly
+        // Best-effort: try setting session from hash tokens explicitly
         if (hashAccessToken && hashRefreshToken) {
-          const { error: setErr } = await supabase.auth.setSession({
+          await supabase.auth.setSession({
             access_token: hashAccessToken,
             refresh_token: hashRefreshToken,
-          })
-          if (setErr) {
-            setError('Failed to set session: ' + setErr.message)
-            return
-          }
-          // Clear hash from URL to prevent re-processing
-          if (typeof window !== 'undefined') {
-            window.history.replaceState(null, '', window.location.pathname + window.location.search)
-          }
+          }).catch(() => {}) // Ignore errors — fall through to getSession
         }
 
         const { data: { session } } = await supabase.auth.getSession()
