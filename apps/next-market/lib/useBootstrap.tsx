@@ -172,6 +172,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
           })
           if (error) {
             console.error('[NATIVE_AUTH] Error setting native session:', error.message)
+          } else {
+            console.log('[NATIVE_AUTH] Native session established. Reloading to sync cookies...')
+            window.location.reload()
           }
         } catch (err) {
           console.error('[NATIVE_AUTH] Failed setting native session:', err)
@@ -188,6 +191,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
             })
             if (error) {
               console.error('[NATIVE_AUTH] Error signing up mock user:', error.message)
+            } else {
+              console.log('[NATIVE_AUTH] Mock Apple user signed up. Reloading...')
+              window.location.reload()
             }
             return
           }
@@ -205,7 +211,13 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
               })
               if (signUpErr) {
                 console.error('[NATIVE_AUTH] Error signing up stable mock user:', signUpErr.message)
+              } else {
+                console.log('[NATIVE_AUTH] Stable mock Apple user signed up. Reloading...')
+                window.location.reload()
               }
+            } else {
+              console.log('[NATIVE_AUTH] Stable mock Apple user signed in. Reloading...')
+              window.location.reload()
             }
             return
           }
@@ -216,6 +228,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
           })
           if (error) {
             console.error('[NATIVE_AUTH] Error setting native Apple identity token:', error.message)
+          } else {
+            console.log('[NATIVE_AUTH] Native Apple session established. Reloading...')
+            window.location.reload()
           }
         } catch (err) {
           console.error('[NATIVE_AUTH] Failed setting native Apple identity token:', err)
