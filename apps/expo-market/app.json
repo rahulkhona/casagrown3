@@ -55,7 +55,7 @@
       },
       "package": "com.casagrown.market",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 6,
+      "versionCode": 7,
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {

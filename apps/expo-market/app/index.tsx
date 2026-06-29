@@ -259,6 +259,8 @@ export default function AppShell() {
         if (provider === 'google') {
           try {
             await GoogleSignin.hasPlayServices();
+            // Sign out first so the account picker always appears (allows switching accounts)
+            try { await GoogleSignin.signOut(); } catch (_) { /* ignore if not signed in */ }
             const response = await GoogleSignin.signIn();
             if ('data' in response && response.data?.idToken) {
               const idToken = response.data.idToken;
