@@ -29,9 +29,9 @@
       "associatedDomains": [
         "applinks:casagrown.com"
       ],
+      "usesAppleSignIn": true,
       "entitlements": {
-        "aps-environment": "production",
-        "com.apple.developer.sign-in-with-apple": ["Default"]
+        "aps-environment": "production"
       },
       "infoPlist": {
         "NSCameraUsageDescription": "CasaGrown needs camera access to photograph your produce for listings.",
@@ -229,7 +229,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true
