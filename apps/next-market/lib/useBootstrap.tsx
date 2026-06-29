@@ -131,6 +131,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       const at = params.get('__at')
       const rt = params.get('__rt')
       if (at && rt) {
+        alert(`STEP 2: useBootstrap found tokens. at=${at.substring(0, 20)}... rt=${rt.substring(0, 20)}...`)
         // Clean the tokens from the URL immediately
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
         supabase.auth.setSession({
@@ -138,9 +139,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
           refresh_token: rt,
         }).then(({ error }: { error: any }) => {
           if (error) {
-            console.error('[NATIVE_AUTH] setSession from URL tokens failed:', error.message)
+            alert(`STEP 3: setSession FAILED: ${error.message}`)
           } else {
-            console.log('[NATIVE_AUTH] Session set from URL tokens. Reloading...')
+            alert('STEP 3: setSession SUCCESS! Reloading...')
             window.location.reload()
           }
         })

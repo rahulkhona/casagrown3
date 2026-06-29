@@ -197,6 +197,7 @@ export default function AppShell() {
           // Hash fragments are never sent to the server or logged.
           // The web app's useBootstrap reads them from window.location.hash.
           const marketWithTokens = `${BASE_URL}/market#__at=${encodeURIComponent(accessToken)}&__rt=${encodeURIComponent(refreshToken)}`;
+          Alert.alert('STEP 1: Native', `URL: ${marketWithTokens.substring(0, 100)}...`);
           setCurrentUrl(marketWithTokens);
           setWebViewKey(k => k + 1); // Force WebView remount
           return true;
