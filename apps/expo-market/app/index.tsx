@@ -230,28 +230,41 @@ export default function AppShell() {
 
       if (data.type === 'START_SOCIAL_LOGIN') {
         const provider = data.provider;
+        console.log('[NATIVE_AUTH] Starting social login with provider:', provider);
         try {
           const authUrl = `${BASE_URL}/login?provider=${provider}&native=true`;
           const redirectUrl = 'casagrown://auth-callback';
+          console.log('[NATIVE_AUTH] Launching WebBrowser with authUrl:', authUrl, 'and redirectUrl:', redirectUrl);
           const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
           
+          console.log('[NATIVE_AUTH] WebBrowser result type:', result.type);
           if (result.type === 'success' && result.url) {
+            console.log('[NATIVE_AUTH] WebBrowser returned success URL:', result.url);
             const parsed = Linking.parse(result.url);
+            console.log('[NATIVE_AUTH] Parsed URL query params:', parsed.queryParams);
             const accessToken = parsed.queryParams?.access_token as string;
             const refreshToken = parsed.queryParams?.refresh_token as string;
             
             if (accessToken && refreshToken) {
+              console.log('[NATIVE_AUTH] Tokens successfully retrieved. Injecting into WebView...');
               const js = `
+                console.log('[WEB_BRIDGE] receiveNativeSession JS injected execution starting...');
                 if (typeof window !== 'undefined' && window.receiveNativeSession) {
                   window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
+                } else {
+                  console.error('[WEB_BRIDGE] window.receiveNativeSession is not defined on global window object!');
                 }
                 true;
               `;
               webViewRef.current?.injectJavaScript(js);
+            } else {
+              console.warn('[NATIVE_AUTH] Missing access_token or refresh_token in query params');
             }
+          } else {
+            console.warn('[NATIVE_AUTH] WebBrowser did not return success or URL was empty. Result:', result);
           }
         } catch (authErr) {
-          console.error('Social login native error:', authErr);
+          console.error('[NATIVE_AUTH] Social login native error:', authErr);
         }
         return;
       }
