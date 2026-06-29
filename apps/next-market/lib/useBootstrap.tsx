@@ -122,23 +122,28 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
 
-    // Check for auth tokens injected by the native app via injectedJavaScriptBeforeContentLoaded.
-    // This handles the social login flow where tokens arrive via deep link on Android.
-    const nativeTokens = typeof window !== 'undefined' ? (window as any).__NATIVE_AUTH_TOKENS : null
-    if (nativeTokens) {
-      delete (window as any).__NATIVE_AUTH_TOKENS // Clear so it's only processed once
-      supabase.auth.setSession({
-        access_token: nativeTokens.accessToken,
-        refresh_token: nativeTokens.refreshToken,
-      }).then(({ error }: { error: any }) => {
-        if (error) {
-          console.error('[NATIVE_AUTH] setSession from injected tokens failed:', error.message)
-        } else {
-          console.log('[NATIVE_AUTH] Session set from injected tokens. Reloading...')
-          window.location.reload()
-        }
-      })
-      return // Don't continue with normal bootstrap — the reload will re-run it
+    // Check for auth tokens passed via URL query params from the native app's deep link handler.
+    // This handles the Android social login flow where tokens arrive via deep link.
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const at = params.get('__at')
+      const rt = params.get('__rt')
+      if (at && rt) {
+        // Clean the tokens from the URL immediately
+        window.history.replaceState(null, '', window.location.pathname)
+        supabase.auth.setSession({
+          access_token: at,
+          refresh_token: rt,
+        }).then(({ error }: { error: any }) => {
+          if (error) {
+            console.error('[NATIVE_AUTH] setSession from URL tokens failed:', error.message)
+          } else {
+            console.log('[NATIVE_AUTH] Session set from URL tokens. Reloading...')
+            window.location.reload()
+          }
+        })
+        return // Don't continue with normal bootstrap — the reload will re-run it
+      }
     }
 
     // Step 1: Read session from cookie (instant, no network)

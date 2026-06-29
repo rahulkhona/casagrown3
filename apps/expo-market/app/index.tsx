@@ -193,10 +193,10 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          // Store tokens in a ref so they get included in injectedJavaScriptBeforeContentLoaded
-          // when the WebView remounts. The web app's useBootstrap will detect them and call setSession.
-          pendingAuthTokensRef.current = { accessToken, refreshToken };
-          setCurrentUrl(START_URL); // Navigate to market page, not auth-callback
+          // Simplest approach: encode tokens directly in the URL query params.
+          // The web app's useBootstrap reads them from window.location.search.
+          const marketWithTokens = `${BASE_URL}/market?__at=${encodeURIComponent(accessToken)}&__rt=${encodeURIComponent(refreshToken)}`;
+          setCurrentUrl(marketWithTokens);
           setWebViewKey(k => k + 1); // Force WebView remount
           return true;
         }
