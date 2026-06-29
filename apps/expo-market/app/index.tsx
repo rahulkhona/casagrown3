@@ -170,6 +170,42 @@ export default function AppShell() {
 
   const handleDeepLink = (url: string): boolean => {
     try {
+      // ── Intercept OAuth auth-callback deep links ──
+      // On Android, WebBrowser.openAuthSessionAsync returns 'dismiss' and the
+      // casagrown://auth-callback?access_token=...&refresh_token=... URL arrives
+      // here as a regular deep link instead.
+      if (url.includes('auth-callback') && url.includes('access_token')) {
+        const matchAccess = url.match(/[?&#]access_token=([^&]+)/);
+        const matchRefresh = url.match(/[?&#]refresh_token=([^&]+)/);
+        const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
+        const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
+
+        if (accessToken && refreshToken) {
+          Alert.alert('Deep Link Auth', `Tokens received via deep link!\naccess: YES\nrefresh: YES\nWebView: ${webViewRef.current ? 'EXISTS' : 'NULL'}`);
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeSession) {
+              window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
+            }
+            true;
+          `;
+          if (isPageLoadedRef.current && webViewRef.current) {
+            webViewRef.current.injectJavaScript(js);
+          } else {
+            // Page not loaded yet — store a pending action for after onLoadEnd
+            pendingDeepLinkRef.current = null; // Clear any pending navigation
+            const waitForLoad = setInterval(() => {
+              if (isPageLoadedRef.current && webViewRef.current) {
+                clearInterval(waitForLoad);
+                webViewRef.current.injectJavaScript(js);
+              }
+            }, 200);
+            // Safety: stop waiting after 10 seconds
+            setTimeout(() => clearInterval(waitForLoad), 10000);
+          }
+          return true;
+        }
+      }
+
       const parsed = Linking.parse(url);
       let targetPath = '';
 
