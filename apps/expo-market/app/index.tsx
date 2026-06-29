@@ -10,7 +10,15 @@ import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-const BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://casagrown.com';
+const getBaseUrl = (): string => {
+  const url = process.env.EXPO_PUBLIC_WEB_URL;
+  if (!url || url === 'undefined' || url === 'null' || url.trim() === '') {
+    return 'https://casagrown.com';
+  }
+  return url;
+};
+
+const BASE_URL = getBaseUrl();
 const START_URL = `${BASE_URL}/market`;
 
 const getBaseHostname = (): string => {
