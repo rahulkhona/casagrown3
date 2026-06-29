@@ -231,6 +231,14 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       "expo-apple-authentication",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
       "@react-native-google-signin/google-signin"
     ],
     "experiments": {
