@@ -230,7 +230,18 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@react-native-google-signin/google-signin",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "PLACEHOLDER_FB_APP_ID",
+          "clientToken": "PLACEHOLDER_FB_CLIENT_TOKEN",
+          "displayName": "CasaGrown",
+          "autoLogAppEventsEnabled": false,
+          "advertiserIDCollectionEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

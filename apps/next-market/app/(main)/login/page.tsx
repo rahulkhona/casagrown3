@@ -359,6 +359,7 @@ function LoginPageInner() {
                   >
                     <span style={{ fontSize: '18px' }}>🌐</span> Continue with Google
                   </button>
+                  {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
                   <button
                     type="button"
                     onClick={() => handleSocialLogin('apple')}
@@ -367,6 +368,7 @@ function LoginPageInner() {
                   >
                     <span style={{ fontSize: '18px' }}></span> Continue with Apple
                   </button>
+                  )}
                 </div>
               </div>
             )}

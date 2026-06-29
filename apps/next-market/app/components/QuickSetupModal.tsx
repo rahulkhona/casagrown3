@@ -798,6 +798,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                     >
                       <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
                     </button>
+                    {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
                     <button
                       type="button"
                       className={styles.socialButton}
@@ -806,6 +807,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                     >
                       <span style={{ fontSize: '15px' }}></span> Continue with Apple
                     </button>
+                    )}
                     <div className={styles.divider}>
                       <span>or</span>
                     </div>
@@ -855,6 +857,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                     >
                       <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
                     </button>
+                    {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
                     <button
                       type="button"
                       className={styles.socialButton}
@@ -863,6 +866,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                     >
                       <span style={{ fontSize: '15px' }}></span> Continue with Apple
                     </button>
+                    )}
                     <div className={styles.divider}>
                       <span>or</span>
                     </div>

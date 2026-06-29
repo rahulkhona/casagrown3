@@ -82,7 +82,7 @@ function ProfileSetupPageInner() {
         .single()
         
       if (profile) {
-        setFullName(profile.full_name || '')
+        setFullName(profile.full_name || session?.user?.user_metadata?.full_name || '')
         setStreetAddress(profile.street_address || '')
         setCity(profile.city || '')
         setStateCode(profile.state_code || '')

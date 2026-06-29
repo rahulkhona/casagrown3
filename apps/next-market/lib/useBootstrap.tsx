@@ -122,32 +122,6 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
 
-    // Check for auth tokens passed via URL hash fragment from the native app's deep link handler.
-    // Hash fragments are never sent to the server (security).
-    // This handles the Android social login flow where tokens arrive via deep link.
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash.substring(1) // Remove leading #
-      const params = new URLSearchParams(hash)
-      const at = params.get('__at')
-      const rt = params.get('__rt')
-      if (at && rt) {
-        alert(`STEP 2: useBootstrap found tokens. at=${at.substring(0, 20)}... rt=${rt.substring(0, 20)}...`)
-        // Clean the tokens from the URL immediately
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
-        supabase.auth.setSession({
-          access_token: at,
-          refresh_token: rt,
-        }).then(({ error }: { error: any }) => {
-          if (error) {
-            alert(`STEP 3: setSession FAILED: ${error.message}`)
-          } else {
-            alert('STEP 3: setSession SUCCESS! Reloading...')
-            window.location.reload()
-          }
-        })
-        return // Don't continue with normal bootstrap — the reload will re-run it
-      }
-    }
 
     // Step 1: Read session from cookie (instant, no network)
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
@@ -205,6 +179,23 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
           }
         } catch (err: any) {
           console.error('[NATIVE_AUTH] Failed setting native session:', err);
+        }
+      }
+
+      (window as any).receiveNativeGoogleToken = async (idToken: string) => {
+        try {
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+          })
+          if (error) {
+            console.error('[NATIVE_AUTH] Google signInWithIdToken failed:', error.message)
+          } else {
+            console.log('[NATIVE_AUTH] Google sign-in successful. Reloading...')
+            window.location.reload()
+          }
+        } catch (err: any) {
+          console.error('[NATIVE_AUTH] Google sign-in error:', err)
         }
       }
 
@@ -269,6 +260,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe()
       if (typeof window !== 'undefined') {
         delete (window as any).receiveNativeSession
+        delete (window as any).receiveNativeGoogleToken
         delete (window as any).receiveNativeAppleToken
       }
     }

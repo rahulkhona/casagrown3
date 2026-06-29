@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
 const getBaseUrl = (): string => {
@@ -96,12 +96,17 @@ if (Platform.OS === 'android') {
 
 const IS_TEST = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
 
+// Configure Google Sign-In with the Web client ID (required for signInWithIdToken)
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+  offlineAccess: false,
+});
+
 export default function AppShell() {
   const webViewRef = useRef<WebView>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
   const isPageLoadedRef = useRef(false);
   const pendingAuthUrlRef = useRef<string | null>(null);
-  const pendingAuthTokensRef = useRef<{ accessToken: string; refreshToken: string } | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
   const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -182,28 +187,6 @@ export default function AppShell() {
 
   const handleDeepLink = (url: string): boolean => {
     try {
-      // ── Intercept OAuth auth-callback deep links ──
-      // On Android, WebBrowser.openAuthSessionAsync returns 'dismiss' and the
-      // casagrown://auth-callback?access_token=...&refresh_token=... URL arrives
-      // here as a regular deep link instead.
-      if (url.includes('auth-callback') && url.includes('access_token')) {
-        const matchAccess = url.match(/[?&#]access_token=([^&]+)/);
-        const matchRefresh = url.match(/[?&#]refresh_token=([^&]+)/);
-        const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
-        const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
-
-        if (accessToken && refreshToken) {
-          // Encode tokens in URL hash fragment (not query params) for security.
-          // Hash fragments are never sent to the server or logged.
-          // The web app's useBootstrap reads them from window.location.hash.
-          const marketWithTokens = `${BASE_URL}/market#__at=${encodeURIComponent(accessToken)}&__rt=${encodeURIComponent(refreshToken)}`;
-          Alert.alert('STEP 1: Native', `URL: ${marketWithTokens.substring(0, 100)}...`);
-          setCurrentUrl(marketWithTokens);
-          setWebViewKey(k => k + 1); // Force WebView remount
-          return true;
-        }
-      }
-
       const parsed = Linking.parse(url);
       let targetPath = '';
 
@@ -272,32 +255,19 @@ export default function AppShell() {
 
       if (data.type === 'START_SOCIAL_LOGIN') {
         const provider = data.provider;
-        try {
-          const authUrl = `${BASE_URL}/login?provider=${provider}&native=true`;
-          const redirectUrl = 'casagrown://auth-callback';
-          const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-          
-          // On iOS, tokens come back via result.url (type === 'success').
-          // On Android, tokens arrive via deep link handler instead (type === 'dismiss').
-          if (result.type === 'success' && result.url) {
-            const matchAccess = result.url.match(/[?&#]access_token=([^&]+)/);
-            const matchRefresh = result.url.match(/[?&#]refresh_token=([^&]+)/);
-            const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
-            const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
-            
-            if (accessToken && refreshToken) {
-              const js = `
-                if (typeof window !== 'undefined' && window.receiveNativeSession) {
-                  window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
-                }
-                true;
-              `;
-              webViewRef.current?.injectJavaScript(js);
+        if (provider === 'google') {
+          try {
+            await GoogleSignin.hasPlayServices();
+            const response = await GoogleSignin.signIn();
+            if ('data' in response && response.data?.idToken) {
+              const idToken = response.data.idToken;
+              webViewRef.current?.injectJavaScript(
+                `window.receiveNativeGoogleToken && window.receiveNativeGoogleToken(${JSON.stringify(idToken)}); true;`
+              );
             }
+          } catch (err: any) {
+            console.error('[GOOGLE_SIGNIN] Error:', err);
           }
-          // 'dismiss' on Android is expected — tokens handled by handleDeepLink
-        } catch (authErr: any) {
-          console.error('[NATIVE_AUTH] Social login error:', authErr);
         }
         return;
       }
@@ -488,21 +458,13 @@ export default function AppShell() {
   // so the web page can detect support before using it. This ensures backward
   // compatibility with older native builds (e.g. Android in review).
   const appName = Constants.appOwnership === 'expo' ? 'Expo Go' : (Constants.expoConfig?.name || 'CasaGrown');
-  // If we have pending auth tokens from a social login deep link, inject them
-  // as a global variable BEFORE the page's JavaScript runs.
-  const pendingTokens = pendingAuthTokensRef.current;
-  const tokenInjection = pendingTokens
-    ? `window.__NATIVE_AUTH_TOKENS = { accessToken: ${JSON.stringify(pendingTokens.accessToken)}, refreshToken: ${JSON.stringify(pendingTokens.refreshToken)} };`
-    : '';
-  // Clear the ref so tokens are only injected once
-  if (pendingTokens) pendingAuthTokensRef.current = null;
 
   const INJECTED_JAVASCRIPT = `
     window.IS_NATIVE_APP = true;
     window.NATIVE_SUPPORTS_LOCATION = true;
     window.NATIVE_SUPPORTS_SOCIAL_LOGIN = true;
+    window.NATIVE_SUPPORTS_APPLE_LOGIN = ${Platform.OS === 'ios'};
     window.NATIVE_APP_NAME = ${JSON.stringify(appName)};
-    ${tokenInjection}
     document.documentElement.classList.add('native-app');
     document.documentElement.style.setProperty('--native-bottom-inset', '0px');
     true; // note: this is required, or you'll sometimes get silent failures
