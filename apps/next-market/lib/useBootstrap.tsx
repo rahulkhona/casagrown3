@@ -165,19 +165,23 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     // Register global native session receiver
     if (typeof window !== 'undefined') {
       (window as any).receiveNativeSession = async (accessToken: string, refreshToken: string) => {
+        alert('[NATIVE_AUTH] receiveNativeSession triggered! Token: ' + (accessToken ? accessToken.slice(0, 10) + '...' : 'null'));
         try {
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
-          })
+          });
           if (error) {
-            console.error('[NATIVE_AUTH] Error setting native session:', error.message)
+            alert('[NATIVE_AUTH] setSession Error: ' + error.message);
+            console.error('[NATIVE_AUTH] Error setting native session:', error.message);
           } else {
-            console.log('[NATIVE_AUTH] Native session established. Reloading to sync cookies...')
-            window.location.reload()
+            alert('[NATIVE_AUTH] setSession Success! Reloading page...');
+            console.log('[NATIVE_AUTH] Native session established. Reloading to sync cookies...');
+            window.location.reload();
           }
-        } catch (err) {
-          console.error('[NATIVE_AUTH] Failed setting native session:', err)
+        } catch (err: any) {
+          alert('[NATIVE_AUTH] setSession Exception: ' + err.message);
+          console.error('[NATIVE_AUTH] Failed setting native session:', err);
         }
       }
 
