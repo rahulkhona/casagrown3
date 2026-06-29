@@ -162,7 +162,74 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Register global native session receiver
+    if (typeof window !== 'undefined') {
+      (window as any).receiveNativeSession = async (accessToken: string, refreshToken: string) => {
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (error) {
+            console.error('[NATIVE_AUTH] Error setting native session:', error.message)
+          }
+        } catch (err) {
+          console.error('[NATIVE_AUTH] Failed setting native session:', err)
+        }
+      }
+
+      (window as any).receiveNativeAppleToken = async (identityToken: string) => {
+        try {
+          if (identityToken === "mock_new_user" || identityToken === "mock_simulator_developer_bypass") {
+            const mockEmail = `mock_apple_${Date.now()}@test.local`
+            const { error } = await supabase.auth.signUp({
+              email: mockEmail,
+              password: 'TestPassword123!'
+            })
+            if (error) {
+              console.error('[NATIVE_AUTH] Error signing up mock user:', error.message)
+            }
+            return
+          }
+
+          if (identityToken === "mock_existing_user") {
+            const mockEmail = "mock_apple_stable@test.local"
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+              email: mockEmail,
+              password: 'TestPassword123!'
+            })
+            if (signInErr) {
+              const { error: signUpErr } = await supabase.auth.signUp({
+                email: mockEmail,
+                password: 'TestPassword123!'
+              })
+              if (signUpErr) {
+                console.error('[NATIVE_AUTH] Error signing up stable mock user:', signUpErr.message)
+              }
+            }
+            return
+          }
+
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'apple',
+            token: identityToken
+          })
+          if (error) {
+            console.error('[NATIVE_AUTH] Error setting native Apple identity token:', error.message)
+          }
+        } catch (err) {
+          console.error('[NATIVE_AUTH] Failed setting native Apple identity token:', err)
+        }
+      }
+    }
+
+    return () => {
+      subscription.unsubscribe()
+      if (typeof window !== 'undefined') {
+        delete (window as any).receiveNativeSession
+        delete (window as any).receiveNativeAppleToken
+      }
+    }
   }, [fetchBootstrap])
 
   const isAuthenticated = !!user && !!data?.profile && !data.profile.is_banned

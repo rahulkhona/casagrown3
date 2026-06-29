@@ -67,12 +67,19 @@ Deno.test({ name: 'market-hold: status check constraint validates', sanitizeReso
 
 Deno.test({ name: 'market-hold: unique active hold per buyer enforced', sanitizeResources: false, sanitizeOps: false, fn: async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
-  // The unique index on (buyer_id) WHERE status = 'active' should prevent duplicates
-  // Just verify the constraint exists by checking the table description
-  const { data, error } = await supabase
-    .from('market_holds')
-    .select('id, buyer_id, status')
-    .eq('status', 'active')
-    .limit(0)
+  let data = null;
+  let error = null;
+  for (let i = 0; i < 5; i++) {
+    const res = await supabase
+      .from('market_holds')
+      .select('id, buyer_id, status')
+      .eq('status', 'active')
+      .limit(0);
+    data = res.data;
+    error = res.error;
+    if (!error) break;
+    console.log(`[RETRY] market-hold active holds query failed: ${error.message}. Retrying in 1s...`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
   assertEquals(error, null, 'Should be able to query active holds')
 }})

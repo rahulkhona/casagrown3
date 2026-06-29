@@ -103,3 +103,6 @@ scratch/
 # Firebase config (contains API keys)
 apps/expo-market/google-services.json
 apps/expo-market/GoogleService-Info.plist
+
+# Local builds
+apps/expo-market/build/

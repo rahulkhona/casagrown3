@@ -15,3 +15,13 @@
  */
 export const ENABLE_PRO = process.env.NEXT_PUBLIC_ENABLE_PRO === 'true'
 export const ENABLE_ELITE = process.env.NEXT_PUBLIC_ENABLE_ELITE === 'true'
+const isMobile = () => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
+export const ENABLE_SOCIAL_LOGIN =
+  (typeof window !== 'undefined' && (window as any).NATIVE_SUPPORTS_SOCIAL_LOGIN === true) ||
+  (process.env.NEXT_PUBLIC_ENABLE_SOCIAL_LOGIN === 'true' && !isMobile()) ||
+  (typeof window !== 'undefined' && window.localStorage.getItem('enable_social_login') === 'true')
+

@@ -34,6 +34,14 @@ function ProfileSetupPageInner() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarPreview, setAvatarPreview] = useState('')
   const [error, setError] = useState('')
+
+  // Email change states
+  const [initialEmail, setInitialEmail] = useState('')
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false)
+  const [emailOtp, setEmailOtp] = useState('')
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false)
+  const [emailError, setEmailError] = useState('')
+  const [emailSuccess, setEmailSuccess] = useState('')
   const [showCamera, setShowCamera] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [geolocating, setGeolocating] = useState(false)
@@ -65,6 +73,7 @@ function ProfileSetupPageInner() {
       if (!user) { router.replace('/login'); return }
       setUserId(user.id)
       setUserEmail(user.email || '')
+      setInitialEmail(user.email || '')
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -192,6 +201,10 @@ function ProfileSetupPageInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (userEmail !== initialEmail) {
+      setError('You must verify your new email address by clicking "Verify Code" before continuing.')
+      return
+    }
     if (!fullName.trim()) { setError('Please enter your name'); return }
     if (!streetAddress.trim()) { setError('Please enter your address'); return }
     if (!city.trim()) { setError('Please enter your city'); return }
@@ -423,12 +436,110 @@ function ProfileSetupPageInner() {
             />
           )}
 
-          {/* Email (read-only from auth) */}
-          {userEmail && (
-            <div className="form-group">
-              <label className="label" htmlFor="email">Email</label>
-              <input id="email" type="email" className="input" value={userEmail} readOnly
-                style={{ background: '#f9fafb', color: '#6b7280', cursor: 'default' }} />
+          {/* Email (Confirm/Change) */}
+          <div className="form-group">
+            <label className="label" htmlFor="email">Email Address</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input 
+                id="email" 
+                type="email" 
+                className="input" 
+                value={userEmail} 
+                onChange={e => {
+                  setUserEmail(e.target.value)
+                  setEmailError('')
+                  setEmailSuccess('')
+                }}
+                disabled={emailVerificationSent || isVerifyingEmail}
+              />
+              {userEmail !== initialEmail && !emailVerificationSent && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ whiteSpace: 'nowrap', fontSize: '13px' }}
+                  onClick={async () => {
+                    setEmailError('')
+                    setEmailSuccess('')
+                    if (!userEmail.trim()) { setEmailError('Please enter a valid email'); return }
+                    setIsVerifyingEmail(true)
+                    const { error: sendErr } = await supabase.auth.updateUser({ email: userEmail.trim() })
+                    setIsVerifyingEmail(false)
+                    if (sendErr) {
+                      setEmailError(sendErr.message)
+                    } else {
+                      setEmailVerificationSent(true)
+                      setEmailSuccess('Verification code sent to ' + userEmail)
+                    }
+                  }}
+                  disabled={isVerifyingEmail}
+                >
+                  {isVerifyingEmail ? 'Sending...' : 'Verify Code'}
+                </button>
+              )}
+            </div>
+            {emailError && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--red-600, #dc2626)' }}>{emailError}</p>}
+            {emailSuccess && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--green-600, #16a34a)' }}>{emailSuccess}</p>}
+            {userEmail !== initialEmail && !emailVerificationSent && (
+              <p className="form-helper" style={{ color: '#b45309' }}>
+                ⚠️ You must verify your new email address before proceeding.
+              </p>
+            )}
+          </div>
+
+          {/* Email OTP Verification Inline */}
+          {emailVerificationSent && (
+            <div className="form-group" style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+              <label className="label" htmlFor="email-otp">Enter 6-Digit Email Code</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  id="email-otp"
+                  type="text"
+                  maxLength={6}
+                  className="input"
+                  placeholder="123456"
+                  value={emailOtp}
+                  onChange={e => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  style={{ textAlign: 'center', letterSpacing: '4px', fontSize: '18px' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    setEmailError('')
+                    setEmailSuccess('')
+                    if (emailOtp.length < 6) { setEmailError('Please enter the 6-digit code'); return }
+                    setIsVerifyingEmail(true)
+                    const { error: verifyErr } = await supabase.auth.verifyOtp({
+                      email: userEmail.trim(),
+                      token: emailOtp,
+                      type: 'email_change'
+                    })
+                    setIsVerifyingEmail(false)
+                    if (verifyErr) {
+                      setEmailError(verifyErr.message)
+                    } else {
+                      setEmailVerificationSent(false)
+                      setInitialEmail(userEmail)
+                      setEmailOtp('')
+                      setEmailSuccess('Email updated and verified successfully!')
+                    }
+                  }}
+                  disabled={isVerifyingEmail || emailOtp.length < 6}
+                >
+                  {isVerifyingEmail ? 'Verifying...' : 'Confirm'}
+                </button>
+              </div>
+              <button
+                type="button"
+                className={styles.changeEmail}
+                style={{ marginTop: '8px', padding: 0 }}
+                onClick={() => {
+                  setEmailVerificationSent(false)
+                  setEmailOtp('')
+                }}
+              >
+                Cancel / Edit Email
+              </button>
             </div>
           )}
 

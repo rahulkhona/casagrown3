@@ -191,7 +191,7 @@ serve(async (req) => {
       query = query.eq('sequence_id', filterSequenceId);
     } else {
       // Normal cron mode: only process enrollments whose wait has elapsed
-      query = query.lte('next_evaluation_at', new Date().toISOString());
+      query = query.lte('next_evaluation_at', new Date(startWallClock).toISOString());
     }
 
     const { data: enrollments, error } = await query.limit(200);
@@ -430,7 +430,12 @@ serve(async (req) => {
           errorMsg = 'opted_out';
         } else {
           console.log(`[TWILIO STUB] Sending Sequence SMS: ${textBody} to ${phone}${testRunAll ? ' (TEST MODE)' : ''}`);
-          const res = await sendMarketingSms(phone, textBody, sendId);
+          let res;
+          if (Deno.env.get('AI_MOCK') === 'true') {
+            res = { success: true };
+          } else {
+            res = await sendMarketingSms(phone, textBody, sendId);
+          }
           if (res.success) {
             sentAt = new Date().toISOString();
           } else {

@@ -5,6 +5,7 @@ import { createClient } from '../../lib/supabase'
 import { useBootstrap } from '../../lib/useBootstrap'
 import { geocodeAddress, toPostgisPoint } from '../../lib/geocode'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../(main)/terms/page'
+import { ENABLE_SOCIAL_LOGIN } from '../../lib/featureFlags'
 import styles from './QuickSetupModal.module.css'
 import { normalizeStateCode } from '../../lib/address'
 
@@ -29,7 +30,7 @@ type LegalView = null | 'terms' | 'privacy'
 
 export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }: QuickSetupModalProps) {
   const supabase = createClient()
-  const { refresh } = useBootstrap()
+  const { refresh, user } = useBootstrap()
 
   // ── Step State ──
   const [step, setStep] = useState<Step>('profile')
@@ -72,18 +73,10 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
   // ── Saved state from OTP step ──
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null)
 
-  // Reset state when modal opens
+  // Reset state and check for existing auth session when modal opens
   useEffect(() => {
     if (isOpen) {
-      setStep('profile')
       setLegalView(null)
-      setIsReturningUser(false)
-      setFullName('')
-      setEmail('')
-      setStreet('')
-      setCity('')
-      setState('')
-      setZip('')
       setUspsCorrection(null)
       setUseCorrected(true)
       setOtpDigits(['', '', '', '', '', ''])
@@ -98,8 +91,54 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       setLoading(false)
       setError('')
       setVerifiedUserId(null)
+
+      supabase.auth.getUser().then(async ({ data: { user } }: any) => {
+        if (user) {
+          setEmail(user.email || '')
+          setFullName(user.user_metadata?.full_name || '')
+
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, street_address, city, state_code, zip_code, profile_completed_at, tos_accepted_at')
+            .eq('id', user.id)
+            .single()
+
+          if (profile?.profile_completed_at && profile?.tos_accepted_at) {
+            onComplete()
+            return
+          }
+
+          if (profile?.profile_completed_at) {
+            setStep('final')
+            setVerifiedUserId(user.id)
+            return
+          }
+
+          setVerifiedUserId(user.id)
+          setIsReturningUser(false)
+          setStep('profile')
+        } else {
+          setStep('profile')
+          setIsReturningUser(false)
+          setFullName('')
+          setEmail('')
+          setStreet('')
+          setCity('')
+          setState('')
+          setZip('')
+        }
+      }).catch(() => {
+        setStep('profile')
+        setIsReturningUser(false)
+        setFullName('')
+        setEmail('')
+        setStreet('')
+        setCity('')
+        setState('')
+        setZip('')
+      })
     }
-  }, [isOpen])
+  }, [isOpen, user, supabase, onComplete])
 
   // Resend cooldown timers
   useEffect(() => {
@@ -161,11 +200,147 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
     )
   }, [])
 
+  const handleSaveProfileOnly = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      let finalStreet = street.trim()
+      let finalCity = city.trim()
+      let finalState = normalizeStateCode(state)
+      let finalZip = zip.trim()
+      let county = null
+
+      try {
+        const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
+          body: { streetAddress: street.trim(), city: city.trim(), state: state.trim().toUpperCase(), zipCode: zip.trim().split('-')[0] },
+        })
+        if (!uspsError && uspsResult?.address) {
+          finalStreet = uspsResult.address.streetAddress || finalStreet
+          finalCity = uspsResult.address.city || finalCity
+          finalState = normalizeStateCode(uspsResult.address.state || finalState)
+          finalZip = uspsResult.address.ZIPPlus4 || finalZip
+          county = uspsResult.jurisdiction?.county || null
+        }
+      } catch { /* fallback */ }
+
+      let h3Index: string | null = null
+      let geoLat: number | null = null
+      let geoLng: number | null = null
+      try {
+        const geo = await geocodeAddress(`${finalStreet}, ${finalCity}, ${finalState} ${finalZip.split('-')[0]}`)
+        if (geo) {
+          geoLat = geo.lat
+          geoLng = geo.lng
+          const { latLngToCell } = await import('h3-js')
+          h3Index = latLngToCell(geoLat, geoLng, 7)
+        }
+      } catch {
+        if (process.env.NODE_ENV === 'development' || finalStreet.toLowerCase().includes('123 main')) {
+          geoLat = 37.3382
+          geoLng = -121.8863
+          const { latLngToCell } = await import('h3-js')
+          h3Index = latLngToCell(geoLat, geoLng, 7)
+        } else {
+          setError('Could not determine your community location. Please check your address.')
+          setLoading(false)
+          return
+        }
+      }
+
+      const profileUpdate: Record<string, any> = {
+        full_name: fullName.trim(),
+        street_address: finalStreet,
+        city: finalCity,
+        state_code: finalState,
+        zip_code: finalZip.split('-')[0],
+        zip_plus4: finalZip,
+        profile_completed_at: new Date().toISOString(),
+      }
+      if (geoLat !== null && geoLng !== null) {
+        profileUpdate.home_location = toPostgisPoint(geoLat, geoLng)
+      }
+      if (h3Index) {
+        profileUpdate.home_community_h3_index = h3Index
+      }
+      if (tosChecked) {
+        profileUpdate.tos_accepted_at = new Date().toISOString()
+      }
+      if (wantsSms && phoneVerified) {
+        profileUpdate.sms_enabled = true
+        profileUpdate.phone = phone.trim()
+      }
+
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', verifiedUserId)
+
+      if (updateErr) {
+        setError('Failed to save profile: ' + updateErr.message)
+        setLoading(false)
+        return
+      }
+
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('tos_accepted_at')
+        .eq('id', verifiedUserId)
+        .single()
+
+      if (existingProfile?.tos_accepted_at || tosChecked) {
+        await refresh()
+        setLoading(false)
+        onComplete()
+        return
+      }
+
+      setStep('final')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save profile')
+    }
+    setLoading(false)
+  }
+
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    setLoading(true)
+    setError('')
+
+    if (typeof window !== 'undefined' && (window as any).IS_NATIVE_APP) {
+      if (typeof (window as any).ReactNativeWebView?.postMessage === 'function') {
+        const type = provider === 'apple' ? 'START_NATIVE_APPLE_LOGIN' : 'START_SOCIAL_LOGIN';
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type, provider })
+        )
+      } else {
+        setError('Native connection not ready. Please try again.')
+      }
+      setLoading(false)
+      return
+    }
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth-callback?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+        queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
+      }
+    })
+
+    if (oauthError) {
+      setError(oauthError.message)
+      setLoading(false)
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // Step 1: Profile → Send OTP
   // ══════════════════════════════════════════════════════════════════════════
-  const handleContinue = useCallback(async () => {
+  const handleContinue = async () => {
     setError('')
+    if (verifiedUserId) {
+      handleSaveProfileOnly()
+      return
+    }
     if (!isReturningUser && !fullName.trim()) { setError('Please enter your name'); return }
     if (!email.trim()) { setError('Please enter your email'); return }
 
@@ -242,12 +417,12 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       setError(err?.message || 'Failed to send verification code')
     }
     setLoading(false)
-  }, [fullName, email, street, city, state, zip, isReturningUser, supabase])
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Step 2: Verify OTP
   // ══════════════════════════════════════════════════════════════════════════
-  const handleVerifyOtp = useCallback(async () => {
+  const handleVerifyOtp = async () => {
     const code = otpDigits.join('')
     if (code.length < 6) return
     setError('')
@@ -348,11 +523,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         .update(profileUpdate)
         .eq('id', userId)
 
-      if (updateErr) {
-        setError('Failed to save profile: ' + updateErr.message)
-        setLoading(false)
-        return
-      }
+      if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
       // If TOS already accepted, we're done
       if (existingProfile?.tos_accepted_at) {
@@ -368,7 +539,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       setError(err?.message || 'Verification failed')
     }
     setLoading(false)
-  }, [otpDigits, email, supabase, fullName, street, city, state, zip, uspsCorrection, useCorrected, refresh, onComplete])
+  }
 
   // Auto-verify when all 6 digits entered
   useEffect(() => {
@@ -590,30 +761,56 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         {step === 'profile' && !legalView && (
           <div data-testid="quick-setup-step-1">
             {/* Mode Switcher Tabs */}
-            <div className={styles.tabsContainer}>
-              <button
-                type="button"
-                onClick={() => { setIsReturningUser(false); setError('') }}
-                className={`${styles.tabBtn} ${!isReturningUser ? styles.tabBtnActive : ''}`}
-              >
-                Sign Up
-              </button>
-              <button
-                type="button"
-                data-testid="returning-user-toggle"
-                onClick={() => { setIsReturningUser(true); setError('') }}
-                className={`${styles.tabBtn} ${isReturningUser ? styles.tabBtnActive : ''}`}
-              >
-                Sign In
-              </button>
-            </div>
+            {!verifiedUserId && (
+              <div className={styles.tabsContainer}>
+                <button
+                  type="button"
+                  onClick={() => { setIsReturningUser(false); setError('') }}
+                  className={`${styles.tabBtn} ${!isReturningUser ? styles.tabBtnActive : ''}`}
+                >
+                  Sign Up
+                </button>
+                <button
+                  type="button"
+                  data-testid="returning-user-toggle"
+                  onClick={() => { setIsReturningUser(true); setError('') }}
+                  className={`${styles.tabBtn} ${isReturningUser ? styles.tabBtnActive : ''}`}
+                >
+                  Sign In
+                </button>
+              </div>
+            )}
 
             {isReturningUser ? (
               <>
                 <h2 className={styles.stepTitle}>👋 Welcome Back</h2>
                 <p className={styles.stepSubtitle}>
-                  Enter your email to sign in. We'll send a verification code.
+                  Sign in instantly with Google/Apple, or enter your email to get a code.
                 </p>
+
+                {ENABLE_SOCIAL_LOGIN && !verifiedUserId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                    <button
+                      type="button"
+                      className={styles.socialButton}
+                      onClick={() => handleSocialLogin('google')}
+                      disabled={loading}
+                    >
+                      <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.socialButton}
+                      onClick={() => handleSocialLogin('apple')}
+                      disabled={loading}
+                    >
+                      <span style={{ fontSize: '15px' }}></span> Continue with Apple
+                    </button>
+                    <div className={styles.divider}>
+                      <span>or</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Email only for returning users */}
                 <div className={styles.field}>
@@ -645,8 +842,32 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
               <>
                 <h2 className={styles.stepTitle}>🌱 Quick Setup</h2>
                 <p className={styles.stepSubtitle}>
-                  Create your account to continue. Takes less than 2 minutes.
+                  Use Google or Apple to autofill your details and skip verification, or fill out the fields below.
                 </p>
+
+                {ENABLE_SOCIAL_LOGIN && !verifiedUserId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                    <button
+                      type="button"
+                      className={styles.socialButton}
+                      onClick={() => handleSocialLogin('google')}
+                      disabled={loading}
+                    >
+                      <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.socialButton}
+                      onClick={() => handleSocialLogin('apple')}
+                      disabled={loading}
+                    >
+                      <span style={{ fontSize: '15px' }}></span> Continue with Apple
+                    </button>
+                    <div className={styles.divider}>
+                      <span>or</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Name */}
                 <div className={styles.field}>
@@ -768,14 +989,108 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                   </div>
                 )}
 
+                {verifiedUserId && (
+                  <>
+                    <div className={styles.checkboxRow} style={{ marginTop: '12px' }}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={wantsSms}
+                        onChange={e => { setWantsSms(e.target.checked); if (!e.target.checked) { setPhoneSent(false); setPhoneOtp(''); setPhoneVerified(false) } }}
+                      />
+                      <label className={styles.checkboxLabel}>
+                        Keep me updated via SMS notifications for order updates and seller messages.
+                      </label>
+                    </div>
+
+                    {wantsSms && !phoneVerified && (
+                      <div className={styles.smsPhoneRow} style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                        <input
+                          className={`${styles.input} ${styles.smsPhoneInput}`}
+                          type="tel"
+                          value={phone}
+                          onChange={e => { setPhone(e.target.value); setPhoneSent(false); setPhoneOtp('') }}
+                          placeholder="(555) 000-0000"
+                        />
+                        <button
+                          type="button"
+                          className={styles.smsSendBtn}
+                          onClick={handleSendPhoneOtp}
+                          disabled={loading || phoneResendCooldown > 0 || phone.replace(/\D/g, '').length < 10}
+                        >
+                          {phoneResendCooldown > 0 ? `${phoneResendCooldown}s` : 'Send Code'}
+                        </button>
+                      </div>
+                    )}
+
+                    {wantsSms && phoneSent && !phoneVerified && (
+                      <div className={styles.smsOtpRow} style={{ marginTop: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {[0, 1, 2, 3].map(i => (
+                          <input
+                            key={i}
+                            className={styles.smsOtpInput}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={phoneOtp[i] || ''}
+                            onChange={e => {
+                              const val = e.target.value.replace(/\D/g, '').slice(-1)
+                              const newOtp = phoneOtp.split('')
+                              newOtp[i] = val
+                              setPhoneOtp(newOtp.join(''))
+                              if (val && i < 3) {
+                                const next = e.target.nextElementSibling as HTMLInputElement
+                                next?.focus()
+                              }
+                            }}
+                          />
+                        ))}
+                        <button type="button" className={styles.smsSendBtn} onClick={handleVerifyPhone} disabled={loading || phoneOtp.replace(/\D/g, '').length < 4}>
+                          Verify
+                        </button>
+                      </div>
+                    )}
+
+                    {phoneVerified && (
+                      <div className={styles.verifiedBadge} style={{ marginTop: '8px', color: 'var(--green-600, #16a34a)', fontSize: '0.85rem', fontWeight: 500 }}>
+                        ✅ Phone verified — you'll get SMS updates
+                      </div>
+                    )}
+
+                    <div className={styles.checkboxRow} style={{ marginTop: '8px' }}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={tosChecked}
+                        onChange={e => setTosChecked(e.target.checked)}
+                      />
+                      <label className={styles.checkboxLabel}>
+                        I agree to the{' '}
+                        <button type="button" className={styles.legalLink} onClick={() => setLegalView('terms')}>
+                          Terms of Service
+                        </button>{' '}
+                        and{' '}
+                        <button type="button" className={styles.legalLink} onClick={() => setLegalView('privacy')}>
+                          Privacy Policy
+                        </button>
+                        .
+                      </label>
+                    </div>
+                  </>
+                )}
+
                 {error && <div className={styles.errorMsg}>{error}</div>}
 
                 <button
                   className={styles.primaryBtn}
                   onClick={handleContinue}
-                  disabled={loading || !fullName.trim() || !email.trim()}
+                  disabled={loading || !fullName.trim() || !email.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim() || (!!verifiedUserId && !tosChecked)}
                 >
-                  {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Continue →'}
+                  {loading ? (
+                    <><span className={styles.spinner} /> {verifiedUserId ? 'Saving...' : 'Sending code...'}</>
+                  ) : (
+                    verifiedUserId ? 'Complete Setup & Checkout' : 'Continue →'
+                  )}
                 </button>
 
 

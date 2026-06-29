@@ -7,6 +7,8 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 const BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://casagrown.com';
 const START_URL = `${BASE_URL}/market`;
@@ -146,7 +148,7 @@ export default function AppShell() {
     const notifSub = Notifications.addNotificationResponseReceivedListener(response => {
       const url = response.notification.request.content.data?.url;
       if (url) {
-        handleDeepLink(url);
+        handleDeepLink(url as string);
       }
     });
 
@@ -225,6 +227,97 @@ export default function AppShell() {
   const onMessage = async (event: WebViewMessageEvent) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+
+      if (data.type === 'START_SOCIAL_LOGIN') {
+        const provider = data.provider;
+        try {
+          const authUrl = `${BASE_URL}/login?provider=${provider}&native=true`;
+          const redirectUrl = 'casagrown://auth-callback';
+          const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+          
+          if (result.type === 'success' && result.url) {
+            const parsed = Linking.parse(result.url);
+            const accessToken = parsed.queryParams?.access_token as string;
+            const refreshToken = parsed.queryParams?.refresh_token as string;
+            
+            if (accessToken && refreshToken) {
+              const js = `
+                if (typeof window !== 'undefined' && window.receiveNativeSession) {
+                  window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
+                }
+                true;
+              `;
+              webViewRef.current?.injectJavaScript(js);
+            }
+          }
+        } catch (authErr) {
+          console.error('Social login native error:', authErr);
+        }
+        return;
+      }
+
+      if (data.type === 'START_NATIVE_APPLE_LOGIN') {
+        try {
+          const isAvailable = await AppleAuthentication.isAvailableAsync();
+          if (!isAvailable) {
+            Alert.alert('Not Supported', 'Sign In with Apple is not available on this device.');
+            return;
+          }
+
+          const credential = await AppleAuthentication.signInAsync({
+            requestedScopes: [
+              AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+              AppleAuthentication.AppleAuthenticationScope.EMAIL,
+            ],
+          });
+
+          if (credential.identityToken) {
+            const js = `
+              if (typeof window !== 'undefined' && window.receiveNativeAppleToken) {
+                window.receiveNativeAppleToken(${JSON.stringify(credential.identityToken)});
+              }
+              true;
+            `;
+            webViewRef.current?.injectJavaScript(js);
+          }
+        } catch (authErr: any) {
+          if (authErr.code !== 'ERR_REQUEST_CANCELED') {
+            console.error('Apple Native login error:', authErr);
+            Alert.alert(
+              'Simulator Apple Sign-In',
+              'Choose a developer bypass method to test:',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Mock New User (onboarding)',
+                  onPress: () => {
+                    const js = `
+                      if (typeof window !== 'undefined' && window.receiveNativeAppleToken) {
+                        window.receiveNativeAppleToken("mock_new_user");
+                      }
+                      true;
+                    `;
+                    webViewRef.current?.injectJavaScript(js);
+                  }
+                },
+                {
+                  text: 'Mock Existing User',
+                  onPress: () => {
+                    const js = `
+                      if (typeof window !== 'undefined' && window.receiveNativeAppleToken) {
+                        window.receiveNativeAppleToken("mock_existing_user");
+                      }
+                      true;
+                    `;
+                    webViewRef.current?.injectJavaScript(js);
+                  }
+                }
+              ]
+            );
+          }
+        }
+        return;
+      }
 
       if (data.type === 'REQUEST_PUSH_PERMISSION') {
         try {
@@ -352,6 +445,7 @@ export default function AppShell() {
   const INJECTED_JAVASCRIPT = `
     window.IS_NATIVE_APP = true;
     window.NATIVE_SUPPORTS_LOCATION = true;
+    window.NATIVE_SUPPORTS_SOCIAL_LOGIN = true;
     window.NATIVE_APP_NAME = ${JSON.stringify(appName)};
     document.documentElement.classList.add('native-app');
     document.documentElement.style.setProperty('--native-bottom-inset', '0px');

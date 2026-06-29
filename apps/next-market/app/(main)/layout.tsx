@@ -86,11 +86,12 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || isExempt) return
 
-    // On protected routes, auto-open the QuickSetupModal for guests and incomplete users
-    if (isProtected && needsOnboarding) {
-      requireAuth({ trigger: 'protected_route' })
+    // Auto-open QuickSetupModal if logged in but incomplete, OR if guest on a protected route
+    const isUserIncomplete = !!user && (tosAccepted === false || profileComplete === false)
+    if (isUserIncomplete || (isGuest && isProtected)) {
+      requireAuth({ trigger: user ? 'onboarding_incomplete' : 'protected_route' })
     }
-  }, [loading, isExempt, isProtected, needsOnboarding, requireAuth])
+  }, [loading, isExempt, isProtected, isGuest, user, tosAccepted, profileComplete, requireAuth])
 
   // Block content on protected routes when onboarding is needed (show loading while modal is up)
   if (!loading && needsOnboarding && isProtected && !isExempt) {

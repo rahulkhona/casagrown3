@@ -77,7 +77,7 @@ Deno.test('process-sequence-step: Follows SMS convergence path and terminates', 
   await (await fetch(`${SUPABASE_URL}/rest/v1/crm_leads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
-    body: JSON.stringify({ id: testLeadId, email: 'deno_seq@casagrown.local', name: 'Seq Test', status: 'new', accepts_sms: true, metadata: { sms_enabled: 'true' } }),
+    body: JSON.stringify({ id: testLeadId, email: `deno_seq_${testSeqId}@casagrown.local`, name: 'Seq Test', status: 'new', accepts_sms: true, metadata: { sms_enabled: 'true' } }),
   })).text()
 
   // 3. Enroll Lead

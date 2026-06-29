@@ -147,9 +147,22 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://127.0.0.1:3001"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://localhost:3000/auth-callback",
+  "http://127.0.0.1:3000/auth-callback",
+  "http://localhost:3001/auth-callback",
+  "http://127.0.0.1:3001/auth-callback",
+  "http://localhost:3000/market",
+  "http://127.0.0.1:3000/market",
+  "http://localhost:3001/market",
+  "http://127.0.0.1:3001/market",
+  "http://192.168.1.236:3001/auth-callback",
+  "http://*:3001/auth-callback",
+  "http://*.local:3001/auth-callback"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -294,8 +307,8 @@ max_frequency = "5s"
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
 [auth.external.apple]
-enabled = false
-client_id = ""
+enabled = true
+client_id = "com.casagrown.market.signin,com.casagrown.market"
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
 secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
 # Overrides the default auth redirectUrl.
@@ -865,3 +878,9 @@ entrypoint = "./functions/connect-google/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/publish-fb-post/index.ts"
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+skip_nonce_check = true

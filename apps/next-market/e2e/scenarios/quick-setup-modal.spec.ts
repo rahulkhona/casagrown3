@@ -146,7 +146,7 @@ async function fillProfileAndVerifyOtp(
   await step1.locator('input[name="state"]').fill('CA')
   await step1.locator('input[name="zip"]').fill('95120')
 
-  await step1.locator('button:has-text("Continue")').click()
+  await step1.locator('button:has-text("Continue →")').click()
   await page.waitForTimeout(2000)
 
   // Check which step we're on — OTP step or already auto-advanced to final

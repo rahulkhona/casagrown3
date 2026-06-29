@@ -8,6 +8,7 @@ import { createClient } from '../../../lib/supabase'
 import { needsTosAcceptance } from '../../../lib/legal'
 import { trackFormSubmit, trackError } from '../../../lib/analytics'
 import { getReferralData, getTouchHistory, clearReferralData } from '../../../lib/useReferralCapture'
+import { ENABLE_SOCIAL_LOGIN } from '../../../lib/featureFlags'
 import styles from './page.module.css'
 
 function LoginPageInner() {
@@ -23,14 +24,84 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return
-    const timer = setInterval(() => setResendCooldown(p => p - 1), 1000)
-    return () => clearInterval(timer)
-  }, [resendCooldown])
+  const [tapCount, setTapCount] = useState(0)
 
   const supabase = createClient()
+
+  // Handle URL tester overrides
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isTester = searchParams.get('tester') === 'true' || searchParams.get('social') === 'true'
+      if (isTester) {
+        localStorage.setItem('enable_social_login', 'true')
+        const url = new URL(window.location.href)
+        url.searchParams.delete('tester')
+        url.searchParams.delete('social')
+        window.location.replace(url.pathname + url.search)
+      }
+    }
+  }, [searchParams])
+
+  // Handle automatic OAuth launch inside the secure browser sheet
+  useEffect(() => {
+    const provider = searchParams.get('provider')
+    const isNative = searchParams.get('native') === 'true'
+    if (provider && isNative && (provider === 'google' || provider === 'apple')) {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('is_native_auth', 'true')
+        document.cookie = "is_native_auth=true; path=/; max-age=3600; SameSite=Lax"
+      }
+      supabase.auth.signInWithOAuth({
+        provider: provider as any,
+        options: {
+          redirectTo: `${window.location.origin}/auth-callback?native=true`,
+          queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
+        }
+      })
+    }
+  }, [searchParams, supabase])
+
+
+  const handleLogoTap = () => {
+    const newCount = tapCount + 1
+    if (newCount >= 5) {
+      localStorage.setItem('enable_social_login', 'true')
+      alert('Developer Options: Social login (Google & Apple) enabled on this device! Reloading...')
+      window.location.reload()
+    } else {
+      setTapCount(newCount)
+    }
+  }
+
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    setLoading(true)
+    setError('')
+
+    if (typeof window !== 'undefined' && (window as any).IS_NATIVE_APP) {
+      if (typeof (window as any).ReactNativeWebView?.postMessage === 'function') {
+        const type = provider === 'apple' ? 'START_NATIVE_APPLE_LOGIN' : 'START_SOCIAL_LOGIN';
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type, provider })
+        )
+      } else {
+        setError('Native connection not ready. Please try again.')
+      }
+      setLoading(false)
+      return
+    }
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth-callback?redirect=${encodeURIComponent(redirectTo || '/market')}`
+      }
+    })
+
+    if (oauthError) {
+      setError(oauthError.message)
+      setLoading(false)
+    }
+  }
 
   // Redirect if already logged in
   useEffect(() => {
@@ -184,7 +255,7 @@ function LoginPageInner() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.logoArea}>
+        <div className={styles.logoArea} onClick={handleLogoTap} style={{ cursor: 'pointer' }}>
           <img src="/logo.png" alt="CasaGrown" className={styles.logo} />
           <h1 className={styles.title}>CasaGrown Market</h1>
           <p className={styles.subtitle}>Fresh. Local. Trusted.</p>
@@ -207,30 +278,58 @@ function LoginPageInner() {
         {error && <p className={styles.errorText}>{error}</p>}
 
         {step === 'email' ? (
-          <form onSubmit={handleEmailSubmit} className={styles.form}>
-            <div className="form-group">
-              <label className="label" htmlFor="email">Email Address</label>
-              <input
-                id="email"
-                type="text"
-                inputMode="email"
-                className="input"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Sending code...' : 'Send Login Code →'}
-            </button>
-            <p className={styles.helperText}>
-              We'll send a one-time code to your email. No password needed.
-              <br />
-              <small>Check your inbox (or Mailpit at localhost:54324 for local dev)</small>
-            </p>
-          </form>
+          <>
+            <form onSubmit={handleEmailSubmit} className={styles.form}>
+              <div className="form-group">
+                <label className="label" htmlFor="email">Email Address</label>
+                <input
+                  id="email"
+                  type="text"
+                  inputMode="email"
+                  className="input"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
+                {loading ? 'Sending code...' : 'Send Login Code →'}
+              </button>
+              <p className={styles.helperText}>
+                We'll send a one-time code to your email. No password needed.
+                <br />
+                <small>Check your inbox (or Mailpit at localhost:54324 for local dev)</small>
+              </p>
+            </form>
+
+            {ENABLE_SOCIAL_LOGIN && (
+              <div className={styles.socialArea}>
+                <div className={styles.divider}>
+                  <span>or</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSocialLogin('google')}
+                    className={styles.socialButton}
+                    disabled={loading}
+                  >
+                    <span style={{ fontSize: '18px' }}>🌐</span> Continue with Google
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSocialLogin('apple')}
+                    className={styles.socialButton}
+                    disabled={loading}
+                  >
+                    <span style={{ fontSize: '18px' }}></span> Continue with Apple
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <form onSubmit={handleOtpSubmit} className={styles.form}>
             <div className={styles.otpSent}>
