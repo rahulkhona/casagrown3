@@ -181,7 +181,6 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          Alert.alert('Deep Link Auth', `Tokens received via deep link!\naccess: YES\nrefresh: YES\nWebView: ${webViewRef.current ? 'EXISTS' : 'NULL'}`);
           const js = `
             if (typeof window !== 'undefined' && window.receiveNativeSession) {
               window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
@@ -274,40 +273,32 @@ export default function AppShell() {
 
       if (data.type === 'START_SOCIAL_LOGIN') {
         const provider = data.provider;
-        Alert.alert('Step 1', `Starting social login: ${provider}\nBASE_URL: ${BASE_URL}`);
         try {
           const authUrl = `${BASE_URL}/login?provider=${provider}&native=true`;
           const redirectUrl = 'casagrown://auth-callback';
           const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
           
-          Alert.alert('Step 2', `Browser result type: ${result.type}\nURL: ${'url' in result ? (result as any).url?.substring(0, 100) : 'none'}`);
+          // On iOS, tokens come back via result.url (type === 'success').
+          // On Android, tokens arrive via deep link handler instead (type === 'dismiss').
           if (result.type === 'success' && result.url) {
             const matchAccess = result.url.match(/[?&#]access_token=([^&]+)/);
             const matchRefresh = result.url.match(/[?&#]refresh_token=([^&]+)/);
             const accessToken = matchAccess ? decodeURIComponent(matchAccess[1]) : '';
             const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
             
-            Alert.alert('Step 3', `Tokens found:\naccess: ${accessToken ? 'YES (' + accessToken.substring(0, 20) + '...)' : 'NO'}\nrefresh: ${refreshToken ? 'YES' : 'NO'}\nWebView ref: ${webViewRef.current ? 'EXISTS' : 'NULL'}`);
-            
             if (accessToken && refreshToken) {
               const js = `
                 if (typeof window !== 'undefined' && window.receiveNativeSession) {
                   window.receiveNativeSession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)});
-                } else {
-                  document.title = 'ERROR: receiveNativeSession not found';
                 }
                 true;
               `;
               webViewRef.current?.injectJavaScript(js);
-              Alert.alert('Step 4', 'JS injected into WebView');
-            } else {
-              Alert.alert('Step 3 FAIL', `Could not parse tokens.\nFull URL: ${result.url.substring(0, 200)}`);
             }
-          } else {
-            Alert.alert('Step 2 FAIL', `Browser did not return success.\nType: ${result.type}`);
           }
+          // 'dismiss' on Android is expected — tokens handled by handleDeepLink
         } catch (authErr: any) {
-          Alert.alert('ERROR', `Social login error: ${authErr?.message || authErr}`);
+          console.error('[NATIVE_AUTH] Social login error:', authErr);
         }
         return;
       }
