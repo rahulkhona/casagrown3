@@ -9,6 +9,7 @@ function AuthCallbackInner() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState('Finalizing login...')
   const [error, setError] = useState('')
+  const [deepLink, setDeepLink] = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -31,8 +32,9 @@ function AuthCallbackInner() {
             }
             const accessToken = session.access_token
             const refreshToken = session.refresh_token
-            const deepLink = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
-            window.location.href = deepLink
+            const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+            setDeepLink(dl)
+            window.location.href = dl
           } else {
             router.replace(redirectPath)
           }
@@ -49,8 +51,9 @@ function AuthCallbackInner() {
                 }
                 const accessToken = newSession.access_token
                 const refreshToken = newSession.refresh_token
-                const deepLink = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
-                window.location.href = deepLink
+                const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+                setDeepLink(dl)
+                window.location.href = dl
               } else {
                 router.replace(redirectPath)
               }
@@ -90,9 +93,31 @@ function AuthCallbackInner() {
           </>
         ) : (
           <>
-            <div style={{ border: '4px solid #f3f3f3', borderTop: '4px solid var(--green-600, #16a34a)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
+            {!deepLink && (
+              <div style={{ border: '4px solid #f3f3f3', borderTop: '4px solid var(--green-600, #16a34a)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
+            )}
             <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>{status}</h2>
-            <p style={{ color: '#6b7280', fontSize: '14px' }}>Please keep this window open.</p>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '16px' }}>Please keep this window open.</p>
+            
+            {deepLink && (
+              <a 
+                href={deepLink} 
+                style={{ 
+                  display: 'inline-block', 
+                  background: 'var(--green-600, #16a34a)', 
+                  color: '#fff', 
+                  textDecoration: 'none', 
+                  padding: '12px 24px', 
+                  borderRadius: '8px', 
+                  fontSize: '14px', 
+                  fontWeight: 600,
+                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                }}
+              >
+                Tap to Return to App
+              </a>
+            )}
+
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
