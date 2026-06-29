@@ -122,6 +122,25 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
     const supabase = createClient()
 
+    // Check for auth tokens injected by the native app via injectedJavaScriptBeforeContentLoaded.
+    // This handles the social login flow where tokens arrive via deep link on Android.
+    const nativeTokens = typeof window !== 'undefined' ? (window as any).__NATIVE_AUTH_TOKENS : null
+    if (nativeTokens) {
+      delete (window as any).__NATIVE_AUTH_TOKENS // Clear so it's only processed once
+      supabase.auth.setSession({
+        access_token: nativeTokens.accessToken,
+        refresh_token: nativeTokens.refreshToken,
+      }).then(({ error }: { error: any }) => {
+        if (error) {
+          console.error('[NATIVE_AUTH] setSession from injected tokens failed:', error.message)
+        } else {
+          console.log('[NATIVE_AUTH] Session set from injected tokens. Reloading...')
+          window.location.reload()
+        }
+      })
+      return // Don't continue with normal bootstrap — the reload will re-run it
+    }
+
     // Step 1: Read session from cookie (instant, no network)
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       const sessionUser = session?.user

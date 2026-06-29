@@ -101,6 +101,7 @@ export default function AppShell() {
   const pendingDeepLinkRef = useRef<string | null>(null);
   const isPageLoadedRef = useRef(false);
   const pendingAuthUrlRef = useRef<string | null>(null);
+  const pendingAuthTokensRef = useRef<{ accessToken: string; refreshToken: string } | null>(null);
   const [currentUrl, setCurrentUrl] = useState<string>(START_URL);
   const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -192,12 +193,11 @@ export default function AppShell() {
         const refreshToken = matchRefresh ? decodeURIComponent(matchRefresh[1]) : '';
 
         if (accessToken && refreshToken) {
-          const authCallbackUrl = `${BASE_URL}/auth-callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}&token_type=bearer`;
-          // Force WebView remount by changing its key. This guarantees React
-          // unmounts the old WebView and mounts a fresh one with the new URL.
-          setCurrentUrl(authCallbackUrl);
-          setWebViewKey(k => k + 1);
-          Alert.alert('DeepLink OK', `Navigating WebView to:\n${authCallbackUrl.substring(0, 80)}...`);
+          // Store tokens in a ref so they get included in injectedJavaScriptBeforeContentLoaded
+          // when the WebView remounts. The web app's useBootstrap will detect them and call setSession.
+          pendingAuthTokensRef.current = { accessToken, refreshToken };
+          setCurrentUrl(START_URL); // Navigate to market page, not auth-callback
+          setWebViewKey(k => k + 1); // Force WebView remount
           return true;
         }
       }
@@ -486,11 +486,21 @@ export default function AppShell() {
   // so the web page can detect support before using it. This ensures backward
   // compatibility with older native builds (e.g. Android in review).
   const appName = Constants.appOwnership === 'expo' ? 'Expo Go' : (Constants.expoConfig?.name || 'CasaGrown');
+  // If we have pending auth tokens from a social login deep link, inject them
+  // as a global variable BEFORE the page's JavaScript runs.
+  const pendingTokens = pendingAuthTokensRef.current;
+  const tokenInjection = pendingTokens
+    ? `window.__NATIVE_AUTH_TOKENS = { accessToken: ${JSON.stringify(pendingTokens.accessToken)}, refreshToken: ${JSON.stringify(pendingTokens.refreshToken)} };`
+    : '';
+  // Clear the ref so tokens are only injected once
+  if (pendingTokens) pendingAuthTokensRef.current = null;
+
   const INJECTED_JAVASCRIPT = `
     window.IS_NATIVE_APP = true;
     window.NATIVE_SUPPORTS_LOCATION = true;
     window.NATIVE_SUPPORTS_SOCIAL_LOGIN = true;
     window.NATIVE_APP_NAME = ${JSON.stringify(appName)};
+    ${tokenInjection}
     document.documentElement.classList.add('native-app');
     document.documentElement.style.setProperty('--native-bottom-inset', '0px');
     true; // note: this is required, or you'll sometimes get silent failures
@@ -528,14 +538,8 @@ export default function AppShell() {
         return true; // Internal CasaGrown / auth pages stay in WebView
       }}
       onLoadEnd={(event) => {
-        const loadedUrl = event.nativeEvent.url;
         // Mark the page as loaded so warm deep links can inject JS directly
         isPageLoadedRef.current = true;
-
-        // Diagnostic: show what URL the WebView actually loaded
-        if (loadedUrl && loadedUrl.includes('auth-callback')) {
-          Alert.alert('WebView Loaded', `URL: ${loadedUrl.substring(0, 120)}`);
-        }
 
         // Hide splash screen once the webview finishes its initial load
         const p = SplashScreen.hideAsync();
