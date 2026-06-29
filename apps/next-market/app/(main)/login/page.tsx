@@ -57,6 +57,10 @@ function LoginPageInner() {
           redirectTo: `${window.location.origin}/auth-callback?native=true`,
           queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
         }
+      }).then(({ error }: { error: any }) => {
+        if (error) {
+          setError(error.message)
+        }
       })
     }
   }, [searchParams, supabase])
@@ -250,6 +254,43 @@ function LoginPageInner() {
         router.push('/market')
       }
     }
+  }
+
+  const isNative = searchParams.get('native') === 'true'
+
+  if (isNative) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card} style={{ textAlign: 'center', padding: '40px 20px' }}>
+          {error ? (
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+          ) : (
+            <div style={{ border: '4px solid #f3f3f3', borderTop: '4px solid var(--green-600, #16a34a)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
+          )}
+          <h2 style={{ fontSize: '20px', fontWeight: 600, color: error ? '#ef4444' : '#111827', marginBottom: '12px' }}>
+            {error ? 'OAuth Connection Failed' : 'Connecting to Secure Login...'}
+          </h2>
+          {error ? (
+            <>
+              <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: 1.5, marginBottom: '24px' }}>
+                {error}
+              </p>
+              <p style={{ color: '#9ca3af', fontSize: '12px', marginBottom: '24px' }}>
+                Please close this window and use the email login form inside the app instead.
+              </p>
+            </>
+          ) : (
+            <p style={{ color: '#6b7280', fontSize: '14px' }}>Please wait while we redirect you to your login provider.</p>
+          )}
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </div>
+    )
   }
 
   return (
