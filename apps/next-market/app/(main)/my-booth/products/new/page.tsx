@@ -1159,8 +1159,8 @@ function NewProductPageInner() {
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
           expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
           market_date: marketDate,
-          is_active: !needsDraft,
-          is_draft: needsDraft,
+          is_active: !forceDraft,    // Only deactivate if user explicitly saves as draft
+          is_draft: forceDraft,      // Only draft if user explicitly chose it
           delivery_radius_miles: resolvedRadius,
           pickup_address: offersPickup ? resolvedPickupAddress : null,
           delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
