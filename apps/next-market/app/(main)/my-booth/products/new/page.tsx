@@ -2613,11 +2613,6 @@ function NewProductPageInner() {
             const isMissingInfo = photos.length === 0 || !priceUsd || !quantity || (!productOffersDelivery && !productOffersPickup)
             return (
               <>
-                {isEditMode && isMissingInfo && (
-                  <div style={{ color: '#92400e', background: '#fef3c7', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, lineHeight: 1.4 }}>
-                    ⚠️ Some info is missing (photos, price, or quantity). Your listing will stay active but may appear incomplete to buyers.
-                  </div>
-                )}
                 <button 
                   type="submit" 
                   className={styles.submitBtn} 
@@ -2635,13 +2630,24 @@ function NewProductPageInner() {
                         : '🌱 Publish Product'
                   }
                 </button>
-                {/* Secondary draft button — only when form is complete enough to publish */}
-                {!isEditMode && !isMissingInfo && (
+                {/* Secondary draft button — for new listings or active edit listings */}
+                {((!isEditMode && !isMissingInfo) || (isEditMode && !editingInactive)) && (
                   <button
                     type="submit"
                     className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
                     disabled={validating}
-                    onClick={() => setForceDraft(true)}
+                    onClick={(e) => {
+                      if (isEditMode && !editingInactive) {
+                        const confirmed = window.confirm(
+                          '⚠️ Your listing will become unavailable to buyers until you publish it again.\n\nAre you sure you want to save as draft?'
+                        )
+                        if (!confirmed) {
+                          e.preventDefault()
+                          return
+                        }
+                      }
+                      setForceDraft(true)
+                    }}
                     style={{ marginTop: 8 }}
                   >
                     📝 Save as Draft Instead
