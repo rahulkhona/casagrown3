@@ -178,9 +178,11 @@ export default function Step5Publish() {
         </div>
       )}
 
+      {(!pushEnabled || !smsVerified) && (
       <div className={styles.formGroup}>
         <label className={styles.label}>Never Miss an Order!</label>
         
+        {!pushEnabled && (
         <div 
           style={{ border: '1px solid #d1d5db', borderRadius: 24, padding: 16, background: pushEnabled ? '#f0fdf4' : 'white', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, cursor: pushEnabled ? 'default' : 'pointer', borderColor: pushEnabled ? '#16a34a' : '#d1d5db' }}
           onClick={() => { if (!pushEnabled) showPrompt(true) }}
@@ -190,17 +192,14 @@ export default function Step5Publish() {
             <h4 style={{ fontWeight: 700 }}>Push Notifications</h4>
             <p style={{ fontSize: 13, color: '#4b5563' }}>Get instantly notified about new orders and buyer messages</p>
           </div>
-          {pushEnabled ? (
-            <div style={{ padding: '6px 12px', background: '#dcfce7', color: '#166534', borderRadius: 16, fontSize: 12, fontWeight: 700 }}>
-              Enabled ✅
-            </div>
-          ) : (
-            <div style={{ padding: '6px 16px', background: '#f3f4f6', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
-              Setup
-            </div>
-          )}
+          <div style={{ padding: '6px 16px', background: '#f3f4f6', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
+            Setup
+          </div>
         </div>
+        )}
 
+        {!smsVerified && (
+        <>
         <div 
           style={{ border: '1px solid #d1d5db', borderRadius: 24, padding: 16, background: state.smsEnabled ? '#f0fdf4' : 'white', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, cursor: 'pointer', borderColor: state.smsEnabled ? '#16a34a' : '#d1d5db' }}
           onClick={() => updateState({ smsEnabled: !state.smsEnabled })}
@@ -261,24 +260,10 @@ export default function Step5Publish() {
             </div>
           </div>
         )}
-
-        {state.smsEnabled && smsVerified && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12 }}>
-            <span style={{ fontSize: 18 }}>📱</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#166534' }}>{state.phoneNumber}</p>
-              <p style={{ fontSize: 12, color: '#15803d' }}>Verified successfully</p>
-            </div>
-            <button 
-               type="button"
-               onClick={() => { setSmsVerified(false); updateState({ phoneNumber: '' }); setSmsOtpCode(''); setSmsOtpSent(false); }}
-               style={{ fontSize: 13, color: '#16a34a', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Change
-            </button>
-          </div>
+        </>
         )}
       </div>
+      )}
 
       <NotificationPromptModal {...modalProps} />
 

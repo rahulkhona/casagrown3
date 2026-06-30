@@ -227,6 +227,14 @@ function NewProductPageInner() {
   const [prodCustomStart, setProdCustomStart] = useState('17:00')
   const [prodCustomEnd, setProdCustomEnd] = useState('19:00')
 
+  // Derive selectedDates from union of delivery + pickup window dates so save logic stays intact
+  useEffect(() => {
+    const deliveryDates = Object.keys(productDeliveryWindows).filter(d => (productDeliveryWindows[d] || []).length > 0)
+    const pickupDates = Object.keys(productPickupWindows).filter(d => (productPickupWindows[d] || []).length > 0)
+    const union = Array.from(new Set([...deliveryDates, ...pickupDates])).sort()
+    setSelectedDates(union)
+  }, [productDeliveryWindows, productPickupWindows])
+
   const PRODUCT_TIME_WINDOWS = [
     { id: '8-10', label: '8–10a' },
     { id: '10-12', label: '10–12p' },
@@ -468,8 +476,8 @@ function NewProductPageInner() {
 
       const hasBoothWindows = windows && windows.length > 0
 
-      if (hasBoothWindows) {
-        // ── Booth HAS fulfillment defaults → use them ──
+      if (hasBoothWindows && !editId) {
+        // ── Booth HAS fulfillment defaults → use them (create mode only) ──
         const del = booth?.offers_delivery ?? false
         const pick = booth?.offers_pickup ?? false
         setBoothOffersDelivery(del)
@@ -517,8 +525,8 @@ function NewProductPageInner() {
           setProductDeliveryWindows(dwMap)
           setProductPickupWindows(pwMap)
         }
-      } else {
-        // ── Booth has NO fulfillment defaults → sensible defaults ──
+      } else if (!editId) {
+        // ── Booth has NO fulfillment defaults → sensible defaults (create mode only) ──
         setBoothOffersDelivery(true)
         setBoothOffersPickup(true)
         setProductOffersDelivery(true)
@@ -587,6 +595,9 @@ function NewProductPageInner() {
         }
         setProductDeliveryWindows(dwMap)
         setProductPickupWindows(pwMap)
+        // Restore fulfillment mode toggles from saved product data
+        setProductOffersDelivery(data.product_delivery_windows != null)
+        setProductOffersPickup(data.product_pickup_windows != null)
       }
       // Load per-product fulfillment overrides
       if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
@@ -2148,206 +2159,12 @@ function NewProductPageInner() {
             </p>
             {errors.fulfillment && <span className={styles.error}>{errors.fulfillment}</span>}
 
-            {/* Fulfillment type toggles — unified for all users */}
-            <div className={styles.fulfillmentGrid}>
-              <button
-                type="button"
-                className={`${styles.fulfillmentCard} ${(hasBooth ? productOffersDelivery : inlineDelivery) ? styles.fulfillmentCardActive : ''}`}
-                onClick={() => {
-                  if (hasBooth) {
-                    setProductOffersDelivery(prev => !prev)
-                  } else {
-                    setInlineDelivery(prev => !prev)
-                  }
-                }}
-              >
-                <span className={styles.fulfillmentCardIcon}>🚗</span>
-                <span className={styles.fulfillmentCardLabel}>I&apos;ll Deliver</span>
-                <span className={styles.fulfillmentCardSub}>Drop off at buyer&apos;s door</span>
-              </button>
-              <button
-                type="button"
-                className={`${styles.fulfillmentCard} ${(hasBooth ? productOffersPickup : inlinePickup) ? styles.fulfillmentCardActive : ''}`}
-                onClick={() => {
-                  if (hasBooth) {
-                    setProductOffersPickup(prev => !prev)
-                  } else {
-                    setInlinePickup(prev => !prev)
-                  }
-                }}
-              >
-                <span className={styles.fulfillmentCardIcon}>📍</span>
-                <span className={styles.fulfillmentCardLabel}>Pickup Available</span>
-                <span className={styles.fulfillmentCardSub}>Buyers pick up from you</span>
-              </button>
-            </div>
+            {/* ── Fulfillment Cards (independent day/window selectors per card) ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 12 }}>
 
-            {/* Pickup address + delivery radius — always shown, pre-filled from booth defaults */}
-            {/* Base and Pickup Addresses */}
-            {!hasBooth && (
-              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                <label className={styles.label}>🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span></label>
-                <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
-                <AddressInput
-                  value={boothBaseAddr}
-                  onChange={val => {
-                    setBoothBaseAddr(val)
-                    setErrors(p => ({ ...p, boothAddress: '' }))
-                  }}
-                  showPrivacyNote={true}
-                  placeholderStreet="Street Address"
-                />
-                {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
-              </div>
-            )}
-
-            {!hasBooth && inlinePickup && (
-              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(leave blank to use Home/Farm Address)</span></label>
-                <AddressInput
-                  value={productPickupAddr}
-                  onChange={val => {
-                    setProductPickupAddr(val)
-                    setErrors(p => ({ ...p, pickupAddress: '' }))
-                  }}
-                  placeholderStreet="Street Address"
-                />
-                {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
-              </div>
-            )}
-
-            {hasBooth && productOffersPickup && (
-              <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                <label className={styles.label}>📍 Pickup Address Override <span className={styles.optional}>(leave blank to use booth default pickup address)</span></label>
-                <AddressInput
-                  value={productPickupAddr}
-                  onChange={val => {
-                    setProductPickupAddr(val)
-                    setErrors(p => ({ ...p, pickupAddress: '' }))
-                  }}
-                  placeholderStreet="Street Address"
-                />
-                {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
-              </div>
-            )}
-            {(hasBooth ? productOffersDelivery : inlineDelivery) && (
-              <>
-                {hasBooth && boothBaseAddr && hasAddress(boothBaseAddr) && (
-                  <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
-                    <label className={styles.label}>🏠 Your Booth Address</label>
-                    <div style={{
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      background: '#f3f4f6',
-                      color: '#4b5563',
-                      fontSize: 14,
-                      border: '1px solid #e5e7eb',
-                    }} data-testid="inherited-base-address">
-                      {formatFullAddress(boothBaseAddr)}
-                    </div>
-                    <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                      Delivery radius is computed from your stand&apos;s base address.
-                    </p>
-                  </div>
-                )}
-                <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
-                  <label className={styles.label}>🚗 Delivery Radius</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      type="range" min={1} max={10}
-                      value={inlineDeliveryRadius}
-                      onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
-                      style={{ flex: 1 }}
-                    />
-                    <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
-                      {inlineDeliveryRadius} mi
-                    </span>
-                  </div>
-                </div>
-                {/* Delivery Zip Codes Overrides */}
-                <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
-                  <label className={styles.label}>📮 Delivery Zip Codes (Specific zones/neighborhoods)</label>
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
-                    Add zip codes where you deliver, regardless of distance.
-                  </p>
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    padding: '6px 8px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    background: 'white',
-                    alignItems: 'center',
-                    minHeight: 38
-                  }}>
-                    {(inlineDeliveryZipcodes || []).map((zip) => (
-                      <span key={zip} style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        background: '#dcfce7',
-                        color: '#15803d',
-                        padding: '3px 8px',
-                        borderRadius: 12,
-                        fontSize: 12,
-                        fontWeight: 600
-                      }}>
-                        {zip}
-                        <button
-                          type="button"
-                          onClick={() => setInlineDeliveryZipcodes(prev => (prev || []).filter(z => z !== zip))}
-                          style={{
-                            border: 'none',
-                            background: 'none',
-                            color: '#15803d',
-                            cursor: 'pointer',
-                            padding: 0,
-                            fontSize: 14,
-                            lineHeight: 1
-                          }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={(inlineDeliveryZipcodes || []).length === 0 ? "e.g. 90210, 90211" : "Add zip..."}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-                          e.preventDefault();
-                          const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
-                          if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
-                            setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
-                            e.currentTarget.value = '';
-                          }
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
-                        if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
-                          setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
-                          e.currentTarget.value = '';
-                        }
-                      }}
-                      style={{
-                        border: 'none',
-                        outline: 'none',
-                        flex: 1,
-                        minWidth: 80,
-                        fontSize: 14,
-                        padding: '4px 0'
-                      }}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Day selectors — all 7 upcoming days; booth-window days pre-selected */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+              {/* ════ DELIVERY CARD ════ */}
               {(() => {
+                const isDeliveryActive = hasBooth ? productOffersDelivery : inlineDelivery
                 const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
                 const dayOptions: { date: string; label: string }[] = []
                 for (let offset = 0; offset < 7; offset++) {
@@ -2356,211 +2173,454 @@ function NewProductPageInner() {
                   const label = offset === 0 ? todayLabel : offset === 1 ? tomorrowLabel : `${DAY_SHORT[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`
                   dayOptions.push({ date: dateStr, label })
                 }
-                return dayOptions.map(opt => {
-                  const isActive = selectedDates.includes(opt.date)
-                  return (
-                    <button
-                      key={opt.date}
-                      type="button"
-                      className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                      style={{ padding: '8px 14px', fontSize: 13 }}
+                const deliverySelectedDays = Object.keys(productDeliveryWindows).filter(d => (productDeliveryWindows[d] || []).length > 0)
+
+                return (
+                  <div data-testid="delivery-box" style={{ border: `2px solid ${isDeliveryActive ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: isDeliveryActive ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', cursor: 'pointer' }}
                       onClick={() => {
-                        setSelectedDates(prev =>
-                          prev.includes(opt.date)
-                            ? prev.filter(d => d !== opt.date)
-                            : [...prev, opt.date]
-                        )
+                        if (hasBooth) {
+                          setProductOffersDelivery(prev => !prev)
+                        } else {
+                          setInlineDelivery(prev => !prev)
+                        }
                       }}
                     >
-                      {isActive ? '✅' : '📅'} {opt.label}
-                    </button>
-                  )
-                })
+                      <span style={{ fontSize: 28 }}>🚗</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: isDeliveryActive ? '#15803d' : '#374151' }}>I&apos;ll Deliver</div>
+                        <div style={{ fontSize: 13, color: '#6b7280' }}>Drop off at buyer&apos;s door</div>
+                      </div>
+                      <div>
+                        <input type="checkbox" checked={isDeliveryActive} readOnly style={{ width: 20, height: 20, accentColor: '#16a34a', pointerEvents: 'none' }} />
+                      </div>
+                    </div>
+                    {isDeliveryActive && (
+                      <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
+                        {/* Base address (no-booth users) */}
+                        {!hasBooth && (
+                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                            <label className={styles.label}>🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span></label>
+                            <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
+                            <AddressInput
+                              value={boothBaseAddr}
+                              onChange={val => {
+                                setBoothBaseAddr(val)
+                                setErrors(p => ({ ...p, boothAddress: '' }))
+                              }}
+                              showPrivacyNote={true}
+                              placeholderStreet="Street Address"
+                            />
+                            {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+                          </div>
+                        )}
+
+                        {/* Booth address display (booth users) */}
+                        {hasBooth && boothBaseAddr && hasAddress(boothBaseAddr) && (
+                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                            <label className={styles.label}>🏠 Your Booth Address</label>
+                            <div style={{
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              background: '#f3f4f6',
+                              color: '#4b5563',
+                              fontSize: 14,
+                              border: '1px solid #e5e7eb',
+                            }} data-testid="inherited-base-address">
+                              {formatFullAddress(boothBaseAddr)}
+                            </div>
+                            <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
+                              Delivery radius is computed from your stand&apos;s base address.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Delivery Radius */}
+                        <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                          <label className={styles.label}>🚗 Delivery Radius</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input
+                              type="range" min={1} max={10}
+                              value={inlineDeliveryRadius}
+                              onChange={e => setInlineDeliveryRadius(parseInt(e.target.value))}
+                              style={{ flex: 1, accentColor: '#16a34a' }}
+                            />
+                            <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
+                              {inlineDeliveryRadius} mi
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Delivery Zip Codes */}
+                        <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
+                          <label className={styles.label}>📮 Delivery Zip Codes (Specific zones/neighborhoods)</label>
+                          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
+                            Add zip codes where you deliver, regardless of distance.
+                          </p>
+                          <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 6,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            background: 'white',
+                            alignItems: 'center',
+                            minHeight: 38
+                          }}>
+                            {(inlineDeliveryZipcodes || []).map((zip) => (
+                              <span key={zip} style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                padding: '3px 8px',
+                                borderRadius: 12,
+                                fontSize: 12,
+                                fontWeight: 600
+                              }}>
+                                {zip}
+                                <button
+                                  type="button"
+                                  onClick={() => setInlineDeliveryZipcodes(prev => (prev || []).filter(z => z !== zip))}
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#15803d',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    fontSize: 14,
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              placeholder={(inlineDeliveryZipcodes || []).length === 0 ? "e.g. 90210, 90211" : "Add zip..."}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                                  e.preventDefault();
+                                  const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                                  if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
+                                    setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
+                                    e.currentTarget.value = '';
+                                  }
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const val = e.currentTarget.value.trim().replace(/[^0-9]/g, '');
+                                if (val.length === 5 && !(inlineDeliveryZipcodes || []).includes(val)) {
+                                  setInlineDeliveryZipcodes(prev => [...(prev || []), val]);
+                                  e.currentTarget.value = '';
+                                }
+                              }}
+                              style={{
+                                border: 'none',
+                                outline: 'none',
+                                flex: 1,
+                                minWidth: 80,
+                                fontSize: 14,
+                                padding: '4px 0'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* ── Delivery Day Pills & Time Windows ── */}
+                        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
+                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Delivery Days &amp; Times</label>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                            {dayOptions.map(opt => {
+                              const isActive = (productDeliveryWindows[opt.date] || []).length > 0
+                              return (
+                                <button
+                                  key={opt.date}
+                                  type="button"
+                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
+                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  onClick={() => {
+                                    setProductDeliveryWindows(prev => {
+                                      const next = { ...prev }
+                                      if (next[opt.date] && next[opt.date].length > 0) {
+                                        delete next[opt.date]
+                                      } else {
+                                        next[opt.date] = ['10-12', '16-18']
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                >
+                                  {isActive ? '✅' : '📅'} {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {deliverySelectedDays.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {deliverySelectedDays.map(dateStr => {
+                                const dateObj = new Date(dateStr + 'T12:00:00')
+                                const isToday = dateStr === todayStr
+                                const isTomorrow = dateStr === tomorrowStr
+                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
+                                const dwIds = productDeliveryWindows[dateStr] || []
+                                const now = new Date()
+                                const currentHour = now.getHours()
+
+                                return (
+                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
+                                      <div style={{ flex: 1 }}>
+                                        <div className={styles.windowPills}>
+                                          {PRODUCT_TIME_WINDOWS.map(w => {
+                                            const [startH] = w.id.split('-').map(Number)
+                                            const isPast = isToday && startH < currentHour
+                                            const isSelected = dwIds.includes(w.id)
+                                            return (
+                                              <button
+                                                key={`d-${dateStr}-${w.id}`}
+                                                type="button"
+                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
+                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
+                                                onClick={() => {
+                                                  setProductDeliveryWindows(prev => ({
+                                                    ...prev,
+                                                    [dateStr]: isSelected
+                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
+                                                      : [...(prev[dateStr] || []), w.id]
+                                                  }))
+                                                }}
+                                              >
+                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                        {/* Custom delivery slots */}
+                                        {(productCustomDelivery[dateStr] || []).map((s, i) => (
+                                          <div key={`cd-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
+                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
+                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
+                                              onClick={() => setProductCustomDelivery(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
+                                          </div>
+                                        ))}
+                                        {showProductCustomDel[dateStr] ? (
+                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                                            <span style={{ fontSize: 13 }}>to</span>
+                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
+                                              setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
+                                              setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))
+                                            }}>Add</button>
+                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
+                                              onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))}>×</button>
+                                          </div>
+                                        ) : (
+                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
+                                            onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* ════ PICKUP CARD ════ */}
+              {(() => {
+                const isPickupActive = hasBooth ? productOffersPickup : inlinePickup
+                const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                const dayOptions: { date: string; label: string }[] = []
+                for (let offset = 0; offset < 7; offset++) {
+                  const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+                  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  const label = offset === 0 ? todayLabel : offset === 1 ? tomorrowLabel : `${DAY_SHORT[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`
+                  dayOptions.push({ date: dateStr, label })
+                }
+                const pickupSelectedDays = Object.keys(productPickupWindows).filter(d => (productPickupWindows[d] || []).length > 0)
+
+                return (
+                  <div data-testid="pickup-box" style={{ border: `2px solid ${isPickupActive ? '#22c55e' : '#e5e7eb'}`, borderRadius: 12, background: isPickupActive ? '#f0fdf4' : '#fff', overflow: 'hidden', transition: 'all 0.15s' }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', cursor: 'pointer' }}
+                      onClick={() => {
+                        if (hasBooth) {
+                          setProductOffersPickup(prev => !prev)
+                        } else {
+                          setInlinePickup(prev => !prev)
+                        }
+                      }}
+                    >
+                      <span style={{ fontSize: 28 }}>📍</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: isPickupActive ? '#15803d' : '#374151' }}>Pickup Available</div>
+                        <div style={{ fontSize: 13, color: '#6b7280' }}>Buyers pick up from you</div>
+                      </div>
+                      <div>
+                        <input type="checkbox" checked={isPickupActive} readOnly style={{ width: 20, height: 20, accentColor: '#16a34a', pointerEvents: 'none' }} />
+                      </div>
+                    </div>
+                    {isPickupActive && (
+                      <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
+                        {/* Pickup address (no-booth users) */}
+                        {!hasBooth && (
+                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                            <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(leave blank to use Home/Farm Address)</span></label>
+                            <AddressInput
+                              value={productPickupAddr}
+                              onChange={val => {
+                                setProductPickupAddr(val)
+                                setErrors(p => ({ ...p, pickupAddress: '' }))
+                              }}
+                              placeholderStreet="Street Address"
+                            />
+                            {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+                          </div>
+                        )}
+
+                        {/* Pickup address override (booth users) */}
+                        {hasBooth && (
+                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                            <label className={styles.label}>📍 Pickup Address Override <span className={styles.optional}>(leave blank to use booth default pickup address)</span></label>
+                            <AddressInput
+                              value={productPickupAddr}
+                              onChange={val => {
+                                setProductPickupAddr(val)
+                                setErrors(p => ({ ...p, pickupAddress: '' }))
+                              }}
+                              placeholderStreet="Street Address"
+                            />
+                            {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+                          </div>
+                        )}
+
+                        {/* ── Pickup Day Pills & Time Windows ── */}
+                        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
+                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Pickup Days &amp; Times</label>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                            {dayOptions.map(opt => {
+                              const isActive = (productPickupWindows[opt.date] || []).length > 0
+                              return (
+                                <button
+                                  key={opt.date}
+                                  type="button"
+                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
+                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  onClick={() => {
+                                    setProductPickupWindows(prev => {
+                                      const next = { ...prev }
+                                      if (next[opt.date] && next[opt.date].length > 0) {
+                                        delete next[opt.date]
+                                      } else {
+                                        next[opt.date] = ['10-12', '16-18']
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                >
+                                  {isActive ? '✅' : '📅'} {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {pickupSelectedDays.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {pickupSelectedDays.map(dateStr => {
+                                const dateObj = new Date(dateStr + 'T12:00:00')
+                                const isToday = dateStr === todayStr
+                                const isTomorrow = dateStr === tomorrowStr
+                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
+                                const pwIds = productPickupWindows[dateStr] || []
+                                const now = new Date()
+                                const currentHour = now.getHours()
+
+                                return (
+                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
+                                      <div style={{ flex: 1 }}>
+                                        <div className={styles.windowPills}>
+                                          {PRODUCT_TIME_WINDOWS.map(w => {
+                                            const [startH] = w.id.split('-').map(Number)
+                                            const isPast = isToday && startH < currentHour
+                                            const isSelected = pwIds.includes(w.id)
+                                            return (
+                                              <button
+                                                key={`p-${dateStr}-${w.id}`}
+                                                type="button"
+                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
+                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
+                                                onClick={() => {
+                                                  setProductPickupWindows(prev => ({
+                                                    ...prev,
+                                                    [dateStr]: isSelected
+                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
+                                                      : [...(prev[dateStr] || []), w.id]
+                                                  }))
+                                                }}
+                                              >
+                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                        {/* Custom pickup slots */}
+                                        {(productCustomPickup[dateStr] || []).map((s, i) => (
+                                          <div key={`cp-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
+                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
+                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
+                                              onClick={() => setProductCustomPickup(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
+                                          </div>
+                                        ))}
+                                        {showProductCustomPick[dateStr] ? (
+                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                                            <span style={{ fontSize: 13 }}>to</span>
+                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
+                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
+                                              setProductCustomPickup(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
+                                              setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))
+                                            }}>Add</button>
+                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
+                                              onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))}>×</button>
+                                          </div>
+                                        ) : (
+                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
+                                            onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
               })()}
             </div>
 
-            {/* Window cards for each selected date */}
-            {selectedDates.map(dateStr => {
-              const dateObj = new Date(dateStr + 'T12:00:00')
-              const isToday = dateStr === todayStr
-              const isTomorrow = dateStr === tomorrowStr
-              const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-              const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
-              const dwIds = productDeliveryWindows[dateStr] || []
-              const pwIds = productPickupWindows[dateStr] || []
-              const now = new Date()
-              const currentHour = now.getHours()
-
-              return (
-                <div key={dateStr} className={styles.dayWindowCard}>
-                  <div className={styles.dayWindowHeader}>{dateLabel}</div>
-
-                  {/* Delivery windows */}
-                  {productOffersDelivery && boothOffersDelivery && (
-                    <div className={styles.windowGroup}>
-                      <span className={styles.windowLabel}>🚗 Delivery</span>
-                      <div className={styles.windowPills}>
-                        {PRODUCT_TIME_WINDOWS.map(w => {
-                          const [startH] = w.id.split('-').map(Number)
-                          const isPast = isToday && startH < currentHour
-                          const isSelected = dwIds.includes(w.id)
-                          return (
-                            <button
-                              key={`d-${dateStr}-${w.id}`}
-                              type="button"
-                              className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                              style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                              onClick={() => {
-                                setProductDeliveryWindows(prev => ({
-                                  ...prev,
-                                  [dateStr]: isSelected
-                                    ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                    : [...(prev[dateStr] || []), w.id]
-                                }))
-                              }}
-                            >
-                              {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {/* Custom delivery slots */}
-                      {(productCustomDelivery[dateStr] || []).map((s, i) => (
-                        <div key={`cd-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                          <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                            onClick={() => setProductCustomDelivery(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                        </div>
-                      ))}
-                      {showProductCustomDel[dateStr] ? (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                          <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                          <span style={{ fontSize: 13 }}>to</span>
-                          <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                          <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                            setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                            setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))
-                          }}>Add</button>
-                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                            onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                        </div>
-                      ) : (
-                        <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                          onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Pickup windows */}
-                  {productOffersPickup && boothOffersPickup && (
-                    <div className={styles.windowGroup}>
-                      <span className={styles.windowLabel}>📍 Pickup</span>
-                      <div className={styles.windowPills}>
-                        {PRODUCT_TIME_WINDOWS.map(w => {
-                          const [startH] = w.id.split('-').map(Number)
-                          const isPast = isToday && startH < currentHour
-                          const isSelected = pwIds.includes(w.id)
-                          return (
-                            <button
-                              key={`p-${dateStr}-${w.id}`}
-                              type="button"
-                              className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                              style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                              onClick={() => {
-                                setProductPickupWindows(prev => ({
-                                  ...prev,
-                                  [dateStr]: isSelected
-                                    ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                    : [...(prev[dateStr] || []), w.id]
-                                }))
-                              }}
-                            >
-                              {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {/* Custom pickup slots */}
-                      {(productCustomPickup[dateStr] || []).map((s, i) => (
-                        <div key={`cp-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                          <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                            onClick={() => setProductCustomPickup(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                        </div>
-                      ))}
-                      {showProductCustomPick[dateStr] ? (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                          <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                          <span style={{ fontSize: 13 }}>to</span>
-                          <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                          <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                            setProductCustomPickup(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                            setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))
-                          }}>Add</button>
-                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                            onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                        </div>
-                      ) : (
-                        <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                          onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                      )}
-                    </div>
-                  )}
-
-                  {!productOffersDelivery && !productOffersPickup && (
-                    <p style={{ fontSize: 12, color: 'var(--gray-400)', fontStyle: 'italic', margin: 0 }}>
-                      Enable delivery or pickup above to set windows.
-                    </p>
-                  )}
-
-                  {/* Day action buttons */}
-                  {(productOffersDelivery || productOffersPickup) && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                      <button
-                        type="button"
-                        className={styles.windowPill}
-                        style={{ fontSize: 13, padding: '4px 10px', color: 'var(--red-600, #dc2626)' }}
-                        onClick={() => {
-                          setProductDeliveryWindows(prev => ({ ...prev, [dateStr]: [] }))
-                          setProductPickupWindows(prev => ({ ...prev, [dateStr]: [] }))
-                          setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [] }))
-                          setProductCustomPickup(prev => ({ ...prev, [dateStr]: [] }))
-                        }}
-                      >
-                        🗑️ Clear
-                      </button>
-                      {(() => {
-                        const otherDate = dateStr === todayStr ? tomorrowStr : todayStr
-                        const otherLabel = dateStr === todayStr ? 'Tomorrow' : 'Today'
-                        return (
-                          <button
-                            type="button"
-                            className={styles.windowPill}
-                            style={{ fontSize: 13, padding: '4px 10px' }}
-                            onClick={() => {
-                              // Auto-select the other day if not already selected
-                              if (!selectedDates.includes(otherDate)) {
-                                setSelectedDates(prev => [...prev, otherDate])
-                              }
-                              setProductDeliveryWindows(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
-                              setProductPickupWindows(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
-                              setProductCustomDelivery(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
-                              setProductCustomPickup(prev => ({ ...prev, [otherDate]: [...(prev[dateStr] || [])] }))
-                            }}
-                          >
-                            📋 Copy to {otherLabel}
-                          </button>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {selectedDates.length === 0 && (
+            {selectedDates.length === 0 && !(hasBooth ? productOffersDelivery : inlineDelivery) && !(hasBooth ? productOffersPickup : inlinePickup) && (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--gray-400)', fontSize: 13, fontStyle: 'italic' }}>
-                Select at least one day to set availability windows.
+                Enable delivery or pickup and select days to set availability windows.
               </div>
             )}
           </div>
