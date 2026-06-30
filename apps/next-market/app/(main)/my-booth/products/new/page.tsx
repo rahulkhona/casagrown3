@@ -2613,19 +2613,26 @@ function NewProductPageInner() {
             const isMissingInfo = photos.length === 0 || !priceUsd || !quantity || (!productOffersDelivery && !productOffersPickup)
             return (
               <>
+                {isEditMode && isMissingInfo && (
+                  <div style={{ color: '#92400e', background: '#fef3c7', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, lineHeight: 1.4 }}>
+                    ⚠️ Some info is missing (photos, price, or quantity). Your listing will stay active but may appear incomplete to buyers.
+                  </div>
+                )}
                 <button 
                   type="submit" 
                   className={styles.submitBtn} 
                   disabled={validating}
-                  style={isMissingInfo ? { background: '#f59e0b' } : undefined}
+                  style={isMissingInfo && !isEditMode ? { background: '#f59e0b' } : undefined}
                   onClick={() => setForceDraft(false)}
                 >
                   {validating
                     ? '⏳ Saving...'
-                    : isMissingInfo
-                      ? 'Save Draft' 
-                      : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
-                      : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
+                    : isEditMode
+                      ? 'Save Changes'
+                      : isMissingInfo
+                        ? 'Save Draft' 
+                        : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
+                        : '🌱 Publish Product'
                   }
                 </button>
                 {/* Secondary draft button — only when form is complete enough to publish */}
