@@ -1159,8 +1159,8 @@ function NewProductPageInner() {
           harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
           expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
           market_date: marketDate,
-          is_active: !forceDraft,    // Only deactivate if user explicitly saves as draft
-          is_draft: forceDraft,      // Only draft if user explicitly chose it
+          is_active: !needsDraft,
+          is_draft: needsDraft,
           delivery_radius_miles: resolvedRadius,
           pickup_address: offersPickup ? resolvedPickupAddress : null,
           delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
@@ -2617,37 +2617,24 @@ function NewProductPageInner() {
                   type="submit" 
                   className={styles.submitBtn} 
                   disabled={validating}
-                  style={isMissingInfo && !isEditMode ? { background: '#f59e0b' } : undefined}
+                  style={isMissingInfo ? { background: '#f59e0b' } : undefined}
                   onClick={() => setForceDraft(false)}
                 >
                   {validating
                     ? '⏳ Saving...'
-                    : isEditMode
-                      ? 'Save Changes'
-                      : isMissingInfo
-                        ? 'Save Draft' 
-                        : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
-                        : '🌱 Publish Product'
+                    : isMissingInfo
+                      ? 'Save Draft' 
+                      : (isRelist || editingInactive) ? '🌱 Re-list & Publish'
+                      : (isEditMode ? 'Save Changes' : '🌱 Publish Product')
                   }
                 </button>
-                {/* Secondary draft button — for new listings or active edit listings */}
-                {((!isEditMode && !isMissingInfo) || (isEditMode && !editingInactive)) && (
+                {/* Secondary draft button — only when form is complete enough to publish */}
+                {!isEditMode && !isMissingInfo && (
                   <button
                     type="submit"
                     className={`${styles.submitBtn} ${styles.submitBtnDraft}`}
                     disabled={validating}
-                    onClick={(e) => {
-                      if (isEditMode && !editingInactive) {
-                        const confirmed = window.confirm(
-                          '⚠️ Your listing will become unavailable to buyers until you publish it again.\n\nAre you sure you want to save as draft?'
-                        )
-                        if (!confirmed) {
-                          e.preventDefault()
-                          return
-                        }
-                      }
-                      setForceDraft(true)
-                    }}
+                    onClick={() => setForceDraft(true)}
                     style={{ marginTop: 8 }}
                   >
                     📝 Save as Draft Instead
