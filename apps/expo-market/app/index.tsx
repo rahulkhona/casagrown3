@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as ImagePicker from 'expo-image-picker';
 
 const getBaseUrl = (): string => {
   const url = process.env.EXPO_PUBLIC_WEB_URL;
@@ -451,6 +452,21 @@ export default function AppShell() {
         }
       }
 
+      if (data.type === 'REQUEST_CAMERA') {
+        try {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          const js = `
+            if (typeof window !== 'undefined' && window.receiveNativeCameraPermission) {
+              window.receiveNativeCameraPermission(${JSON.stringify(status)});
+            }
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
+        } catch (err) {
+          console.error('Error requesting camera permission:', err);
+        }
+      }
+
     } catch (e: any) {
       console.error('WebView message parsing error:', e);
     }
@@ -465,6 +481,7 @@ export default function AppShell() {
   const INJECTED_JAVASCRIPT = `
     window.IS_NATIVE_APP = true;
     window.NATIVE_SUPPORTS_LOCATION = true;
+    window.NATIVE_SUPPORTS_CAMERA = true;
     window.NATIVE_SUPPORTS_SOCIAL_LOGIN = true;
     window.NATIVE_SUPPORTS_APPLE_LOGIN = ${Platform.OS === 'ios'};
     window.NATIVE_APP_NAME = ${JSON.stringify(appName)};

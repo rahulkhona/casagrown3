@@ -11,6 +11,7 @@ declare global {
   interface Window {
     IS_NATIVE_APP?: boolean;
     NATIVE_SUPPORTS_LOCATION?: boolean;
+    NATIVE_SUPPORTS_CAMERA?: boolean;
     ReactNativeWebView?: {
       postMessage: (message: string) => void;
     };
@@ -20,6 +21,7 @@ declare global {
       lng: number;
       error?: string;
     } | { error: string }) => void;
+    receiveNativeCameraPermission?: (status: string) => void;
   }
 }
 
@@ -39,6 +41,13 @@ export const NativeBridge = {
    */
   get supportsLocation() {
     return typeof window !== 'undefined' && !!window.NATIVE_SUPPORTS_LOCATION;
+  },
+
+  /**
+   * Returns true if the native wrapper supports the REQUEST_CAMERA bridge message.
+   */
+  get supportsCamera() {
+    return typeof window !== 'undefined' && !!window.NATIVE_SUPPORTS_CAMERA;
   },
 
   /**
@@ -96,6 +105,35 @@ export const NativeBridge = {
 
       // Send the request to the Expo wrapper
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REQUEST_LOCATION' }));
+    });
+  },
+
+  /**
+   * Requests camera permissions via the native Expo wrapper at runtime.
+   * Resolves with the permission status ('granted', 'denied', etc.).
+   */
+  requestCameraPermission: (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !window.ReactNativeWebView) {
+        reject(new Error('Not running in native wrapper'));
+        return;
+      }
+
+      window.receiveNativeCameraPermission = (status) => {
+        delete window.receiveNativeCameraPermission;
+        resolve(status);
+      };
+
+      // Timeout after 15 seconds
+      setTimeout(() => {
+        if (window.receiveNativeCameraPermission) {
+          delete window.receiveNativeCameraPermission;
+          reject(new Error('Camera permission request timed out'));
+        }
+      }, 15000);
+
+      // Send the request to the Expo wrapper
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REQUEST_CAMERA' }));
     });
   },
 };

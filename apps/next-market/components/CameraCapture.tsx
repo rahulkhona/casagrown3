@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { NativeBridge } from '../lib/nativeBridge'
 import styles from './CameraCapture.module.css'
 
 export interface CaptureMetadata {
@@ -94,6 +95,12 @@ export default function CameraCapture({
     let mounted = true
     const init = async () => {
       try {
+        if (NativeBridge.isNative && NativeBridge.supportsCamera) {
+          const status = await NativeBridge.requestCameraPermission()
+          if (status !== 'granted') {
+            throw new Error('Permission denied')
+          }
+        }
         const ms = await startStream()
         if (!mounted) { ms.getTracks().forEach(t => t.stop()); return }
 

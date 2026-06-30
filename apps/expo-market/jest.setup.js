@@ -64,3 +64,25 @@ jest.mock('react-native-safe-area-context', () => {
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   }
 })
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn(() => Promise.resolve(true)),
+    signIn: jest.fn(() => Promise.resolve({ data: { idToken: 'mock-id-token' } })),
+    signOut: jest.fn(() => Promise.resolve()),
+  },
+}))
+
+jest.mock('expo-apple-authentication', () => ({
+  isAvailableAsync: jest.fn(() => Promise.resolve(true)),
+  signInAsync: jest.fn(() => Promise.resolve({ identityToken: 'mock-apple-token' })),
+  AppleAuthenticationScope: {
+    FULL_NAME: 1,
+    EMAIL: 2,
+  },
+}))
+
+jest.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+}))

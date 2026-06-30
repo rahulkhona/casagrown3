@@ -2,7 +2,7 @@
   "expo": {
     "name": "CasaGrown",
     "slug": "casagrown-market",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -24,7 +24,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.casagrown.market",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
         "applinks:casagrown.com"
@@ -55,7 +55,7 @@
       },
       "package": "com.casagrown.market",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 7,
+      "versionCode": 8,
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {
