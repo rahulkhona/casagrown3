@@ -7,6 +7,7 @@ import { createClient } from '../../../lib/supabase'
 import DynamicUICardRenderer from '../../components/casabot/DynamicUICards'
 import SocialShareModal from '../../components/SocialShareModal'
 import { summarizeActions } from '../../../lib/growbot-share-utils'
+import { NativeBridge } from '../../../lib/nativeBridge'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -1802,7 +1803,21 @@ ${truncatedAnswer}
                 border: '1px solid #e5e7eb', overflow: 'hidden', zIndex: 50, minWidth: 180,
               }}>
                 <button
-                  onClick={() => { setAttachMenu(false); cameraInputRef.current?.click() }}
+                  onClick={async () => {
+                    setAttachMenu(false)
+                    if (NativeBridge.isNative && NativeBridge.supportsCamera) {
+                      try {
+                        const status = await NativeBridge.requestCameraPermission()
+                        if (status !== 'granted') {
+                          console.warn('[GrowBot] Camera permission not granted:', status)
+                          return
+                        }
+                      } catch (err) {
+                        console.error('[GrowBot] Error requesting camera permission:', err)
+                      }
+                    }
+                    cameraInputRef.current?.click()
+                  }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                     padding: '12px 16px', background: 'none', border: 'none',
