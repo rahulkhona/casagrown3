@@ -68,7 +68,7 @@ function FeedbackSubmitFormContent() {
         <Button 
           icon={ArrowLeft} 
           chromeless 
-          onPress={() => router.back()} 
+          onPress={() => window.location.replace('/board')} 
           alignSelf="flex-start" 
           paddingLeft="$0"
         >
