@@ -26,6 +26,9 @@ function LoginContent() {
     setError('')
     setLoading(true)
     try {
+      if (typeof window !== 'undefined' && returnTo) {
+        sessionStorage.setItem('oauth_return_to', returnTo)
+      }
       await signInWithOAuth(provider)
     } catch (e: any) {
       setLoading(false)
@@ -40,16 +43,25 @@ function LoginContent() {
     const checkAndRedirect = async () => {
       const email = user.email
 
+      let targetRedirect = returnTo
+      if (typeof window !== 'undefined') {
+        const stored = sessionStorage.getItem('oauth_return_to')
+        if (stored) {
+          targetRedirect = stored
+          sessionStorage.removeItem('oauth_return_to')
+        }
+      }
+
       if (email) {
         const staffCheck = await checkIsStaffByEmail(email)
         if (staffCheck.isStaff) {
           await linkStaffUserId(email, user.id)
-          router.replace(returnTo !== '/' ? returnTo : '/staff/dashboard')
+          router.replace(targetRedirect !== '/' ? targetRedirect : '/staff/dashboard')
           return
         }
       }
-      // Community user — go to returnTo
-      router.replace(returnTo)
+      // Community user — go to targetRedirect
+      router.replace(targetRedirect)
     }
 
     checkAndRedirect()

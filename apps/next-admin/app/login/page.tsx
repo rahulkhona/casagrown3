@@ -26,6 +26,9 @@ function LoginContent() {
     setError('')
     setLoading(true)
     try {
+      if (typeof window !== 'undefined' && returnTo) {
+        sessionStorage.setItem('oauth_return_to', returnTo)
+      }
       await signInWithOAuth(provider)
     } catch (e: any) {
       setLoading(false)
@@ -52,8 +55,16 @@ function LoginContent() {
         const hasMarketing = roles.includes('marketing')
         
         let target = returnTo
+        if (typeof window !== 'undefined') {
+          const stored = sessionStorage.getItem('oauth_return_to')
+          if (stored) {
+            target = stored
+            sessionStorage.removeItem('oauth_return_to')
+          }
+        }
+
         if (hasMarketing && !hasAdmin) {
-          const isCrmPath = returnTo === '/' || returnTo.startsWith('/crm/')
+          const isCrmPath = target === '/' || target.startsWith('/crm/')
           if (!isCrmPath) {
             target = '/'
           }

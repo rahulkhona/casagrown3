@@ -376,7 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: Platform.OS === 'web' ? window.location.href : 'casagrowncom://login',
+        redirectTo: Platform.OS === 'web' ? window.location.origin + window.location.pathname : 'casagrowncom://login',
       },
     });
     if (error) throw error;
