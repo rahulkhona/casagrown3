@@ -44,7 +44,7 @@ function StaffLoginContent() {
       await linkStaffUserId(userEmail, user.id)
 
       // Redirect to dashboard
-      router.push('/staff/dashboard')
+      window.location.replace('/staff/dashboard')
     }
 
     checkStaffAndRedirect()

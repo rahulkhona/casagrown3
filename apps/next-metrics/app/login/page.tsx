@@ -34,7 +34,7 @@ function LoginContent() {
       return
     }
 
-    router.push('/')
+    window.location.replace('/')
   }
 
   async function handleSocialLogin(provider: 'google' | 'apple') {
@@ -114,7 +114,7 @@ function LoginContent() {
         type: 'email',
       })
       if (verifyError) throw verifyError
-      router.push('/')
+      window.location.replace('/')
     } catch (e: any) {
       setError(e.message || 'Invalid verification code')
     } finally {

@@ -69,7 +69,7 @@ function LoginContent() {
             target = '/'
           }
         }
-        router.replace(target)
+        window.location.replace(target)
       }
       handleRedirect()
     }

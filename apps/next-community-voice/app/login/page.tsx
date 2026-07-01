@@ -56,12 +56,12 @@ function LoginContent() {
         const staffCheck = await checkIsStaffByEmail(email)
         if (staffCheck.isStaff) {
           await linkStaffUserId(email, user.id)
-          router.replace(targetRedirect !== '/' ? targetRedirect : '/staff/dashboard')
+          window.location.replace(targetRedirect !== '/' ? targetRedirect : '/staff/dashboard')
           return
         }
       }
       // Community user — go to targetRedirect
-      router.replace(targetRedirect)
+      window.location.replace(targetRedirect)
     }
 
     checkAndRedirect()
