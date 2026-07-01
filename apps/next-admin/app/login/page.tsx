@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { YStack, XStack, Text, Button, Input, Card, Spinner, Image } from 'tamagui'
+import { YStack, XStack, Text, Button, Input, Card, Spinner, Image, Separator } from 'tamagui'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors } from '@casagrown/app/design-tokens'
-import { ArrowLeft, Mail } from 'lucide-react'
+import { ArrowLeft, Mail, Chrome } from 'lucide-react'
 import { useAuth } from '@casagrown/app/features/auth/auth-hook'
 import ClientOnly from '../ClientOnly'
 import { checkIsStaffByEmail } from '@casagrown/app/features/feedback/feedback-service'
@@ -13,7 +13,7 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnTo = searchParams.get('returnTo') || '/'
-  const { signInWithOtp, verifyOtp, user, loading: authLoading } = useAuth()
+  const { signInWithOtp, verifyOtp, signInWithOAuth, user, loading: authLoading } = useAuth()
 
   const [method, setMethod] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
@@ -21,6 +21,17 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [devOtp, setDevOtp] = useState<string | null>(null)
+
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    setError('')
+    setLoading(true)
+    try {
+      await signInWithOAuth(provider)
+    } catch (e: any) {
+      setLoading(false)
+      setError(e.message || 'Social login failed')
+    }
+  }
 
   // Redirect if logged in
   useEffect(() => {
@@ -159,6 +170,25 @@ function LoginContent() {
                 >
                     {!loading && <Text color="white" fontWeight="600" fontSize="$4">Send Access Code</Text>}
                 </Button>
+
+                <XStack alignItems="center" marginVertical="$2">
+                    <Separator flex={1} borderColor={colors.gray[300]} />
+                    <Text color={colors.gray[500]} fontSize="$3" marginHorizontal="$3">OR</Text>
+                    <Separator flex={1} borderColor={colors.gray[300]} />
+                </XStack>
+
+                <SocialButton 
+                    icon={<Chrome size={20} color={colors.gray[700]} />} 
+                    label="Continue with Google"
+                    onPress={() => handleSocialLogin('google')}
+                    loading={loading}
+                />
+                <SocialButton 
+                    icon={<Text fontSize={20} fontWeight="900" color={colors.gray[900]}></Text>} 
+                    label="Continue with Apple"
+                    onPress={() => handleSocialLogin('apple')}
+                    loading={loading}
+                />
             </YStack>
         )}
 
@@ -204,6 +234,23 @@ function LoginContent() {
       </Card>
     </YStack>
   )
+}
+
+function SocialButton({ icon, label, onPress, loading }: { icon: any, label: string, onPress: () => void, loading: boolean }) {
+    return (
+        <Button 
+            backgroundColor="white"
+            borderColor={colors.gray[200]}
+            borderWidth={1}
+            icon={loading ? <Spinner color={colors.gray[700]} /> : icon}
+            onPress={onPress}
+            size="$5"
+            disabled={loading}
+            pressStyle={{ backgroundColor: colors.gray[50] }}
+        >
+            {!loading && <Text color={colors.gray[700]} fontWeight="500" fontSize="$3">{label}</Text>}
+        </Button>
+    )
 }
 
 export default function LoginPage() {

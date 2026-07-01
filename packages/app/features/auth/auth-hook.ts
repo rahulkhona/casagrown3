@@ -359,30 +359,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithOAuth = async (provider: "google" | "apple" | "facebook") => {
     console.log(`[Auth] Env: ${process.env.NODE_ENV}, Provider: ${provider}`);
 
-    // FORCE MOCK for now to debug 'stays on page' issue
-    // if (process.env.NODE_ENV === 'development') {
-    console.log("🧪 [Dev] Mocking Social Login for:", provider);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: "mock@social.com",
-      password: "test1234",
-    });
-    if (error) {
-      console.error("❌ Mock Login Failed:", error);
-      throw error;
+    if (process.env.NODE_ENV === "development") {
+      console.log("🧪 [Dev] Mocking Social Login for:", provider);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: "mock@social.com",
+        password: "test1234",
+      });
+      if (error) {
+        console.error("❌ Mock Login Failed:", error);
+        throw error;
+      }
+      return;
     }
-    return;
-    // }
 
-    /*
     // Standard flow (Future/Prod)
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: Platform.OS === 'web' ? window.location.origin : 'casagrowncom://login',
       },
-    })
-    if (error) throw error
-    */
+    });
+    if (error) throw error;
   };
 
   const signOut = async () => {

@@ -37,6 +37,23 @@ function LoginContent() {
     router.push('/')
   }
 
+  async function handleSocialLogin(provider: 'google' | 'apple') {
+    setError('')
+    setLoading(true)
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      })
+      if (oauthError) throw oauthError
+    } catch (e: any) {
+      setLoading(false)
+      setError(e.message || 'Social login failed')
+    }
+  }
+
   async function handleSendCode() {
     if (!email.includes('@')) {
       setError('Please enter a valid email')
@@ -140,6 +157,30 @@ function LoginContent() {
                 disabled={loading}
               >
                 {loading ? 'Sending...' : 'Send Verification Code'}
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', width: '100%' }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-default, rgba(255,255,255,0.1))' }} />
+                <span style={{ margin: '0 12px', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>OR</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-default, rgba(255,255,255,0.1))' }} />
+              </div>
+
+              <button
+                className="btn btn-ghost"
+                onClick={() => handleSocialLogin('google')}
+                disabled={loading}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'transparent', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>🌐</span> Continue with Google
+              </button>
+
+              <button
+                className="btn btn-ghost"
+                onClick={() => handleSocialLogin('apple')}
+                disabled={loading}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'transparent', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              >
+                <span style={{ fontSize: '1.2rem', lineHeight: 1 }}></span> Continue with Apple
               </button>
             </>
           )}
