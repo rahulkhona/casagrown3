@@ -10,7 +10,8 @@ import { checkIsStaffByEmail } from '@casagrown/app/features/feedback/feedback-s
 const PUBLIC_ROUTES = ['/login', '/unauthorized']
 
 function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.includes(pathname)
+  const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname
+  return PUBLIC_ROUTES.includes(cleanPath)
 }
 
 function hasSessionTokensInStorage(): boolean {

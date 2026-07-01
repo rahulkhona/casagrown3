@@ -14,8 +14,9 @@ const PUBLIC_ROUTES = ['/', '/login', '/login-success', '/logout', '/staff/login
 const PUBLIC_PREFIXES = ['/staff/'] // Allow staff/* initially
 
 function isPublicRoute(pathname: string): boolean {
-  if (PUBLIC_ROUTES.includes(pathname)) return true
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname
+  if (PUBLIC_ROUTES.includes(cleanPath)) return true
+  return PUBLIC_PREFIXES.some((prefix) => cleanPath.startsWith(prefix))
 }
 
 /**
