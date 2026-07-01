@@ -54,20 +54,24 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [pathname, router, fastRedirected])
 
   useEffect(() => {
+    console.log('[AuthGuard] useEffect: pathname =', pathname, 'authLoading =', authLoading, 'user =', user?.email)
     if (authLoading) return
 
     if (isPublicRoute(pathname)) {
+      console.log('[AuthGuard] isPublicRoute matches:', pathname, '- setting authorized to true')
       setAuthorized(true)
       return
     }
 
     if (!user) {
+      console.log('[AuthGuard] Protected route & no user - redirecting to login. pathname =', pathname)
       setAuthorized(false)
       const returnTo = encodeURIComponent(pathname)
       router.replace(`/login?returnTo=${returnTo}`)
       return
     }
 
+    console.log('[AuthGuard] Protected route & user logged in - checking profiles table for id:', user.id)
     // Check if user is banned
     supabase
       .from('profiles')
@@ -75,6 +79,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       .eq('id', user.id)
       .single()
       .then(({ data }: { data: { is_banned: boolean } | null }) => {
+        console.log('[AuthGuard] profiles fetch success. data:', data)
         if (data?.is_banned) {
           setBanned(true)
           setAuthorized(false)
@@ -83,7 +88,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           setAuthorized(true)
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[AuthGuard] profiles fetch failed:', err)
         // If profile check fails, allow access (fail-open for auth)
         setAuthorized(true)
       })

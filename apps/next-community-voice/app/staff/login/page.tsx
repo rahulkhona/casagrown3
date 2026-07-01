@@ -26,25 +26,30 @@ function StaffLoginContent() {
     if (authLoading || !user) return
 
     const checkStaffAndRedirect = async () => {
-      const userEmail = user.email
-      if (!userEmail) {
-        setError('Could not retrieve your email from the login provider.')
-        await supabase.auth.signOut()
-        return
+      try {
+        const userEmail = user.email
+        if (!userEmail) {
+          setError('Could not retrieve your email from the login provider.')
+          await supabase.auth.signOut()
+          return
+        }
+
+        const staffCheck = await checkIsStaffByEmail(userEmail)
+        if (!staffCheck.isStaff) {
+          setError('This email is not registered as a staff member. Contact your admin.')
+          await supabase.auth.signOut()
+          return
+        }
+
+        // Link user_id to staff_members on first login
+        await linkStaffUserId(userEmail, user.id)
+
+        // Redirect to dashboard
+        window.location.replace('/staff/dashboard')
+      } catch (err) {
+        console.error('[StaffLogin] checkStaffAndRedirect caught error:', err)
+        window.location.replace('/staff/dashboard')
       }
-
-      const staffCheck = await checkIsStaffByEmail(userEmail)
-      if (!staffCheck.isStaff) {
-        setError('This email is not registered as a staff member. Contact your admin.')
-        await supabase.auth.signOut()
-        return
-      }
-
-      // Link user_id to staff_members on first login
-      await linkStaffUserId(userEmail, user.id)
-
-      // Redirect to dashboard
-      window.location.replace('/staff/dashboard')
     }
 
     checkStaffAndRedirect()

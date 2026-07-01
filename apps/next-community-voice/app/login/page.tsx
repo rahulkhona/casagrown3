@@ -38,30 +38,43 @@ function LoginContent() {
 
   // After login, check staff status and redirect
   useEffect(() => {
+    console.log('[Login] useEffect triggered: user =', user?.email, 'authLoading =', authLoading, 'returnTo =', returnTo)
     if (authLoading || !user) return
 
     const checkAndRedirect = async () => {
-      const email = user.email
+      try {
+        const email = user.email
+        console.log('[Login] checkAndRedirect start: email =', email)
 
-      let targetRedirect = returnTo
-      if (typeof window !== 'undefined') {
-        const stored = sessionStorage.getItem('oauth_return_to')
-        if (stored) {
-          targetRedirect = stored
-          sessionStorage.removeItem('oauth_return_to')
+        let targetRedirect = returnTo
+        if (typeof window !== 'undefined') {
+          const stored = sessionStorage.getItem('oauth_return_to')
+          if (stored) {
+            targetRedirect = stored
+            console.log('[Login] targetRedirect retrieved from sessionStorage:', targetRedirect)
+            sessionStorage.removeItem('oauth_return_to')
+          }
         }
-      }
 
-      if (email) {
-        const staffCheck = await checkIsStaffByEmail(email)
-        if (staffCheck.isStaff) {
-          await linkStaffUserId(email, user.id)
-          window.location.replace(targetRedirect !== '/' ? targetRedirect : '/staff/dashboard')
-          return
+        if (email) {
+          console.log('[Login] checkIsStaffByEmail calling...')
+          const staffCheck = await checkIsStaffByEmail(email)
+          console.log('[Login] checkIsStaffByEmail result:', staffCheck)
+          if (staffCheck.isStaff) {
+            await linkStaffUserId(email, user.id)
+            const redirectUrl = targetRedirect !== '/' ? targetRedirect : '/staff/dashboard'
+            console.log('[Login] redirecting staff to:', redirectUrl)
+            window.location.replace(redirectUrl)
+            return
+          }
         }
+        console.log('[Login] redirecting community user to:', targetRedirect)
+        window.location.replace(targetRedirect)
+      } catch (err) {
+        console.error('[Login] checkAndRedirect caught error:', err)
+        // Fallback: force redirect to targetRedirect or /board
+        window.location.replace(returnTo || '/board')
       }
-      // Community user — go to targetRedirect
-      window.location.replace(targetRedirect)
     }
 
     checkAndRedirect()

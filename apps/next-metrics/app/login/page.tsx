@@ -25,16 +25,21 @@ function LoginContent() {
   }, [])
 
   async function checkStaffAndRedirect(userEmail: string) {
-    const { data: isStaff } = await supabase
-      .rpc('is_staff_email', { check_email: userEmail.toLowerCase() })
+    try {
+      const { data: isStaff } = await supabase
+        .rpc('is_staff_email', { check_email: userEmail.toLowerCase() })
 
-    if (!isStaff) {
-      setError('This email is not registered as a staff member.')
-      await supabase.auth.signOut()
-      return
+      if (!isStaff) {
+        setError('This email is not registered as a staff member.')
+        await supabase.auth.signOut()
+        return
+      }
+
+      window.location.replace('/')
+    } catch (e) {
+      console.error('[MetricsLogin] checkStaffAndRedirect caught error:', e)
+      window.location.replace('/')
     }
-
-    window.location.replace('/')
   }
 
   async function handleSocialLogin(provider: 'google' | 'apple') {

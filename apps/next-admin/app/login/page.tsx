@@ -41,35 +41,40 @@ function LoginContent() {
     if (authLoading) return
     if (user) {
       const handleRedirect = async () => {
-        let roles: string[] = user.user_metadata?.roles || []
-        if (roles.length === 0 && user.email) {
-          try {
-            const res = await checkIsStaffByEmail(user.email)
-            roles = res.roles
-          } catch (e) {
-            console.error('Error fetching roles in login redirect:', e)
+        try {
+          let roles: string[] = user.user_metadata?.roles || []
+          if (roles.length === 0 && user.email) {
+            try {
+              const res = await checkIsStaffByEmail(user.email)
+              roles = res.roles
+            } catch (e) {
+              console.error('Error fetching roles in login redirect:', e)
+            }
           }
-        }
-        
-        const hasAdmin = roles.includes('admin')
-        const hasMarketing = roles.includes('marketing')
-        
-        let target = returnTo
-        if (typeof window !== 'undefined') {
-          const stored = sessionStorage.getItem('oauth_return_to')
-          if (stored) {
-            target = stored
-            sessionStorage.removeItem('oauth_return_to')
+          
+          const hasAdmin = roles.includes('admin')
+          const hasMarketing = roles.includes('marketing')
+          
+          let target = returnTo
+          if (typeof window !== 'undefined') {
+            const stored = sessionStorage.getItem('oauth_return_to')
+            if (stored) {
+              target = stored
+              sessionStorage.removeItem('oauth_return_to')
+            }
           }
-        }
 
-        if (hasMarketing && !hasAdmin) {
-          const isCrmPath = target === '/' || target.startsWith('/crm/')
-          if (!isCrmPath) {
-            target = '/'
+          if (hasMarketing && !hasAdmin) {
+            const isCrmPath = target === '/' || target.startsWith('/crm/')
+            if (!isCrmPath) {
+              target = '/'
+            }
           }
+          window.location.replace(target)
+        } catch (err) {
+          console.error('[Login] handleRedirect caught error:', err)
+          window.location.replace(returnTo || '/')
         }
-        window.location.replace(target)
       }
       handleRedirect()
     }
