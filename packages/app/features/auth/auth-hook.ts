@@ -217,48 +217,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Listen for auth changes
+    // IMPORTANT: Set user + loading:false IMMEDIATELY — never await DB calls
+    // inside this callback. The Supabase client may still hold an internal
+    // lock during PKCE code exchange; awaiting another Supabase call here
+    // deadlocks the auth flow and causes an infinite loading spinner.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: string, session: Session | null) => {
+      (_event: string, session: Session | null) => {
         if (!mounted) return;
-        try {
-          if (session?.user) {
-            // Re-check ToS on auth state change (e.g. after login)
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("tos_accepted_at")
-              .eq("id", session.user.id)
-              .maybeSingle();
-            if (!mounted) return;
-            setState({
-              session,
-              user: session.user,
-              loading: false,
-              tosAccepted: !!profile?.tos_accepted_at,
+        if (session?.user) {
+          // Set user + loading:false immediately so pages can render
+          setState({
+            session,
+            user: session.user,
+            loading: false,
+            tosAccepted: false, // optimistic default; updated below
+          });
+          // Fetch ToS status asynchronously — never blocks auth loading
+          supabase
+            .from("profiles")
+            .select("tos_accepted_at")
+            .eq("id", session.user.id)
+            .maybeSingle()
+            .then(({ data: profile }) => {
+              if (!mounted) return;
+              if (profile?.tos_accepted_at) {
+                setState((prev) => ({ ...prev, tosAccepted: true }));
+              }
+            })
+            .catch((err: any) => {
+              console.error("Auth: ToS check failed:", err);
             });
-          } else {
-            setState({
-              session,
-              user: null,
-              loading: false,
-              tosAccepted: false,
-            });
-          }
-        } catch (err: any) {
-          if (err?.name === "AbortError") {
-            console.debug(
-              "Auth: onAuthStateChange aborted (page navigated away)",
-            );
-            return;
-          }
-          console.error("Auth: onAuthStateChange error:", err);
-          if (mounted) {
-            setState({
-              session: null,
-              user: null,
-              loading: false,
-              tosAccepted: false,
-            });
-          }
+        } else {
+          setState({
+            session,
+            user: null,
+            loading: false,
+            tosAccepted: false,
+          });
         }
       },
     );
