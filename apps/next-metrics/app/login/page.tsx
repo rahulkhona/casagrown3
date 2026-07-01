@@ -44,7 +44,7 @@ function LoginContent() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: window.location.href,
         },
       })
       if (oauthError) throw oauthError
