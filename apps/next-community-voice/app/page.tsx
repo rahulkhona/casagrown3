@@ -29,7 +29,7 @@ export default function Page() {
             backgroundColor={colors.green[600]} 
             borderRadius={28}
             paddingHorizontal="$6"
-            onPress={() => router.push(user ? '/submit' : '/login?returnTo=/submit')}
+            onPress={() => window.location.replace(user ? '/submit' : '/login?returnTo=/submit')}
             size="$4"
             width="100%"
             maxWidth={280}
@@ -43,7 +43,7 @@ export default function Page() {
             borderColor={colors.green[600]}
             borderRadius={28}
             paddingHorizontal="$6"
-            onPress={() => router.push('/board')}
+            onPress={() => window.location.replace('/board')}
             size="$4"
             width="100%"
             maxWidth={280}
@@ -54,7 +54,7 @@ export default function Page() {
 
         <YStack marginTop="$8" alignItems="center">
             <Text color={colors.gray[500]} fontSize={13} fontWeight="400">
-                Staff Member? <Text color={colors.green[600]} fontWeight="600" onPress={() => router.push('/login?returnTo=/board')}>Log in here</Text>
+                Staff Member? <Text color={colors.green[600]} fontWeight="600" onPress={() => window.location.replace('/login?returnTo=/board')}>Log in here</Text>
             </Text>
         </YStack>
       </YStack>

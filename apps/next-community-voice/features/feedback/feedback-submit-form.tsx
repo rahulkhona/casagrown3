@@ -34,7 +34,7 @@ function FeedbackSubmitFormContent() {
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) return
     if (!user) {
-      router.push('/login?returnTo=/submit')
+      window.location.replace('/login?returnTo=/submit')
       return
     }
     setLoading(true)
@@ -46,11 +46,7 @@ function FeedbackSubmitFormContent() {
       files: files.map(f => f.file),
     })
     setLoading(false)
-    if (result) {
-      router.push('/board')
-    } else {
-      router.push('/board')
-    }
+    window.location.replace('/board')
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
