@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { YStack, XStack, Text, Button, Input, Card, Spinner, Image, Separator } from 'tamagui'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { colors } from '@casagrown/app/design-tokens'
@@ -14,6 +14,7 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const returnTo = searchParams.get('returnTo') || '/board'
   const { signInWithOtp, verifyOtp, signInWithOAuth, user, loading: authLoading } = useAuth()
+  const redirectingRef = useRef(false)
 
   const [method, setMethod] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
@@ -40,6 +41,9 @@ function LoginContent() {
   useEffect(() => {
     console.log('[Login] useEffect triggered: user =', user?.email, 'authLoading =', authLoading, 'returnTo =', returnTo)
     if (authLoading || !user) return
+    // Guard: only redirect once (both getSession and onAuthStateChange fire this)
+    if (redirectingRef.current) return
+    redirectingRef.current = true
 
     const checkAndRedirect = async () => {
       try {
