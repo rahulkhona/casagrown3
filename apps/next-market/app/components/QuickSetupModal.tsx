@@ -7,7 +7,7 @@ import { geocodeAddress, toPostgisPoint } from '../../lib/geocode'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../(main)/terms/page'
 import { ENABLE_SOCIAL_LOGIN } from '../../lib/featureFlags'
 import styles from './QuickSetupModal.module.css'
-import { normalizeStateCode } from '../../lib/address'
+import { normalizeStateCode, validateProfileFields } from '../../lib/address'
 
 // ── US State Codes ──
 const US_STATES = [
@@ -202,6 +202,18 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
 
   const handleSaveProfileOnly = async () => {
     setError('')
+    // ── Required field validation ──
+    const profileError = validateProfileFields({
+      fullName: fullName,
+      street: street,
+      city: city,
+      state: state,
+      zip: zip,
+    })
+    if (profileError) {
+      setError(profileError)
+      return
+    }
     setLoading(true)
     try {
       let finalStreet = street.trim()

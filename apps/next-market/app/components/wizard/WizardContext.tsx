@@ -5,7 +5,7 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import { useSearchParams } from 'next/navigation'
 
-import { normalizeStateCode } from '../../../lib/address'
+import { normalizeStateCode, validateProfileFields } from '../../../lib/address'
 
 export interface QuarantineInfo {
   pest_name: string;
@@ -314,6 +314,18 @@ export function WizardProvider({ children }: { children: ReactNode }) {
 
       // Update profile if publishing so user is fully onboarded
       if (!isDraft) {
+        // ── Required field validation ──
+        const profileError = validateProfileFields({
+          fullName: state.fullName,
+          street: street,
+          city: city,
+          state: stateCode,
+          zip: zipCode,
+        })
+        if (profileError) {
+          throw new Error(profileError)
+        }
+
         const profileUpdate: any = {
           tos_accepted_at: state.agreedToTos ? new Date().toISOString() : undefined,
           full_name: state.fullName || undefined,

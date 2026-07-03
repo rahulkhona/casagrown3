@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/useAuth'
 import CameraCapture from '../../../components/CameraCapture'
 import ImageCropper from '../../../components/ImageCropper'
 import AddressInput from '../../components/AddressInput'
-import { type AddressFields, normalizeStateCode } from '../../../lib/address'
+import { type AddressFields, normalizeStateCode, validateProfileFields } from '../../../lib/address'
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useErrorToast } from '../../components/ErrorToast'
@@ -151,6 +151,18 @@ function ProfilePageInner() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+    // ── Required field validation ──
+    const profileError = validateProfileFields({
+      fullName: form.name,
+      street: form.street,
+      city: form.city,
+      state: form.state,
+      zip: form.zip,
+    })
+    if (profileError) {
+      setError(profileError)
+      return
+    }
     if (form.email !== initialEmail) {
       setError('You must verify your new email address by clicking "Verify Code" before continuing.')
       return

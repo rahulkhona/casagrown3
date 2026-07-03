@@ -39,7 +39,26 @@ export function formatShortAddress(a: AddressFields): string {
  * Check if address has at minimum a street
  */
 export function isAddressComplete(a: AddressFields): boolean {
-  return !!(a.street && a.city && a.state && a.zip)
+  return !!(a.street?.trim() && a.city?.trim() && a.state?.trim() && a.zip?.trim())
+}
+
+/**
+ * Validate that all required profile fields are present and non-whitespace.
+ * Returns the first error message found, or null if all fields are valid.
+ */
+export function validateProfileFields(fields: {
+  fullName?: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}): string | null {
+  if (!fields.fullName?.trim()) return 'Please enter your name'
+  if (!fields.street?.trim()) return 'Please enter your street address'
+  if (!fields.city?.trim()) return 'Please enter your city'
+  if (!fields.state?.trim()) return 'Please enter your state'
+  if (!fields.zip?.trim()) return 'Please enter your zip code'
+  return null
 }
 
 /**
