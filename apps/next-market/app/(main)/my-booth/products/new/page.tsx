@@ -583,7 +583,8 @@ function NewProductPageInner() {
         setHarvestedAt(new Date(data.harvested_at).toISOString().split('T')[0])
       }
       // Load product-level window data
-      if (data.window_dates && Array.isArray(data.window_dates) && data.window_dates.length > 0) {
+      const hasProductWindows = data.window_dates && Array.isArray(data.window_dates) && data.window_dates.length > 0
+      if (hasProductWindows) {
         setSelectedDates(data.window_dates)
         const pdw = (data.product_delivery_windows || {}) as Record<string, Array<{id: string}>>
         const ppw = (data.product_pickup_windows || {}) as Record<string, Array<{id: string}>>
@@ -598,6 +599,17 @@ function NewProductPageInner() {
         // Restore fulfillment mode toggles from saved product data
         setProductOffersDelivery(data.product_delivery_windows != null)
         setProductOffersPickup(data.product_pickup_windows != null)
+      } else {
+        // Product has no saved fulfillment windows — fall back to booth defaults
+        // This handles legacy products created before product-level windows were stored
+        // Booth defaults will be applied by loadBoothDefaults effect (which has already run or will run)
+        // If booth defaults are also missing, sensible defaults are set so the form is submittable
+        setProductOffersDelivery(true)
+        setProductOffersPickup(true)
+        setSelectedDates([todayStr, tomorrowStr])
+        const allSlots = PRODUCT_TIME_WINDOWS.map(w => w.id)
+        setProductDeliveryWindows({ [todayStr]: [...allSlots], [tomorrowStr]: [...allSlots] })
+        setProductPickupWindows({ [todayStr]: [...allSlots], [tomorrowStr]: [...allSlots] })
       }
       // Load per-product fulfillment overrides
       if (data.delivery_radius_miles != null) setInlineDeliveryRadius(data.delivery_radius_miles)
@@ -612,10 +624,6 @@ function NewProductPageInner() {
       if (!data.is_active && !data.is_draft) {
         setEditingInactive(true)
         setRelistBannerVisible(true)
-        // Reset fulfillment windows to today/tomorrow
-        setSelectedDates([todayStr, tomorrowStr])
-        setProductDeliveryWindows({ [todayStr]: [], [tomorrowStr]: [] })
-        setProductPickupWindows({ [todayStr]: [], [tomorrowStr]: [] })
       }
     }
     loadProduct()
@@ -798,7 +806,7 @@ function NewProductPageInner() {
     const effectivePrice = restriction.isFreeOnly ? '0' : priceUsd
     const parsedPrice = parseFloat(effectivePrice || '0')
     const isValidPrice = effectivePrice !== '' && effectivePrice !== null && !isNaN(parsedPrice) && parsedPrice >= 0 && (!restriction.isFreeOnly || parsedPrice === 0)
-    const needsDraft = forceDraft || !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
+    let needsDraft = forceDraft || !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
     
     // Safety check first
     const newErrors: Record<string, string> = {}
@@ -813,20 +821,17 @@ function NewProductPageInner() {
       }
       if (!quantity || parseInt(quantity) <= 0) newErrors.quantity = 'How many do you have?'
 
-      // Fulfillment window validation
-      if (!productOffersDelivery && !productOffersPickup) {
-        newErrors.fulfillment = 'Select at least delivery or pickup'
-      } else if (selectedDates.length === 0) {
-        newErrors.fulfillment = 'Select at least one day (Today or Tomorrow)'
-      } else {
-        const hasAnyWindow = selectedDates.some(d => {
-          const dw = productOffersDelivery ? (productDeliveryWindows[d] || []).length + (productCustomDelivery[d] || []).length : 0
-          const pw = productOffersPickup ? (productPickupWindows[d] || []).length + (productCustomPickup[d] || []).length : 0
-          return dw > 0 || pw > 0
-        })
-        if (!hasAnyWindow) {
-          newErrors.fulfillment = 'Set at least one delivery or pickup window'
-        }
+      // Fulfillment window validation — if missing, save as draft instead of blocking
+      const hasFulfillmentMode = productOffersDelivery || productOffersPickup
+      const hasDates = selectedDates.length > 0
+      const hasAnyWindow = hasDates && selectedDates.some(d => {
+        const dw = productOffersDelivery ? (productDeliveryWindows[d] || []).length + (productCustomDelivery[d] || []).length : 0
+        const pw = productOffersPickup ? (productPickupWindows[d] || []).length + (productCustomPickup[d] || []).length : 0
+        return dw > 0 || pw > 0
+      })
+      if (!hasFulfillmentMode || !hasDates || !hasAnyWindow) {
+        // Force draft save — don't block the save entirely
+        needsDraft = true
       }
 
       // Address validation
