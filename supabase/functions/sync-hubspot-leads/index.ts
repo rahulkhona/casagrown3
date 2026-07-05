@@ -128,6 +128,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         utm_content: props.utm_content || null,
         utm_term: props.utm_term || null,
         status: "new",
+        accepts_email: true,  // HubSpot contacts opted in by submitting a form
+        accepts_sms: true,    // They can always unsubscribe later
         metadata: {
           ingested_from: "hubspot",
           hubspot_contact_id: contact.id,
