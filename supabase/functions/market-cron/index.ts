@@ -659,8 +659,9 @@ async function handleReconcileRedemptions(
         const apiKey = env('TREMENDOUS_API_KEY')
         if (!apiKey) { await refundStale(supabase, r, 'No API key'); refunded++; continue }
 
+        const apiBase = env('TREMENDOUS_API_URL') || 'https://testflight.tremendous.com'
         const res = await fetch(
-          `https://testflight.tremendous.com/api/v2/orders?external_id=${r.id}`,
+          `${apiBase}/api/v2/orders?external_id=${r.id}`,
           { headers: { Authorization: `Bearer ${apiKey}` } }
         )
 

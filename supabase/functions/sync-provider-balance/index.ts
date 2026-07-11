@@ -17,8 +17,9 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     const tremendousKey = env("TREMENDOUS_API_KEY");
     if (tremendousKey) {
         try {
+            const apiBase = env("TREMENDOUS_API_URL") || "https://testflight.tremendous.com";
             const res = await fetch(
-                "https://testflight.tremendous.com/api/v2/funding_sources",
+                `${apiBase}/api/v2/funding_sources`,
                 {
                     headers: { "Authorization": `Bearer ${tremendousKey}` },
                 },
