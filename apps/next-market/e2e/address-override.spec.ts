@@ -61,11 +61,12 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       await expect(baseAddressCard).toBeVisible({ timeout: 10000 })
       await expect(baseAddressCard).toContainText('1247 Minnesota Ave, San Jose, CA 95125')
 
-      // 2. Click pickup fulfillment card if not already selected
-      const pickupCard = page.locator('button:has-text("Pickup Available")')
-      // If it doesn't have active class, click it
-      const classList = await pickupCard.evaluate(el => Array.from(el.classList))
-      if (!classList.some(c => c.includes('Active'))) {
+      // Ensure pickup is selected (this overrides the base address behavior in the UI)
+      const pickupCard = page.getByTestId('pickup-box')
+      // Since it uses inline styles, we just check the checkbox inside it
+      const pickupCheckbox = pickupCard.locator('input[type="checkbox"]')
+      const isChecked = await pickupCheckbox.isChecked()
+      if (!isChecked) {
         await pickupCard.click()
       }
 
@@ -168,13 +169,14 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       await page.locator('input[placeholder="ST"]').first().fill('CA')
       await page.locator('input[placeholder="ZIP"]').first().fill('94105')
 
-      // Enable alternate pickup address in wizard
-      const offersPickupCheckbox = page.locator('div:has-text("Pickup Available") input[type="checkbox"]').first()
-      if (await offersPickupCheckbox.isVisible()) {
-        const checked = await offersPickupCheckbox.isChecked()
-        if (!checked) {
-          await page.locator('text=Pickup Available').first().click()
-        }
+      // We are navigating directly to settings/stand, so we are an authed seller
+      // Check the existing settings
+      const pickupBox = page.getByTestId('pickup-box')
+      const offersPickupCheckbox = pickupBox.locator('input[type="checkbox"]')
+      const isPickupEnabled = await offersPickupCheckbox.isChecked()
+      if (!isPickupEnabled) {
+          // toggle on
+          await pickupBox.click()
       }
 
       // Let's specify alternate pickup address

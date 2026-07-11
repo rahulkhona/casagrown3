@@ -18,6 +18,7 @@ import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import { useCommunityDigest } from '../../../lib/useCommunityDigest'
+
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress, normalizeStateCode } from '../../../lib/address'
 import GrowBotFAB from '../../components/GrowBotFAB'
@@ -208,6 +209,7 @@ const getSearchEmoji = (query: string) => {
 }
 
 function BrowseMarketPageInner() {
+
   const supabase = createClient()
   const { user } = useAuth()
   const keyboardOpen = useKeyboardVisible()

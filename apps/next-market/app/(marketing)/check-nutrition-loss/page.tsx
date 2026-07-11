@@ -3,9 +3,18 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
+import { trackEvent } from '../../../lib/crm-analytics'
 
 export default function NutritionLossLandingPage() {
+
   const [step, setStep] = useState<'intro' | 'produce' | 'calculating' | 'lead-capture' | 'queued' | 'results'>('intro')
+
+  useEffect(() => {
+    const stepIndexes: Record<string, number> = {
+      'intro': 1, 'produce': 2, 'calculating': 3, 'lead-capture': 4, 'queued': 5, 'results': 6
+    }
+    trackEvent('wizard_step', '/check-nutrition-loss', { step_index: stepIndexes[step] || 0, step_name: step })
+  }, [step])
   
   // Questionnaire State
   const [selectedProduce, setSelectedProduce] = useState<string[]>([])

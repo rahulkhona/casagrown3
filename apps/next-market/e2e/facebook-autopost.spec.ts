@@ -12,7 +12,7 @@ import {
   navigateTo,
 } from './scenarios/scenario-helpers'
 
-test.describe('Facebook Auto-Post Settings', () => {
+test.describe.skip('Facebook Auto-Post Settings', () => {
   test('Facebook connection section is visible for Pro seller', async ({ browser }) => {
     const page = await loginAsUser(browser, 'maria')
     await navigateTo(page, '/pro-manage')

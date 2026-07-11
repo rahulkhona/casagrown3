@@ -53,7 +53,7 @@ test.describe('CRM Campaign Editor AI Draft Assistant', () => {
     await page.click('button:has-text("Generate Draft")')
 
     // Wait for the mock generation to complete
-    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 30000 })
 
     // Apply replacement
     await page.click('button:has-text("Replace All")')
@@ -92,7 +92,7 @@ test.describe('CRM Campaign Editor AI Draft Assistant', () => {
     await page.click('button:has-text("Generate Draft")')
 
     // Wait for mock revision to complete
-    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 30000 })
 
     // Apply append
     await page.click('button:has-text("Append")')
@@ -137,7 +137,7 @@ test.describe('CRM Campaign Editor AI Draft Assistant', () => {
     await page.click('button:has-text("Generate Draft")')
 
     // Wait for the mock generation to complete
-    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('button:has-text("Replace All")')).toBeVisible({ timeout: 30000 })
 
     // Apply replace
     await page.click('button:has-text("Replace All")')

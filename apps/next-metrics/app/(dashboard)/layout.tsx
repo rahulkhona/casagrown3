@@ -66,13 +66,23 @@ function DemoBanner() {
 
 // ─── Filter Context ─────────────────────────────────────────────────────────
 
+export interface UtmFilter {
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  utm_term?: string
+  utm_content?: string
+}
+
 interface FilterState {
   dateRange: DateRange
   granularity: Granularity
   geoFilter: GeoFilter
+  utmFilter: UtmFilter
   setDateRange: (r: DateRange) => void
   setGranularity: (g: Granularity) => void
   setGeoFilter: (f: GeoFilter) => void
+  setUtmFilter: (f: UtmFilter) => void
 }
 
 const defaultDateRange: DateRange = (() => {
@@ -89,9 +99,11 @@ const FilterContext = createContext<FilterState>({
   dateRange: defaultDateRange,
   granularity: 'daily',
   geoFilter: {},
+  utmFilter: {},
   setDateRange: () => {},
   setGranularity: () => {},
   setGeoFilter: () => {},
+  setUtmFilter: () => {},
 })
 
 export function useFilters() {
@@ -128,6 +140,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [granularity, setGranularity] = useState<Granularity>('daily')
   const [geoFilter, setGeoFilter] = useState<GeoFilter>({})
+  const [utmFilter, setUtmFilter] = useState<UtmFilter>({})
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -136,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <AuthGuard>
-      <FilterContext.Provider value={{ dateRange, granularity, geoFilter, setDateRange, setGranularity, setGeoFilter }}>
+      <FilterContext.Provider value={{ dateRange, granularity, geoFilter, utmFilter, setDateRange, setGranularity, setGeoFilter, setUtmFilter }}>
         {/* Mobile toggle */}
         <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? '✕' : '☰'}
@@ -210,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="main-content">
           <DemoBanner />
           {/* Filter Bar */}
-          <div className="filter-bar">
+          <div className="filter-bar" style={{ flexWrap: 'wrap' }}>
             <div className="filter-group">
               <label>From</label>
               <input
@@ -292,6 +305,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 onChange={e => setGeoFilter({ ...geoFilter, zip_code: e.target.value || undefined })}
                 style={{ width: 90 }}
               />
+            </div>
+            {/* UTM Filters */}
+            <div className="filter-group" style={{ marginLeft: 'auto' }}>
+              <label>Source</label>
+              <input type="text" className="input" placeholder="utm_source" value={utmFilter.utm_source || ''} onChange={e => setUtmFilter({ ...utmFilter, utm_source: e.target.value || undefined })} style={{ width: 100 }} />
+            </div>
+            <div className="filter-group">
+              <label>Medium</label>
+              <input type="text" className="input" placeholder="utm_medium" value={utmFilter.utm_medium || ''} onChange={e => setUtmFilter({ ...utmFilter, utm_medium: e.target.value || undefined })} style={{ width: 100 }} />
+            </div>
+            <div className="filter-group">
+              <label>Campaign</label>
+              <input type="text" className="input" placeholder="utm_campaign" value={utmFilter.utm_campaign || ''} onChange={e => setUtmFilter({ ...utmFilter, utm_campaign: e.target.value || undefined })} style={{ width: 100 }} />
             </div>
           </div>
 

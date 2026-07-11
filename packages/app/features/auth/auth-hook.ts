@@ -238,7 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .select("tos_accepted_at")
             .eq("id", session.user.id)
             .maybeSingle()
-            .then(({ data: profile }) => {
+            .then(({ data: profile }: { data: any }) => {
               if (!mounted) return;
               if (profile?.tos_accepted_at) {
                 setState((prev) => ({ ...prev, tosAccepted: true }));

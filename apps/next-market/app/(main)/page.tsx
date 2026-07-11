@@ -6,9 +6,11 @@ import Link from 'next/link'
 import { createClient } from '../../lib/supabase'
 import { needsTosAcceptance } from '../../lib/legal'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+
 import styles from './page.module.css'
 
 export default function HomePage() {
+
   const router = useRouter()
   const [checking, setChecking] = useState(true)
   const [activeModal, setActiveModal] = useState<'waste' | 'teens' | null>(null)

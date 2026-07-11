@@ -95,6 +95,7 @@ export function useMarketingAnalytics(pageSlug: string): void {
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
+      handleUnload()
       window.removeEventListener('beforeunload', handleUnload)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
@@ -106,7 +107,7 @@ export function useMarketingAnalytics(pageSlug: string): void {
  * Call this directly from event handlers.
  */
 export function trackEvent(
-  eventType: 'button_click' | 'calculator_used' | 'form_start' | 'form_abandon' | 'cta_clicked' | 'scroll_50' | 'scroll_90',
+  eventType: 'button_click' | 'calculator_used' | 'form_start' | 'form_abandon' | 'cta_clicked' | 'scroll_50' | 'scroll_90' | 'wizard_step',
   pageSlug: string,
   eventData: Record<string, unknown> = {},
 ): void {

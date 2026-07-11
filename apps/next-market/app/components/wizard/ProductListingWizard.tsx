@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { WizardProvider, useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
+import { trackEvent } from '../../../lib/crm-analytics'
 
 import Step1Basics from './Step1Basics'
 import Step2Fulfillment from './Step2Fulfillment'
@@ -24,6 +25,11 @@ function WizardRouter() {
     { id: 4, label: 'Verify' },
     { id: 5, label: 'Publish' },
   ]
+
+  useEffect(() => {
+    const stepName = allSteps.find(s => s.id === state.currentStep)?.label?.toLowerCase() || (state.currentStep === 6 ? 'success' : 'unknown')
+    trackEvent('wizard_step', '/create-listing', { step_index: state.currentStep, step_name: stepName })
+  }, [state.currentStep])
   
   const steps = allSteps.filter(s => !(s.id === 4 && (isAuthenticated || state.isExistingUser)))
 

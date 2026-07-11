@@ -441,7 +441,8 @@ export async function fetchPayoutTrends(
 
 export async function fetchPageAnalytics(
   dateRange: DateRange,
-  geoFilter?: GeoFilter
+  geoFilter?: GeoFilter,
+  utmFilter?: any
 ): Promise<PageAnalyticsData> {
   try {
     const { data, error } = await supabase.rpc('metrics_page_analytics', {
@@ -450,46 +451,24 @@ export async function fetchPageAnalytics(
       p_state: geoFilter?.state_code || null,
       p_city: geoFilter?.city || null,
       p_zip: geoFilter?.zip_code || null,
+      p_utm_source: utmFilter?.utm_source || null,
+      p_utm_medium: utmFilter?.utm_medium || null,
+      p_utm_campaign: utmFilter?.utm_campaign || null,
+      p_utm_term: utmFilter?.utm_term || null,
     })
     if (!error && data && !data?.error) return data as PageAnalyticsData
   } catch {}
 
+  // Demo fallback
   markDemo()
   return {
     routes: [
-      { route: '/market', pageLoads: 4521, uniqueUsers: 2890, avgDwellTime: 45, bounceRate: 12, dropOffRate: 8, errors: 3 },
-      { route: '/market/booth/:id', pageLoads: 2134, uniqueUsers: 1430, avgDwellTime: 67, bounceRate: 18, dropOffRate: 15, errors: 1 },
-      { route: '/market/product/:id', pageLoads: 1876, uniqueUsers: 1210, avgDwellTime: 52, bounceRate: 22, dropOffRate: 20, errors: 2 },
-      { route: '/market/order/new', pageLoads: 987, uniqueUsers: 756, avgDwellTime: 120, bounceRate: 8, dropOffRate: 35, errors: 5 },
-      { route: '/market/orders', pageLoads: 654, uniqueUsers: 432, avgDwellTime: 38, bounceRate: 15, dropOffRate: 10, errors: 0 },
-      { route: '/profile', pageLoads: 543, uniqueUsers: 412, avgDwellTime: 28, bounceRate: 25, dropOffRate: 12, errors: 1 },
-      { route: '/redeem', pageLoads: 432, uniqueUsers: 378, avgDwellTime: 55, bounceRate: 14, dropOffRate: 18, errors: 2 },
-      { route: '/chat', pageLoads: 321, uniqueUsers: 234, avgDwellTime: 180, bounceRate: 5, dropOffRate: 4, errors: 0 },
-      { route: '/settings', pageLoads: 198, uniqueUsers: 167, avgDwellTime: 22, bounceRate: 30, dropOffRate: 8, errors: 0 },
-      { route: '/giftcards', pageLoads: 156, uniqueUsers: 123, avgDwellTime: 40, bounceRate: 20, dropOffRate: 22, errors: 1 },
+      { route: '/', pageLoads: 12400, uniqueUsers: 8900, avgDwellTime: 45, bounceRate: 25, dropOffRate: 15, errors: 2 },
+      { route: '/market', pageLoads: 8500, uniqueUsers: 5400, avgDwellTime: 120, bounceRate: 15, dropOffRate: 35, errors: 5 },
     ],
-    dropOffDistribution: [
-      { route: '/market/order/new', count: 345 },
-      { route: '/market/product/:id', count: 245 },
-      { route: '/redeem', count: 180 },
-      { route: '/market/booth/:id', count: 156 },
-      { route: '/giftcards', count: 98 },
-      { route: '/profile', count: 65 },
-    ],
-    errorHotspots: [
-      { route: '/market/order/new', errorName: 'PaymentProcessError', count: 3 },
-      { route: '/market/product/:id', errorName: 'ImageLoadError', count: 2 },
-      { route: '/redeem', errorName: 'InsufficientPoints', count: 2 },
-      { route: '/market', errorName: 'GeolocationTimeout', count: 3 },
-    ],
-    sessionDurations: [
-      { bucket: '0-30s', count: 234 },
-      { bucket: '30s-1m', count: 456 },
-      { bucket: '1-3m', count: 678 },
-      { bucket: '3-5m', count: 543 },
-      { bucket: '5-10m', count: 321 },
-      { bucket: '10m+', count: 123 },
-    ],
+    dropOffDistribution: [{ route: '/checkout', count: 150 }, { route: '/signup', count: 85 }],
+    errorHotspots: [{ route: '/checkout', errorName: 'PaymentFailed', count: 12 }],
+    sessionDurations: [{ bucket: '1-3m', count: 450 }, { bucket: '3-10m', count: 280 }],
   }
 }
 
@@ -809,6 +788,32 @@ export interface CrmLeadFunnelRow {
   conversion_rate: number
 }
 
+export async function fetchWizardDropoffs(dateRange: DateRange, wizardSlug: string, geoFilter?: GeoFilter): Promise<CrmFunnelRow[]> {
+  const { data, error } = await supabase.rpc('metrics_wizard_dropoffs', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+    p_wizard: wizardSlug,
+    p_state: geoFilter?.state_code || null,
+    p_zip: geoFilter?.zip_code || null,
+  })
+  if (error || !data || !Array.isArray(data)) {
+    return []
+  }
+  return data.map((d: any) => ({ stage: d.step_name || `Step ${d.step_index}`, count: Number(d.count), pct_of_top: Number(d.pct_of_top) }))
+}
+
+export async function fetchActiveWizards(dateRange: DateRange): Promise<string[]> {
+  const defaultWizards = ['/join', '/sell', '/create-listing']
+  const { data, error } = await supabase.rpc('metrics_active_wizards', {
+    p_start: dateRange.start,
+    p_end: dateRange.end,
+  })
+  if (error || !data || !Array.isArray(data)) return defaultWizards
+  
+  const dbWizards = data.map((d: any) => d.wizard_slug)
+  return Array.from(new Set([...defaultWizards, ...dbWizards]))
+}
+
 export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficRow[]> {
   const { data, error } = await supabase.rpc('metrics_crm_landing_pages', {
     p_start: dateRange.start,
@@ -899,3 +904,17 @@ export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ so
   }))
 }
 
+export async function generateUtmAnalyticsQuery(prompt: string, conversationHistory: any[]): Promise<any> {
+  try {
+    const response = await supabase.functions.invoke('generate-utm-analytics-query', {
+      body: { prompt, conversationHistory }
+    });
+    if (response.error) {
+      console.error('Edge Function Error:', response.error);
+      return { valid: false, error: response.error.message || 'Edge function error' };
+    }
+    return response.data || { valid: false, error: 'Empty response from edge function' };
+  } catch (err: any) {
+    return { valid: false, error: err.message || String(err) };
+  }
+}

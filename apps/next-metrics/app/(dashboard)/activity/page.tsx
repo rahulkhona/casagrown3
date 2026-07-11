@@ -2,31 +2,105 @@
 
 import { useEffect, useState } from 'react'
 import { useFilters } from '../layout'
-import { fetchPageAnalytics, fetchPlatformUsage, type PageAnalyticsData, type PageAnalyticsRow, type PlatformUsageData } from '../../../lib/metrics-service'
-import { HBarChart, BarChart, formatNumber } from '../../../lib/charts'
+import { fetchPageAnalytics, fetchPlatformUsage, generateUtmAnalyticsQuery, fetchWizardDropoffs, fetchActiveWizards, type PageAnalyticsData, type PageAnalyticsRow, type PlatformUsageData, type CrmFunnelRow } from '../../../lib/metrics-service'
+import { HBarChart, BarChart, LineChart, DonutChart, formatNumber } from '../../../lib/charts'
 
 type SortKey = keyof PageAnalyticsRow
 type SortDir = 'asc' | 'desc'
 
 export default function ActivityPage() {
-  const { dateRange, geoFilter } = useFilters()
+  const { dateRange, geoFilter, utmFilter } = useFilters()
   const [data, setData] = useState<PageAnalyticsData | null>(null)
   const [platformData, setPlatformData] = useState<PlatformUsageData | null>(null)
+  const [wizardFunnels, setWizardFunnels] = useState<Record<string, CrmFunnelRow[]>>({})
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('pageLoads')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const [chatPrompt, setChatPrompt] = useState('')
+  const [chatHistory, setChatHistory] = useState<{ role: string, content: string, data?: any, chartType?: string }[]>([])
+  const [isChatLoading, setIsChatLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     Promise.all([
-      fetchPageAnalytics(dateRange, geoFilter),
+      fetchPageAnalytics(dateRange, geoFilter, utmFilter),
       fetchPlatformUsage(dateRange),
-    ]).then(([pageData, platData]) => {
-      if (!cancelled) { setData(pageData); setPlatformData(platData); setLoading(false) }
+      fetchActiveWizards(dateRange),
+    ]).then(async ([pageData, platData, activeWizards]) => {
+      if (cancelled) return
+      // Fetch funnels for all active wizards
+      const funnels: Record<string, CrmFunnelRow[]> = {}
+      await Promise.all(activeWizards.map(async (wizardSlug) => {
+        const funnel = await fetchWizardDropoffs(dateRange, wizardSlug, geoFilter)
+        funnels[wizardSlug] = funnel
+      }))
+      if (!cancelled) {
+        setData(pageData)
+        setPlatformData(platData)
+        setWizardFunnels(funnels)
+        setLoading(false)
+      }
     })
     return () => { cancelled = true }
-  }, [dateRange, geoFilter])
+  }, [dateRange, geoFilter, utmFilter])
+
+  async function handleChatSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!chatPrompt.trim() || isChatLoading) return
+    const newHistory = [...chatHistory, { role: 'user', content: chatPrompt }]
+    setChatHistory(newHistory)
+    setChatPrompt('')
+    setIsChatLoading(true)
+    try {
+      const res = await generateUtmAnalyticsQuery(chatPrompt, newHistory.slice(-5))
+      if (res.valid) {
+        setChatHistory([...newHistory, { role: 'assistant', content: res.explanation, data: res.data, chartType: res.chartType }])
+      } else {
+        setChatHistory([...newHistory, { role: 'assistant', content: `Error: ${res.error}` }])
+      }
+    } catch (err: any) {
+      setChatHistory([...newHistory, { role: 'assistant', content: `Error: ${err.message}` }])
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  function renderChatChart(item: any) {
+    if (!item.data || !Array.isArray(item.data) || item.data.length === 0) return null;
+    const keys = Object.keys(item.data[0])
+    // Map generic SQL columns to chart formats. Assume first string column is label/date, first numeric column is value.
+    const stringKey = keys.find(k => typeof item.data[0][k] === 'string') || keys[0]
+    const numKey = keys.find(k => typeof item.data[0][k] === 'number') || keys[1] || keys[0]
+    
+    const chartData = item.data.map((d: any, i: number) => ({
+      date: d[stringKey] || `Item ${i}`,
+      label: d[stringKey] || `Item ${i}`,
+      value: Number(d[numKey]) || 0,
+      color: `hsl(${(i * 137.508) % 360}, 70%, 50%)` // Generate distinct colors for DonutChart
+    }))
+
+    if (item.chartType === 'LineChart') return <LineChart data={chartData} color="var(--accent-blue)" />
+    if (item.chartType === 'BarChart') return <BarChart data={chartData} color="var(--accent-green)" height={200} />
+    if (item.chartType === 'HBarChart') return <HBarChart data={chartData} color="var(--accent-orange)" />
+    if (item.chartType === 'DonutChart') return <DonutChart data={chartData} />
+    // Fallback to table
+    return (
+      <div className="table-container" style={{ marginTop: 12 }}>
+        <table className="table">
+          <thead>
+            <tr>{keys.map(k => <th key={k}>{k}</th>)}</tr>
+          </thead>
+          <tbody>
+            {item.data.map((row: any, i: number) => (
+              <tr key={i}>{keys.map(k => <td key={k}>{row[k]}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -53,6 +127,8 @@ export default function ActivityPage() {
         <h1 className="page-title">Page Analytics & Drop-offs</h1>
         <p className="page-subtitle">Per-route performance, dwell time, bounce rates, and UX insights</p>
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: 24, alignItems: 'start' }}>
+      <div>
 
       {/* Per-Route Analytics Table */}
       <div className="card" style={{ marginBottom: 24 }}>
@@ -220,37 +296,28 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {/* Funnel Visualization */}
-      <div className="card">
-        <div className="chart-title">Funnel Visualization</div>
-        <div className="chart-subtitle">Typical user journey: Market → Product → Order</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          {[
-            { step: '/market', users: 4521, pct: 100 },
-            { step: '/booth/:id', users: 2134, pct: 47 },
-            { step: '/product/:id', users: 1876, pct: 42 },
-            { step: '/order/new', users: 987, pct: 22 },
-            { step: 'Completed', users: 641, pct: 14 },
-          ].map((s, i, arr) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{
-                background: `rgba(59, 130, 246, ${0.2 + (s.pct / 100) * 0.6})`,
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px 16px',
-                textAlign: 'center',
-                minWidth: 100,
-              }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{s.step}</div>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatNumber(s.users)}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue-light)' }}>{s.pct}%</div>
-              </div>
-              {i < arr.length - 1 && (
-                <div style={{ color: 'var(--text-muted)', fontSize: '1.25rem' }}>→</div>
-              )}
+      {/* Wizard Drop-offs */}
+      <div className="chart-grid-2" style={{ marginBottom: 24 }}>
+        {Object.entries(wizardFunnels).map(([wizardSlug, funnel], index) => (
+          <div key={wizardSlug} className="card">
+            <div className="chart-title">{wizardSlug} Wizard Drop-offs</div>
+            <div className="chart-subtitle">User funnel through the {wizardSlug} flow</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+              {funnel.map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 120, fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{s.stage}</div>
+                  <div style={{ flex: 1, height: 24, background: 'var(--bg-elevated)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${s.pct_of_top}%`, height: '100%', background: index % 2 === 0 ? 'var(--accent-blue)' : 'var(--accent-green)', opacity: 0.6 + (s.pct_of_top/100)*0.4 }} />
+                  </div>
+                  <div style={{ width: 80, textAlign: 'right', fontSize: '0.875rem', fontWeight: 600 }}>{formatNumber(s.count)}</div>
+                  <div style={{ width: 50, textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.pct_of_top}%</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
+      </div>
       </div>
     </div>
   )

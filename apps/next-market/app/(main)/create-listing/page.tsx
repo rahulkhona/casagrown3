@@ -1,6 +1,7 @@
 import React from 'react'
 import ProductListingWizard from '../../components/wizard/ProductListingWizard'
 
+
 export const metadata = {
   title: 'Sell Your Backyard Produce | CasaGrown',
   description: 'Have extra fruits, vegetables, or herbs growing in your garden? Easily list your homegrown harvest for sale, earn extra cash, and share fresh food with your neighbors.',
@@ -28,6 +29,7 @@ export const metadata = {
 
 export default function SellPage() {
   return (
+
     <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh', display: 'flex', flexDirection: 'column', width: '100%', overflowX: 'hidden' }}>
       <React.Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}>Loading wizard...</div>}>
         <ProductListingWizard />

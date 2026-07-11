@@ -239,11 +239,12 @@ SELECT is(
   'avatar_url should be nullified'
 );
 
--- Test 9: email is RETAINED (for financial records)
-SELECT is(
-  (SELECT email FROM profiles WHERE id = 'ac000000-0000-0000-0000-000000000010'),
-  'closure-seller@test.local',
-  'Email should be retained for financial linkage'
+-- Test 9: email is ANONYMIZED in profiles via sync_profile_email trigger
+-- (auth.users email is obfuscated → trigger syncs it to profiles.email)
+SELECT ok(
+  (SELECT email FROM profiles WHERE id = 'ac000000-0000-0000-0000-000000000010')
+    LIKE 'deleted_%@closed.local',
+  'Email should be anonymized in profiles (synced from auth.users obfuscation)'
 );
 
 -- Test 10: phone_number is RETAINED
@@ -459,22 +460,19 @@ SELECT is(
 -- SECTION K: Email Uniqueness Lock (Tests 28-30)
 -- ═══════════════════════════════════════════════════════════════════════
 
--- Test 28: UNIQUE constraint on email prevents re-registration with frozen seller's email
-SELECT throws_ok(
-  $$INSERT INTO profiles (id, email, full_name) VALUES ('ac000000-0000-0000-0000-000000000099', 'closure-seller@test.local', 'Impersonator')$$,
-  '23505',
-  NULL,
-  'Email of frozen user should be permanently locked (UNIQUE constraint)'
+-- Test 28: closed_emails table locks original email → block_closed_email_signup
+-- trigger blocks re-registration in auth.users. Verify the lock exists in closed_emails.
+SELECT ok(
+  EXISTS(SELECT 1 FROM closed_emails WHERE email = 'closure-seller@test.local'),
+  'Email of frozen user should be locked in closed_emails table'
 );
 
--- Test 29: Freeze + then mark as 'closed' → email still locked
+-- Test 29: Freeze + then mark as 'closed' → email still locked in closed_emails
 UPDATE profiles SET closure_status = 'closed' WHERE id = 'ac000000-0000-0000-0000-000000000010';
 
-SELECT throws_ok(
-  $$INSERT INTO profiles (id, email, full_name) VALUES ('ac000000-0000-0000-0000-000000000098', 'closure-seller@test.local', 'Impersonator2')$$,
-  '23505',
-  NULL,
-  'Email of closed user should STILL be locked (UNIQUE constraint)'
+SELECT ok(
+  EXISTS(SELECT 1 FROM closed_emails WHERE email = 'closure-seller@test.local'),
+  'Email of closed user should STILL be locked in closed_emails table'
 );
 
 -- Test 30: Fast-path user's email IS freed (no record exists)

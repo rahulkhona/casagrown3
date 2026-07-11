@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useMarket } from '../../../lib/store'
+
 import { useAuth } from '../../../lib/useAuth'
 import { useQuickSetup } from '../../../lib/useQuickSetup'
 import {
@@ -48,6 +49,7 @@ export default function ClientPage({
   initialBuzzWelcomedAt,
   isGuest = false,
 }: ClientPageProps) {
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const targetMessageId = searchParams?.get('message_id')

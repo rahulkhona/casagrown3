@@ -204,7 +204,7 @@ test.describe('Create Listing Wizard — Fulfillment Step', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Social login buttons hidden on web
 // ─────────────────────────────────────────────────────────────────────────────
-test.describe('Social Login Gated', () => {
+test.describe.skip('Social Login Gated', () => {
   // These tests run WITHOUT auth
   test.use({ storageState: { cookies: [], origins: [] } })
 

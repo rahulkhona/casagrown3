@@ -3,9 +3,19 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
+import { trackEvent } from '../../../lib/crm-analytics'
 
 export default function SellLandingPage() {
+
   const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'plants' | 'trees' | 'calculating' | 'lead-capture' | 'results' | 'queued'>('intro')
+
+  useEffect(() => {
+    const stepIndexes: Record<string, number> = {
+      'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
+      'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+    }
+    trackEvent('wizard_step', '/sell', { step_index: stepIndexes[step] || 0, step_name: step })
+  }, [step])
   
   // Questionnaire State
   const [zipcode, setZipcode] = useState('')

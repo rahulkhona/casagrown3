@@ -4,12 +4,15 @@
 -- metrics_marketplace_health run successfully without schema or casting crashes.
 -- ============================================================================
 BEGIN;
-SELECT plan(6);
+SELECT plan(12);
 
 -- 1. Verify functions exist
 SELECT has_function('public', 'metrics_user_growth', 'metrics_user_growth function exists');
 SELECT has_function('public', 'metrics_sales_summary', 'metrics_sales_summary function exists');
 SELECT has_function('public', 'metrics_marketplace_health', 'metrics_marketplace_health function exists');
+SELECT has_function('public', 'metrics_page_analytics', 'metrics_page_analytics function exists');
+SELECT has_function('public', 'metrics_wizard_dropoffs', 'metrics_wizard_dropoffs function exists');
+SELECT has_function('public', 'metrics_active_wizards', 'metrics_active_wizards function exists');
 
 -- 2. Setup a staff member to bypass auth check
 INSERT INTO auth.users (id, email, instance_id, aud, role, encrypted_password, confirmation_token, email_confirmed_at)
@@ -45,6 +48,24 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$SELECT metrics_marketplace_health(now()::date - 14, now()::date, NULL, NULL, NULL)$$,
   'metrics_marketplace_health executes successfully'
+);
+
+-- 7. Call metrics_page_analytics
+SELECT lives_ok(
+  $$SELECT metrics_page_analytics(now()::date - 14, now()::date)$$,
+  'metrics_page_analytics executes successfully'
+);
+
+-- 8. Call metrics_wizard_dropoffs
+SELECT lives_ok(
+  $$SELECT metrics_wizard_dropoffs(now()::date - 14, now()::date, '/create-listing'::text)$$,
+  'metrics_wizard_dropoffs executes successfully'
+);
+
+-- 9. Call metrics_active_wizards
+SELECT lives_ok(
+  $$SELECT metrics_active_wizards(now()::date - 14, now()::date)$$,
+  'metrics_active_wizards executes successfully'
 );
 
 SELECT * FROM finish();

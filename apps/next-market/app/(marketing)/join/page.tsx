@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
-import { useMarketingAnalytics, trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent } from '../../../lib/crm-analytics'
 import { getReferralData, getTouchHistory, clearReferralData } from '../../../lib/useReferralCapture'
 import { normalizeStateCode } from '../../../lib/address'
 
@@ -15,12 +15,22 @@ function JoinContent() {
   const intent = searchParams.get('intent') ?? 'buyer'
   const redirectTo = searchParams.get('redirect')
 
-  useMarketingAnalytics('/join')
+
 
   const supabase = createClient()
 
   // ── Step state ──
   const [step, setStep] = useState<Step>('profile')
+
+  useEffect(() => {
+    const stepIndexes: Record<Step, number> = {
+      'profile': 1,
+      'otp': 2,
+      'phone-verify': 3,
+      'welcome': 4,
+    }
+    trackEvent('wizard_step', '/join', { step_index: stepIndexes[step], step_name: step })
+  }, [step])
 
   // ── Profile fields ──
   const [fullName, setFullName] = useState('')
@@ -674,9 +684,9 @@ function JoinContent() {
         .join-form-heading { font-size: 1.6rem; font-weight: 800; color: #14532d; margin-bottom: 4px; }
         .join-form-subheading { font-size: 0.95rem; color: #4b5563; margin-bottom: 20px; line-height: 1.4; }
 
-        .join-input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .join-input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; min-width: 0; }
         .join-input-group label { font-size: 0.85rem; font-weight: 700; color: #374151; }
-        .join-input-group input { padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 0.95rem; background: #f9fafb; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+        .join-input-group input { padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 0.95rem; background: #f9fafb; transition: all 0.2s; font-family: 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
         .join-input-group input:focus { outline: none; border-color: #22c55e; background: white; box-shadow: 0 0 0 4px rgba(34,197,94,0.1); }
         .join-optional { font-weight: 400; color: #9ca3af; }
 

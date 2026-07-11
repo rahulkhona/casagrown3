@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useMarketingAnalytics, trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent } from '../../../lib/crm-analytics'
 
 export default function SellersPage() {
-  useMarketingAnalytics('/sellers')
+
 
   return (
     <div className="marketing-root">

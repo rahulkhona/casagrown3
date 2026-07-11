@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
   const country = req.headers.get('x-vercel-ip-country') ??
     req.headers.get('cf-ipcountry') ?? null
   const region = req.headers.get('x-vercel-ip-country-region') ?? null
+  const city = req.headers.get('x-vercel-ip-city') ?? req.headers.get('cf-ipcity') ?? null
+  const zip_code = req.headers.get('x-vercel-ip-postal-code') ?? req.headers.get('cf-postal-code') ?? null
 
   if (type === 'visit') {
     const { error } = await supabase.from('crm_page_visits').insert({
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
       utm_medium: body.utm_medium ?? null,
       country,
       region,
+      city,
+      zip_code,
     })
 
     if (error) {
