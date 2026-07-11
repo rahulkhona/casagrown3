@@ -11,7 +11,7 @@ export default function MarketingCampaignsPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetchCrmCampaignStats(dateRange).then(d => { setRows(d); setLoading(false) })
+    fetchCrmCampaignStats(dateRange).then(d => { setRows(d); setLoading(false) }).catch(e => { console.error(e); setRows([]); setLoading(false) })
   }, [dateRange])
 
   const totals = {

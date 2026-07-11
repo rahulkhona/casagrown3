@@ -42,6 +42,14 @@ export default function ActivityPage() {
         setWizardFunnels(funnels)
         setLoading(false)
       }
+    }).catch(err => {
+      if (!cancelled) {
+        console.error(err);
+        setLoading(false);
+        // Set default demo data on error so it doesn't spin forever, or we can just leave it to render an error message. 
+        // For now, let's allow it to render a fallback error state.
+        setData({ routes: [], dropOffDistribution: [], errorHotspots: [], sessionDurations: [] });
+      }
     })
     return () => { cancelled = true }
   }, [dateRange, geoFilter, utmFilter])

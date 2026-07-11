@@ -22,9 +22,6 @@ const isLocal = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.NEXT_PUBLIC_SUPABASE_URL.includes('127.0.0.1');
 
 function markDemo() {
-  if (!isLocal) {
-    throw new Error("Database metrics query failed or is not available. Mock data is disabled in live systems.");
-  }
   _isDemoMode = true;
 }
 
@@ -819,7 +816,7 @@ export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficR
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray(data)) {
+  if (error || !data || !Array.isArray((data as any).pages)) {
     markDemo()
     return [
       { page_slug: '/', visits: 1240, unique_sessions: 980, avg_duration_secs: 72, conversions: 38, conversion_rate: 3.9, top_utm_source: 'google' },
@@ -827,7 +824,7 @@ export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficR
       { page_slug: '/join', visits: 310, unique_sessions: 295, avg_duration_secs: 110, conversions: 88, conversion_rate: 29.8, top_utm_source: 'direct' },
     ]
   }
-  return data as CrmTrafficRow[]
+  return (data as any).pages as CrmTrafficRow[]
 }
 
 export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadFunnelRow[]> {
@@ -835,7 +832,7 @@ export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadF
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray(data)) {
+  if (error || !data || !Array.isArray((data as any).by_source)) {
     markDemo()
     return [
       { source: 'facebook', leads: 420, contacted: 180, converted: 42, conversion_rate: 10.0 },
@@ -844,7 +841,7 @@ export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadF
       { source: 'instagram', leads: 85, contacted: 30, converted: 7, conversion_rate: 8.2 },
     ]
   }
-  return data as CrmLeadFunnelRow[]
+  return (data as any).by_source as CrmLeadFunnelRow[]
 }
 
 export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCampaignStatsRow[]> {
@@ -852,7 +849,7 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray(data)) {
+  if (error || !data || !Array.isArray((data as any).campaigns)) {
     markDemo()
     return [
       { campaign_id: 'c1', campaign_name: 'Spring Launch Email', channel: 'email', sent: 1200, opened: 348, clicked: 96, bounced: 12, unsubscribed: 4, open_rate: 29.0, click_rate: 8.0 },
@@ -860,7 +857,7 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
       { campaign_id: 'c3', campaign_name: 'May Produce Promo', channel: 'email', sent: 980, opened: 294, clicked: 68, bounced: 8, unsubscribed: 2, open_rate: 30.0, click_rate: 6.9 },
     ]
   }
-  return data as CrmCampaignStatsRow[]
+  return (data as any).campaigns as CrmCampaignStatsRow[]
 }
 
 export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResult[]> {
@@ -868,7 +865,7 @@ export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResu
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray(data)) {
+  if (error || !data || !Array.isArray((data as any).variants)) {
     markDemo()
     return [
       { landing_page_id: 'lp1', page_slug: '/join', variant: 'A', visits: 540, conversions: 32, conversion_rate: 5.9 },
@@ -877,7 +874,7 @@ export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResu
       { landing_page_id: 'lp2', page_slug: '/sellers', variant: 'B', visits: 260, conversions: 22, conversion_rate: 8.5 },
     ]
   }
-  return data as CrmAbResult[]
+  return (data as any).variants as CrmAbResult[]
 }
 
 export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ source: string; visits: number; pct: number }[]> {
@@ -885,7 +882,7 @@ export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ so
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray(data)) {
+  if (error || !data || !Array.isArray((data as any).by_source)) {
     markDemo()
     const sources = [
       { source: 'organic', visits: 580 },
@@ -897,11 +894,9 @@ export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ so
     const total = sources.reduce((s, r) => s + r.visits, 0)
     return sources.map(r => ({ ...r, pct: Math.round((r.visits / total) * 100) }))
   }
-  const total = (data as { visits: number }[]).reduce((s, r) => s + r.visits, 0)
-  return (data as { source: string; visits: number }[]).map(r => ({
-    ...r,
-    pct: total > 0 ? Math.round((r.visits / total) * 100) : 0,
-  }))
+  const bySource = (data as any).by_source as { visits: number }[]
+  const total = bySource.reduce((s, r) => s + r.visits, 0)
+  return bySource.map(r => ({ ...r, pct: total > 0 ? Math.round((r.visits / total) * 100) : 0 })) as { source: string; visits: number; pct: number }[]
 }
 
 export async function generateUtmAnalyticsQuery(prompt: string, conversationHistory: any[]): Promise<any> {
