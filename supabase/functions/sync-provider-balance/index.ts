@@ -17,7 +17,10 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     const tremendousKey = env("TREMENDOUS_API_KEY");
     if (tremendousKey) {
         try {
-            const apiBase = env("TREMENDOUS_API_URL") || "https://testflight.tremendous.com";
+            const isTremendousSandbox = env("TREMENDOUS_SANDBOX") !== "false";
+            const apiBase = isTremendousSandbox
+                ? "https://testflight.tremendous.com"
+                : "https://api.tremendous.com";
             const res = await fetch(
                 `${apiBase}/api/v2/funding_sources`,
                 {
@@ -87,6 +90,11 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
     const reloadlySecret = env("RELOADLY_CLIENT_SECRET");
     if (reloadlyClientId && reloadlySecret) {
         try {
+            const isReloadlySandbox = env("RELOADLY_SANDBOX") !== "false";
+            const reloadlyBase = isReloadlySandbox
+                ? "https://giftcards-sandbox.reloadly.com"
+                : "https://giftcards.reloadly.com";
+
             // Auth
             const tokenRes = await fetch(
                 "https://auth.reloadly.com/oauth/token",
@@ -97,7 +105,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
                         client_id: reloadlyClientId,
                         client_secret: reloadlySecret,
                         grant_type: "client_credentials",
-                        audience: "https://giftcards-sandbox.reloadly.com",
+                        audience: reloadlyBase,
                     }),
                 },
             );
@@ -106,7 +114,7 @@ serveWithCors(async (_req, { supabase, env, corsHeaders }) => {
                 const { access_token } = await tokenRes.json();
 
                 const balanceRes = await fetch(
-                    "https://giftcards-sandbox.reloadly.com/accounts/balance",
+                    `${reloadlyBase}/accounts/balance`,
                     { headers: { "Authorization": `Bearer ${access_token}` } },
                 );
 

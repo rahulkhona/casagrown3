@@ -7,8 +7,11 @@ import {
     UnifiedGiftCard,
 } from "./gift-card-types.ts";
 
-// BUG-31: Use env var for Tremendous API base URL (sandbox vs production)
-const TREMENDOUS_API_BASE = Deno.env.get("TREMENDOUS_API_URL") || "https://testflight.tremendous.com";
+// Use sandbox env var by default, set TREMENDOUS_SANDBOX="false" in production
+const isTremendousSandbox = Deno.env.get("TREMENDOUS_SANDBOX") !== "false";
+const TREMENDOUS_API_BASE = isTremendousSandbox
+    ? "https://testflight.tremendous.com"
+    : "https://api.tremendous.com";
 
 export async function fetchTremendousCatalog(
     apiKey: string,
