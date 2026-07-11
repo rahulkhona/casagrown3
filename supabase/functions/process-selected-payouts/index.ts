@@ -20,6 +20,10 @@ import {
     fetchReloadlyBalance,
     orderFromReloadly,
 } from "../_shared/reloadly.ts";
+import {
+    fetchTremendousBalance,
+    orderFromTremendous,
+} from "../_shared/tremendous.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // 1. Authenticate & VERIFY ADMIN
@@ -66,8 +70,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     const needsReloadly = queuedRedemptions.some(r => r.provider === "reloadly");
+    const needsTremendous = queuedRedemptions.some(r => r.provider === "tremendous");
 
     let reloadlyBalance = 0;
+    let tremendousBalance = 0;
 
     try {
         if (needsReloadly && env("RELOADLY_CLIENT_ID") && env("RELOADLY_CLIENT_SECRET")) {
@@ -77,12 +83,17 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 env("RELOADLY_SANDBOX") !== "false",
             );
         }
+        if (needsTremendous && env("TREMENDOUS_API_KEY")) {
+            tremendousBalance = await fetchTremendousBalance(
+                env("TREMENDOUS_API_KEY")!,
+            );
+        }
     } catch (balanceError) {
         console.warn(`[MANUAL-RETRY] Failed verifying provider balances: ${balanceError}`);
     }
 
     console.log(
-        `[MANUAL-RETRY] Provider Balances -> Reloadly: $${(reloadlyBalance / 100).toFixed(2)}`,
+        `[MANUAL-RETRY] Provider Balances -> Reloadly: $${(reloadlyBalance / 100).toFixed(2)} | Tremendous: $${(tremendousBalance / 100).toFixed(2)}`,
     );
 
     let processedCount = 0;
@@ -99,6 +110,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             if (metadata.payout_target) {
                 provider = metadata.provider || "paypal"; // Venmo payouts also go through PayPal API
             } else if (metadata.brand_name || metadata.product_id) {
+                // Without a saved provider, we just default to reloadly if it's a gift card.
+                // In practice, market-purchase-gift-card saves the chosen provider.
                 provider = "reloadly";
             } else if (metadata.organization || metadata.project_id) {
                 provider = "globalgiving";
@@ -115,6 +128,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 }
                 await processGiftCard(supabase, env, redemption, "reloadly");
                 reloadlyBalance -= estimatedCost;
+            } else if (provider === "tremendous") {
+                if (faceValueCents > tremendousBalance && tremendousBalance > 0) {
+                    throw new Error(`Insufficient Tremendous corporate balance`);
+                }
+                await processGiftCard(supabase, env, redemption, "tremendous");
+                tremendousBalance -= faceValueCents;
             } else if (provider === "paypal" || provider === "venmo") {
                 await processPayPalCashout(supabase, env, redemption, user_id, point_cost, metadata);
             } else {
@@ -146,7 +165,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }, corsHeaders);
 });
 
-async function processGiftCard(supabase: any, env: any, redemption: Record<string, unknown>, provider: "reloadly") {
+async function processGiftCard(supabase: any, env: any, redemption: Record<string, unknown>, provider: "reloadly" | "tremendous") {
     const metadata = (redemption.metadata || {}) as Record<string, unknown>;
     const brand_name = metadata.brand_name as string;
     const product_id = metadata.product_id as string;
@@ -157,7 +176,12 @@ async function processGiftCard(supabase: any, env: any, redemption: Record<strin
     const { data: authUser } = await supabase.auth.admin.getUserById(redemption.user_id);
     recipientEmail = authUser?.user?.email || "";
 
-    const providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false", redemption.id as string, recipientEmail);
+    let providerResult;
+    if (provider === "tremendous") {
+        providerResult = await orderFromTremendous(env("TREMENDOUS_API_KEY") || "", product_id, brand_name, face_value_cents, redemption.id as string, recipientEmail);
+    } else {
+        providerResult = await orderFromReloadly(env("RELOADLY_CLIENT_ID") || "", env("RELOADLY_CLIENT_SECRET") || "", product_id, brand_name, face_value_cents, env("RELOADLY_SANDBOX") !== "false", redemption.id as string, recipientEmail);
+    }
 
     if (providerResult.cardUrl) {
         // Synchronous fulfillment succeeded

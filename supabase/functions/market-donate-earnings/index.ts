@@ -23,7 +23,7 @@ import { buildPayoutEmail } from "../_shared/payout-email.ts";
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const auth = await requireAuth(req, supabase, corsHeaders);
   if (auth instanceof Response) return auth;
-  const userId = auth;
+  let userId = auth;
 
   const body = await req.json();
   const {
@@ -34,6 +34,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     pointsAmount,
     itemId,
   } = body;
+
+  if (userId === "service_role" && body.user_id) {
+    userId = body.user_id;
+  }
 
   if (!organizationName || !pointsAmount || pointsAmount <= 0) {
     return jsonError(

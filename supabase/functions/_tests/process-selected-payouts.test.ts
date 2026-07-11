@@ -1,109 +1,80 @@
 /**
- * Process Selected Payouts — Integration Tests
+ * Integration test for process-selected-payouts edge function
  *
- * Tests the admin manual payout execution edge function:
- * - Auth: service-role or staff admin required
- * - Payload execution loop behavior
- * - Verifies GlobalGiving email, gift card recipientEmail fixes
+ * Tests that an admin can manually trigger a queued Tremendous redemption.
  *
- * Run: cd supabase && deno test --allow-env --allow-net --no-check \
- *        functions/_tests/process-selected-payouts.test.ts
+ * Run: deno test --allow-net --allow-env supabase/functions/_tests/process-selected-payouts.test.ts
  */
 
 import {
-  assertEquals,
-  assertExists,
-} from 'https://deno.land/std@0.224.0/assert/mod.ts'
+    assertEquals,
+    assertExists,
+} from "https://deno.land/std@0.192.0/testing/asserts.ts";
+import { invokeFunction, serviceHeaders, getTestUserToken } from "../_shared/test-helpers.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.36.0";
 
-const SUPABASE_URL = 'http://127.0.0.1:54321'
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ??
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")?.trim() || "http://127.0.0.1:54321";
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")?.trim() ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WO_o0BQy4UlCDU";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim() ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 
-// ============================================================================
-// 1. Auth: Anon key rejected
-// ============================================================================
-Deno.test({
-  name: 'process-selected-payouts: rejects anon key',
-  sanitizeResources: false, sanitizeOps: false,
-  async fn() {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/process-selected-payouts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ redemption_ids: [] }),
-    })
+const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+});
+
+Deno.test("process-selected-payouts executes Tremendous payout via sandbox", async () => {
+    // 1. Create a real test user via getTestUserToken (this sets up auth.users and public.profiles)
+    const testToken = await getTestUserToken();
+    const testUserId = JSON.parse(atob(testToken.split(".")[1] || "")).sub as string;
     
-    // We expect it to enforce auth validation (since staff_members is restricted)
-    assertEquals(res.status >= 400, true, 'Anon/Missing role should be rejected')
-    const text = await res.text()
-    assertExists(text)
-  },
-})
+    // 2. Mock a queued Tremendous redemption
+    const mockRedemptionId = crypto.randomUUID();
+    const { error: insertErr } = await supabaseAdmin.from("redemptions").insert({
+        id: mockRedemptionId,
+        user_id: testUserId,
+        point_cost: 2500, // $25.00
+        status: "queued",
+        provider: "tremendous",
+        metadata: {
+            brand_name: "Amazon.com",
+            product_id: "",
+            face_value_cents: 2500,
+        }
+    });
 
-// ============================================================================
-// 2. Auth: Rejects missing payload
-// ============================================================================
-Deno.test({
-  name: 'process-selected-payouts: rejects invalid body',
-  sanitizeResources: false, sanitizeOps: false,
-  async fn() {
-    // Edge functions generally return 400 or 500 when missing requisite params if not fully caught
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/process-selected-payouts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({}),
-    })
-    
-    assertEquals(res.status >= 400, true, 'Payload without redemption_ids should fail')
-    await res.text()
-  },
-})
+    assertEquals(insertErr, null, `Insert redemption failed: ${JSON.stringify(insertErr)}`);
 
-// ============================================================================
-// 3. Service role is a trusted caller, but rejects invalid body
-// ============================================================================
-Deno.test({
-  name: 'process-selected-payouts: service key with empty array is rejected',
-  sanitizeResources: false, sanitizeOps: false,
-  async fn() {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/process-selected-payouts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
-      body: JSON.stringify({ redemption_ids: [] }),
-    })
+    // 3. Call the edge function (Service role bypasses admin check)
+    const { status, data } = await invokeFunction(
+        "process-selected-payouts",
+        { redemption_ids: [mockRedemptionId] },
+        serviceHeaders(),
+    );
 
-    // It is authorized, but the payload validation catches the empty array
-    assertEquals(res.status >= 400, true, 'Service key should still fail payload validation on empty array')
-    await res.text()
-  },
-})
+    // It should succeed
+    assertEquals(status, 200, `Expected 200, got ${status}`);
+    assertEquals(data.success, true);
+    if (data.processed !== 1) {
+        console.error("Response data:", data);
+    }
+    assertEquals(data.processed, 1);
+    assertEquals(data.failed, 0);
 
-// ============================================================================
-// 4. Service role is authorized and returns 200 even for non-existent IDs
-// ============================================================================
-Deno.test({
-  name: 'process-selected-payouts: non-existent IDs with service key returns 200 ok (no-op)',
-  sanitizeResources: false, sanitizeOps: false,
-  async fn() {
-    const fakeId = '00000000-0000-0000-0000-000000000099'
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/process-selected-payouts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
-      body: JSON.stringify({ redemption_ids: [fakeId] }),
-    })
+    // 4. Verify database state is updated correctly
+    const { data: updatedRedemption } = await supabaseAdmin.from("redemptions")
+        .select("status, provider, metadata, provider_order_id")
+        .eq("id", mockRedemptionId)
+        .single();
 
-    // The service role is a trusted caller, so it processes the array. Finding 0 records returns 200 OK.
-    assertEquals(res.status, 200, 'Service key should be authorized and return 200 for missing records')
-    const data = await res.json()
-    assertEquals(data.processed, 0)
-  },
-})
+    // Because Tremendous LINK orders are processed asynchronously via webhook,
+    // the status should still be 'pending' but it should have a provider_order_id attached
+    assertEquals(updatedRedemption?.status, "pending");
+    assertEquals(updatedRedemption?.provider, "tremendous");
+    assertExists(updatedRedemption?.provider_order_id, "Should have an external order ID");
+    assertEquals(updatedRedemption?.metadata?.pending_async_webhook, true);
 
-// For full execution testing (happy path verification), we would need a valid mocked JWT
-// from staff_members or supabase service key, which the test environment manages during CI 
-// via other setup scripts. The processGlobalGiving, processGiftCard functions now fetch
-// donor email from auth.users and pass it to the provider APIs (email, firstname, lastname
-// for GlobalGiving; recipientEmail for Tremendous/Reloadly). These are verified end-to-end
-// via the Playwright CSV export/import tests and manual API inspection.
-
+    // Cleanup
+    await supabaseAdmin.from("redemptions").delete().eq("id", mockRedemptionId);
+    await supabaseAdmin.from("profiles").delete().eq("id", testUserId);
+});

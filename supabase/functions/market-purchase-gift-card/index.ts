@@ -46,10 +46,14 @@ function normalizeBrand(name: string): string {
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const auth = await requireAuth(req, supabase, corsHeaders);
   if (auth instanceof Response) return auth;
-  const userId = auth;
+  let userId = auth;
 
   const body = await req.json();
   const { brandName, faceValueCents, pointsCost } = body;
+
+  if (userId === "service_role" && body.user_id) {
+    userId = body.user_id;
+  }
 
   if (!brandName || !faceValueCents || !pointsCost) {
     return jsonError(

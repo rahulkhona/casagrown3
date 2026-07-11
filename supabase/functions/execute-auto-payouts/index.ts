@@ -311,6 +311,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           "market-purchase-gift-card",
           {
             body: {
+              user_id: user.user_id,
               brandName: user.gift_card_brand || "Visa",
               faceValueCents: amountCents,
               pointsCost: amountCents,
@@ -352,6 +353,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           "market-donate-earnings",
           {
             body: {
+              user_id: user.user_id,
               pointsAmount: amountCents,
               projectId: user.charity_project_id || null,
               projectTitle: user.charity_project_name || "Auto-Donation",

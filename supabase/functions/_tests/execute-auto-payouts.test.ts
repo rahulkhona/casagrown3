@@ -137,3 +137,119 @@ Deno.test({
     assertEquals(elapsed < 500, true, `Took ${elapsed.toFixed(0)}ms, expected < 500ms`)
   },
 })
+
+// ============================================================================
+// 8. Auto-Payout: Executes Tremendous automated gift card payout end-to-end
+// ============================================================================
+Deno.test({
+  name: 'execute-auto-payouts: runs Tremendous auto-payout happy path',
+  sanitizeResources: false, sanitizeOps: false,
+  async fn() {
+    const { invokeFunction, serviceHeaders, getTestUserToken } = await import('../_shared/test-helpers.ts')
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.36.0')
+
+    const testToken = await getTestUserToken();
+    const testUserId = JSON.parse(atob(testToken.split(".")[1] || "")).sub as string;
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+
+    // 1. Seed balance & config
+    await supabaseAdmin.from('user_balances').upsert({
+      user_id: testUserId,
+      available_usd: 25.00,
+      pending_usd: 0,
+      total_earned_usd: 25.00,
+      total_spent_usd: 0,
+      total_withdrawn_usd: 0,
+    });
+
+    // Seed Tremendous into unified cache
+    await supabaseAdmin.from("giftcards_cache").delete().eq("provider", "unified");
+    await supabaseAdmin.from("giftcards_cache").upsert({
+      provider: "unified",
+      status: "active",
+      data: [{
+        id: "XRRU0EWKQI0F",
+        brandName: "Crate & Barrel",
+        brandKey: "cratebarrel",
+        logoUrl: "http://example.com/logo.png",
+        cardImageUrl: "http://example.com/card.png",
+        category: "Entertainment",
+        denominationType: "range",
+        minDenomination: 5,
+        maxDenomination: 2000,
+        currencyCode: "USD",
+        availableProviders: [{
+          provider: "tremendous",
+          productId: "XRRU0EWKQI0F",
+          discountPercentage: 0,
+          feePerTransaction: 0,
+          feePercentage: 0
+        }],
+        hasProcessingFee: false,
+        processingFeeUsd: 0,
+        brandColor: "#000000",
+        brandIcon: "🎁"
+      }]
+    });
+
+    // Configure user auto payout setting
+    await supabaseAdmin.from('user_auto_redemption_config').insert({
+      user_id: testUserId,
+      enabled: true,
+      threshold_usd: 25.00,
+      method: 'giftcards',
+      gift_card_brand: 'Crate & Barrel',
+      gift_card_amount_usd: 25.00,
+    });
+
+    // Ensure Tremendous queue is disabled and instrument active
+    await supabaseAdmin.from('instrument_queuing_status').update({ is_queuing: false }).eq('instrument', 'tremendous');
+    await supabaseAdmin.from('available_redemption_method_instruments').update({ is_active: true }).eq('instrument', 'tremendous');
+
+    // 2. Call the auto-payout executor function
+    const { status, data } = await invokeFunction(
+      "execute-auto-payouts",
+      {},
+      serviceHeaders(),
+    );
+
+    // 3. Verify results
+    assertEquals(status, 200, `Expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assertEquals(data.success, true);
+    
+    // Find the result for our user
+    const userResult = (data.results as any[] || []).find(r => r.user_id === testUserId);
+    assertExists(userResult, "Should have a result entry for the test user");
+    assertEquals(userResult.status, "success", `Expected success, got: ${userResult.error || 'no error detail'}`);
+    assertEquals(userResult.method, "giftcards");
+
+    // 4. Verify DB changes: check redemption and debit
+    const { data: redemption } = await supabaseAdmin.from("redemptions")
+      .select("status, provider, provider_order_id, point_cost")
+      .eq("user_id", testUserId)
+      .maybeSingle();
+
+    assertExists(redemption, "Should have created a redemption record");
+    // Since queue is off, Tremendous executes, and it updates to complete/pending (Tremendous LINK is pending async webhook)
+    assertEquals(redemption.status, "pending");
+    assertEquals(redemption.provider, "tremendous");
+    assertExists(redemption.provider_order_id);
+
+    // Balance should be debited to 0
+    const { data: updatedBalance } = await supabaseAdmin.from("user_balances")
+      .select("available_usd")
+      .eq("user_id", testUserId)
+      .single();
+    
+    assertEquals(Number(updatedBalance.available_usd), 0.00);
+
+    // Cleanup
+    await supabaseAdmin.from("user_auto_redemption_config").delete().eq("user_id", testUserId);
+    await supabaseAdmin.from("redemptions").delete().eq("user_id", testUserId);
+    await supabaseAdmin.from("profiles").delete().eq("id", testUserId);
+  }
+})
+

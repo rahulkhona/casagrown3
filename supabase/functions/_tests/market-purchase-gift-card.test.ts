@@ -89,3 +89,121 @@ Deno.test({
     await res.text()
   },
 })
+
+// 6. Tremendous auto-payout integration
+Deno.test({
+  name: 'market-purchase-gift-card: executes Tremendous auto-payout',
+  sanitizeResources: false, sanitizeOps: false,
+  async fn() {
+    // This test relies on test-helpers for a unique user token
+    const testTokenModule = await import('./../_shared/test-helpers.ts');
+    const testToken = await testTokenModule.getTestUserToken();
+    const testUserId = JSON.parse(atob(testToken.split(".")[1] || "")).sub as string;
+
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.39.0');
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // 1. Seed balance
+    await supabaseAdmin.from('user_balances').upsert({
+        user_id: testUserId,
+        available_usd: 50.00,
+        pending_usd: 0,
+        total_earned_usd: 50.00,
+        total_spent_usd: 0,
+        total_withdrawn_usd: 0,
+    });
+
+    // 2. Ensure queueing is OFF for tremendous
+    await supabaseAdmin.from('instrument_queuing_status').update({ is_queuing: false }).eq('instrument', 'tremendous');
+    await supabaseAdmin.from('available_redemption_method_instruments').update({ is_active: true }).eq('instrument', 'tremendous');
+
+    // 3. Seed Tremendous into unified cache
+    await supabaseAdmin.from("giftcards_cache").delete().eq("provider", "unified");
+    await supabaseAdmin.from("giftcards_cache").upsert({
+      provider: "unified",
+      status: "active",
+      data: [{
+        id: "XRRU0EWKQI0F",
+        brandName: "Crate & Barrel",
+        brandKey: "cratebarrel",
+        logoUrl: "http://example.com/logo.png",
+        cardImageUrl: "http://example.com/card.png",
+        category: "Entertainment",
+        denominationType: "range",
+        minDenomination: 5,
+        maxDenomination: 2000,
+        currencyCode: "USD",
+        availableProviders: [{
+          provider: "tremendous",
+          productId: "XRRU0EWKQI0F",
+          discountPercentage: 0,
+          feePerTransaction: 0,
+          feePercentage: 0
+        }],
+        hasProcessingFee: false,
+        processingFeeUsd: 0,
+        brandColor: "#000000",
+        brandIcon: "🎁"
+      }]
+    });
+
+    // 4. Make the call to purchase the Tremendous gift card
+    const { status, data } = await callFn('market-purchase-gift-card', {
+        brandName: "Crate & Barrel",
+        faceValueCents: 2500,
+        pointsCost: 2500
+    }, testToken);
+
+    // The order should succeed and use Tremendous.
+    assertEquals(status, 200, `Expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assertEquals(data.success, true);
+    assertEquals(typeof data.redemptionId, 'string');
+    assertEquals(data.provider, 'tremendous');
+
+    // Cleanup
+    await supabaseAdmin.from("redemptions").delete().eq("user_id", testUserId);
+    await supabaseAdmin.from("profiles").delete().eq("id", testUserId);
+  }
+})
+
+// 7. Reloadly auto-payout integration
+Deno.test({
+  name: 'market-purchase-gift-card: executes Reloadly auto-payout',
+  sanitizeResources: false, sanitizeOps: false,
+  async fn() {
+    const testTokenModule = await import('./../_shared/test-helpers.ts');
+    const testToken = await testTokenModule.getTestUserToken();
+    const testUserId = JSON.parse(atob(testToken.split(".")[1] || "")).sub as string;
+
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.39.0');
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    // 1. Seed balance
+    await supabaseAdmin.from('user_balances').upsert({
+        user_id: testUserId,
+        available_usd: 50.00,
+        pending_usd: 0,
+        total_earned_usd: 50.00,
+        total_spent_usd: 0,
+        total_withdrawn_usd: 0,
+    });
+
+    // 2. Disable Tremendous, Enable Reloadly
+    await supabaseAdmin.from('available_redemption_method_instruments').update({ is_active: false }).eq('instrument', 'tremendous');
+    await supabaseAdmin.from('instrument_queuing_status').update({ is_queuing: false }).eq('instrument', 'reloadly');
+    await supabaseAdmin.from('available_redemption_method_instruments').update({ is_active: true }).eq('instrument', 'reloadly');
+
+    // 3. Place order
+    const { status, data } = await callFn('market-purchase-gift-card', {
+        brandName: "Amazon.com",
+        faceValueCents: 2500,
+        pointsCost: 2500
+    }, testToken);
+
+    // The order should succeed.
+    assertEquals(status, 200, `Expected 200, got ${status}: ${JSON.stringify(data)}`);
+    assertEquals(data.success, true);
+    assertEquals(typeof data.redemptionId, 'string');
+    assertEquals(data.provider, 'reloadly');
+  }
+})

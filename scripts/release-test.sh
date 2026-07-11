@@ -324,6 +324,8 @@ echo "  Running per-function tests..."
 FUNC_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
   functions/confirm-payment/fifo.test.ts \
   functions/process-redemptions/index.test.ts \
+  functions/_tests/process-selected-payouts.test.ts \
+  functions/_tests/market-purchase-gift-card.test.ts \
   functions/resolve-usps-address/integration.test.ts 2>&1)
 FUNC_PASSED=$(echo "$FUNC_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
 FUNC_FAILED=$(echo "$FUNC_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
