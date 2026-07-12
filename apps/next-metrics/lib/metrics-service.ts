@@ -1080,75 +1080,6 @@ export async function fetchCrmTrafficAnalysis(
     }
   }
 
-  const weekdaysOrdered = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-  const completedListings = Array.from({ length: 24 }, (_, i) => ({
-    hourStr: `${i.toString().padStart(2, "0")}:00`,
-    total: 0,
-    sameSession: 0,
-    sameDay: 0,
-    later: 0
-  }));
-
-  const listingsWeekday = weekdaysOrdered.map(day => ({
-    weekday: day,
-    total: 0,
-    sameSession: 0,
-    sameDay: 0,
-    later: 0
-  }));
-
-  const productsFiltered = (products || []).filter(p => {
-    const d = new Date(p.created_at);
-    return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
-  });
-
-  for (const prod of productsFiltered) {
-    const booth = boothMap.get(prod.booth_id);
-    const ownerId = booth?.owner_id;
-    const profile = ownerId ? profileMap.get(ownerId) : null;
-    
-    // Resolve UTM for this listing via profile email matching crm_leads
-    const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
-    if (!matchesUtmFilter(resolvedUtm)) {
-      continue;
-    }
-
-    const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
-    const prodHour = getLocalHour(prod.created_at, tz);
-    const prodDay = getLocalDayOfWeek(prod.created_at, tz);
-
-    let sameSession = 0;
-    let sameDay = 0;
-    let later = 1;
-
-    if (profile && profile.created_at) {
-      const diffMs = new Date(prod.created_at).getTime() - new Date(profile.created_at).getTime();
-      const diffMin = diffMs / (60 * 1000);
-      
-      if (diffMin <= 15) {
-        sameSession = 1;
-        later = 0;
-      } else if (diffMin <= 24 * 60) {
-        sameDay = 1;
-        later = 0;
-      }
-    }
-
-    completedListings[prodHour].total++;
-    completedListings[prodHour].sameSession += sameSession;
-    completedListings[prodHour].sameDay += sameDay;
-    completedListings[prodHour].later += later;
-
-    const wItem = listingsWeekday.find(w => w.weekday === prodDay);
-    if (wItem) {
-      wItem.total++;
-      wItem.sameSession += sameSession;
-      wItem.sameDay += sameDay;
-      wItem.later += later;
-    }
-  }
-
   // Define steps for each wizard slug
   let step1Path = "/create-listing";
   let step2Path = "/my-booth/products/new";
@@ -1202,6 +1133,104 @@ export async function fetchCrmTrafficAnalysis(
     const arr = sessionRecords.get(row.session_id) || [];
     arr.push(row);
     sessionRecords.set(row.session_id, arr);
+  }
+
+  // Identify all user IDs who started/entered the selected wizard in the active date range (matching UTM filters)
+  const wizardUserIds = new Set<string>();
+  for (const [sessionId, rows] of sessionRecords.entries()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const firstRow = rows[0];
+    let resolvedUtm = visitUtmMap.get(sessionId);
+    if (!resolvedUtm && firstRow.user_id) {
+      const p = profileMap.get(firstRow.user_id);
+      if (p?.email) {
+        resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
+      }
+    }
+    if (!matchesUtmFilter(resolvedUtm)) {
+      continue;
+    }
+    for (const r of rows) {
+      if (r.user_id) {
+        wizardUserIds.add(r.user_id);
+      }
+    }
+  }
+
+  const weekdaysOrdered = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  const completedListings = Array.from({ length: 24 }, (_, i) => ({
+    hourStr: `${i.toString().padStart(2, "0")}:00`,
+    total: 0,
+    sameSession: 0,
+    sameDay: 0,
+    later: 0
+  }));
+
+  const listingsWeekday = weekdaysOrdered.map(day => ({
+    weekday: day,
+    total: 0,
+    sameSession: 0,
+    sameDay: 0,
+    later: 0
+  }));
+
+  // Only count listings where the creator is associated with a user from the selected wizard funnel
+  const productsFiltered = (products || []).filter(p => {
+    const d = new Date(p.created_at);
+    if (d < new Date(dateRange.start) || d > new Date(dateRange.end)) {
+      return false;
+    }
+    const booth = boothMap.get(p.booth_id);
+    const ownerId = booth?.owner_id;
+    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
+    if (!matchesUtmFilter(resolvedUtm)) {
+      return false;
+    }
+    if (!ownerId || !wizardUserIds.has(ownerId)) {
+      return false;
+    }
+    return true;
+  });
+
+  for (const prod of productsFiltered) {
+    const booth = boothMap.get(prod.booth_id);
+    const ownerId = booth?.owner_id;
+    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
+    const prodHour = getLocalHour(prod.created_at, tz);
+    const prodDay = getLocalDayOfWeek(prod.created_at, tz);
+
+    let sameSession = 0;
+    let sameDay = 0;
+    let later = 1;
+
+    if (profile && profile.created_at) {
+      const diffMs = new Date(prod.created_at).getTime() - new Date(profile.created_at).getTime();
+      const diffMin = diffMs / (60 * 1000);
+      
+      if (diffMin <= 15) {
+        sameSession = 1;
+        later = 0;
+      } else if (diffMin <= 24 * 60) {
+        sameDay = 1;
+        later = 0;
+      }
+    }
+
+    completedListings[prodHour].total++;
+    completedListings[prodHour].sameSession += sameSession;
+    completedListings[prodHour].sameDay += sameDay;
+    completedListings[prodHour].later += later;
+
+    const wItem = listingsWeekday.find(w => w.weekday === prodDay);
+    if (wItem) {
+      wItem.total++;
+      wItem.sameSession += sameSession;
+      wItem.sameDay += sameDay;
+      wItem.later += later;
+    }
   }
 
   const funnelHour = Array.from({ length: 24 }, (_, i) => ({

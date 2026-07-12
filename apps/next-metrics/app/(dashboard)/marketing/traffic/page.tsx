@@ -214,39 +214,38 @@ export default function TrafficAnalysisPage() {
             </div>
 
             {/* List Completion Card and initiated listings */}
-            {selectedWizard === '/create-listing' && (
-              <div className="card glass" style={{ marginBottom: 32 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
-                  <div>
-                    <div className="metric-label">Initiated Listings</div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4 }}>
-                      {data?.funnelWeekday.reduce((s, r) => s + r.starts, 0) || 0}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                      Seller initiated listing wizard on `/create-listing`
-                    </div>
+            <div className="card glass" style={{ marginBottom: 32 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
+                <div>
+                  <div className="metric-label">Initiated Listings</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4 }}>
+                    {data?.funnelWeekday.reduce((s, r) => s + r.starts, 0) || 0}
                   </div>
-                  <div>
-                    <div className="metric-label">Completed Listings</div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4, color: 'var(--accent-green)' }}>
-                      {totalListings}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                      Product added to staging inventory database
-                    </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Seller initiated listing wizard on `/create-listing`
                   </div>
-                  <div>
-                    <div className="metric-label">Same-Session Completion</div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4 }}>
-                      {newSellerRatio}%
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                      Created within 15 minutes of user signup
-                    </div>
+                </div>
+                <div>
+                  <div className="metric-label">Completed Listings</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4, color: 'var(--accent-green)' }}>
+                    {totalListings}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Product added to staging inventory database
+                  </div>
+                </div>
+                <div>
+                  <div className="metric-label">Same-Session Completion</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4 }}>
+                    {newSellerRatio}%
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Created within 15 minutes of user signup
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+
 
 
             {/* AI Summary Section */}
