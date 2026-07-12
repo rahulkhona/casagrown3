@@ -954,7 +954,7 @@ export interface CrmTrafficAnalysisData {
 
 export async function fetchCrmTrafficAnalysis(
   dateRange: DateRange,
-  utmFilter: UtmFilter,
+  utmFilter: any,
   selectedWizard: string = "/create-listing"
 ): Promise<CrmTrafficAnalysisData> {
   const [
@@ -981,9 +981,10 @@ export async function fetchCrmTrafficAnalysis(
     supabase.from("crm_leads").select("email, created_at, metadata, source_platform, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
   ]);
 
-  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-  const profileEmailMap = new Map((profiles || []).map(p => [p.email?.toLowerCase(), p]));
-  const boothMap = new Map((booths || []).map(b => [b.id, b]));
+  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+  const profileEmailMap = new Map((profiles || []).map((p: any) => [p.email?.toLowerCase(), p]));
+  const boothMap = new Map((booths || []).map((b: any) => [b.id, b]));
+
 
   // Build lookup maps for UTM attribution
   const visitUtmMap = new Map<string, any>();
@@ -1104,11 +1105,11 @@ export async function fetchCrmTrafficAnalysis(
       let email = "";
       const firstRow = rows[0];
       if (firstRow?.user_id) {
-        const p = profileMap.get(firstRow.user_id);
+        const p = profileMap.get(firstRow.user_id) as any;
         if (p?.email) email = p.email.toLowerCase();
       }
       if (email) {
-        const lead = (leads || []).find(l => l.email?.toLowerCase() === email);
+        const lead = (leads || []).find((l: any) => l.email?.toLowerCase() === email);
         if (lead && (lead.source_platform === "nutrition-calculator" || lead.metadata?.source_platform === "nutrition-calculator")) {
           return true;
         }
@@ -1118,7 +1119,7 @@ export async function fetchCrmTrafficAnalysis(
   }
 
   const targetSlugs = [step1Path, step2Path].filter(Boolean);
-  const wizardEvents = (analyticsRows || []).filter(row => {
+  const wizardEvents = (analyticsRows || []).filter((row: any) => {
     if (targetSlugs.includes(row.page_path)) return true;
     if (row.event_type === "form_submit") {
       if (selectedWizard === "/create-listing" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
@@ -1137,12 +1138,12 @@ export async function fetchCrmTrafficAnalysis(
 
   // Identify all user IDs who started/entered the selected wizard in the active date range (matching UTM filters)
   const wizardUserIds = new Set<string>();
-  for (const [sessionId, rows] of sessionRecords.entries()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  for (const [sessionId, rows] of Array.from(sessionRecords.entries())) {
+    rows.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const firstRow = rows[0];
     let resolvedUtm = visitUtmMap.get(sessionId);
     if (!resolvedUtm && firstRow.user_id) {
-      const p = profileMap.get(firstRow.user_id);
+      const p = profileMap.get(firstRow.user_id) as any;
       if (p?.email) {
         resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
       }
@@ -1176,14 +1177,14 @@ export async function fetchCrmTrafficAnalysis(
   }));
 
   // Only count listings where the creator is associated with a user from the selected wizard funnel
-  const productsFiltered = (products || []).filter(p => {
+  const productsFiltered = (products || []).filter((p: any) => {
     const d = new Date(p.created_at);
     if (d < new Date(dateRange.start) || d > new Date(dateRange.end)) {
       return false;
     }
-    const booth = boothMap.get(p.booth_id);
+    const booth = boothMap.get(p.booth_id) as any;
     const ownerId = booth?.owner_id;
-    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const profile = (ownerId ? profileMap.get(ownerId) : null) as any;
     const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
     if (!matchesUtmFilter(resolvedUtm)) {
       return false;
@@ -1194,10 +1195,10 @@ export async function fetchCrmTrafficAnalysis(
     return true;
   });
 
-  for (const prod of productsFiltered) {
-    const booth = boothMap.get(prod.booth_id);
+  for (const prod of productsFiltered as any[]) {
+    const booth = boothMap.get(prod.booth_id) as any;
     const ownerId = booth?.owner_id;
-    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const profile = (ownerId ? profileMap.get(ownerId) : null) as any;
     const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
     const prodHour = getLocalHour(prod.created_at, tz);
     const prodDay = getLocalDayOfWeek(prod.created_at, tz);
@@ -1249,14 +1250,14 @@ export async function fetchCrmTrafficAnalysis(
     dropStep2Plus: 0
   }));
 
-  for (const [sessionId, rows] of sessionRecords.entries()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  for (const [sessionId, rows] of Array.from(sessionRecords.entries())) {
+    rows.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const firstRow = rows[0];
     
     // Resolve UTM for this session: check page visits first, then lead email
     let resolvedUtm = visitUtmMap.get(sessionId);
     if (!resolvedUtm && firstRow.user_id) {
-      const p = profileMap.get(firstRow.user_id);
+      const p = profileMap.get(firstRow.user_id) as any;
       if (p?.email) {
         resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
       }
@@ -1266,12 +1267,12 @@ export async function fetchCrmTrafficAnalysis(
       continue;
     }
 
-    const userProfile = firstRow.user_id ? profileMap.get(firstRow.user_id) : null;
+    const userProfile = (firstRow.user_id ? profileMap.get(firstRow.user_id) : null) as any;
     const tz = userProfile ? getStateTimezone(userProfile.state_code) : "America/Los_Angeles";
     const startHour = getLocalHour(firstRow.created_at, tz);
     const startDay = getLocalDayOfWeek(firstRow.created_at, tz);
 
-    const hasVisitedStep2 = step2Path ? rows.some(r => r.page_path === step2Path) : false;
+    const hasVisitedStep2 = step2Path ? rows.some((r: any) => r.page_path === step2Path) : false;
     const hasCompleted = completionCheck(rows, sessionId);
 
     let completed = 0;
@@ -1312,7 +1313,7 @@ export async function fetchCrmTrafficAnalysis(
 
   // 1. Leads Grid
   const leadsGrid = createEmptyGrid();
-  const leadsFiltered = (leads || []).filter(l => {
+  const leadsFiltered = (leads || []).filter((l: any) => {
     if (!l.created_at) return false;
     const d = new Date(l.created_at);
     return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
@@ -1321,7 +1322,7 @@ export async function fetchCrmTrafficAnalysis(
     if (!matchesUtmFilter(lead)) continue;
     let tz = "America/Los_Angeles";
     if (lead.email) {
-      const p = profileEmailMap.get(lead.email.toLowerCase());
+      const p = profileEmailMap.get(lead.email.toLowerCase()) as any;
       if (p) {
         tz = getStateTimezone(p.state_code);
       } else if (lead.metadata?.timezone) {
@@ -1335,11 +1336,11 @@ export async function fetchCrmTrafficAnalysis(
 
   // 2. Account Creations Grid
   const accountsGrid = createEmptyGrid();
-  const profilesFiltered = (profiles || []).filter(p => {
+  const profilesFiltered = (profiles || []).filter((p: any) => {
     const d = new Date(p.created_at);
     return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
   });
-  for (const p of profilesFiltered) {
+  for (const p of profilesFiltered as any[]) {
     const resolvedUtm = p.email ? leadUtmMap.get(p.email.toLowerCase()) : null;
     if (!matchesUtmFilter(resolvedUtm)) continue;
     const tz = getStateTimezone(p.state_code);
@@ -1350,10 +1351,10 @@ export async function fetchCrmTrafficAnalysis(
 
   // 3. Listings Grid
   const listingsGrid = createEmptyGrid();
-  for (const prod of productsFiltered) {
-    const booth = boothMap.get(prod.booth_id);
+  for (const prod of productsFiltered as any[]) {
+    const booth = boothMap.get(prod.booth_id) as any;
     const ownerId = booth?.owner_id;
-    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const profile = (ownerId ? profileMap.get(ownerId) : null) as any;
     const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
     if (!matchesUtmFilter(resolvedUtm)) continue;
     const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
@@ -1404,11 +1405,11 @@ export async function fetchCrmTrafficAnalysis(
         let email = "";
         const firstRow = rows[0];
         if (firstRow?.user_id) {
-          const p = profileMap.get(firstRow.user_id);
+          const p = profileMap.get(firstRow.user_id) as any;
           if (p?.email) email = p.email.toLowerCase();
         }
         if (email) {
-          const lead = (leads || []).find(l => l.email?.toLowerCase() === email);
+          const lead = (leads || []).find((l: any) => l.email?.toLowerCase() === email);
           if (lead && (lead.source_platform === "nutrition-calculator" || lead.metadata?.source_platform === "nutrition-calculator")) {
             return true;
           }
@@ -1418,8 +1419,9 @@ export async function fetchCrmTrafficAnalysis(
     }
   ];
 
+
   const allSlugs = wizardConfigs.flatMap(c => [c.step1Path, c.step2Path].filter(Boolean));
-  const allWizardEvents = (analyticsRows || []).filter(row => {
+  const allWizardEvents = (analyticsRows || []).filter((row: any) => {
     if (allSlugs.includes(row.page_path)) return true;
     if (row.event_type === "form_submit" && ["add_product", "edit_product", "profile_setup"].includes(row.event_name)) return true;
     return false;
@@ -1432,26 +1434,26 @@ export async function fetchCrmTrafficAnalysis(
     sessionAllMap.set(row.session_id, arr);
   }
 
-  for (const [sessionId, rows] of sessionAllMap.entries()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  for (const [sessionId, rows] of Array.from(sessionAllMap.entries())) {
+    rows.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const firstRow = rows[0];
     let resolvedUtm = visitUtmMap.get(sessionId);
     if (!resolvedUtm && firstRow.user_id) {
-      const p = profileMap.get(firstRow.user_id);
+      const p = profileMap.get(firstRow.user_id) as any;
       if (p?.email) {
         resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
       }
     }
     if (!matchesUtmFilter(resolvedUtm)) continue;
 
-    const userProfile = firstRow.user_id ? profileMap.get(firstRow.user_id) : null;
+    const userProfile = (firstRow.user_id ? profileMap.get(firstRow.user_id) : null) as any;
     const tz = userProfile ? getStateTimezone(userProfile.state_code) : "America/Los_Angeles";
     const hour = getLocalHour(firstRow.created_at, tz);
     const day = getLocalDayOfWeek(firstRow.created_at, tz);
 
     for (const config of wizardConfigs) {
       const configSlugs = [config.step1Path, config.step2Path].filter(Boolean);
-      const wizardRows = rows.filter(r => {
+      const wizardRows = rows.filter((r: any) => {
         if (configSlugs.includes(r.page_path)) return true;
         if (r.event_type === "form_submit") {
           if (config.key === "listing" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
@@ -1463,7 +1465,7 @@ export async function fetchCrmTrafficAnalysis(
 
       if (wizardRows.length === 0) continue;
 
-      const hasVisitedStep2 = config.step2Path ? wizardRows.some(r => r.page_path === config.step2Path) : false;
+      const hasVisitedStep2 = config.step2Path ? wizardRows.some((r: any) => r.page_path === config.step2Path) : false;
       const hasCompleted = config.completionCheck(wizardRows, sessionId);
 
       dropOffGrids[config.key][hour][day].starts++;
@@ -1495,7 +1497,7 @@ export async function fetchCrmTrafficAnalysis(
   for (const lead of leadsFiltered) {
     if (!matchesUtmFilter(lead)) continue;
     if (lead.email) {
-      const p = profileEmailMap.get(lead.email.toLowerCase());
+      const p = profileEmailMap.get(lead.email.toLowerCase()) as any;
       if (p) {
         convertedLeadsCount++;
         const tz = getStateTimezone(p.state_code);
@@ -1505,6 +1507,7 @@ export async function fetchCrmTrafficAnalysis(
       }
     }
   }
+
 
   const leadsToAccountStats = {
     totalLeads: leadsFiltered.filter(matchesUtmFilter).length,
