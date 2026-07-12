@@ -128,6 +128,7 @@ const NAV_ITEMS = [
 const MARKETING_NAV_ITEMS = [
   { href: '/marketing', label: 'Traffic Overview', icon: '📈' },
   { href: '/marketing/funnel', label: 'Lead Funnel', icon: '🔽' },
+  { href: '/marketing/traffic', label: 'Traffic Analysis', icon: '📊' },
   { href: '/marketing/campaigns', label: 'Campaign Stats', icon: '📧' },
   { href: '/marketing/ab', label: 'Landing Page A/B Tests', icon: '🔬' },
 ]

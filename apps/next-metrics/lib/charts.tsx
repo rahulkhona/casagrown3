@@ -128,8 +128,11 @@ export function LineChart({
   const width = 800
   const gradientId = `lg-${Math.random().toString(36).slice(2, 8)}`
 
+  const divisor = data.length > 1 ? data.length - 1 : 1
   const points = data.map((d, i) => ({
-    x: 55 + (i / (data.length - 1)) * (width - 70),
+    x: data.length > 1
+      ? 55 + (i / divisor) * (width - 70)
+      : 55 + 0.5 * (width - 70),
     y: 10 + ((max - d.value) / range) * (chartH - 20),
     ...d,
   }))

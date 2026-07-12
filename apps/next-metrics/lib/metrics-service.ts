@@ -898,18 +898,601 @@ export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ so
   const total = bySource.reduce((s, r) => s + r.visits, 0)
   return bySource.map(r => ({ ...r, pct: total > 0 ? Math.round((r.visits / total) * 100) : 0 })) as { source: string; visits: number; pct: number }[]
 }
-
 export async function generateUtmAnalyticsQuery(prompt: string, conversationHistory: any[]): Promise<any> {
   try {
     const response = await supabase.functions.invoke('generate-utm-analytics-query', {
-      body: { prompt, conversationHistory }
-    });
-    if (response.error) {
-      console.error('Edge Function Error:', response.error);
-      return { valid: false, error: response.error.message || 'Edge function error' };
-    }
+      body: {
+        prompt,
+        conversationHistory,
+      },
+    })
     return response.data || { valid: false, error: 'Empty response from edge function' };
   } catch (err: any) {
     return { valid: false, error: err.message || String(err) };
   }
 }
+
+export interface CrmTrafficAnalysisData {
+  completedListings: {
+    hourStr: string;
+    total: number;
+    sameSession: number;
+    sameDay: number;
+    later: number;
+  }[];
+  funnelHour: {
+    hourStr: string;
+    starts: number;
+    completed: number;
+    dropStep1: number;
+    dropStep2Plus: number;
+  }[];
+  listingsWeekday: {
+    weekday: string;
+    total: number;
+    sameSession: number;
+    sameDay: number;
+    later: number;
+  }[];
+  funnelWeekday: {
+    weekday: string;
+    starts: number;
+    completed: number;
+    dropStep1: number;
+    dropStep2Plus: number;
+  }[];
+  leadsGrid: any[];
+  accountsGrid: any[];
+  listingsGrid: any[];
+  leadsToAccountGrid: any[];
+  leadsToAccountStats: {
+    totalLeads: number;
+    convertedLeads: number;
+  };
+  dropOffGrids: Record<string, any[]>;
+}
+
+export async function fetchCrmTrafficAnalysis(
+  dateRange: DateRange,
+  utmFilter: UtmFilter,
+  selectedWizard: string = "/create-listing"
+): Promise<CrmTrafficAnalysisData> {
+  const [
+    { data: analyticsRows },
+    { data: products },
+    { data: profiles },
+    { data: booths },
+    { data: pageVisits },
+    { data: leads }
+  ] = await Promise.all([
+    supabase
+      .from("user_analytics")
+      .select("*")
+      .gte("created_at", dateRange.start)
+      .lte("created_at", dateRange.end),
+    supabase.from("market_products").select("*"),
+    supabase.from("profiles").select("id, email, state_code, created_at"),
+    supabase.from("market_booths").select("id, owner_id"),
+    supabase
+      .from("crm_page_visits")
+      .select("session_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+      .gte("visited_at", dateRange.start)
+      .lte("visited_at", dateRange.end),
+    supabase.from("crm_leads").select("email, created_at, metadata, source_platform, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+  ]);
+
+  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+  const profileEmailMap = new Map((profiles || []).map(p => [p.email?.toLowerCase(), p]));
+  const boothMap = new Map((booths || []).map(b => [b.id, b]));
+
+  // Build lookup maps for UTM attribution
+  const visitUtmMap = new Map<string, any>();
+  for (const visit of (pageVisits || [])) {
+    if (visit.session_id) {
+      visitUtmMap.set(visit.session_id, {
+        utm_source: visit.utm_source,
+        utm_medium: visit.utm_medium,
+        utm_campaign: visit.utm_campaign,
+        utm_content: visit.utm_content,
+        utm_term: visit.utm_term
+      });
+    }
+  }
+
+  const leadUtmMap = new Map<string, any>();
+  for (const lead of (leads || [])) {
+    if (lead.email) {
+      leadUtmMap.set(lead.email.toLowerCase(), {
+        utm_source: lead.utm_source,
+        utm_medium: lead.utm_medium,
+        utm_campaign: lead.utm_campaign,
+        utm_content: lead.utm_content,
+        utm_term: lead.utm_term
+      });
+    }
+  }
+
+  function matchesUtmFilter(resolvedUtm: any): boolean {
+    if (!resolvedUtm) {
+      // If we are filtering by a UTM param, but this record has none, filter it out!
+      return !utmFilter.utm_source && !utmFilter.utm_medium && !utmFilter.utm_campaign;
+    }
+    
+    if (utmFilter.utm_source && (!resolvedUtm.utm_source || !resolvedUtm.utm_source.toLowerCase().includes(utmFilter.utm_source.toLowerCase()))) {
+      return false;
+    }
+    if (utmFilter.utm_medium && (!resolvedUtm.utm_medium || !resolvedUtm.utm_medium.toLowerCase().includes(utmFilter.utm_medium.toLowerCase()))) {
+      return false;
+    }
+    if (utmFilter.utm_campaign && (!resolvedUtm.utm_campaign || !resolvedUtm.utm_campaign.toLowerCase().includes(utmFilter.utm_campaign.toLowerCase()))) {
+      return false;
+    }
+    return true;
+  }
+
+  function getStateTimezone(stateCode: string | null): string {
+    if (!stateCode) return "America/Los_Angeles";
+    const code = stateCode.trim().toUpperCase();
+    const pacific = ["CA", "OR", "WA", "NV"];
+    const mountain = ["CO", "UT", "WY", "ID", "MT", "NM", "AZ"];
+    const central = ["TX", "IL", "MN", "WI", "IA", "MO", "AR", "LA", "OK", "KS", "NE", "SD", "ND", "MS", "TN", "AL"];
+    const eastern = ["NY", "FL", "PA", "OH", "MI", "GA", "NC", "VA", "NJ", "MA", "MD", "IN", "SC", "CT", "ME", "NH", "VT", "RI", "DE", "WV", "KY"];
+    
+    if (pacific.includes(code)) return "America/Los_Angeles";
+    if (mountain.includes(code)) return "America/Denver";
+    if (central.includes(code)) return "America/Chicago";
+    if (eastern.includes(code)) return "America/New_York";
+    return "America/Los_Angeles";
+  }
+
+  function getLocalHour(dateString: string, timezone: string): number {
+    try {
+      const date = new Date(dateString);
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: timezone,
+      });
+      const parts = formatter.formatToParts(date);
+      const hourPart = parts.find(p => p.type === "hour");
+      if (hourPart) {
+        const val = parseInt(hourPart.value);
+        return val === 24 ? 0 : val;
+      }
+      return date.getUTCHours();
+    } catch {
+      return new Date(dateString).getUTCHours();
+    }
+  }
+
+  function getLocalDayOfWeek(dateString: string, timezone: string): string {
+    try {
+      const date = new Date(dateString);
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        weekday: "long",
+        timeZone: timezone,
+      });
+      return formatter.format(date);
+    } catch {
+      const date = new Date(dateString);
+      const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      return weekdays[date.getUTCDay()];
+    }
+  }
+
+  const weekdaysOrdered = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  const completedListings = Array.from({ length: 24 }, (_, i) => ({
+    hourStr: `${i.toString().padStart(2, "0")}:00`,
+    total: 0,
+    sameSession: 0,
+    sameDay: 0,
+    later: 0
+  }));
+
+  const listingsWeekday = weekdaysOrdered.map(day => ({
+    weekday: day,
+    total: 0,
+    sameSession: 0,
+    sameDay: 0,
+    later: 0
+  }));
+
+  const productsFiltered = (products || []).filter(p => {
+    const d = new Date(p.created_at);
+    return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
+  });
+
+  for (const prod of productsFiltered) {
+    const booth = boothMap.get(prod.booth_id);
+    const ownerId = booth?.owner_id;
+    const profile = ownerId ? profileMap.get(ownerId) : null;
+    
+    // Resolve UTM for this listing via profile email matching crm_leads
+    const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
+    if (!matchesUtmFilter(resolvedUtm)) {
+      continue;
+    }
+
+    const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
+    const prodHour = getLocalHour(prod.created_at, tz);
+    const prodDay = getLocalDayOfWeek(prod.created_at, tz);
+
+    let sameSession = 0;
+    let sameDay = 0;
+    let later = 1;
+
+    if (profile && profile.created_at) {
+      const diffMs = new Date(prod.created_at).getTime() - new Date(profile.created_at).getTime();
+      const diffMin = diffMs / (60 * 1000);
+      
+      if (diffMin <= 15) {
+        sameSession = 1;
+        later = 0;
+      } else if (diffMin <= 24 * 60) {
+        sameDay = 1;
+        later = 0;
+      }
+    }
+
+    completedListings[prodHour].total++;
+    completedListings[prodHour].sameSession += sameSession;
+    completedListings[prodHour].sameDay += sameDay;
+    completedListings[prodHour].later += later;
+
+    const wItem = listingsWeekday.find(w => w.weekday === prodDay);
+    if (wItem) {
+      wItem.total++;
+      wItem.sameSession += sameSession;
+      wItem.sameDay += sameDay;
+      wItem.later += later;
+    }
+  }
+
+  // Define steps for each wizard slug
+  let step1Path = "/create-listing";
+  let step2Path = "/my-booth/products/new";
+  let completionCheck = (rows: any[], sessionId?: string) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"));
+
+  if (selectedWizard === "/profile-setup") {
+    step1Path = "/profile-setup";
+    step2Path = "";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup");
+  } else if (selectedWizard === "/join") {
+    step1Path = "/join";
+    step2Path = "/auth-callback";
+    completionCheck = (rows: any[]) => rows.some(r => r.page_path === "/profile" || r.event_type === "form_submit");
+  } else if (selectedWizard === "/sell") {
+    step1Path = "/sell";
+    step2Path = "/profile-setup";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup");
+  } else if (selectedWizard === "/check-nutrition-loss") {
+    step1Path = "/check-nutrition-loss";
+    step2Path = "";
+    completionCheck = (rows: any[], sessionId?: string) => {
+      let email = "";
+      const firstRow = rows[0];
+      if (firstRow?.user_id) {
+        const p = profileMap.get(firstRow.user_id);
+        if (p?.email) email = p.email.toLowerCase();
+      }
+      if (email) {
+        const lead = (leads || []).find(l => l.email?.toLowerCase() === email);
+        if (lead && (lead.source_platform === "nutrition-calculator" || lead.metadata?.source_platform === "nutrition-calculator")) {
+          return true;
+        }
+      }
+      return false;
+    };
+  }
+
+  const targetSlugs = [step1Path, step2Path].filter(Boolean);
+  const wizardEvents = (analyticsRows || []).filter(row => {
+    if (targetSlugs.includes(row.page_path)) return true;
+    if (row.event_type === "form_submit") {
+      if (selectedWizard === "/create-listing" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
+      if (selectedWizard === "/profile-setup" && row.event_name === "profile_setup") return true;
+      if (selectedWizard === "/sell" && row.event_name === "profile_setup") return true;
+    }
+    return false;
+  });
+
+  const sessionRecords = new Map<string, any[]>();
+  for (const row of wizardEvents) {
+    const arr = sessionRecords.get(row.session_id) || [];
+    arr.push(row);
+    sessionRecords.set(row.session_id, arr);
+  }
+
+  const funnelHour = Array.from({ length: 24 }, (_, i) => ({
+    hourStr: `${i.toString().padStart(2, "0")}:00`,
+    starts: 0,
+    completed: 0,
+    dropStep1: 0,
+    dropStep2Plus: 0
+  }));
+
+  const funnelWeekday = weekdaysOrdered.map(day => ({
+    weekday: day,
+    starts: 0,
+    completed: 0,
+    dropStep1: 0,
+    dropStep2Plus: 0
+  }));
+
+  for (const [sessionId, rows] of sessionRecords.entries()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const firstRow = rows[0];
+    
+    // Resolve UTM for this session: check page visits first, then lead email
+    let resolvedUtm = visitUtmMap.get(sessionId);
+    if (!resolvedUtm && firstRow.user_id) {
+      const p = profileMap.get(firstRow.user_id);
+      if (p?.email) {
+        resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
+      }
+    }
+
+    if (!matchesUtmFilter(resolvedUtm)) {
+      continue;
+    }
+
+    const userProfile = firstRow.user_id ? profileMap.get(firstRow.user_id) : null;
+    const tz = userProfile ? getStateTimezone(userProfile.state_code) : "America/Los_Angeles";
+    const startHour = getLocalHour(firstRow.created_at, tz);
+    const startDay = getLocalDayOfWeek(firstRow.created_at, tz);
+
+    const hasVisitedStep2 = step2Path ? rows.some(r => r.page_path === step2Path) : false;
+    const hasCompleted = completionCheck(rows, sessionId);
+
+    let completed = 0;
+    let dropStep1 = 0;
+    let dropStep2Plus = 0;
+
+    if (hasCompleted) {
+      completed = 1;
+    } else if (hasVisitedStep2) {
+      dropStep2Plus = 1;
+    } else {
+      dropStep1 = 1;
+    }
+
+    funnelHour[startHour].starts++;
+    funnelHour[startHour].completed += completed;
+    funnelHour[startHour].dropStep1 += dropStep1;
+    funnelHour[startHour].dropStep2Plus += dropStep2Plus;
+
+    const wItem = funnelWeekday.find(w => w.weekday === startDay);
+    if (wItem) {
+      wItem.starts++;
+      wItem.completed += completed;
+      wItem.dropStep1 += dropStep1;
+      wItem.dropStep2Plus += dropStep2Plus;
+    }
+  }
+
+  function createEmptyGrid() {
+    return Array.from({ length: 24 }, (_, hour) => {
+      const row: any = { hourStr: `${hour.toString().padStart(2, "0")}:00` };
+      for (const day of weekdaysOrdered) {
+        row[day] = 0;
+      }
+      return row;
+    });
+  }
+
+  // 1. Leads Grid
+  const leadsGrid = createEmptyGrid();
+  const leadsFiltered = (leads || []).filter(l => {
+    if (!l.created_at) return false;
+    const d = new Date(l.created_at);
+    return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
+  });
+  for (const lead of leadsFiltered) {
+    if (!matchesUtmFilter(lead)) continue;
+    let tz = "America/Los_Angeles";
+    if (lead.email) {
+      const p = profileEmailMap.get(lead.email.toLowerCase());
+      if (p) {
+        tz = getStateTimezone(p.state_code);
+      } else if (lead.metadata?.timezone) {
+        tz = lead.metadata.timezone;
+      }
+    }
+    const hour = getLocalHour(lead.created_at, tz);
+    const day = getLocalDayOfWeek(lead.created_at, tz);
+    leadsGrid[hour][day]++;
+  }
+
+  // 2. Account Creations Grid
+  const accountsGrid = createEmptyGrid();
+  const profilesFiltered = (profiles || []).filter(p => {
+    const d = new Date(p.created_at);
+    return d >= new Date(dateRange.start) && d <= new Date(dateRange.end);
+  });
+  for (const p of profilesFiltered) {
+    const resolvedUtm = p.email ? leadUtmMap.get(p.email.toLowerCase()) : null;
+    if (!matchesUtmFilter(resolvedUtm)) continue;
+    const tz = getStateTimezone(p.state_code);
+    const hour = getLocalHour(p.created_at, tz);
+    const day = getLocalDayOfWeek(p.created_at, tz);
+    accountsGrid[hour][day]++;
+  }
+
+  // 3. Listings Grid
+  const listingsGrid = createEmptyGrid();
+  for (const prod of productsFiltered) {
+    const booth = boothMap.get(prod.booth_id);
+    const ownerId = booth?.owner_id;
+    const profile = ownerId ? profileMap.get(ownerId) : null;
+    const resolvedUtm = profile?.email ? leadUtmMap.get(profile.email.toLowerCase()) : null;
+    if (!matchesUtmFilter(resolvedUtm)) continue;
+    const tz = profile ? getStateTimezone(profile.state_code) : "America/Los_Angeles";
+    const hour = getLocalHour(prod.created_at, tz);
+    const day = getLocalDayOfWeek(prod.created_at, tz);
+    listingsGrid[hour][day]++;
+  }
+
+  // 4 & 5. Drop Off Grids for all wizards
+  const dropOffGrids: Record<string, any[]> = {
+    listing: createEmptyDropOffGrid(),
+    join: createEmptyDropOffGrid(),
+    sell: createEmptyDropOffGrid(),
+    profileSetup: createEmptyDropOffGrid(),
+    nutrition: createEmptyDropOffGrid()
+  };
+
+  const wizardConfigs = [
+    {
+      key: "listing",
+      step1Path: "/create-listing",
+      step2Path: "/my-booth/products/new",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
+    },
+    {
+      key: "join",
+      step1Path: "/join",
+      step2Path: "/auth-callback",
+      completionCheck: (rows: any[]) => rows.some(r => r.page_path === "/profile" || r.event_type === "form_submit")
+    },
+    {
+      key: "sell",
+      step1Path: "/sell",
+      step2Path: "/profile-setup",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup")
+    },
+    {
+      key: "profileSetup",
+      step1Path: "/profile-setup",
+      step2Path: "",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup")
+    },
+    {
+      key: "nutrition",
+      step1Path: "/check-nutrition-loss",
+      step2Path: "",
+      completionCheck: (rows: any[], sessionId?: string) => {
+        let email = "";
+        const firstRow = rows[0];
+        if (firstRow?.user_id) {
+          const p = profileMap.get(firstRow.user_id);
+          if (p?.email) email = p.email.toLowerCase();
+        }
+        if (email) {
+          const lead = (leads || []).find(l => l.email?.toLowerCase() === email);
+          if (lead && (lead.source_platform === "nutrition-calculator" || lead.metadata?.source_platform === "nutrition-calculator")) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+  ];
+
+  const allSlugs = wizardConfigs.flatMap(c => [c.step1Path, c.step2Path].filter(Boolean));
+  const allWizardEvents = (analyticsRows || []).filter(row => {
+    if (allSlugs.includes(row.page_path)) return true;
+    if (row.event_type === "form_submit" && ["add_product", "edit_product", "profile_setup"].includes(row.event_name)) return true;
+    return false;
+  });
+
+  const sessionAllMap = new Map<string, any[]>();
+  for (const row of allWizardEvents) {
+    const arr = sessionAllMap.get(row.session_id) || [];
+    arr.push(row);
+    sessionAllMap.set(row.session_id, arr);
+  }
+
+  for (const [sessionId, rows] of sessionAllMap.entries()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const firstRow = rows[0];
+    let resolvedUtm = visitUtmMap.get(sessionId);
+    if (!resolvedUtm && firstRow.user_id) {
+      const p = profileMap.get(firstRow.user_id);
+      if (p?.email) {
+        resolvedUtm = leadUtmMap.get(p.email.toLowerCase());
+      }
+    }
+    if (!matchesUtmFilter(resolvedUtm)) continue;
+
+    const userProfile = firstRow.user_id ? profileMap.get(firstRow.user_id) : null;
+    const tz = userProfile ? getStateTimezone(userProfile.state_code) : "America/Los_Angeles";
+    const hour = getLocalHour(firstRow.created_at, tz);
+    const day = getLocalDayOfWeek(firstRow.created_at, tz);
+
+    for (const config of wizardConfigs) {
+      const configSlugs = [config.step1Path, config.step2Path].filter(Boolean);
+      const wizardRows = rows.filter(r => {
+        if (configSlugs.includes(r.page_path)) return true;
+        if (r.event_type === "form_submit") {
+          if (config.key === "listing" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
+          if (config.key === "sell" && r.event_name === "profile_setup") return true;
+          if (config.key === "profileSetup" && r.event_name === "profile_setup") return true;
+        }
+        return false;
+      });
+
+      if (wizardRows.length === 0) continue;
+
+      const hasVisitedStep2 = config.step2Path ? wizardRows.some(r => r.page_path === config.step2Path) : false;
+      const hasCompleted = config.completionCheck(wizardRows, sessionId);
+
+      dropOffGrids[config.key][hour][day].starts++;
+
+      if (!hasCompleted) {
+        if (hasVisitedStep2) {
+          dropOffGrids[config.key][hour][day].step2++;
+        } else {
+          dropOffGrids[config.key][hour][day].step1++;
+        }
+      }
+    }
+  }
+
+  // Helper for dropoff grid initialization
+  function createEmptyDropOffGrid() {
+    return Array.from({ length: 24 }, (_, hour) => {
+      const row: any = { hourStr: `${hour.toString().padStart(2, "0")}:00` };
+      for (const day of weekdaysOrdered) {
+        row[day] = { step1: 0, step2: 0, starts: 0 };
+      }
+      return row;
+    });
+  }
+
+  // 6. Leads-to-Account Conversions Grid & Stats
+  const leadsToAccountGrid = createEmptyGrid();
+  let convertedLeadsCount = 0;
+  for (const lead of leadsFiltered) {
+    if (!matchesUtmFilter(lead)) continue;
+    if (lead.email) {
+      const p = profileEmailMap.get(lead.email.toLowerCase());
+      if (p) {
+        convertedLeadsCount++;
+        const tz = getStateTimezone(p.state_code);
+        const hour = getLocalHour(p.created_at, tz);
+        const day = getLocalDayOfWeek(p.created_at, tz);
+        leadsToAccountGrid[hour][day]++;
+      }
+    }
+  }
+
+  const leadsToAccountStats = {
+    totalLeads: leadsFiltered.filter(matchesUtmFilter).length,
+    convertedLeads: convertedLeadsCount
+  };
+
+  return {
+    completedListings,
+    funnelHour,
+    listingsWeekday,
+    funnelWeekday,
+    leadsGrid,
+    accountsGrid,
+    listingsGrid,
+    leadsToAccountGrid,
+    leadsToAccountStats,
+    dropOffGrids
+  };
+}
+

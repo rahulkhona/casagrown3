@@ -70,6 +70,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       "utm_campaign",
       "utm_content",
       "utm_term",
+      "createdate",
     ],
     limit: 100,
   };
@@ -130,6 +131,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         status: "new",
         accepts_email: true,  // HubSpot contacts opted in by submitting a form
         accepts_sms: true,    // They can always unsubscribe later
+        created_at: props.createdate ? new Date(props.createdate).toISOString() : new Date().toISOString(),
         metadata: {
           ingested_from: "hubspot",
           hubspot_contact_id: contact.id,
