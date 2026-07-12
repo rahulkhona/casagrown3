@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { WizardProvider, useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent, trackStepTiming, trackFieldInteract, resetSessionId } from '../../../lib/crm-analytics'
 
 import Step1Basics from './Step1Basics'
 import Step2Fulfillment from './Step2Fulfillment'
@@ -26,7 +26,30 @@ function WizardRouter() {
     { id: 5, label: 'Publish' },
   ]
 
+  const stepEnteredAt = useRef(Date.now())
+  const prevStepRef = useRef(state.currentStep)
+  const hasAbandoned = useRef(false)
+  const currentStepRef = useRef(state.currentStep)
+  const stateRef = useRef(state)
+
   useEffect(() => {
+    resetSessionId('/create-listing')
+  }, [])
+
+  useEffect(() => {
+    currentStepRef.current = state.currentStep
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
+    const duration = (Date.now() - stepEnteredAt.current) / 1000
+    const prevStepName = allSteps.find(s => s.id === prevStepRef.current)?.label?.toLowerCase() || 'unknown'
+    if (duration > 1) {
+      trackStepTiming('/create-listing', prevStepRef.current, prevStepName, duration)
+    }
+    prevStepRef.current = state.currentStep
+    stepEnteredAt.current = Date.now()
+
     const stepName = allSteps.find(s => s.id === state.currentStep)?.label?.toLowerCase() || (state.currentStep === 6 ? 'success' : 'unknown')
     trackEvent('wizard_step', '/create-listing', { step_index: state.currentStep, step_name: stepName })
   }, [state.currentStep])

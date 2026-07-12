@@ -131,6 +131,7 @@ const MARKETING_NAV_ITEMS = [
   { href: '/marketing/traffic', label: 'Traffic Analysis', icon: '📊' },
   { href: '/marketing/campaigns', label: 'Campaign Stats', icon: '📧' },
   { href: '/marketing/ab', label: 'Landing Page A/B Tests', icon: '🔬' },
+  { href: '/marketing/wizard', label: 'Wizard Analytics', icon: '🧙' },
 ]
 
 // ─── Layout Component ───────────────────────────────────────────────────────

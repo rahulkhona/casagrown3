@@ -1,11 +1,12 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useWizard } from './WizardContext'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
 import { type AddressFields, formatFullAddress } from '../../../lib/address'
 import styles from './wizard.module.css'
+import { trackFieldInteract, trackEvent } from '../../../lib/crm-analytics'
 
 interface StandOption {
   id: string
@@ -174,6 +175,58 @@ export default function Step2Fulfillment() {
   const { state, updateState, nextStep, prevStep } = useWizard()
   const { user } = useAuth()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  
+  const wentNext = useRef(false)
+  const wentBack = useRef(false)
+  const stateRef = useRef(state)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
+    trackFieldInteract('/create-listing', 2, 'next_button', false)
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      if (!wentNext.current && !wentBack.current) {
+        const duration = (Date.now() - startTime) / 1000
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 2,
+          last_step_name: 'fulfillment',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 2, 'home_address', !!st.address)
+        trackFieldInteract('/create-listing', 2, 'offers_delivery', !!st.offersDelivery)
+        trackFieldInteract('/create-listing', 2, 'delivery_radius', !!st.deliveryRadius)
+        trackFieldInteract('/create-listing', 2, 'offers_pickup', !!st.offersPickup)
+        trackFieldInteract('/create-listing', 2, 'pickup_address', !!st.pickupAddress)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      if (!wentNext.current && !wentBack.current) {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 2,
+          last_step_name: 'fulfillment',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 2, 'home_address', !!st.address)
+        trackFieldInteract('/create-listing', 2, 'offers_delivery', !!st.offersDelivery)
+        trackFieldInteract('/create-listing', 2, 'delivery_radius', !!st.deliveryRadius)
+        trackFieldInteract('/create-listing', 2, 'offers_pickup', !!st.offersPickup)
+        trackFieldInteract('/create-listing', 2, 'pickup_address', !!st.pickupAddress)
+      }
+    }
+  }, [])
   const [stands, setStands] = useState<StandOption[]>([])
   const [standsLoaded, setStandsLoaded] = useState(false)
 
@@ -410,6 +463,13 @@ export default function Step2Fulfillment() {
 
 
   const validateAndNext = () => {
+    trackEvent('button_click', '/create-listing', { step: 2, button: 'next' })
+    trackFieldInteract('/create-listing', 2, 'home_address', !!state.address)
+    trackFieldInteract('/create-listing', 2, 'offers_delivery', !!state.offersDelivery)
+    trackFieldInteract('/create-listing', 2, 'delivery_radius', !!state.deliveryRadius)
+    trackFieldInteract('/create-listing', 2, 'offers_pickup', !!state.offersPickup)
+    trackFieldInteract('/create-listing', 2, 'pickup_address', !!state.pickupAddress)
+
     const newErrors: Record<string, string> = {}
     if (!state.address) {
       newErrors.address = 'Home/Farm address is required'
@@ -447,6 +507,10 @@ export default function Step2Fulfillment() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      trackEvent('wizard_validation_error', '/create-listing', {
+        step: 2,
+        fields: Object.keys(newErrors)
+      })
       setTimeout(() => {
         const firstError = document.querySelector(`.${styles.errorText}`)
         firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -454,6 +518,8 @@ export default function Step2Fulfillment() {
       return
     }
 
+    trackFieldInteract('/create-listing', 2, 'next_button', true)
+    wentNext.current = true
     nextStep()
   }
 
@@ -521,7 +587,7 @@ export default function Step2Fulfillment() {
   return (
     <div>
       <div className={styles.headerTop}>
-        <button className={styles.backBtn} onClick={prevStep}>← Back</button>
+        <button className={styles.backBtn} onClick={() => { wentBack.current = true; prevStep() }}>← Back</button>
       </div>
       
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>How will buyers get it?</h2>
@@ -567,6 +633,7 @@ export default function Step2Fulfillment() {
         <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 8px' }}>
           This is your primary location. It is used to calculate delivery distances and local taxes.
         </p>
+        <div onBlur={() => trackFieldInteract('/create-listing', 2, 'home_address', !!formatFullAddress(addressFields).trim())}>
         <AddressInput 
           value={addressFields}
           onChange={(val: AddressFields) => {
@@ -574,6 +641,7 @@ export default function Step2Fulfillment() {
             updateState({ address: formatFullAddress(val) })
           }}
         />
+        </div>
         {errors.address && <div className={styles.errorText}>{errors.address}</div>}
         <button 
           type="button" 
@@ -600,6 +668,7 @@ export default function Step2Fulfillment() {
               onClick={() => {
                 if (state.offersDelivery && !state.offersPickup) return;
                 updateState({ offersDelivery: !state.offersDelivery })
+                trackFieldInteract('/create-listing', 2, 'offers_delivery', !state.offersDelivery)
               }}
             >
               <span style={{ fontSize: 28 }}>🚗</span>
@@ -619,7 +688,10 @@ export default function Step2Fulfillment() {
                     <input
                       type="range" min={1} max={10}
                       value={state.deliveryRadius || 5}
-                      onChange={e => updateState({ deliveryRadius: parseInt(e.target.value) })}
+                      onChange={e => {
+                        updateState({ deliveryRadius: parseInt(e.target.value) })
+                        trackFieldInteract('/create-listing', 2, 'delivery_radius', true)
+                      }}
                       style={{ flex: 1, accentColor: '#16a34a' }}
                     />
                     <span style={{ minWidth: 50, fontSize: 14, fontWeight: 600, color: '#16a34a' }}>
@@ -730,6 +802,7 @@ export default function Step2Fulfillment() {
               onClick={() => {
                 if (state.offersPickup && !state.offersDelivery) return;
                 updateState({ offersPickup: !state.offersPickup })
+                trackFieldInteract('/create-listing', 2, 'offers_pickup', !state.offersPickup)
               }}
             >
               <span style={{ fontSize: 28 }}>📍</span>

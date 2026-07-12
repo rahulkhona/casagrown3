@@ -233,3 +233,13 @@ select.input option {
 }
 .windowPill:hover { border-color: #86efac; }
 .windowPillActive { border-color: #22c55e; background: #f0fdf4; color: #15803d; font-weight: 600; }
+
+/* AI Progress Steps */
+.aiProgressList { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: #faf5ff; border-radius: 12px; margin: 12px 0; }
+.aiProgressStep { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
+.aiProgressIcon { flex-shrink: 0; width: 20px; text-align: center; }
+.aiProgressDone { color: #16a34a; }
+.aiProgressActive { color: #7c3aed; }
+.aiProgressActive .aiProgressIcon { animation: aiPulse 1.5s ease-in-out infinite; }
+.aiProgressPending { color: #9ca3af; }
+@keyframes aiPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

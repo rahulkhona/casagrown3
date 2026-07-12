@@ -49,3 +49,26 @@ Query examples: metadata->>''garden_size'', metadata->''plants''';
 - When adding a new JSONB column, always include a COMMENT ON COLUMN documenting its expected structure.
 
 The runtime `get_jsonb_column_schemas()` function supplements these comments by sampling actual data, but comments are the baseline that works even on an empty database.
+
+---
+
+## Wizard Analytics Implementation Guidelines
+
+To prevent gaps in field-level tracking, follow these design patterns when implementing or expanding wizard analytics tracking in any wizard (`/join`, `/sell`, `/profile-setup`, `/check-nutrition-loss`):
+
+### 1. Capture Client-Side SPA Navigation & Tab Unloads
+- Always listen to both the native browser `beforeunload` event (for reloads/tab-closes) AND the React component's unmount cleanup (for internal SPA router transitions).
+- Use a `hasAbandoned` ref race-guard to prevent duplicate abandon events if the browser triggers both events in succession.
+- Ignore transient, 0-second Strict Mode double-mounts to prevent false-positive abandon events on initial page load.
+
+### 2. Immediate Tracking for Programmatically Populated Fields
+- Fields filled via autocomplete, state updates, or **AI autofill/suggestions** must immediately fire `trackFieldInteract` once applied, since the user will not trigger standard `onBlur` events on those inputs.
+
+### 3. Track All Input States on Step Transition
+- At the start of the "Next" or "Verify & Continue" click handler (validation function), fire `trackFieldInteract` for all fields on the current step to guarantee their final filled/empty state is recorded, regardless of whether the inputs were focused or blurred.
+
+### 4. Track "Next" Button Clicks & Intent
+- Record the user's intent to proceed by firing a `button_click` event (e.g., `trackEvent('button_click', ..., { step, button: 'next' })`) when the proceed button is pressed, which allows tracking validation bottlenecks and friction.
+
+### 5. Prevent Duplicate Column Counts (SQL DISTINCT ON)
+- When aggregating field events, use `DISTINCT ON (session_id, step, field_name) ORDER BY occurred_at DESC` to project only the *last* reported state of each field for that session. This prevents a session from appearing in both the "Filled" and "Left Empty" column tallies if it reported both states.

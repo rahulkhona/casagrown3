@@ -46,7 +46,7 @@ function send(payload: Record<string, unknown>): void {
   const url = '/api/crm/track'
   // sendBeacon survives page unload; fetch is fine for regular events
   if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-    navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }))
+    navigator.sendBeacon(url, new Blob([data], { type: 'text/plain' }))
   } else {
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data })
       .catch(() => { /* silent */ })
@@ -107,7 +107,11 @@ export function useMarketingAnalytics(pageSlug: string): void {
  * Call this directly from event handlers.
  */
 export function trackEvent(
-  eventType: 'button_click' | 'calculator_used' | 'form_start' | 'form_abandon' | 'cta_clicked' | 'scroll_50' | 'scroll_90' | 'wizard_step',
+  eventType:
+    | 'button_click' | 'calculator_used' | 'form_start' | 'form_abandon'
+    | 'cta_clicked' | 'scroll_50' | 'scroll_90' | 'wizard_step'
+    | 'wizard_field_interact' | 'wizard_ai_used' | 'wizard_abandon'
+    | 'wizard_validation_error' | 'wizard_step_timing',
   pageSlug: string,
   eventData: Record<string, unknown> = {},
 ): void {
@@ -123,6 +127,43 @@ export function trackEvent(
 }
 
 /**
+ * Track a wizard field interaction on blur.
+ * Captures which fields users interact with and whether they contain a value.
+ */
+export function trackFieldInteract(
+  pageSlug: string,
+  step: number,
+  fieldName: string,
+  hasValue: boolean,
+): void {
+  trackEvent('wizard_field_interact', pageSlug, { step, field: fieldName, has_value: hasValue })
+}
+
+/**
+ * Track AI feature usage in a wizard.
+ * Records whether users click AI buttons, apply results, dismiss them, or abandon during wait.
+ */
+export function trackAiUsage(
+  pageSlug: string,
+  action: 'clicked' | 'applied' | 'dismissed' | 'abandon_wait',
+  buttonName: string,
+): void {
+  trackEvent('wizard_ai_used', pageSlug, { action, button: buttonName })
+}
+
+/**
+ * Track time spent on a wizard step (fired on step transition).
+ */
+export function trackStepTiming(
+  pageSlug: string,
+  step: number,
+  stepName: string,
+  durationSecs: number,
+): void {
+  trackEvent('wizard_step_timing', pageSlug, { step, step_name: stepName, duration_secs: Math.round(durationSecs) })
+}
+
+/**
  * Mark the current session as converted (lead form submitted).
  * Call immediately after a successful lead form submission.
  */
@@ -135,4 +176,22 @@ export function markConverted(leadId: string): void {
     converted: true,
     lead_id: leadId,
   })
+}
+
+/** Reset the session ID to start a fresh attempt of the wizard */
+export function resetSessionId(pageSlug: string): string {
+  if (typeof window === 'undefined') return ''
+  const newSessionId = crypto.randomUUID()
+  sessionStorage.setItem('crm_session_id', newSessionId)
+  
+  const utms = getUtmParams()
+  send({
+    type: 'visit',
+    session_id: newSessionId,
+    page_slug: pageSlug,
+    referrer: document.referrer || null,
+    ...utms,
+  })
+  
+  return newSessionId
 }

@@ -1,8 +1,9 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
+import { trackFieldInteract, trackAiUsage, trackEvent } from '../../../lib/crm-analytics'
 
 export default function Step3Pricing() {
   const { state, updateState, nextStep, prevStep, isAuthenticated } = useWizard()
@@ -10,6 +11,58 @@ export default function Step3Pricing() {
   const [suggestedPrice, setSuggestedPrice] = useState<{ price_usd: number; unit: string; source: string } | null>(null)
   const [suggestingPrice, setSuggestingPrice] = useState(false)
   const supabase = createClient()
+  
+  const wentNext = useRef(false)
+  const wentBack = useRef(false)
+  const stateRef = useRef(state)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
+    trackFieldInteract('/create-listing', 3, 'next_button', false)
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      if (!wentNext.current && !wentBack.current) {
+        const duration = (Date.now() - startTime) / 1000
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 3,
+          last_step_name: 'pricing',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 3, 'quantity', !!st.quantity)
+        trackFieldInteract('/create-listing', 3, 'unit', !!st.unit)
+        trackFieldInteract('/create-listing', 3, 'price', !!st.priceUsd)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      if (!wentNext.current && !wentBack.current) {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 3,
+          last_step_name: 'pricing',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 3, 'quantity', !!st.quantity)
+        trackFieldInteract('/create-listing', 3, 'unit', !!st.unit)
+        trackFieldInteract('/create-listing', 3, 'price', !!st.priceUsd)
+      }
+    }
+  }, [])
+
+  // AI Price Progress States
+  const [priceProgressStep, setPriceProgressStep] = useState(0)
+  const priceProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Scroll to top when entering this step
   useEffect(() => {
@@ -20,8 +73,15 @@ export default function Step3Pricing() {
 
   const handleSuggestPrice = async () => {
     if (!state.name || state.name.trim().length < 3 || state.isFree) return;
+    trackAiUsage('/create-listing', 'clicked', 'price_suggestion')
     setSuggestingPrice(true);
     setSuggestedPrice(null);
+
+    setPriceProgressStep(1)
+    priceProgressTimerRef.current = setInterval(() => {
+      setPriceProgressStep(prev => Math.min(prev + 1, 3))
+    }, 1500)
+
     try {
       const trimmed = state.name.trim();
       const res = await supabase.functions.invoke('suggest-product-price', {
@@ -30,10 +90,14 @@ export default function Step3Pricing() {
       
       if (res.data && typeof res.data.price_usd === 'number' && !res.data.error) {
         setSuggestedPrice(res.data);
+        trackAiUsage('/create-listing', 'applied', 'price_suggestion')
       }
     } catch (err) {
       console.warn('Price suggestion failed:', err);
+      trackAiUsage('/create-listing', 'dismissed', 'price_suggestion')
     } finally {
+      if (priceProgressTimerRef.current) clearInterval(priceProgressTimerRef.current)
+      setPriceProgressStep(0)
       setSuggestingPrice(false);
     }
   };
@@ -44,6 +108,11 @@ export default function Step3Pricing() {
   }, [state.unit]);
 
   const validateAndNext = () => {
+    trackEvent('button_click', '/create-listing', { step: 3, button: 'next' })
+    trackFieldInteract('/create-listing', 3, 'quantity', !!state.quantity)
+    trackFieldInteract('/create-listing', 3, 'unit', !!state.unit)
+    trackFieldInteract('/create-listing', 3, 'price', !!state.priceUsd)
+
     const newErrors: Record<string, string> = {}
     if (!state.quantity) newErrors.quantity = 'Quantity is required'
     if (!state.isFree && !state.priceUsd) {
@@ -52,6 +121,10 @@ export default function Step3Pricing() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      trackEvent('wizard_validation_error', '/create-listing', {
+        step: 3,
+        fields: Object.keys(newErrors)
+      })
       setTimeout(() => {
         const firstError = document.querySelector(`.${styles.errorText}`)
         firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -60,6 +133,8 @@ export default function Step3Pricing() {
     }
 
     // Skip Step 4 (Verification) if the user is already authenticated or verified OTP
+    trackFieldInteract('/create-listing', 3, 'next_button', true)
+    wentNext.current = true
     if (isAuthenticated || state.isExistingUser) {
       updateState({ currentStep: 5 })
     } else {
@@ -70,7 +145,7 @@ export default function Step3Pricing() {
   return (
     <div>
       <div className={styles.headerTop}>
-        <button className={styles.backBtn} onClick={prevStep}>← Back</button>
+        <button className={styles.backBtn} onClick={() => { wentBack.current = true; prevStep() }}>← Back</button>
       </div>
       
       <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Set Your Price</h2>
@@ -83,12 +158,16 @@ export default function Step3Pricing() {
             className={styles.input} 
             value={state.quantity || ''} 
             onChange={(e) => updateState({ quantity: e.target.value })}
+            onBlur={() => trackFieldInteract('/create-listing', 3, 'quantity', !!state.quantity)}
             style={{ flex: 1 }}
           />
           <select 
             className={styles.input} 
             value={state.unit || 'each'} 
-            onChange={(e) => updateState({ unit: e.target.value })}
+            onChange={(e) => {
+              updateState({ unit: e.target.value })
+              trackFieldInteract('/create-listing', 3, 'unit', !!e.target.value)
+            }}
             style={{ width: 120 }}
           >
             {['each', 'bunch', 'dozen', 'jar', 'loaf', 'bag', 'box', 'basket'].map(u => (
@@ -107,6 +186,7 @@ export default function Step3Pricing() {
             className={styles.input} 
             value={state.priceUsd} 
             onChange={(e) => updateState({ priceUsd: e.target.value })}
+            onBlur={() => trackFieldInteract('/create-listing', 3, 'price', !!state.priceUsd)}
             placeholder="$ 0.00"
             disabled={state.isFree}
             style={{ width: 140 }}
@@ -129,6 +209,7 @@ export default function Step3Pricing() {
       {errors.price && <div className={styles.errorText} style={{ marginBottom: 16 }}>{errors.price}</div>}
 
       {(!suggestedPrice || suggestingPrice) && !state.isFree && (
+        <>
         <button 
           type="button"
           className={styles.aiBtn} 
@@ -145,6 +226,17 @@ export default function Step3Pricing() {
         >
           {suggestingPrice ? '⏳ Calculating...' : '🪄 Get Price Suggestion'}
         </button>
+        {suggestingPrice && priceProgressStep > 0 && (
+          <div className={styles.aiProgressList}>
+            {[{ step: 1, text: '📊 Looking up nearby prices...' }, { step: 2, text: '💰 Calculating average for your area...' }, { step: 3, text: '⏳ Gathering more data...' }].map(({ step, text }) => (
+              <div key={step} className={`${styles.aiProgressStep} ${priceProgressStep > step ? styles.aiProgressDone : priceProgressStep === step ? styles.aiProgressActive : styles.aiProgressPending}`}>
+                <span className={styles.aiProgressIcon}>{priceProgressStep > step ? '✅' : priceProgressStep === step ? '⏳' : '○'}</span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        </>
       )}
 
       {suggestedPrice && !suggestingPrice && !state.isFree && (
@@ -154,6 +246,8 @@ export default function Step3Pricing() {
           style={{ marginBottom: 24 }}
           onClick={() => {
             updateState({ priceUsd: suggestedPrice.price_usd.toString(), unit: suggestedPrice.unit });
+            trackFieldInteract('/create-listing', 3, 'price', true);
+            trackFieldInteract('/create-listing', 3, 'unit', true);
           }}
         >
           💡 {suggestedPrice.source === 'neighborhood_average' ? 'Avg nearby' : 'Suggested'}: ${suggestedPrice.price_usd.toFixed(2)}/{suggestedPrice.unit} — tap to use

@@ -811,6 +811,44 @@ export async function fetchActiveWizards(dateRange: DateRange): Promise<string[]
   return Array.from(new Set([...defaultWizards, ...dbWizards]))
 }
 
+export interface WizardFieldAnalyticsData {
+  stepFunnel: Array<{ step: number; step_name: string; unique_sessions: number }>
+  fieldInteractions: Array<{ step: number; field_name: string; interact_count: number; filled_count: number; empty_count: number }>
+  validationErrors: Array<{ step: number; field_name: string; error_type: string; error_count: number }>
+  aiUsage: Array<{ button_name: string; click_count: number; applied_count: number; dismissed_count: number; abandon_wait_count: number }>
+  stepTiming: Array<{ step: number; step_name: string; session_count: number; avg_secs: number; median_secs: number }>
+  abandonPoints: Array<{ last_step: number; last_step_name: string; abandon_count: number; avg_time_on_step_secs: number }>
+  buttonClicks?: Array<{ step: number; button_name: string; click_count: number }>
+}
+
+export async function fetchWizardFieldAnalytics(
+  dateRange: DateRange,
+  wizardSlug: string = '/create-listing',
+  geoFilter?: GeoFilter,
+  utmFilter?: any
+): Promise<WizardFieldAnalyticsData> {
+  const empty: WizardFieldAnalyticsData = { stepFunnel: [], fieldInteractions: [], validationErrors: [], aiUsage: [], stepTiming: [], abandonPoints: [], buttonClicks: [] }
+  try {
+    const { data, error } = await supabase.rpc('metrics_wizard_field_analytics', {
+      p_start: dateRange.start,
+      p_end: dateRange.end,
+      p_wizard: wizardSlug,
+      p_state: geoFilter?.state_code || null,
+      p_city: geoFilter?.city || null,
+      p_zip: geoFilter?.zip_code || null,
+      p_utm_source: utmFilter?.utm_source || null,
+      p_utm_medium: utmFilter?.utm_medium || null,
+      p_utm_campaign: utmFilter?.utm_campaign || null,
+      p_utm_term: utmFilter?.utm_term || null,
+    })
+    if (error) { _isDemoMode = true; return empty }
+    return (data as WizardFieldAnalyticsData) || empty
+  } catch {
+    _isDemoMode = true
+    return empty
+  }
+}
+
 export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficRow[]> {
   const { data, error } = await supabase.rpc('metrics_crm_landing_pages', {
     p_start: dateRange.start,

@@ -3,19 +3,17 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../lib/crm-analytics'
 
 export default function NutritionLossLandingPage() {
 
   const [step, setStep] = useState<'intro' | 'produce' | 'calculating' | 'lead-capture' | 'queued' | 'results'>('intro')
 
-  useEffect(() => {
-    const stepIndexes: Record<string, number> = {
-      'intro': 1, 'produce': 2, 'calculating': 3, 'lead-capture': 4, 'queued': 5, 'results': 6
-    }
-    trackEvent('wizard_step', '/check-nutrition-loss', { step_index: stepIndexes[step] || 0, step_name: step })
-  }, [step])
-  
+  const stepEnteredAt = React.useRef(Date.now())
+  const prevStepRef = React.useRef<string>('intro')
+  const wentNext = React.useRef(false)
+  const stepRef = React.useRef(step)
+
   // Questionnaire State
   const [selectedProduce, setSelectedProduce] = useState<string[]>([])
   
@@ -30,6 +28,102 @@ export default function NutritionLossLandingPage() {
   const [phone, setPhone] = useState('')
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const selectedProduceRef = React.useRef(selectedProduce)
+  const nameRef = React.useRef(name)
+  const emailRef = React.useRef(email)
+  const phoneRef = React.useRef(phone)
+
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
+
+  useEffect(() => {
+    selectedProduceRef.current = selectedProduce
+    nameRef.current = name
+    emailRef.current = email
+    phoneRef.current = phone
+  }, [selectedProduce, name, email, phone])
+
+  useEffect(() => {
+    const stepIndexes: Record<string, number> = {
+      'intro': 1, 'produce': 2, 'calculating': 3, 'lead-capture': 4, 'queued': 5, 'results': 6
+    }
+
+    if (step === 'produce') {
+      trackFieldInteract('/check-nutrition-loss', 2, 'next_button', false)
+    } else if (step === 'lead-capture') {
+      trackFieldInteract('/check-nutrition-loss', 4, 'next_button', false)
+    }
+
+    wentNext.current = false;
+
+    const duration = (Date.now() - stepEnteredAt.current) / 1000
+    if (duration > 1) {
+      trackStepTiming('/check-nutrition-loss', stepIndexes[prevStepRef.current] || 0, prevStepRef.current, duration)
+    }
+    stepEnteredAt.current = Date.now()
+    prevStepRef.current = step
+
+    trackEvent('wizard_step', '/check-nutrition-loss', { step_index: stepIndexes[step] || 0, step_name: step })
+  }, [step])
+
+  useEffect(() => {
+    resetSessionId('/check-nutrition-loss')
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      const currentStep = stepRef.current
+      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+        const stepIndexes: Record<string, number> = {
+          'intro': 1, 'produce': 2, 'calculating': 3, 'lead-capture': 4, 'queued': 5, 'results': 6
+        }
+        trackEvent('wizard_abandon', '/check-nutrition-loss', {
+          last_step: stepIndexes[currentStep] || 0,
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'produce') {
+          trackFieldInteract('/check-nutrition-loss', 2, 'selected_produce', selectedProduceRef.current.length > 0)
+        } else if (currentStep === 'lead-capture') {
+          trackFieldInteract('/check-nutrition-loss', 4, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/check-nutrition-loss', 4, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/check-nutrition-loss', 4, 'phone', !!phoneRef.current.trim())
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      const currentStep = stepRef.current
+      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const stepIndexes: Record<string, number> = {
+          'intro': 1, 'produce': 2, 'calculating': 3, 'lead-capture': 4, 'queued': 5, 'results': 6
+        }
+        trackEvent('wizard_abandon', '/check-nutrition-loss', {
+          last_step: stepIndexes[currentStep] || 0,
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'produce') {
+          trackFieldInteract('/check-nutrition-loss', 2, 'selected_produce', selectedProduceRef.current.length > 0)
+        } else if (currentStep === 'lead-capture') {
+          trackFieldInteract('/check-nutrition-loss', 4, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/check-nutrition-loss', 4, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/check-nutrition-loss', 4, 'phone', !!phoneRef.current.trim())
+        }
+      }
+    }
+  }, [])
+  
+
 
   const loadingMessages = [
     "Compiling post-harvest agricultural data...",
@@ -117,6 +211,8 @@ export default function NutritionLossLandingPage() {
       return
     }
     setErrorMsg("")
+    trackFieldInteract('/check-nutrition-loss', 2, 'next_button', true)
+    wentNext.current = true
     setStep('calculating')
     setTimeout(() => {
       setStep('lead-capture')
@@ -128,6 +224,7 @@ export default function NutritionLossLandingPage() {
     if (!name || !email) return
     
     setIsLoading(true)
+    trackFieldInteract('/check-nutrition-loss', 4, 'next_button', true)
     
     try {
       const supabase = createClient()
@@ -156,15 +253,18 @@ export default function NutritionLossLandingPage() {
         console.error("Function logic error:", data.error)
       } else if (data && data.ai_nutrition_result) {
         setResults(data.ai_nutrition_result)
+        wentNext.current = true
         setStep('results')
         return
       }
       
+      wentNext.current = true
       setStep('queued')
     } catch (err) {
       console.error("Failed to generate report", err)
       // Even if it times out or fails, we show the queued state so the user isn't stuck.
       // The background processor will pick up the lead if it was successfully persisted.
+      wentNext.current = true
       setStep('queued')
     } finally {
       setIsLoading(false)
@@ -229,7 +329,7 @@ export default function NutritionLossLandingPage() {
                 <div className="fade-in-up">
                   <h2 className="form-heading">Analyze Your Grocery List</h2>
                   <p className="form-subheading">Curious how many nutrients your regular store-bought produce has already lost? Let's find out.</p>
-                  <button onClick={() => setStep('produce')} className="btn-action">
+                  <button onClick={() => { wentNext.current = true; setStep('produce') }} className="btn-action">
                     Check My Nutrition Loss →
                   </button>
                 </div>
@@ -311,15 +411,18 @@ export default function NutritionLossLandingPage() {
                   
                   <div className="input-group">
                     <label>Full Name</label>
-                    <input type="text" required placeholder="Jane Doe" value={name} onChange={e => setName(e.target.value)} />
+                    <input type="text" required placeholder="Jane Doe" value={name} onChange={e => setName(e.target.value)}
+                      onBlur={() => trackFieldInteract('/check-nutrition-loss', 4, 'name', !!name.trim())} />
                   </div>
                   <div className="input-group">
                     <label>Email Address</label>
-                    <input type="email" required placeholder="hello@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                    <input type="email" required placeholder="hello@example.com" value={email} onChange={e => setEmail(e.target.value)}
+                      onBlur={() => trackFieldInteract('/check-nutrition-loss', 4, 'email', !!email.trim())} />
                   </div>
                   <div className="input-group">
                     <label>Phone Number (optional)</label>
-                    <input type="tel" placeholder="(555) 555-5555" value={phone} onChange={e => setPhone(e.target.value)} />
+                    <input type="tel" placeholder="(555) 555-5555" value={phone} onChange={e => setPhone(e.target.value)}
+                      onBlur={() => trackFieldInteract('/check-nutrition-loss', 4, 'phone', !!phone.trim())} />
                   </div>
                   
                   <label className="checkbox-wrap" style={{ marginBottom: '24px' }}>

@@ -3,20 +3,17 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../lib/crm-analytics'
 
 export default function SellLandingPage() {
 
   const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'plants' | 'trees' | 'calculating' | 'lead-capture' | 'results' | 'queued'>('intro')
 
-  useEffect(() => {
-    const stepIndexes: Record<string, number> = {
-      'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
-      'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
-    }
-    trackEvent('wizard_step', '/sell', { step_index: stepIndexes[step] || 0, step_name: step })
-  }, [step])
-  
+  const stepEnteredAt = React.useRef(Date.now())
+  const prevStepRef = React.useRef<string>('intro')
+  const wentNext = React.useRef(false)
+  const stepRef = React.useRef(step)
+
   // Questionnaire State
   const [zipcode, setZipcode] = useState('')
   const [gardenSize, setGardenSize] = useState('')
@@ -36,6 +33,128 @@ export default function SellLandingPage() {
   const [phone, setPhone] = useState('')
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const zipcodeRef = React.useRef(zipcode)
+  const gardenSizeRef = React.useRef(gardenSize)
+  const selectedPlantsRef = React.useRef(selectedPlants)
+  const selectedTreesRef = React.useRef(selectedTrees)
+  const nameRef = React.useRef(name)
+  const emailRef = React.useRef(email)
+  const phoneRef = React.useRef(phone)
+
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
+
+  useEffect(() => {
+    zipcodeRef.current = zipcode
+    gardenSizeRef.current = gardenSize
+    selectedPlantsRef.current = selectedPlants
+    selectedTreesRef.current = selectedTrees
+    nameRef.current = name
+    emailRef.current = email
+    phoneRef.current = phone
+  }, [zipcode, gardenSize, selectedPlants, selectedTrees, name, email, phone])
+
+  useEffect(() => {
+    const stepIndexes: Record<string, number> = {
+      'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
+      'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+    }
+
+    if (step === 'zipcode') {
+      trackFieldInteract('/sell', 2, 'next_button', false)
+    } else if (step === 'size') {
+      trackFieldInteract('/sell', 3, 'next_button', false)
+    } else if (step === 'plants') {
+      trackFieldInteract('/sell', 4, 'next_button', false)
+    } else if (step === 'trees') {
+      trackFieldInteract('/sell', 5, 'next_button', false)
+    } else if (step === 'lead-capture') {
+      trackFieldInteract('/sell', 7, 'next_button', false)
+    }
+
+    wentNext.current = false;
+
+    const duration = (Date.now() - stepEnteredAt.current) / 1000
+    if (duration > 1) {
+      trackStepTiming('/sell', stepIndexes[prevStepRef.current] || 0, prevStepRef.current, duration)
+    }
+    stepEnteredAt.current = Date.now()
+    prevStepRef.current = step
+
+    trackEvent('wizard_step', '/sell', { step_index: stepIndexes[step] || 0, step_name: step })
+  }, [step])
+
+  useEffect(() => {
+    resetSessionId('/sell')
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      const currentStep = stepRef.current
+      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+        const stepIndexes: Record<string, number> = {
+          'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
+          'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+        }
+        trackEvent('wizard_abandon', '/sell', {
+          last_step: stepIndexes[currentStep] || 0,
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'zipcode') {
+          trackFieldInteract('/sell', 2, 'zipcode', !!zipcodeRef.current.trim())
+        } else if (currentStep === 'size') {
+          trackFieldInteract('/sell', 3, 'garden_size', !!gardenSizeRef.current.trim())
+        } else if (currentStep === 'plants') {
+          trackFieldInteract('/sell', 4, 'selected_plants', selectedPlantsRef.current.length > 0)
+        } else if (currentStep === 'trees') {
+          trackFieldInteract('/sell', 5, 'selected_trees', selectedTreesRef.current.length > 0)
+        } else if (currentStep === 'lead-capture') {
+          trackFieldInteract('/sell', 7, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/sell', 7, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/sell', 7, 'phone', !!phoneRef.current.trim())
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      const currentStep = stepRef.current
+      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const stepIndexes: Record<string, number> = {
+          'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
+          'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+        }
+        trackEvent('wizard_abandon', '/sell', {
+          last_step: stepIndexes[currentStep] || 0,
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'zipcode') {
+          trackFieldInteract('/sell', 2, 'zipcode', !!zipcodeRef.current.trim())
+        } else if (currentStep === 'size') {
+          trackFieldInteract('/sell', 3, 'garden_size', !!gardenSizeRef.current.trim())
+        } else if (currentStep === 'plants') {
+          trackFieldInteract('/sell', 4, 'selected_plants', selectedPlantsRef.current.length > 0)
+        } else if (currentStep === 'trees') {
+          trackFieldInteract('/sell', 5, 'selected_trees', selectedTreesRef.current.length > 0)
+        } else if (currentStep === 'lead-capture') {
+          trackFieldInteract('/sell', 7, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/sell', 7, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/sell', 7, 'phone', !!phoneRef.current.trim())
+        }
+      }
+    }
+  }, [])
+
 
   const loadingMessages = [
     "Analyzing climate data for your zipcode...",
@@ -123,6 +242,8 @@ export default function SellLandingPage() {
   }
 
   const handleCalculate = async () => {
+    trackFieldInteract('/sell', 4, 'next_button', true)
+    wentNext.current = true
     setStep('calculating')
     // Just wait 1.5 seconds for the UI, then show the lead capture form
     setTimeout(() => {
@@ -135,6 +256,7 @@ export default function SellLandingPage() {
     if (!name || !email) return
     
     setIsLoading(true)
+    trackFieldInteract('/sell', 7, 'next_button', true)
     
     try {
       const supabase = createClient()
@@ -172,6 +294,7 @@ export default function SellLandingPage() {
         if (data && data.error) throw new Error(data.error)
         
         if (data && data.queued) {
+          wentNext.current = true
           setStep('queued')
           return
         }
@@ -183,6 +306,7 @@ export default function SellLandingPage() {
         console.error("Backend request failed:", invokeErr)
         if (!finalData) {
           // Function timed out or failed — show queued state so user still gets an email
+          wentNext.current = true
           setStep('queued')
           return
         }
@@ -190,8 +314,10 @@ export default function SellLandingPage() {
       
       if (finalData) {
         setResults(finalData)
+        wentNext.current = true
         setStep('results')
       } else {
+        wentNext.current = true
         setStep('queued')
       }
     } catch (err) {
@@ -243,8 +369,8 @@ export default function SellLandingPage() {
               {step === 'intro' && (
                 <div className="fade-in-up">
                   <h2 className="form-heading">Estimate My Potential</h2>
-                  <p className="form-subheading">Wondering what your backyard bounty is worth? Let's do the math in 30 seconds.</p>
-                  <button onClick={() => setStep('zipcode')} className="btn-action">
+                  <p className="form-subheading">Wondering what your bounty is worth? Let's do the math in 30 seconds.</p>
+                  <button onClick={() => { wentNext.current = true; setStep('zipcode') }} className="btn-action">
                     Get My Estimate →
                   </button>
                 </div>
@@ -261,13 +387,18 @@ export default function SellLandingPage() {
                       placeholder="e.g. 90210" 
                       value={zipcode}
                       onChange={e => setZipcode(e.target.value)}
+                      onBlur={() => trackFieldInteract('/sell', 2, 'zipcode', !!zipcode.trim())}
                       maxLength={5}
                       autoFocus
                     />
                   </div>
                   <button 
                     disabled={zipcode.length < 5}
-                    onClick={() => setStep('size')} 
+                    onClick={() => {
+                      trackFieldInteract('/sell', 2, 'next_button', true)
+                      wentNext.current = true
+                      setStep('size')
+                    }} 
                     className="btn-action"
                   >
                     Next →
@@ -285,7 +416,10 @@ export default function SellLandingPage() {
                           type="radio" 
                           name="size"
                           checked={gardenSize === sz}
-                          onChange={() => setGardenSize(sz)}
+                          onChange={() => {
+                            setGardenSize(sz)
+                            trackFieldInteract('/sell', 3, 'garden_size', true)
+                          }}
                         />
                         <span className="checkbox-text">{sz}</span>
                       </label>
@@ -293,7 +427,11 @@ export default function SellLandingPage() {
                   </div>
                   <button 
                     disabled={!gardenSize}
-                    onClick={() => setStep('trees')} 
+                    onClick={() => {
+                      trackFieldInteract('/sell', 3, 'next_button', true)
+                      wentNext.current = true
+                      setStep('trees')
+                    }} 
                     className="btn-action"
                   >
                     Next →
@@ -457,7 +595,11 @@ export default function SellLandingPage() {
                     </div>
                   )}
                   <button 
-                    onClick={() => setStep('plants')} 
+                    onClick={() => {
+                      trackFieldInteract('/sell', 5, 'next_button', true)
+                      wentNext.current = true
+                      setStep('plants')
+                    }} 
                     className="btn-action"
                   >
                     Next →
@@ -485,6 +627,7 @@ export default function SellLandingPage() {
                       placeholder="Jane Doe" 
                       value={name}
                       onChange={e => setName(e.target.value)}
+                      onBlur={() => trackFieldInteract('/sell', 7, 'name', !!name.trim())}
                     />
                   </div>
                   <div className="input-group">
@@ -495,6 +638,7 @@ export default function SellLandingPage() {
                       placeholder="hello@example.com" 
                       value={email}
                       onChange={e => setEmail(e.target.value)}
+                      onBlur={() => trackFieldInteract('/sell', 7, 'email', !!email.trim())}
                     />
                   </div>
                   <div className="input-group">
@@ -504,6 +648,7 @@ export default function SellLandingPage() {
                       placeholder="(555) 555-5555" 
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
+                      onBlur={() => trackFieldInteract('/sell', 7, 'phone', !!phone.trim())}
                     />
                   </div>
                   

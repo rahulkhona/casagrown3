@@ -7,6 +7,7 @@ import { NotificationPromptModal } from '../NotificationPromptModal'
 import { createClient } from '../../../lib/supabase'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../(main)/terms/page'
 import { useErrorToast } from '../ErrorToast'
+import { trackFieldInteract, trackEvent } from '../../../lib/crm-analytics'
 
 export default function Step5Publish() {
   const { state, updateState, nextStep, prevStep, saveProductToDatabase, checkQuarantine } = useWizard()
@@ -88,6 +89,8 @@ export default function Step5Publish() {
   }
 
   const handlePublish = async () => {
+    trackEvent('button_click', '/create-listing', { step: 5, button: 'publish' })
+    trackFieldInteract('/create-listing', 5, 'publish_button', true)
     setIsPublishing(true)
     try {
       await saveProductToDatabase(false)
@@ -202,7 +205,10 @@ export default function Step5Publish() {
         <>
         <div 
           style={{ border: '1px solid #d1d5db', borderRadius: 24, padding: 16, background: state.smsEnabled ? '#f0fdf4' : 'white', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, cursor: 'pointer', borderColor: state.smsEnabled ? '#16a34a' : '#d1d5db' }}
-          onClick={() => updateState({ smsEnabled: !state.smsEnabled })}
+          onClick={() => {
+            updateState({ smsEnabled: !state.smsEnabled })
+            trackFieldInteract('/create-listing', 5, 'sms_notifications', !state.smsEnabled)
+          }}
         >
           <div style={{ fontSize: 24 }}>📱</div>
           <div style={{ flex: 1 }}>
@@ -273,7 +279,10 @@ export default function Step5Publish() {
             <input 
               type="checkbox" 
               checked={state.agreedToTos}
-              onChange={(e) => updateState({ agreedToTos: e.target.checked })}
+              onChange={(e) => {
+                updateState({ agreedToTos: e.target.checked })
+                trackFieldInteract('/create-listing', 5, 'tos_checkbox', e.target.checked)
+              }}
               style={{ width: 18, height: 18, accentColor: '#16a34a', cursor: 'pointer' }}
             />
             <span style={{ fontSize: 13, color: '#4b5563' }}>

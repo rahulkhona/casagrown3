@@ -77,9 +77,11 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
             form_version: config.formVersion,
             source_platform: (existingLead.source_platform && existingLead.source_platform !== 'direct') ? existingLead.source_platform : (payload.lead?.utm_source || 'direct'),
             source_url: existingLead.source_url || payload.lead?.current_url,
+            utm_source: existingLead.utm_source || payload.lead?.utm_source,
             utm_campaign: existingLead.utm_campaign || payload.lead?.utm_campaign,
             utm_medium: existingLead.utm_medium || payload.lead?.utm_medium,
             utm_content: existingLead.utm_content || payload.lead?.utm_content,
+            utm_term: existingLead.utm_term || payload.lead?.utm_term,
             metadata
           }).eq('id', existingLead.id).select('id, metadata').single();
           
@@ -107,9 +109,11 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
             form_version: config.formVersion,
             source_platform: payload.lead?.utm_source || 'direct',
             source_url: payload.lead?.current_url,
+            utm_source: payload.lead?.utm_source,
             utm_campaign: payload.lead?.utm_campaign,
             utm_medium: payload.lead?.utm_medium,
             utm_content: payload.lead?.utm_content,
+            utm_term: payload.lead?.utm_term,
             status: 'new',
             metadata
           }).select('id, metadata').single();

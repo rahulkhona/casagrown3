@@ -4,6 +4,7 @@ import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
 import CameraCapture from '../../../components/CameraCapture'
+import { trackFieldInteract, trackAiUsage, trackEvent } from '../../../lib/crm-analytics'
 
 export default function Step1Basics() {
   const { state, updateState, nextStep, isAuthenticated, isAuthLoading } = useWizard()
@@ -21,15 +22,94 @@ export default function Step1Basics() {
   // Recipe Generation States
   const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false)
   const [generatedRecipesList, setGeneratedRecipesList] = useState<string[]>([])
+
+  // AI Progress States
+  const [aiProgressStep, setAiProgressStep] = useState(0)
+  const aiProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [recipeProgressStep, setRecipeProgressStep] = useState(0)
+  const recipeProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [recipeIntro, setRecipeIntro] = useState('')
+
+  const otpCodeRef = useRef(otpCode)
+  const showInlineOtpRef = useRef(showInlineOtp)
+  const wentNext = useRef(false)
+  const stateRef = useRef(state)
+
+  useEffect(() => {
+    otpCodeRef.current = otpCode
+    showInlineOtpRef.current = showInlineOtp
+    stateRef.current = state
+  }, [otpCode, showInlineOtp, state])
+
+  useEffect(() => {
+    trackFieldInteract('/create-listing', 1, 'next_button', false)
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      if (!wentNext.current) {
+        const duration = (Date.now() - startTime) / 1000
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 1,
+          last_step_name: 'basics',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 1, 'product_name', !!st.name.trim())
+        trackFieldInteract('/create-listing', 1, 'category', !!st.category)
+        trackFieldInteract('/create-listing', 1, 'description', !!st.description.trim())
+        trackFieldInteract('/create-listing', 1, 'harvest_date', !!st.harvestedAt)
+        trackFieldInteract('/create-listing', 1, 'email', !!st.email.trim())
+        if (showInlineOtpRef.current) {
+          trackFieldInteract('/create-listing', 1, 'otp_code', !!otpCodeRef.current.trim())
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      if (!wentNext.current) {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const st = stateRef.current
+        trackEvent('wizard_abandon', '/create-listing', {
+          last_step: 1,
+          last_step_name: 'basics',
+          time_on_step_secs: Math.round(duration)
+        })
+        trackFieldInteract('/create-listing', 1, 'product_name', !!st.name.trim())
+        trackFieldInteract('/create-listing', 1, 'category', !!st.category)
+        trackFieldInteract('/create-listing', 1, 'description', !!st.description.trim())
+        trackFieldInteract('/create-listing', 1, 'harvest_date', !!st.harvestedAt)
+        trackFieldInteract('/create-listing', 1, 'email', !!st.email.trim())
+        if (showInlineOtpRef.current) {
+          trackFieldInteract('/create-listing', 1, 'otp_code', !!otpCodeRef.current.trim())
+        }
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showInlineOtp) {
+      trackFieldInteract('/create-listing', 1, 'verify_otp_button', false)
+    }
+  }, [showInlineOtp])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   const handleAiAutoFill = async () => {
     if (state.photos.length === 0) return
+    trackAiUsage('/create-listing', 'clicked', 'photo_autofill')
     setAiAnalyzing(true)
     setAiToast(null)
+
+    setAiProgressStep(1)
+    aiProgressTimerRef.current = setInterval(() => {
+      setAiProgressStep(prev => Math.min(prev + 1, 4))
+    }, 2500)
 
     const tryInvoke = async (): Promise<{ data: any; error: any }> => {
       const controller = new AbortController()
@@ -62,6 +142,9 @@ export default function Step1Basics() {
       if (res.error) {
         const errMsg = res.error?.message || res.error?.name || 'Unknown error'
         setAiToast(`⚠️ AI analysis unavailable (${errMsg}) — please fill in manually.`)
+        trackAiUsage('/create-listing', 'dismissed', 'photo_autofill')
+        if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current)
+        setAiProgressStep(0)
         setAiAnalyzing(false)
         setTimeout(() => setAiToast(null), 15000)
         return
@@ -72,6 +155,9 @@ export default function Step1Basics() {
       if (data?.error) {
         const errorDetail = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
         setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : `AI analysis failed: ${errorDetail.slice(0, 120)}`} — please fill in manually.`)
+        trackAiUsage('/create-listing', 'dismissed', 'photo_autofill')
+        if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current)
+        setAiProgressStep(0)
         setAiAnalyzing(false)
         setTimeout(() => setAiToast(null), 15000)
         return
@@ -79,6 +165,9 @@ export default function Step1Basics() {
 
       if (!data?.name && !data?.description && !data?.category) {
         setAiToast('⚠️ AI could not identify the product — please fill in manually.')
+        trackAiUsage('/create-listing', 'dismissed', 'photo_autofill')
+        if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current)
+        setAiProgressStep(0)
         setAiAnalyzing(false)
         setTimeout(() => setAiToast(null), 15000)
         return
@@ -90,10 +179,17 @@ export default function Step1Basics() {
         description: data.description || state.description,
         unit: data.suggested_unit || state.unit,
       })
+      trackAiUsage('/create-listing', 'applied', 'photo_autofill')
+      trackFieldInteract('/create-listing', 1, 'product_name', !!(data.name || state.name))
+      trackFieldInteract('/create-listing', 1, 'category', !!(data.category && categories.some(c => c.name === data.category) ? data.category : state.category))
+      trackFieldInteract('/create-listing', 1, 'description', !!(data.description || state.description))
       setAiToast('✨ AI filled in product details — review and adjust!')
     } catch (err: any) {
+      trackAiUsage('/create-listing', 'dismissed', 'photo_autofill')
       setAiToast(`⚠️ AI analysis failed — please fill in manually.`)
     }
+    if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current)
+    setAiProgressStep(0)
     setAiAnalyzing(false)
     setTimeout(() => setAiToast(null), 15000)
   }
@@ -130,8 +226,14 @@ export default function Step1Basics() {
 
   const handleGenerateRecipes = async () => {
     if (!state.name || isGeneratingRecipes) return
+    trackAiUsage('/create-listing', 'clicked', 'recipe_suggestion')
     setIsGeneratingRecipes(true)
     setGeneratedRecipesList([])
+
+    setRecipeProgressStep(1)
+    recipeProgressTimerRef.current = setInterval(() => {
+      setRecipeProgressStep(prev => Math.min(prev + 1, 3))
+    }, 2500)
     
     try {
       const { data, error } = await supabase.functions.invoke('casabot-recipe-suggestions', {
@@ -156,11 +258,23 @@ export default function Step1Basics() {
     } catch (e) {
       console.error('Failed to generate recipes', e)
     } finally {
+      if (recipeProgressTimerRef.current) clearInterval(recipeProgressTimerRef.current)
+      setRecipeProgressStep(0)
       setIsGeneratingRecipes(false)
     }
   }
 
   const validateAndNext = async () => {
+    trackEvent('button_click', '/create-listing', { step: 1, button: showInlineOtp ? 'verify_otp' : 'next' })
+    trackFieldInteract('/create-listing', 1, 'product_name', !!state.name.trim())
+    trackFieldInteract('/create-listing', 1, 'category', !!state.category)
+    trackFieldInteract('/create-listing', 1, 'description', !!state.description.trim())
+    trackFieldInteract('/create-listing', 1, 'harvest_date', !!state.harvestedAt)
+    trackFieldInteract('/create-listing', 1, 'email', !!state.email.trim())
+    if (showInlineOtp) {
+      trackFieldInteract('/create-listing', 1, 'otp_code', !!otpCode.trim())
+    }
+
     const newErrors: Record<string, string> = {}
     if (!state.name.trim()) newErrors.name = 'Name is required'
     if (!state.category) newErrors.category = 'Category is required'
@@ -172,6 +286,10 @@ export default function Step1Basics() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
+      trackEvent('wizard_validation_error', '/create-listing', {
+        step: 1,
+        fields: Object.keys(newErrors)
+      })
       setTimeout(() => {
         const firstError = document.querySelector(`.${styles.errorText}`)
         firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -180,6 +298,8 @@ export default function Step1Basics() {
     }
 
     if (isAuthenticated) {
+      trackFieldInteract('/create-listing', 1, 'next_button', true)
+      wentNext.current = true
       nextStep()
       return
     }
@@ -194,10 +314,13 @@ export default function Step1Basics() {
 
       if (!error) {
         updateState({ isExistingUser: true })
+        trackFieldInteract('/create-listing', 1, 'next_button', true)
         setShowInlineOtp(true)
         return
       } else {
         updateState({ isExistingUser: false })
+        trackFieldInteract('/create-listing', 1, 'next_button', true)
+        wentNext.current = true
         nextStep()
       }
     } else {
@@ -237,6 +360,8 @@ export default function Step1Basics() {
 
         setIsCheckingEmail(false)
         updateState({ ...profileUpdates, isExistingUser: isCompleted })
+        trackFieldInteract('/create-listing', 1, 'verify_otp_button', true)
+        wentNext.current = true
         nextStep()
       }
     }
@@ -389,6 +514,16 @@ export default function Step1Basics() {
               </>
             )}
           </button>
+          {aiAnalyzing && aiProgressStep > 0 && (
+            <div className={styles.aiProgressList}>
+              {[{ step: 1, text: '📤 Sending photo to AI...' }, { step: 2, text: '🔍 AI is examining your produce...' }, { step: 3, text: '📝 Writing product details...' }, { step: 4, text: '✨ Almost ready...' }].map(({ step, text }) => (
+                <div key={step} className={`${styles.aiProgressStep} ${aiProgressStep > step ? styles.aiProgressDone : aiProgressStep === step ? styles.aiProgressActive : styles.aiProgressPending}`}>
+                  <span className={styles.aiProgressIcon}>{aiProgressStep > step ? '✅' : aiProgressStep === step ? '⏳' : '○'}</span>
+                  <span>{text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -399,6 +534,7 @@ export default function Step1Basics() {
           className={styles.input} 
           value={state.name} 
           onChange={(e) => updateState({ name: e.target.value })}
+          onBlur={() => trackFieldInteract('/create-listing', 1, 'product_name', !!state.name.trim())}
           placeholder="e.g. Organic Heirloom Tomatoes" 
         />
         {errors.name && <div className={styles.errorText}>{errors.name}</div>}
@@ -409,7 +545,10 @@ export default function Step1Basics() {
         <select 
           className={styles.input}
           value={state.category}
-          onChange={(e) => updateState({ category: e.target.value })}
+          onChange={(e) => {
+            updateState({ category: e.target.value })
+            trackFieldInteract('/create-listing', 1, 'category', !!e.target.value)
+          }}
         >
           <option value="">Select Category</option>
           {categories.map(c => (
@@ -426,6 +565,7 @@ export default function Step1Basics() {
           rows={4}
           value={state.description}
           onChange={(e) => updateState({ description: e.target.value })}
+          onBlur={() => trackFieldInteract('/create-listing', 1, 'description', !!state.description.trim())}
           placeholder="Tell buyers about your produce..."
         />
         {/* CasaBot Recipe Assistant */}
@@ -455,6 +595,16 @@ export default function Step1Basics() {
           >
             <img src="/growbot-avatar-v3.png" alt="GrowBot" style={{ width: 14, height: 14, borderRadius: '50%' }} /> {isGeneratingRecipes ? 'Thinking...' : 'Ask GrowBot for Recipes ✨'}
           </button>
+          {isGeneratingRecipes && recipeProgressStep > 0 && (
+            <div className={styles.aiProgressList}>
+              {[{ step: 1, text: '🧑‍🍳 Reading your product details...' }, { step: 2, text: '📖 Finding matching recipes...' }, { step: 3, text: '✨ Writing up suggestions...' }].map(({ step, text }) => (
+                <div key={step} className={`${styles.aiProgressStep} ${recipeProgressStep > step ? styles.aiProgressDone : recipeProgressStep === step ? styles.aiProgressActive : styles.aiProgressPending}`}>
+                  <span className={styles.aiProgressIcon}>{recipeProgressStep > step ? '✅' : recipeProgressStep === step ? '⏳' : '○'}</span>
+                  <span>{text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {generatedRecipesList.length > 0 && (
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -466,6 +616,8 @@ export default function Step1Basics() {
                   const introLine = recipeIntro || 'Not sure what to make? Try this:'
                   const newDesc = state.description.trim() + `\n\n✨ ${introLine}\n` + recipeText
                   updateState({ description: newDesc.trim() })
+                  trackAiUsage('/create-listing', 'applied', 'recipe_suggestion')
+                  trackFieldInteract('/create-listing', 1, 'description', true)
                   setGeneratedRecipesList([]) // close after selecting
                 }}
                 style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', padding: 12, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, color: '#334155' }}
@@ -488,6 +640,7 @@ export default function Step1Basics() {
           className={styles.input} 
           value={state.harvestedAt || ''} 
           onChange={(e) => updateState({ harvestedAt: e.target.value })}
+          onBlur={() => trackFieldInteract('/create-listing', 1, 'harvest_date', !!state.harvestedAt)}
           max={new Date().toISOString().split('T')[0]} 
         />
         {state.harvestedAt && (
@@ -512,6 +665,7 @@ export default function Step1Basics() {
           style={{ borderColor: '#16a34a', boxShadow: '0 0 0 3px #dcfce7', background: isAuthenticated ? '#f3f4f6' : 'white' }}
           value={state.email}
           onChange={(e) => updateState({ email: e.target.value })}
+          onBlur={() => trackFieldInteract('/create-listing', 1, 'email', !!state.email.trim())}
           placeholder="yourname@email.com"
           disabled={showInlineOtp || isAuthenticated}
         />
@@ -527,6 +681,7 @@ export default function Step1Basics() {
             placeholder="1 2 3 4 5 6" 
             value={otpCode}
             onChange={(e) => setOtpCode(e.target.value)}
+            onBlur={() => trackFieldInteract('/create-listing', 1, 'otp_code', !!otpCode.trim())}
             style={{ width: '100%', textAlign: 'center', letterSpacing: 8, fontSize: 20, fontWeight: 700, padding: 12, borderRadius: 12, border: '1px solid #16a34a' }} 
           />
           {otpError && <div className={styles.errorText} style={{ textAlign: 'center' }}>{otpError}</div>}

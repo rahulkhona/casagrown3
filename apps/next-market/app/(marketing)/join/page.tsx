@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent } from '../../../lib/crm-analytics'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../lib/crm-analytics'
 import { getReferralData, getTouchHistory, clearReferralData } from '../../../lib/useReferralCapture'
 import { normalizeStateCode } from '../../../lib/address'
 
@@ -22,15 +22,10 @@ function JoinContent() {
   // ── Step state ──
   const [step, setStep] = useState<Step>('profile')
 
-  useEffect(() => {
-    const stepIndexes: Record<Step, number> = {
-      'profile': 1,
-      'otp': 2,
-      'phone-verify': 3,
-      'welcome': 4,
-    }
-    trackEvent('wizard_step', '/join', { step_index: stepIndexes[step], step_name: step })
-  }, [step])
+  const stepEnteredAt = useRef(Date.now())
+  const prevStepRef = useRef<Step>('profile')
+  const wentNext = useRef(false)
+  const stepRef = useRef(step)
 
   // ── Profile fields ──
   const [fullName, setFullName] = useState('')
@@ -41,13 +36,140 @@ function JoinContent() {
   const [stateCode, setStateCode] = useState('')
   const [zip, setZip] = useState('')
 
-
   // ── OTP state ──
   const [otp, setOtp] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
 
   // ── Phone verify state ──
   const [phoneOtp, setPhoneOtp] = useState('')
+
+  const fullNameRef = useRef('')
+  const emailRef = useRef('')
+  const phoneRef = useRef('')
+  const streetAddressRef = useRef('')
+  const cityRef = useRef('')
+  const stateCodeRef = useRef('')
+  const zipRef = useRef('')
+  const otpRef = useRef('')
+  const phoneOtpRef = useRef('')
+
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
+
+  useEffect(() => {
+    fullNameRef.current = fullName
+    emailRef.current = email
+    phoneRef.current = phone
+    streetAddressRef.current = streetAddress
+    cityRef.current = city
+    stateCodeRef.current = stateCode
+    zipRef.current = zip
+    otpRef.current = otp
+    phoneOtpRef.current = phoneOtp
+  }, [fullName, email, phone, streetAddress, city, stateCode, zip, otp, phoneOtp])
+
+  useEffect(() => {
+    const stepIndexes: Record<Step, number> = {
+      'profile': 1,
+      'otp': 2,
+      'phone-verify': 3,
+      'welcome': 4,
+    }
+
+    if (step === 'profile') {
+      trackFieldInteract('/join', 1, 'next_button', false)
+    } else if (step === 'otp') {
+      trackFieldInteract('/join', 2, 'verify_otp_button', false)
+    } else if (step === 'phone-verify') {
+      trackFieldInteract('/join', 3, 'verify_phone_button', false)
+    }
+
+    const duration = (Date.now() - stepEnteredAt.current) / 1000
+    if (duration > 1) {
+      trackStepTiming('/join', stepIndexes[prevStepRef.current], prevStepRef.current, duration)
+    }
+    stepEnteredAt.current = Date.now()
+    prevStepRef.current = step
+
+    trackEvent('wizard_step', '/join', { step_index: stepIndexes[step], step_name: step })
+  }, [step])
+
+  useEffect(() => {
+    resetSessionId('/join')
+    const startTime = Date.now()
+
+    const handleUnload = () => {
+      if (!wentNext.current && stepRef.current !== 'welcome') {
+        const duration = (Date.now() - startTime) / 1000
+        const currentStep = stepRef.current
+        const stepIndexes: Record<Step, number> = {
+          'profile': 1,
+          'otp': 2,
+          'phone-verify': 3,
+          'welcome': 4,
+        }
+        trackEvent('wizard_abandon', '/join', {
+          last_step: stepIndexes[currentStep],
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'profile') {
+          trackFieldInteract('/join', 1, 'full_name', !!fullNameRef.current.trim())
+          trackFieldInteract('/join', 1, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/join', 1, 'phone', !!phoneRef.current.trim())
+          trackFieldInteract('/join', 1, 'street_address', !!streetAddressRef.current.trim())
+          trackFieldInteract('/join', 1, 'city', !!cityRef.current.trim())
+          trackFieldInteract('/join', 1, 'state_code', !!stateCodeRef.current.trim())
+          trackFieldInteract('/join', 1, 'zip_code', !!zipRef.current.trim())
+        } else if (currentStep === 'otp') {
+          trackFieldInteract('/join', 2, 'otp_code', !!otpRef.current.trim())
+        } else if (currentStep === 'phone-verify') {
+          trackFieldInteract('/join', 3, 'phone_otp_code', !!phoneOtpRef.current.trim())
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
+      if (!wentNext.current && stepRef.current !== 'welcome') {
+        const duration = (Date.now() - startTime) / 1000
+        if (duration < 0.5) return
+
+        const currentStep = stepRef.current
+        const stepIndexes: Record<Step, number> = {
+          'profile': 1,
+          'otp': 2,
+          'phone-verify': 3,
+          'welcome': 4,
+        }
+        trackEvent('wizard_abandon', '/join', {
+          last_step: stepIndexes[currentStep],
+          last_step_name: currentStep,
+          time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
+        })
+
+        if (currentStep === 'profile') {
+          trackFieldInteract('/join', 1, 'full_name', !!fullNameRef.current.trim())
+          trackFieldInteract('/join', 1, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/join', 1, 'phone', !!phoneRef.current.trim())
+          trackFieldInteract('/join', 1, 'street_address', !!streetAddressRef.current.trim())
+          trackFieldInteract('/join', 1, 'city', !!cityRef.current.trim())
+          trackFieldInteract('/join', 1, 'state_code', !!stateCodeRef.current.trim())
+          trackFieldInteract('/join', 1, 'zip_code', !!zipRef.current.trim())
+        } else if (currentStep === 'otp') {
+          trackFieldInteract('/join', 2, 'otp_code', !!otpRef.current.trim())
+        } else if (currentStep === 'phone-verify') {
+          trackFieldInteract('/join', 3, 'phone_otp_code', !!phoneOtpRef.current.trim())
+        }
+      }
+    }
+  }, [])
+
+  // ── Phone verify state ──
   const [phoneResendCooldown, setPhoneResendCooldown] = useState(0)
   const [phoneSending, setPhoneSending] = useState(false)
 
@@ -128,6 +250,7 @@ function JoinContent() {
     if (!zip.trim()) { setError('Please enter your zip code'); return }
 
     setLoading(true); setError('')
+    trackFieldInteract('/join', 1, 'next_button', true)
 
     // Insert into crm_leads as backup (fire-and-forget)
     const params = new URLSearchParams(window.location.search)
@@ -168,6 +291,7 @@ function JoinContent() {
         setLoading(false)
         return
       }
+      wentNext.current = true
       setStep('otp')
       setResendCooldown(60)
     } catch (err: any) {
@@ -181,6 +305,7 @@ function JoinContent() {
     e.preventDefault()
     if (otp.length < 6) return
     setLoading(true); setError('')
+    trackFieldInteract('/join', 2, 'verify_otp_button', true)
 
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
@@ -221,6 +346,7 @@ function JoinContent() {
 
       if (existingProfile?.profile_completed_at) {
         // Already has a complete profile — skip to welcome
+        wentNext.current = true
         setStep('welcome')
         setLoading(false)
         return
@@ -300,6 +426,7 @@ function JoinContent() {
       if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
       // Welcome email fires automatically via DB trigger (on_profile_completed)
+      wentNext.current = true
       setStep('phone-verify')
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
@@ -338,6 +465,7 @@ function JoinContent() {
     e.preventDefault()
     if (phoneOtp.length < 4) return
     setLoading(true); setError('')
+    trackFieldInteract('/join', 3, 'verify_phone_button', true)
     try {
       const { data, error: verifyErr } = await supabase.functions.invoke('verify-phone-otp', {
         body: { phoneNumber: formattedPhone, code: phoneOtp }
@@ -354,6 +482,7 @@ function JoinContent() {
         sms_enabled: true,
       }).eq('id', (await supabase.auth.getUser()).data.user!.id)
 
+      wentNext.current = true
       setStep('welcome')
     } catch (err: any) {
       setError(err?.message || 'Verification failed')
@@ -363,6 +492,8 @@ function JoinContent() {
 
   // ── Skip phone verify ──
   const handleSkipPhone = () => {
+    trackFieldInteract('/join', 3, 'verify_phone_button', true)
+    wentNext.current = true
     setStep('welcome')
   }
 
@@ -448,13 +579,15 @@ function JoinContent() {
                   <div className="join-input-group">
                     <label htmlFor="join-name">Full Name *</label>
                     <input id="join-name" type="text" placeholder="Jane Smith" required
-                      value={fullName} onChange={e => setFullName(e.target.value)} onFocus={handleFocus} autoFocus />
+                      value={fullName} onChange={e => setFullName(e.target.value)} onFocus={handleFocus}
+                      onBlur={() => trackFieldInteract('/join', 1, 'full_name', !!fullName.trim())} autoFocus />
                   </div>
 
                   <div className="join-input-group">
                     <label htmlFor="join-email">Email Address *</label>
                     <input id="join-email" type="email" placeholder="you@example.com" required
-                      value={email} onChange={e => setEmail(e.target.value)} onFocus={handleFocus} />
+                      value={email} onChange={e => setEmail(e.target.value)} onFocus={handleFocus}
+                      onBlur={() => trackFieldInteract('/join', 1, 'email', !!email.trim())} />
                   </div>
 
                   <div className="join-input-group">
@@ -490,24 +623,28 @@ function JoinContent() {
                       </p>
                     )}
                     <input id="join-street" type="text" placeholder="123 Main St" required
-                      value={streetAddress} onChange={e => setStreetAddress(e.target.value)} onFocus={handleFocus} />
+                      value={streetAddress} onChange={e => setStreetAddress(e.target.value)} onFocus={handleFocus}
+                      onBlur={() => trackFieldInteract('/join', 1, 'street_address', !!streetAddress.trim())} />
                   </div>
 
                   <div className="join-address-row">
                     <div className="join-input-group" style={{ flex: 2 }}>
                       <label htmlFor="join-city">City *</label>
                       <input id="join-city" type="text" placeholder="San Jose" required
-                        value={city} onChange={e => setCity(e.target.value)} />
+                        value={city} onChange={e => setCity(e.target.value)}
+                        onBlur={() => trackFieldInteract('/join', 1, 'city', !!city.trim())} />
                     </div>
                     <div className="join-input-group" style={{ flex: 1 }}>
                       <label htmlFor="join-state">State *</label>
                       <input id="join-state" type="text" placeholder="CA" maxLength={2} required
-                        value={stateCode} onChange={e => setStateCode(e.target.value.slice(0, 2))} />
+                        value={stateCode} onChange={e => setStateCode(e.target.value.slice(0, 2))}
+                        onBlur={() => trackFieldInteract('/join', 1, 'state_code', !!stateCode.trim())} />
                     </div>
                     <div className="join-input-group" style={{ flex: 1 }}>
                       <label htmlFor="join-zip">Zip *</label>
                       <input id="join-zip" type="text" placeholder="95112" required
-                        value={zip} onChange={e => setZip(e.target.value)} />
+                        value={zip} onChange={e => setZip(e.target.value)}
+                        onBlur={() => trackFieldInteract('/join', 1, 'zip_code', !!zip.trim())} />
                     </div>
                   </div>
 
@@ -544,7 +681,8 @@ function JoinContent() {
                   <div className="join-input-group">
                     <label htmlFor="join-otp">Enter 6-Digit Code</label>
                     <input id="join-otp" type="text" className="join-otp-input" placeholder="123456"
-                      value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6} autoFocus />
+                      value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6}
+                      onBlur={() => trackFieldInteract('/join', 2, 'otp_code', !!otp.trim())} autoFocus />
                   </div>
 
                   {error && <p className="join-error">{error}</p>}
@@ -568,6 +706,7 @@ function JoinContent() {
                     <div className="join-phone-row">
                       <input id="join-phone" type="tel" placeholder="(555) 000-0000"
                         value={phone} onChange={e => { setPhone(e.target.value); setPhoneOtp(''); setError('') }}
+                        onBlur={() => trackFieldInteract('/join', 3, 'phone', !!phone.trim())}
                         disabled={phoneSending} autoFocus />
                       {phone.replace(/\D/g, '').length >= 10 && phoneOtp === '' && (
                         <button type="button" className="join-send-code-btn" onClick={handleResendPhoneOtp}
@@ -584,7 +723,8 @@ function JoinContent() {
                         <label htmlFor="join-phone-otp">Enter the code sent to {formattedPhone}</label>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <input id="join-phone-otp" type="text" placeholder="123456"
-                            value={phoneOtp} onChange={e => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 8))} maxLength={8} autoFocus />
+                            value={phoneOtp} onChange={e => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 8))} maxLength={8}
+                            onBlur={() => trackFieldInteract('/join', 3, 'phone_otp_code', !!phoneOtp.trim())} autoFocus />
                           <button type="submit" className="join-send-code-btn" disabled={loading || phoneOtp.length < 4}>
                             {loading ? 'Checking...' : 'Confirm'}
                           </button>

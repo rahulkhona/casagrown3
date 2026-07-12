@@ -139,6 +139,20 @@ export function WizardProvider({ children }: { children: ReactNode }) {
     }
   }, [searchParams])
 
+  // Default harvest date to local today on mount
+  useEffect(() => {
+    updateState(prev => {
+      if (!prev.harvestedAt) {
+        const d = new Date()
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return { harvestedAt: `${year}-${month}-${day}` }
+      }
+      return {}
+    })
+  }, [])
+
   // Sync logged in user profile details if available
   useEffect(() => {
     if (!user?.id) return

@@ -63,6 +63,8 @@ export default function MarketingCampaignsPage() {
           <tbody>
             {loading ? (
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Loading...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No campaigns found.</td></tr>
             ) : rows.map(row => (
               <tr key={row.campaign_id}>
                 <td className="campaign-name">{row.campaign_name}</td>
