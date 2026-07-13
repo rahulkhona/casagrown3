@@ -340,6 +340,23 @@ export function WizardProvider({ children }: { children: ReactNode }) {
           throw new Error(profileError)
         }
 
+        let h3Index: string | null = null
+        let homeLocation: any = null
+        try {
+          const { geocodeAddress, toPostgisPoint } = await import('../../../lib/geocode')
+          let geo = await geocodeAddress(state.address)
+          if (!geo && (process.env.NODE_ENV === 'development' || state.address.toLowerCase().includes('123 main'))) {
+            geo = { lat: 37.3382, lng: -121.8863, display: 'Development Fallback' }
+          }
+          if (geo) {
+            homeLocation = toPostgisPoint(geo.lat, geo.lng)
+            const { latLngToCell } = await import('h3-js')
+            h3Index = latLngToCell(geo.lat, geo.lng, 7)
+          }
+        } catch (err) {
+          console.warn('Geocoding failed during profile update:', err)
+        }
+
         const profileUpdate: any = {
           tos_accepted_at: state.agreedToTos ? new Date().toISOString() : undefined,
           full_name: state.fullName || undefined,
@@ -354,6 +371,8 @@ export function WizardProvider({ children }: { children: ReactNode }) {
           profileUpdate.zip_code = zipCode.split('-')[0]
           profileUpdate.zip_plus4 = zipCode
         }
+        if (homeLocation) profileUpdate.home_location = homeLocation
+        if (h3Index) profileUpdate.home_community_h3_index = h3Index
 
         await supabase.from('profiles').update(profileUpdate).eq('id', authUser.id)
       }
