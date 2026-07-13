@@ -370,6 +370,7 @@ export default function Step1Basics() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    trackEvent('button_click', '/create-listing', { step: 1, button: 'upload_photo' })
     const reader = new FileReader()
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string
@@ -381,6 +382,7 @@ export default function Step1Basics() {
 
   const handleCapture = (result: any) => {
     const file = result.file
+    trackEvent('button_click', '/create-listing', { step: 1, button: 'capture_photo' })
     const reader = new FileReader()
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string
