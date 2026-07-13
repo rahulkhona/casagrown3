@@ -78,7 +78,11 @@ BEGIN
         
         -- /check-nutrition-loss
         ('/check-nutrition-loss', 2, 'selected_produce'), ('/check-nutrition-loss', 2, 'next_button'),
-        ('/check-nutrition-loss', 4, 'name'), ('/check-nutrition-loss', 4, 'email'), ('/check-nutrition-loss', 4, 'phone'), ('/check-nutrition-loss', 4, 'next_button')
+        ('/check-nutrition-loss', 4, 'name'), ('/check-nutrition-loss', 4, 'email'), ('/check-nutrition-loss', 4, 'phone'), ('/check-nutrition-loss', 4, 'next_button'),
+
+        -- /p/[slug]
+        ('/p/[slug]', 1, 'email'), ('/p/[slug]', 1, 'next_button'),
+        ('/p/[slug]', 2, 'full_name'), ('/p/[slug]', 2, 'farm_name'), ('/p/[slug]', 2, 'street_address'), ('/p/[slug]', 2, 'city'), ('/p/[slug]', 2, 'state_code'), ('/p/[slug]', 2, 'zip_code'), ('/p/[slug]', 2, 'phone'), ('/p/[slug]', 2, 'sms_consent'), ('/p/[slug]', 2, 'next_button')
     ) AS f(page_slug, step, field_name)
     WHERE page_slug = p_wizard
     
@@ -86,7 +90,9 @@ BEGIN
     
     SELECT (event_data->>'step')::INT AS step, event_data->>'field' AS field_name
     FROM filtered_events
-    WHERE event_type = 'wizard_field_interact' AND page_slug = p_wizard AND (event_data->>'step') IS NOT NULL
+    WHERE event_type = 'wizard_field_interact'
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
+      AND (event_data->>'step') IS NOT NULL
   ),
   raw_field_events AS (
     SELECT
@@ -97,7 +103,7 @@ BEGIN
       occurred_at
     FROM filtered_events
     WHERE event_type = 'wizard_field_interact'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
   ),
   field_events AS (
     SELECT DISTINCT ON (session_id, step, field_name)
@@ -128,7 +134,7 @@ BEGIN
       COUNT(*) AS error_count
     FROM filtered_events
     WHERE event_type = 'wizard_validation_error'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
     GROUP BY step, field_name, error_type
   ),
   ai_events AS (
@@ -138,7 +144,7 @@ BEGIN
       COUNT(*) AS cnt
     FROM filtered_events
     WHERE event_type = 'wizard_ai_used'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
     GROUP BY button_name, action
   ),
   ai_stats AS (
@@ -159,7 +165,7 @@ BEGIN
       session_id
     FROM filtered_events
     WHERE event_type = 'wizard_step_timing'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
   ),
   timing_stats AS (
     SELECT
@@ -179,7 +185,7 @@ BEGIN
       session_id
     FROM filtered_events
     WHERE event_type = 'wizard_abandon'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
   ),
   abandon_stats AS (
     SELECT
@@ -197,7 +203,7 @@ BEGIN
       COUNT(*) AS click_count
     FROM filtered_events
     WHERE event_type = 'button_click'
-      AND page_slug = p_wizard
+      AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
     GROUP BY step, button_name
   ),
   step_funnel AS (
@@ -240,16 +246,26 @@ BEGIN
         UNION ALL
         SELECT 3 AS step, 'results' AS step_name WHERE p_wizard = '/check-nutrition-loss'
         UNION ALL
+        SELECT 1 AS step, 'initial' AS step_name WHERE p_wizard = '/p/[slug]'
+        UNION ALL
+        SELECT 2 AS step, 'profile' AS step_name WHERE p_wizard = '/p/[slug]'
+        UNION ALL
+        SELECT 3 AS step, 'otp' AS step_name WHERE p_wizard = '/p/[slug]'
+        UNION ALL
+        SELECT 4 AS step, 'payment' AS step_name WHERE p_wizard = '/p/[slug]'
+        UNION ALL
+        SELECT 5 AS step, 'success' AS step_name WHERE p_wizard = '/p/[slug]'
+        UNION ALL
         SELECT 
           (event_data->>'step_index')::INT AS step,
           event_data->>'step_name' AS step_name
         FROM filtered_events
         WHERE event_type = 'wizard_step'
-          AND page_slug = p_wizard
+          AND (page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND page_slug LIKE '/p/%'))
       ) raw_steps
       ORDER BY step, step_name
     ) s
-    LEFT JOIN filtered_events fe ON (fe.event_data->>'step_index')::INT = s.step AND fe.event_type = 'wizard_step' AND fe.page_slug = p_wizard
+    LEFT JOIN filtered_events fe ON (fe.event_data->>'step_index')::INT = s.step AND fe.event_type = 'wizard_step' AND (fe.page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND fe.page_slug LIKE '/p/%'))
     GROUP BY s.step, s.step_name
   )
   SELECT json_build_object(
@@ -263,5 +279,56 @@ BEGIN
   ) INTO result;
 
   RETURN result;
+END;
+$$;
+
+
+-- Redefine metrics_wizard_dropoffs to support dynamic /p/[slug] paths
+DROP FUNCTION IF EXISTS metrics_wizard_dropoffs(timestamptz, timestamptz, text, text, text);
+DROP FUNCTION IF EXISTS metrics_wizard_dropoffs(date, date, text, text, text);
+CREATE OR REPLACE FUNCTION metrics_wizard_dropoffs(
+  p_start DATE,
+  p_end DATE,
+  p_wizard TEXT,
+  p_state TEXT DEFAULT NULL,
+  p_zip TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  step_index INT,
+  step_name TEXT,
+  count BIGINT,
+  pct_of_top NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH funnel AS (
+    SELECT 
+      (e.event_data->>'step_index')::INT AS step_idx,
+      (e.event_data->>'step_name') AS step_nm,
+      COUNT(DISTINCT e.session_id) AS visits
+    FROM crm_page_events e
+    JOIN crm_page_visits v ON v.session_id = e.session_id
+    WHERE e.event_type = 'wizard_step'
+      AND (e.page_slug = p_wizard OR (p_wizard = '/p/[slug]' AND e.page_slug LIKE '/p/%'))
+      AND e.occurred_at::date >= p_start
+      AND e.occurred_at::date <= p_end
+      AND (p_state IS NULL OR v.region = p_state)
+      AND (p_zip IS NULL OR v.zip_code = p_zip)
+    GROUP BY 1, 2
+  ),
+  top_count AS (
+    SELECT MAX(visits) AS max_v FROM funnel
+  )
+  SELECT 
+    f.step_idx,
+    f.step_nm,
+    f.visits,
+    CASE WHEN tc.max_v > 0 THEN ROUND((f.visits::NUMERIC / tc.max_v) * 100, 1) ELSE 0 END AS pct_of_top
+  FROM funnel f
+  CROSS JOIN top_count tc
+  ORDER BY f.step_idx ASC;
 END;
 $$;

@@ -800,15 +800,34 @@ export async function fetchWizardDropoffs(dateRange: DateRange, wizardSlug: stri
 }
 
 export async function fetchActiveWizards(dateRange: DateRange): Promise<string[]> {
-  const defaultWizards = ['/join', '/sell', '/create-listing']
+  const defaultWizards = ['/join', '/sell', '/create-listing', '/p/[slug]']
   const { data, error } = await supabase.rpc('metrics_active_wizards', {
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
   if (error || !data || !Array.isArray(data)) return defaultWizards
   
-  const dbWizards = data.map((d: any) => d.wizard_slug)
+  const dbWizards = data.map((d: any) => {
+    const slug = d.wizard_slug
+    if (slug && slug.startsWith('/p/')) {
+      return '/p/[slug]'
+    }
+    return slug
+  })
   return Array.from(new Set([...defaultWizards, ...dbWizards]))
+}
+
+export async function fetchActivePromotionPaths(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('crm_landing_pages')
+      .select('slug')
+      .order('slug', { ascending: true })
+    if (error || !data) return []
+    return data.map((r: any) => `/p/${r.slug}`).filter(Boolean)
+  } catch {
+    return []
+  }
 }
 
 export interface WizardFieldAnalyticsData {
@@ -862,7 +881,28 @@ export async function fetchCrmTraffic(dateRange: DateRange): Promise<CrmTrafficR
       { page_slug: '/join', visits: 310, unique_sessions: 295, avg_duration_secs: 110, conversions: 88, conversion_rate: 29.8, top_utm_source: 'direct' },
     ]
   }
-  return (data as any).pages as CrmTrafficRow[]
+  const pages = (data as any).pages as CrmTrafficRow[]
+  const promoPages = pages.filter(p => p.page_slug && p.page_slug.startsWith('/p/'))
+  if (promoPages.length > 0) {
+    const totalVisits = promoPages.reduce((acc, p) => acc + (p.visits || 0), 0)
+    const totalSessions = promoPages.reduce((acc, p) => acc + (p.unique_sessions || 0), 0)
+    const totalDuration = promoPages.reduce((acc, p) => acc + (p.avg_duration_secs || 0) * (p.visits || 0), 0)
+    const totalConversions = promoPages.reduce((acc, p) => acc + (p.conversions || 0), 0)
+    const avgDuration = totalVisits > 0 ? Math.round(totalDuration / totalVisits) : 0
+    const conversionRate = totalSessions > 0 ? Number(((totalConversions / totalSessions) * 100).toFixed(1)) : 0
+    
+    const aggregatedRow: CrmTrafficRow = {
+      page_slug: '/p/[slug]',
+      visits: totalVisits,
+      unique_sessions: totalSessions,
+      avg_duration_secs: avgDuration,
+      conversions: totalConversions,
+      conversion_rate: conversionRate,
+      top_utm_source: promoPages[0].top_utm_source || 'direct'
+    }
+    return [aggregatedRow, ...pages]
+  }
+  return pages
 }
 
 export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadFunnelRow[]> {

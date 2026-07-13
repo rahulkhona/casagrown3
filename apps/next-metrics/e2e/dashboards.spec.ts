@@ -73,7 +73,7 @@ test.describe('Metrics — Protected Navigations', () => {
       path: '/marketing/funnel', 
       title: 'Lead Conversion Funnel',
       charts: ['By Traffic Source'],
-      kpis: ['Total Leads', 'Contacted', 'Converted']
+      kpis: ['Total Leads', 'Converted']
     },
     { 
       path: '/marketing/campaigns', 

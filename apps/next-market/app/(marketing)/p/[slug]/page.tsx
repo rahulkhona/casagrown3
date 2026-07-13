@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase'
+import { resetSessionId, trackFieldInteract, trackStepTiming, trackEvent } from '../../../../lib/crm-analytics'
 import { ENABLE_ELITE } from '../../../../lib/featureFlags'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../../(main)/terms/page'
 import { StripeCheckoutModal } from '../../../components/StripeCheckoutModal'
@@ -107,7 +108,11 @@ function PromoContent() {
   const [successMessage, setSuccessMessage] = useState('')
 
   // Wizard steps: 'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success' | 'booth_setup' | 'manage_features' | 'first_listing' | 'done' | 'lite_intent'
-  const [step, setStep] = useState<'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success' | 'booth_setup' | 'manage_features' | 'first_listing' | 'done' | 'lite_intent'>('initial')
+  const [step, rawSetStep] = useState<'initial' | 'profile' | 'otp' | 'promo_choice' | 'payment' | 'success' | 'booth_setup' | 'manage_features' | 'first_listing' | 'done' | 'lite_intent'>('initial')
+  const setStep = (nextStep: typeof step | ((prev: typeof step) => typeof step)) => {
+    if (typeof wentNext !== 'undefined') wentNext.current = true
+    rawSetStep(nextStep)
+  }
   const [activePromoDiscount, setActivePromoDiscount] = useState<any | null>(null)
   const [fallbackMode, setFallbackMode] = useState<{message: string} | null>(null)
   const [skipPromo, setSkipPromo] = useState(false)
@@ -155,6 +160,84 @@ function PromoContent() {
   const [listingPhotoPreview, setListingPhotoPreview] = useState('')
   const [listingSaving, setListingSaving] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState<{ booth: boolean; features: boolean; listing: boolean }>({ booth: false, features: false, listing: false })
+
+  // Telemetry Hooks for /p/[slug]
+  const wentNext = useRef(false)
+  const prevStepRef = useRef(step)
+  const stepStartRef = useRef(Date.now())
+
+  function getStepIndex(stepName: string): number {
+    switch (stepName) {
+      case 'initial': return 1
+      case 'profile': return 2
+      case 'otp': return 3
+      case 'promo_choice': return 2
+      case 'lite_intent': return 2
+      case 'payment': return 4
+      case 'success': return 5
+      case 'booth_setup': return 6
+      case 'manage_features': return 7
+      case 'first_listing': return 8
+      case 'done': return 9
+      default: return 1
+    }
+  }
+
+  // 1. Session reset on mount/slug change
+  useEffect(() => {
+    resetSessionId(`/p/${slug}`)
+    trackEvent('form_start', `/p/${slug}`, { form_version: 'v2-marketing-slug-funnel' })
+    trackEvent('wizard_step', `/p/${slug}`, { step_index: 1, step_name: 'initial' })
+    stepStartRef.current = Date.now()
+  }, [slug])
+
+  // 2. Step timing & step changes
+  useEffect(() => {
+    if (prevStepRef.current !== step) {
+      const durationSecs = (Date.now() - stepStartRef.current) / 1000
+      trackStepTiming(`/p/${slug}`, getStepIndex(prevStepRef.current), prevStepRef.current, durationSecs)
+      trackEvent('wizard_step', `/p/${slug}`, { step_index: getStepIndex(step), step_name: step })
+      prevStepRef.current = step
+      stepStartRef.current = Date.now()
+      wentNext.current = false // Reset wentNext on step change
+    }
+  }, [step, slug])
+
+  // 3. Page unload / unmount abandonment hook
+  useEffect(() => {
+    const handleUnload = () => {
+      if (!wentNext.current && step !== 'success' && step !== 'booth_setup' && step !== 'done') {
+        const timeOnStep = (Date.now() - stepStartRef.current) / 1000
+        trackEvent('wizard_abandon', `/p/${slug}`, {
+          last_step: getStepIndex(step),
+          last_step_name: step,
+          time_on_step_secs: Math.round(timeOnStep),
+          field_states: {
+            email: !!email,
+            name: !!name,
+            phone: !!phone,
+            street: !!street,
+            city: !!city,
+            state: !!state,
+            zip: !!zip,
+            farmName: !!farmName,
+            smsConsent,
+            selectedPlan
+          }
+        })
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+    return () => {
+      handleUnload()
+      window.removeEventListener('beforeunload', handleUnload)
+    }
+  }, [step, slug, email, name, phone, street, city, state, zip, farmName, smsConsent, selectedPlan])
+
+  const handleFieldBlur = (fieldName: string, value: string) => {
+    trackFieldInteract(`/p/${slug}`, getStepIndex(step), fieldName, !!value.trim())
+  }
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -1511,7 +1594,7 @@ function PromoContent() {
 
                     <div className="input-group">
                       <label>Email Address</label>
-                      <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="hello@example.com" />
+                      <input type="email" required value={email} onChange={e => setEmail(e.target.value)} onBlur={e => handleFieldBlur('email', e.target.value)} placeholder="hello@example.com" />
                     </div>
                     <button type="submit" disabled={submitting || !email} className="btn-action">
                       {submitting ? 'Checking eligibility...' : 'Continue to Claim'}
@@ -1537,6 +1620,7 @@ function PromoContent() {
                           required 
                           value={farmName} 
                           onChange={e => setFarmName(e.target.value)} 
+                          onBlur={e => handleFieldBlur('farm_name', e.target.value)}
                           placeholder="e.g. Oakridge Farms" 
                         />
                       </div>
@@ -1544,7 +1628,7 @@ function PromoContent() {
 
                     <div className="input-group">
                       <label>Full Name</label>
-                      <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Doe" />
+                      <input type="text" required value={name} onChange={e => setName(e.target.value)} onBlur={e => handleFieldBlur('full_name', e.target.value)} placeholder="Jane Doe" />
                     </div>
                     <div className="input-group">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1558,28 +1642,31 @@ function PromoContent() {
                           {locating ? '📍 Locating...' : '📍 Use Current Location'}
                         </button>
                       </div>
-                      <input type="text" required value={street} onChange={e => setStreet(e.target.value)} placeholder="123 Farm Road" />
+                      <input type="text" required value={street} onChange={e => setStreet(e.target.value)} onBlur={e => handleFieldBlur('street_address', e.target.value)} placeholder="123 Farm Road" />
                     </div>
                     <div className="input-row">
                       <div className="input-group" style={{ flex: 2 }}>
                         <label>City</label>
-                        <input type="text" required value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
+                        <input type="text" required value={city} onChange={e => setCity(e.target.value)} onBlur={e => handleFieldBlur('city', e.target.value)} placeholder="City" />
                       </div>
                       <div className="input-group" style={{ flex: '0 0 70px' }}>
                         <label>State</label>
-                        <input type="text" required value={state} onChange={e => setState(e.target.value)} placeholder="ST" maxLength={2} />
+                        <input type="text" required value={state} onChange={e => setState(e.target.value)} onBlur={e => handleFieldBlur('state_code', e.target.value)} placeholder="ST" maxLength={2} />
                       </div>
                       <div className="input-group" style={{ flex: '0 0 110px' }}>
                         <label>ZIP Code</label>
-                        <input type="text" required value={zip} onChange={e => setZip(e.target.value)} placeholder="12345" maxLength={5} />
+                        <input type="text" required value={zip} onChange={e => setZip(e.target.value)} onBlur={e => handleFieldBlur('zip_code', e.target.value)} placeholder="12345" maxLength={5} />
                       </div>
                     </div>
                     <div className="input-group">
                       <label>Phone Number</label>
-                      <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 555-5555" />
+                      <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} onBlur={e => handleFieldBlur('phone', e.target.value)} placeholder="(555) 555-5555" />
                     </div>
                     <label className="checkbox-wrap" style={{ marginBottom: '16px' }}>
-                      <input type="checkbox" checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)} />
+                      <input type="checkbox" checked={smsConsent} onChange={e => {
+                        setSmsConsent(e.target.checked);
+                        trackFieldInteract(`/p/${slug}`, getStepIndex(step), 'sms_consent', e.target.checked);
+                      }} />
                       <div className="checkbox-text">
                         <strong>Enable Order SMS Notifications</strong>
                         <div style={{ fontSize: '0.8rem', marginTop: '4px', color: '#6b7280', lineHeight: 1.4 }}>

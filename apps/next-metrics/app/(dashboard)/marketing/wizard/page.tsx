@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useFilters } from '../../layout'
-import { fetchWizardFieldAnalytics, type WizardFieldAnalyticsData } from '../../../../lib/metrics-service'
+import { fetchWizardFieldAnalytics, fetchActivePromotionPaths, type WizardFieldAnalyticsData } from '../../../../lib/metrics-service'
 import { HBarChart, BarChart, DonutChart } from '../../../../lib/charts'
 
 const WIZARDS = [
@@ -11,6 +11,7 @@ const WIZARDS = [
   { slug: '/sell', label: 'Seller Setup Wizard' },
   { slug: '/profile-setup', label: 'Profile Setup Wizard' },
   { slug: '/check-nutrition-loss', label: 'Nutrition Loss Calculator Wizard' },
+  { slug: '/p/[slug]', label: 'Pro Promotion Onboarding' },
 ]
 
 function EmptyState() {
@@ -46,16 +47,29 @@ function formatSecs(secs: number): string {
 export default function WizardAnalyticsPage() {
   const { dateRange, geoFilter, utmFilter } = useFilters()
   const [selectedWizard, setSelectedWizard] = useState<string>('/create-listing')
+  const [promoPaths, setPromoPaths] = useState<string[]>([])
+  const [selectedPromoPath, setSelectedPromoPath] = useState<string>('/p/[slug]')
   const [data, setData] = useState<WizardFieldAnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (selectedWizard === '/p/[slug]') {
+      fetchActivePromotionPaths().then(paths => {
+        setPromoPaths(paths)
+      })
+    } else {
+      setPromoPaths([])
+    }
+  }, [selectedWizard])
+
+  useEffect(() => {
     setLoading(true)
-    fetchWizardFieldAnalytics(dateRange, selectedWizard, geoFilter, utmFilter).then(res => {
+    const querySlug = selectedWizard === '/p/[slug]' ? selectedPromoPath : selectedWizard
+    fetchWizardFieldAnalytics(dateRange, querySlug, geoFilter, utmFilter).then(res => {
       setData(res)
       setLoading(false)
     })
-  }, [dateRange, selectedWizard, geoFilter, utmFilter])
+  }, [dateRange, selectedWizard, selectedPromoPath, geoFilter, utmFilter])
 
   const wizardLabel = WIZARDS.find(w => w.slug === selectedWizard)?.label || selectedWizard
   const hasData = data && (
@@ -75,17 +89,38 @@ export default function WizardAnalyticsPage() {
             <p className="page-subtitle">Field-level interactions, AI adoption, step timing, and abandon analysis</p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)' }}>Wizard:</span>
-            <select
-              value={selectedWizard}
-              onChange={(e) => setSelectedWizard(e.target.value)}
-              className="wizard-select"
-            >
-              {WIZARDS.map(w => (
-                <option key={w.slug} value={w.slug}>{w.label}</option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)' }}>Wizard:</span>
+              <select
+                value={selectedWizard}
+                onChange={(e) => {
+                  setSelectedWizard(e.target.value)
+                  setSelectedPromoPath('/p/[slug]') // reset to combined on wizard change
+                }}
+                className="wizard-select"
+              >
+                {WIZARDS.map(w => (
+                  <option key={w.slug} value={w.slug}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedWizard === '/p/[slug]' && promoPaths.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)' }}>Path Instance:</span>
+                <select
+                  value={selectedPromoPath}
+                  onChange={(e) => setSelectedPromoPath(e.target.value)}
+                  className="wizard-select"
+                >
+                  <option value="/p/[slug]">All /p/[slug] (Combined)</option>
+                  {promoPaths.map(path => (
+                    <option key={path} value={path}>{path}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       </div>

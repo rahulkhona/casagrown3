@@ -459,4 +459,241 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
       ])
     );
   });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 5. PRO PROMOTION SIGNUP WIZARD (/p/[slug])
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  test('pro-signup: should track main path and transitions', async ({ page }) => {
+    const futureDate = new Date()
+    futureDate.setMonth(futureDate.getMonth() + 1)
+    await page.route('**/rest/v1/rpc/crm_get_landing_page_promotion*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'promo-123',
+          name: 'Spring Harvest Combo Promo',
+          description_html: '<p>Win big</p>',
+          enrollment_deadline: futureDate.toISOString(),
+          allow_existing_users: true,
+          buyer_discounts: null,
+          hero_image_url: null
+        })
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/crm_check_promo_eligibility*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ eligible: true, is_registered: false })
+      });
+    });
+
+    const trackEvents: any[] = [];
+    page.on('request', request => {
+      if (request.url().includes('/api/crm/track') && request.method() === 'POST') {
+        const dataStr = request.postData();
+        if (dataStr) {
+          try {
+            trackEvents.push(JSON.parse(dataStr));
+          } catch (e) {}
+        }
+      }
+    });
+
+    await page.goto('/p/spring-giveaway-test');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('input[type="email"]').fill('pro-telemetry-seller@example.com');
+    await page.locator('input[type="email"]').blur();
+
+    await page.getByRole('button', { name: 'Continue to Claim' }).click();
+    await expect(page.locator('h2:has-text("Setup Your Profile")')).toBeVisible({ timeout: 15000 });
+
+    // Fill Step 2 Profile fields
+    await page.getByPlaceholder('e.g. Oakridge Farms').fill('Telemetry Farm');
+    await page.getByPlaceholder('e.g. Oakridge Farms').blur();
+
+    await page.getByPlaceholder('Jane Doe').fill('Jane Telemetry');
+    await page.getByPlaceholder('Jane Doe').blur();
+
+    await page.getByPlaceholder('123 Farm Road').fill('456 Telemetry Rd');
+    await page.getByPlaceholder('123 Farm Road').blur();
+
+    await page.getByPlaceholder('City').fill('Telemetry City');
+    await page.getByPlaceholder('City').blur();
+
+    await page.getByPlaceholder('ST').fill('CA');
+    await page.getByPlaceholder('ST').blur();
+
+    await page.getByPlaceholder('12345').fill('94016');
+    await page.getByPlaceholder('12345').blur();
+
+    await page.getByPlaceholder('(555) 555-5555').fill('555-666-7777');
+    await page.getByPlaceholder('(555) 555-5555').blur();
+
+    // Check smsConsent toggle
+    await page.locator('input[type="checkbox"]').first().click();
+
+    expect(trackEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'wizard_step',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({ step_index: 1 })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'email',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'farm_name',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'full_name',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'street_address',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'city',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'state_code',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'zip_code',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'phone',
+            has_value: true
+          })
+        }),
+        expect.objectContaining({
+          event_type: 'wizard_field_interact',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            field: 'sms_consent'
+          })
+        })
+      ])
+    );
+  });
+
+  test('pro-signup: should track field-level abandonment', async ({ page }) => {
+    const futureDate = new Date()
+    futureDate.setMonth(futureDate.getMonth() + 1)
+    await page.route('**/rest/v1/rpc/crm_get_landing_page_promotion*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'promo-123',
+          name: 'Spring Harvest Combo Promo',
+          description_html: '<p>Win big</p>',
+          enrollment_deadline: futureDate.toISOString(),
+          allow_existing_users: true,
+          buyer_discounts: null,
+          hero_image_url: null
+        })
+      });
+    });
+
+    await page.route('**/rest/v1/rpc/crm_check_promo_eligibility*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ eligible: true, is_registered: false })
+      });
+    });
+
+    const trackEvents: any[] = [];
+    page.on('request', request => {
+      if (request.url().includes('/api/crm/track') && request.method() === 'POST') {
+        const dataStr = request.postData();
+        if (dataStr) {
+          try {
+            trackEvents.push(JSON.parse(dataStr));
+          } catch (e) {}
+        }
+      }
+    });
+
+    await page.goto('/p/spring-giveaway-test');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('input[type="email"]').fill('pro-abandon-seller@example.com');
+    await page.locator('input[type="email"]').blur();
+
+    await page.getByRole('button', { name: 'Continue to Claim' }).click();
+    await expect(page.locator('h2:has-text("Setup Your Profile")')).toBeVisible({ timeout: 15000 });
+
+    // Partially fill profile fields, leave address & phone empty
+    await page.getByPlaceholder('e.g. Oakridge Farms').fill('Partial Farm');
+    await page.getByPlaceholder('e.g. Oakridge Farms').blur();
+
+    await page.getByPlaceholder('Jane Doe').fill('Jane Partial');
+    await page.getByPlaceholder('Jane Doe').blur();
+
+    await page.goto('/');
+
+    await expect.poll(() => trackEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'wizard_abandon',
+          page_slug: '/p/spring-giveaway-test',
+          event_data: expect.objectContaining({
+            last_step: 2,
+            last_step_name: 'profile',
+            field_states: expect.objectContaining({
+              email: true,
+              farmName: true,
+              name: true,
+              street: false,
+              phone: false
+            })
+          })
+        })
+      ])
+    );
+  });
 });
