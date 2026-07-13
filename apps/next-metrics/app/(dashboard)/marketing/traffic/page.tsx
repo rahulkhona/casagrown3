@@ -121,6 +121,7 @@ export default function TrafficAnalysisPage() {
     switch (selectedGrid) {
       case 'leads': return data.leadsGrid
       case 'accounts': return data.accountsGrid
+      case 'signupPath': return data.signupPathGrid || []
       case 'convertedLeads': return data.leadsToAccountGrid
       case 'listings': return data.listingsGrid
       case 'dropOff_listing': return data.dropOffGrids?.listing || []
@@ -138,6 +139,7 @@ export default function TrafficAnalysisPage() {
         return DAYS_OF_WEEK.map(d => {
           const val = row[d];
           if (typeof val === 'object' && val !== null) {
+            if ('total' in val) return val.total || 0
             return (val.step1 || 0) + (val.step2 || 0)
           }
           return Number(val) || 0
@@ -308,6 +310,7 @@ export default function TrafficAnalysisPage() {
               <div className="grid-tabs-bar" style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
                 <button className={`tab-btn ${selectedGrid === 'leads' ? 'active' : ''}`} onClick={() => setSelectedGrid('leads')}>Leads</button>
                 <button className={`tab-btn ${selectedGrid === 'accounts' ? 'active' : ''}`} onClick={() => setSelectedGrid('accounts')}>Account Creations</button>
+                <button className={`tab-btn ${selectedGrid === 'signupPath' ? 'active' : ''}`} onClick={() => setSelectedGrid('signupPath')}>Signup Paths</button>
                 <button className={`tab-btn ${selectedGrid === 'convertedLeads' ? 'active' : ''}`} onClick={() => setSelectedGrid('convertedLeads')}>Converted Leads</button>
                 <button className={`tab-btn ${selectedGrid === 'listings' ? 'active' : ''}`} onClick={() => setSelectedGrid('listings')}>Listing Creations</button>
                 <button className={`tab-btn ${selectedGrid === 'dropOff_listing' ? 'active' : ''}`} onClick={() => setSelectedGrid('dropOff_listing')}>Listing Wizard Drop-offs</button>
@@ -338,19 +341,49 @@ export default function TrafficAnalysisPage() {
                           let totalVal = 0
                           
                           if (typeof cellVal === 'object' && cellVal !== null) {
-                            totalVal = (cellVal.step1 || 0) + (cellVal.step2 || 0)
-                            hasValue = totalVal > 0
-                            
-                            const startsVal = cellVal.starts || 0
-                            const pct1 = startsVal > 0 ? Math.round((cellVal.step1 / startsVal) * 100) : 0
-                            const pct2 = startsVal > 0 ? Math.round((cellVal.step2 / startsVal) * 100) : 0
+                            if ('total' in cellVal) {
+                              totalVal = cellVal.total || 0;
+                              hasValue = totalVal > 0;
+                              
+                              displayContent = (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.68rem', lineHeight: 1.1 }}>
+                                  {Object.entries(cellVal)
+                                    .filter(([key, val]) => key !== 'total' && typeof val === 'number' && val > 0)
+                                    .map(([key, val]) => {
+                                      const pct = totalVal > 0 ? Math.round((val as number / totalVal) * 100) : 0;
+                                      let shortLabel = key;
+                                      if (key === '/create-listing') shortLabel = 'listing';
+                                      else if (key === '/join') shortLabel = 'join';
+                                      else if (key === '/sell') shortLabel = 'sell';
+                                      else if (key === '/profile-setup') shortLabel = 'profile';
+                                      else if (key === '/check-nutrition-loss') shortLabel = 'nutrition';
+                                      else if (key === '/pro') shortLabel = 'pro';
+                                      else if (key === '/p/[slug]') shortLabel = 'promo';
+                                      
+                                      return (
+                                        <span key={key} style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>
+                                          {shortLabel}: {val as number} ({pct}%)
+                                        </span>
+                                      );
+                                    })
+                                  }
+                                </div>
+                              );
+                            } else {
+                              totalVal = (cellVal.step1 || 0) + (cellVal.step2 || 0)
+                              hasValue = totalVal > 0
+                              
+                              const startsVal = cellVal.starts || 0
+                              const pct1 = startsVal > 0 ? Math.round((cellVal.step1 / startsVal) * 100) : 0
+                              const pct2 = startsVal > 0 ? Math.round((cellVal.step2 / startsVal) * 100) : 0
 
-                            displayContent = (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.68rem', lineHeight: 1.1 }}>
-                                {cellVal.step1 > 0 && <span style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>S1: {cellVal.step1} ({pct1}%)</span>}
-                                {cellVal.step2 > 0 && <span style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>S2: {cellVal.step2} ({pct2}%)</span>}
-                              </div>
-                            )
+                              displayContent = (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.68rem', lineHeight: 1.1 }}>
+                                  {cellVal.step1 > 0 && <span style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>S1: {cellVal.step1} ({pct1}%)</span>}
+                                  {cellVal.step2 > 0 && <span style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>S2: {cellVal.step2} ({pct2}%)</span>}
+                                </div>
+                              )
+                            }
                           } else {
                             totalVal = Number(cellVal) || 0
                             hasValue = totalVal > 0

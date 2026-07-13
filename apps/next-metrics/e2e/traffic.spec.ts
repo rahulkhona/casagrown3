@@ -38,6 +38,11 @@ test.describe('Metrics — Traffic Analysis Dashboard', () => {
     await dropOffTab.click()
     await expect(page.locator('.tab-btn.active', { hasText: 'Listing Wizard Drop-offs' })).toBeVisible()
 
+    // Switch to Signup Paths
+    const signupPathTab = page.locator('.tab-btn', { hasText: 'Signup Paths' })
+    await signupPathTab.click()
+    await expect(page.locator('.tab-btn.active', { hasText: 'Signup Paths' })).toBeVisible()
+
     // Assert that the heatmap table body and cells exist
     const cells = page.locator('.heatmap-table tbody td')
     await expect(cells.first()).toBeVisible()

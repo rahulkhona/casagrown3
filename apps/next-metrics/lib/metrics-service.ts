@@ -1028,6 +1028,7 @@ export interface CrmTrafficAnalysisData {
     convertedLeads: number;
   };
   dropOffGrids: Record<string, any[]>;
+  signupPathGrid: any[];
 }
 
 export async function fetchCrmTrafficAnalysis(
@@ -1053,7 +1054,7 @@ export async function fetchCrmTrafficAnalysis(
     supabase.from("market_booths").select("id, owner_id"),
     supabase
       .from("crm_page_visits")
-      .select("session_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+      .select("session_id, page_slug, user_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
       .gte("visited_at", dateRange.start)
       .lte("visited_at", dateRange.end),
     supabase.from("crm_leads").select("email, created_at, metadata, source_platform, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
@@ -1194,15 +1195,26 @@ export async function fetchCrmTrafficAnalysis(
       }
       return false;
     };
+  } else if (selectedWizard === "/pro") {
+    step1Path = "/pro";
+    step2Path = "";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit");
+  } else if (selectedWizard === "/p/[slug]") {
+    step1Path = "/p/[slug]";
+    step2Path = "";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit");
   }
 
   const targetSlugs = [step1Path, step2Path].filter(Boolean);
   const wizardEvents = (analyticsRows || []).filter((row: any) => {
     if (targetSlugs.includes(row.page_path)) return true;
+    if (row.page_path && row.page_path.startsWith('/p/') && targetSlugs.includes('/p/[slug]')) return true;
     if (row.event_type === "form_submit") {
       if (selectedWizard === "/create-listing" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
       if (selectedWizard === "/profile-setup" && row.event_name === "profile_setup") return true;
       if (selectedWizard === "/sell" && row.event_name === "profile_setup") return true;
+      if (selectedWizard === "/pro") return true;
+      if (selectedWizard === "/p/[slug]") return true;
     }
     return false;
   });
@@ -1447,7 +1459,9 @@ export async function fetchCrmTrafficAnalysis(
     join: createEmptyDropOffGrid(),
     sell: createEmptyDropOffGrid(),
     profileSetup: createEmptyDropOffGrid(),
-    nutrition: createEmptyDropOffGrid()
+    nutrition: createEmptyDropOffGrid(),
+    pro: createEmptyDropOffGrid(),
+    promoOnboarding: createEmptyDropOffGrid()
   };
 
   const wizardConfigs = [
@@ -1456,6 +1470,18 @@ export async function fetchCrmTrafficAnalysis(
       step1Path: "/create-listing",
       step2Path: "/my-booth/products/new",
       completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
+    },
+    {
+      key: "pro",
+      step1Path: "/pro",
+      step2Path: "",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit")
+    },
+    {
+      key: "promoOnboarding",
+      step1Path: "/p/[slug]",
+      step2Path: "",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit")
     },
     {
       key: "join",
@@ -1533,10 +1559,13 @@ export async function fetchCrmTrafficAnalysis(
       const configSlugs = [config.step1Path, config.step2Path].filter(Boolean);
       const wizardRows = rows.filter((r: any) => {
         if (configSlugs.includes(r.page_path)) return true;
+        if (r.page_path && r.page_path.startsWith('/p/') && configSlugs.includes('/p/[slug]')) return true;
         if (r.event_type === "form_submit") {
           if (config.key === "listing" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
           if (config.key === "sell" && r.event_name === "profile_setup") return true;
           if (config.key === "profileSetup" && r.event_name === "profile_setup") return true;
+          if (config.key === "pro") return true;
+          if (config.key === "promoOnboarding") return true;
         }
         return false;
       });
@@ -1586,6 +1615,74 @@ export async function fetchCrmTrafficAnalysis(
     }
   }
 
+  // Build signup path attribution map
+  const userSignupPathMap = new Map<string, string>();
+  for (const visit of (pageVisits || [])) {
+    if (visit.user_id && visit.page_slug) {
+      let path = visit.page_slug;
+      if (path.startsWith('/p/')) {
+        path = '/p/[slug]';
+      }
+      if (!userSignupPathMap.has(visit.user_id)) {
+        userSignupPathMap.set(visit.user_id, path);
+      }
+    }
+  }
+  for (const [sessionId, rows] of Array.from(sessionAllMap.entries())) {
+    rows.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    let entryPath = rows[0]?.page_path;
+    if (entryPath) {
+      if (entryPath.startsWith('/p/')) {
+        entryPath = '/p/[slug]';
+      }
+      for (const r of rows) {
+        if (r.user_id && !userSignupPathMap.has(r.user_id)) {
+          userSignupPathMap.set(r.user_id, entryPath);
+        }
+      }
+    }
+  }
+
+  function createEmptySignupPathGrid() {
+    return Array.from({ length: 24 }, (_, hour) => {
+      const row: any = { hourStr: `${hour.toString().padStart(2, "0")}:00` };
+      for (const day of weekdaysOrdered) {
+        row[day] = {
+          "/create-listing": 0,
+          "/join": 0,
+          "/sell": 0,
+          "/profile-setup": 0,
+          "/check-nutrition-loss": 0,
+          "/pro": 0,
+          "/p/[slug]": 0,
+          "organic": 0,
+          "total": 0
+        };
+      }
+      return row;
+    });
+  }
+
+  const signupPathGrid = createEmptySignupPathGrid();
+  for (const p of profilesFiltered as any[]) {
+    const resolvedUtm = p.email ? leadUtmMap.get(p.email.toLowerCase()) : null;
+    if (!matchesUtmFilter(resolvedUtm)) continue;
+    const tz = getStateTimezone(p.state_code);
+    const hour = getLocalHour(p.created_at, tz);
+    const day = getLocalDayOfWeek(p.created_at, tz);
+    
+    let path = userSignupPathMap.get(p.id) || 'organic';
+    if (path.startsWith('/p/')) {
+      path = '/p/[slug]';
+    }
+    
+    const cell = signupPathGrid[hour][day];
+    if (!cell[path]) {
+      cell[path] = 0;
+    }
+    cell[path]++;
+    cell.total++;
+  }
 
   const leadsToAccountStats = {
     totalLeads: leadsFiltered.filter(matchesUtmFilter).length,
@@ -1602,7 +1699,8 @@ export async function fetchCrmTrafficAnalysis(
     listingsGrid,
     leadsToAccountGrid,
     leadsToAccountStats,
-    dropOffGrids
+    dropOffGrids,
+    signupPathGrid
   };
 }
 
