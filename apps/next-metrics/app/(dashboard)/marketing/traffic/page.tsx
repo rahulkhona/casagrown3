@@ -31,7 +31,7 @@ const WIZARDS = [
   { slug: "/sell", label: "Seller Setup Wizard" },
   { slug: "/profile-setup", label: "Profile Setup Wizard" },
   { slug: "/check-nutrition-loss", label: "Nutrition Loss Calculator Wizard" },
-  { slug: "/p/[slug]", label: "Pro Promotion Onboarding" }
+  { slug: "/p/[slug]", label: "Promotion Onboarding" }
 ]
 
 export default function TrafficAnalysisPage() {
