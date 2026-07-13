@@ -265,6 +265,40 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       expect(createdProducts).not.toBeNull()
       expect(createdProducts!.length).toBeGreaterThan(0)
       expect(createdProducts![0].pickup_address).toBe('600 Montgomery St, San Francisco, CA 94111')
+
+      // Verify profile updates (H3 community index and home location coordinates)
+      const { data: profile, error: profErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      expect(profErr).toBeNull()
+      expect(profile).not.toBeNull()
+      expect(profile.home_community_h3_index).not.toBeNull()
+      expect(profile.home_location).not.toBeNull()
+
+      // Verify that the community exists/was created for this H3 index
+      const { data: community, error: commErr } = await supabase
+        .from('communities')
+        .select('*')
+        .eq('h3_index', profile.home_community_h3_index)
+        .single()
+
+      expect(commErr).toBeNull()
+      expect(community).not.toBeNull()
+
+      // Verify that the product was auto-posted to the community chat message feed
+      const { data: chatMessage, error: msgErr } = await supabase
+        .from('community_chat_messages')
+        .select('*')
+        .eq('product_listing_id', createdProducts![0].id)
+        .single()
+
+      expect(msgErr).toBeNull()
+      expect(chatMessage).not.toBeNull()
+      expect(chatMessage.community_h3_index).toBe(profile.home_community_h3_index)
+      expect(chatMessage.author_id).toBe(userId)
     })
   })
 })
