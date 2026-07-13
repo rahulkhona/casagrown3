@@ -1,4 +1,5 @@
 -- Update metrics_wizard_field_analytics and metrics_wizard_dropoffs to support /p/[slug] dynamic promo paths
+DROP FUNCTION IF EXISTS metrics_wizard_field_analytics(date, date, text, text, text, text, text, text, text, text);
 CREATE OR REPLACE FUNCTION metrics_wizard_field_analytics(
   p_start DATE,
   p_end DATE,
