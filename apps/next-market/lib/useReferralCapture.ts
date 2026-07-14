@@ -15,6 +15,7 @@
  */
 
 import { useEffect } from 'react'
+import { createClient } from './supabase'
 
 const STORAGE_KEY = 'casagrown_referral'
 
@@ -121,6 +122,16 @@ export function useReferralCapture() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    // Capture the first touch landing path unconditionally
+    const pathKey = 'casagrown_first_page'
+    if (!localStorage.getItem(pathKey)) {
+      let path = window.location.pathname
+      if (path.startsWith('/p/')) {
+        path = '/p/[slug]'
+      }
+      localStorage.setItem(pathKey, path)
+    }
+
     const params = new URLSearchParams(window.location.search)
 
     // Capture Facebook Messenger parameters if present
@@ -173,6 +184,33 @@ export function useReferralCapture() {
     }
 
     saveState(state)
+
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('signup_source')
+            .eq('id', session.user.id)
+            .single()
+
+          if (!error && profile && !profile.signup_source) {
+            const firstPage = localStorage.getItem('casagrown_first_page') || 'organic'
+            await supabase
+              .from('profiles')
+              .update({ signup_source: firstPage })
+              .eq('id', session.user.id)
+          }
+        } catch (err) {
+          console.error('Error syncing signup_source on SIGNED_IN:', err)
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 }
 
@@ -189,8 +227,13 @@ export function getReferralData(): Record<string, string | null> {
   // First touch = discovery attribution (how they found us)
   const firstTouch = state.first_touch || state.last_touch
 
+  let firstPage = 'organic'
+  if (typeof window !== 'undefined') {
+    firstPage = localStorage.getItem('casagrown_first_page') || 'organic'
+  }
+
   return {
-    signup_source: lastTouch?.source || 'organic',
+    signup_source: firstPage,
     signup_referrer_id: lastTouch?.referrer_id || null,
     first_touch_source: firstTouch?.source || 'organic',
     first_touch_referrer_id: firstTouch?.referrer_id || null,

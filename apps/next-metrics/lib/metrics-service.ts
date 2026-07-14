@@ -1050,7 +1050,7 @@ export async function fetchCrmTrafficAnalysis(
       .gte("created_at", dateRange.start)
       .lte("created_at", dateRange.end),
     supabase.from("market_products").select("*"),
-    supabase.from("profiles").select("id, email, state_code, created_at"),
+    supabase.from("profiles").select("id, email, state_code, created_at, signup_source"),
     supabase.from("market_booths").select("id, owner_id"),
     supabase
       .from("crm_page_visits")
@@ -1615,30 +1615,70 @@ export async function fetchCrmTrafficAnalysis(
     }
   }
 
-  // Build signup path attribution map
+  // Build signup path attribution map based on the first valid signup wizard path visited in the session
   const userSignupPathMap = new Map<string, string>();
+  const VALID_SIGNUP_PATHS = [
+    '/create-listing',
+    '/join',
+    '/sell',
+    '/profile-setup',
+    '/check-nutrition-loss',
+    '/pro',
+    '/p/[slug]'
+  ];
+
+  function getNormalizedPath(rawPath: string): string | null {
+    if (!rawPath) return null;
+    let path = rawPath.split('?')[0]; // remove query params
+    if (path.startsWith('/p/')) {
+      return '/p/[slug]';
+    }
+    if (VALID_SIGNUP_PATHS.includes(path)) {
+      return path;
+    }
+    return null;
+  }
+
+  // 1. Gather all visits and events by session
+  const sessionPathsMap = new Map<string, { paths: string[], userId: string | null }>();
+
   for (const visit of (pageVisits || [])) {
-    if (visit.user_id && visit.page_slug) {
-      let path = visit.page_slug;
-      if (path.startsWith('/p/')) {
-        path = '/p/[slug]';
-      }
-      if (!userSignupPathMap.has(visit.user_id)) {
-        userSignupPathMap.set(visit.user_id, path);
-      }
+    const sessId = visit.session_id;
+    if (!sessId) continue;
+    if (!sessionPathsMap.has(sessId)) {
+      sessionPathsMap.set(sessId, { paths: [], userId: null });
+    }
+    const sess = sessionPathsMap.get(sessId)!;
+    if (visit.page_slug) sess.paths.push(visit.page_slug);
+    if (visit.user_id) sess.userId = visit.user_id;
+  }
+
+  for (const [sessId, rows] of Array.from(sessionAllMap.entries())) {
+    if (!sessionPathsMap.has(sessId)) {
+      sessionPathsMap.set(sessId, { paths: [], userId: null });
+    }
+    const sess = sessionPathsMap.get(sessId)!;
+    for (const r of rows) {
+      if (r.page_path) sess.paths.push(r.page_path);
+      if (r.user_id) sess.userId = r.user_id;
     }
   }
-  for (const [sessionId, rows] of Array.from(sessionAllMap.entries())) {
-    rows.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    let entryPath = rows[0]?.page_path;
-    if (entryPath) {
-      if (entryPath.startsWith('/p/')) {
-        entryPath = '/p/[slug]';
-      }
-      for (const r of rows) {
-        if (r.user_id && !userSignupPathMap.has(r.user_id)) {
-          userSignupPathMap.set(r.user_id, entryPath);
+
+  // 2. Resolve signup path for each session that has a userId
+  for (const sess of Array.from(sessionPathsMap.values())) {
+    if (sess.userId) {
+      let resolvedPath: string | null = null;
+      for (const p of sess.paths) {
+        const norm = getNormalizedPath(p);
+        if (norm) {
+          resolvedPath = norm;
+          break;
         }
+      }
+      if (resolvedPath) {
+        userSignupPathMap.set(sess.userId, resolvedPath);
+      } else {
+        userSignupPathMap.set(sess.userId, 'organic');
       }
     }
   }
@@ -1664,6 +1704,16 @@ export async function fetchCrmTrafficAnalysis(
   }
 
   const signupPathGrid = createEmptySignupPathGrid();
+  const VALID_PATHS = [
+    '/create-listing',
+    '/join',
+    '/sell',
+    '/profile-setup',
+    '/check-nutrition-loss',
+    '/pro',
+    '/p/[slug]'
+  ];
+
   for (const p of profilesFiltered as any[]) {
     const resolvedUtm = p.email ? leadUtmMap.get(p.email.toLowerCase()) : null;
     if (!matchesUtmFilter(resolvedUtm)) continue;
@@ -1671,9 +1721,18 @@ export async function fetchCrmTrafficAnalysis(
     const hour = getLocalHour(p.created_at, tz);
     const day = getLocalDayOfWeek(p.created_at, tz);
     
-    let path = userSignupPathMap.get(p.id) || 'organic';
-    if (path.startsWith('/p/')) {
+    let path = p.signup_source;
+    if (path && path.startsWith('/p/')) {
       path = '/p/[slug]';
+    }
+    
+    if (!path || !VALID_PATHS.includes(path)) {
+      const sessionPath = userSignupPathMap.get(p.id);
+      if (sessionPath && VALID_PATHS.includes(sessionPath)) {
+        path = sessionPath;
+      } else {
+        path = 'organic';
+      }
     }
     
     const cell = signupPathGrid[hour][day];
