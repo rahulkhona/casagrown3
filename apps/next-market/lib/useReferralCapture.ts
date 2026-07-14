@@ -128,6 +128,12 @@ export function useReferralCapture() {
       let path = window.location.pathname
       if (path.startsWith('/p/')) {
         path = '/p/[slug]'
+      } else if (path.startsWith('/market/booth/')) {
+        path = '/market/booth/[id]'
+      } else if (path.startsWith('/growbot')) {
+        path = '/growbot'
+      } else if (path.startsWith('/community')) {
+        path = '/community'
       }
       localStorage.setItem(pathKey, path)
     }

@@ -31,7 +31,13 @@ const WIZARDS = [
   { slug: "/sell", label: "Seller Setup Wizard" },
   { slug: "/profile-setup", label: "Profile Setup Wizard" },
   { slug: "/check-nutrition-loss", label: "Nutrition Loss Calculator Wizard" },
-  { slug: "/p/[slug]", label: "Promotion Onboarding" }
+  { slug: "/p/[slug]", label: "Promotion Onboarding" },
+  { slug: "/growbot", label: "Growbot Shared Chat" },
+  { slug: "/market/booth/[id]", label: "Booth Shared Page" },
+  { slug: "/community", label: "Community Share Path" },
+  { slug: "/join-booth", label: "Booth Invitation Link" },
+  { slug: "/", label: "Home Page Landing" },
+  { slug: "/market", label: "Market Hub Landing" }
 ]
 
 export default function TrafficAnalysisPage() {
@@ -359,6 +365,12 @@ export default function TrafficAnalysisPage() {
                                       else if (key === '/check-nutrition-loss') shortLabel = 'nutrition';
                                       else if (key === '/pro') shortLabel = 'pro';
                                       else if (key === '/p/[slug]') shortLabel = 'promo';
+                                      else if (key === '/growbot') shortLabel = 'growbot';
+                                      else if (key === '/market/booth/[id]') shortLabel = 'booth';
+                                      else if (key === '/community') shortLabel = 'community';
+                                      else if (key === '/join-booth') shortLabel = 'invite';
+                                      else if (key === '/') shortLabel = 'home';
+                                      else if (key === '/market') shortLabel = 'market';
                                       
                                       return (
                                         <span key={key} style={{ opacity: 0.95, whiteSpace: 'nowrap' }}>

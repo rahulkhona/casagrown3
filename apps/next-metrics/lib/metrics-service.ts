@@ -1624,7 +1624,13 @@ export async function fetchCrmTrafficAnalysis(
     '/profile-setup',
     '/check-nutrition-loss',
     '/pro',
-    '/p/[slug]'
+    '/p/[slug]',
+    '/growbot',
+    '/market/booth/[id]',
+    '/community',
+    '/join-booth',
+    '/',
+    '/market'
   ];
 
   function getNormalizedPath(rawPath: string): string | null {
@@ -1632,6 +1638,15 @@ export async function fetchCrmTrafficAnalysis(
     let path = rawPath.split('?')[0]; // remove query params
     if (path.startsWith('/p/')) {
       return '/p/[slug]';
+    }
+    if (path.startsWith('/growbot')) {
+      return '/growbot';
+    }
+    if (path.startsWith('/market/booth/')) {
+      return '/market/booth/[id]';
+    }
+    if (path.startsWith('/community')) {
+      return '/community';
     }
     if (VALID_SIGNUP_PATHS.includes(path)) {
       return path;
@@ -1695,6 +1710,12 @@ export async function fetchCrmTrafficAnalysis(
           "/check-nutrition-loss": 0,
           "/pro": 0,
           "/p/[slug]": 0,
+          "/growbot": 0,
+          "/market/booth/[id]": 0,
+          "/community": 0,
+          "/join-booth": 0,
+          "/": 0,
+          "/market": 0,
           "organic": 0,
           "total": 0
         };
@@ -1711,7 +1732,13 @@ export async function fetchCrmTrafficAnalysis(
     '/profile-setup',
     '/check-nutrition-loss',
     '/pro',
-    '/p/[slug]'
+    '/p/[slug]',
+    '/growbot',
+    '/market/booth/[id]',
+    '/community',
+    '/join-booth',
+    '/',
+    '/market'
   ];
 
   for (const p of profilesFiltered as any[]) {
@@ -1722,8 +1749,16 @@ export async function fetchCrmTrafficAnalysis(
     const day = getLocalDayOfWeek(p.created_at, tz);
     
     let path = p.signup_source;
-    if (path && path.startsWith('/p/')) {
-      path = '/p/[slug]';
+    if (path) {
+      if (path.startsWith('/p/')) {
+        path = '/p/[slug]';
+      } else if (path.startsWith('/growbot')) {
+        path = '/growbot';
+      } else if (path.startsWith('/market/booth/')) {
+        path = '/market/booth/[id]';
+      } else if (path.startsWith('/community')) {
+        path = '/community';
+      }
     }
     
     if (!path || !VALID_PATHS.includes(path)) {
