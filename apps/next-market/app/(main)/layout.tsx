@@ -70,6 +70,7 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { user, loading, tosAccepted, profileComplete } = useAuth()
   const { requireAuth } = useQuickSetup()
   const pathname = usePathname()
+  const router = useRouter()
 
   const isExempt = GATE_EXEMPT.some(p => pathname.startsWith(p))
   const isBrowsable = BROWSABLE_ROUTES.some(p =>
@@ -89,9 +90,15 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
     // Auto-open QuickSetupModal if logged in but incomplete, OR if guest on a protected route
     const isUserIncomplete = !!user && (tosAccepted === false || profileComplete === false)
     if (isUserIncomplete || (isGuest && isProtected)) {
-      requireAuth({ trigger: user ? 'onboarding_incomplete' : 'protected_route' })
+      requireAuth({ 
+        trigger: user ? 'onboarding_incomplete' : 'protected_route',
+        onCancel: () => {
+          // Redirect the user back to the browsable market page so they are not stuck on the spinning page
+          router.push('/market')
+        }
+      })
     }
-  }, [loading, isExempt, isProtected, isGuest, user, tosAccepted, profileComplete, requireAuth])
+  }, [loading, isExempt, isProtected, isGuest, user, tosAccepted, profileComplete, requireAuth, router])
 
   // Block content on protected routes when onboarding is needed (show loading while modal is up)
   if (!loading && needsOnboarding && isProtected && !isExempt) {

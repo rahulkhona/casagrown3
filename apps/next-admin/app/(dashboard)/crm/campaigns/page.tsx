@@ -8,7 +8,7 @@ import TrackingUrlBuilder from '../../../../components/TrackingUrlBuilder'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
 )
 
 type Campaign = {
@@ -342,7 +342,7 @@ export default function CrmCampaignsPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
           },
           body: JSON.stringify({ campaign_id: campaignId, is_test: isTest }),
         }

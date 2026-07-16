@@ -7,6 +7,9 @@ import { HBarChart, BarChart, DonutChart } from '../../../../lib/charts'
 
 const WIZARDS = [
   { slug: '/create-listing', label: 'Listing Creation Wizard' },
+  { slug: '/create-listing-simple', label: 'Simple Listing Wizard' },
+  { slug: '/add-product', label: 'Add Product Wizard' },
+  { slug: '/quicksetup', label: 'Quick Setup Wizard' },
   { slug: '/join', label: 'Buyer Join Wizard' },
   { slug: '/sell', label: 'Seller Setup Wizard' },
   { slug: '/profile-setup', label: 'Profile Setup Wizard' },

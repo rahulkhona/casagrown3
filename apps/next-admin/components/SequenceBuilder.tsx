@@ -383,7 +383,7 @@ function formatSql(sql: string): string {
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
 const initialNodes: Node[] = [
@@ -747,8 +747,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+            'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId }),
         }
@@ -1172,8 +1172,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+            'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
           signal: AbortSignal.timeout(60000),
@@ -1191,8 +1191,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+            'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
           signal: AbortSignal.timeout(120000),
@@ -1281,8 +1281,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+            'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, recipients, reset: true, is_test: true }),
           signal: AbortSignal.timeout(60000),
@@ -1302,8 +1302,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+            'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+            'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
           },
           body: JSON.stringify({ sequence_id: sequenceId, test_run_all: true, is_test: true }),
         }
@@ -1926,8 +1926,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                                 method: 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
-                                  'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                                  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                                  'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+                                  'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
                                 },
                                 body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
                               }
@@ -1997,8 +1997,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                                 method: 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
-                                  'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                                  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+                                  'apikey': (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+                                  'Authorization': `Bearer ${(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!}`,
                                 },
                                 body: JSON.stringify({ sequence_id: sequenceId, is_test: true }),
                               }

@@ -247,7 +247,7 @@ test.describe('Quick Setup Modal', () => {
     await expect(step1.locator('input[name="email"]')).toBeVisible({ timeout: 3000 })
 
     // Assert: Helper text about why address is needed
-    await expect(page.locator('text=We use your address')).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('text=Your address is stored securely')).toBeVisible({ timeout: 3000 })
 
     // Assert: User did NOT navigate away from the product page
     expect(page.url()).toBe(urlBeforeBuy)

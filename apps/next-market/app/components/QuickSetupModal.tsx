@@ -8,6 +8,7 @@ import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../(main)/terms/page'
 import { ENABLE_SOCIAL_LOGIN } from '../../lib/featureFlags'
 import styles from './QuickSetupModal.module.css'
 import { normalizeStateCode, validateProfileFields } from '../../lib/address'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../lib/crm-analytics'
 
 // ── US State Codes ──
 const US_STATES = [
@@ -23,14 +24,30 @@ interface QuickSetupModalProps {
   onClose: () => void
   onComplete: () => void
   trigger?: string
+  defaultSignIn?: boolean
+  addressNote?: string
+  prefill?: {
+    name?: string
+    email?: string
+    zip?: string
+    phone?: string
+    street?: string
+    city?: string
+    state?: string
+  }
 }
 
 type Step = 'profile' | 'otp' | 'final'
 type LegalView = null | 'terms' | 'privacy'
 
-export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }: QuickSetupModalProps) {
+export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, defaultSignIn, addressNote, prefill }: QuickSetupModalProps) {
   const supabase = createClient()
   const { refresh, user } = useBootstrap()
+
+  const PAGE_SLUG = '/quicksetup'
+  const isCompleted = useRef(false)
+  const stepStartRef = useRef<number>(0)
+  const prevStepRef = useRef<number>(1)
 
   // ── Step State ──
   const [step, setStep] = useState<Step>('profile')
@@ -74,6 +91,40 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null)
 
   // Reset state and check for existing auth session when modal opens
+  
+  const currentStepIndex = step === 'profile' && isReturningUser ? 1 : step === 'otp' ? 2 : step === 'profile' ? 3 : 4
+  const currentStepName = currentStepIndex === 1 ? 'auth' : currentStepIndex === 2 ? 'otp' : currentStepIndex === 3 ? 'profile' : 'final'
+
+  useEffect(() => {
+    if (isOpen) {
+      resetSessionId(PAGE_SLUG)
+      isCompleted.current = false
+      stepStartRef.current = Date.now()
+      prevStepRef.current = currentStepIndex
+      trackEvent('wizard_step', PAGE_SLUG, { step_index: currentStepIndex, step_name: currentStepName })
+      
+      return () => {
+        if (!isCompleted.current) {
+          trackEvent('wizard_abandon', PAGE_SLUG)
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen && prevStepRef.current !== currentStepIndex) {
+      const duration = (Date.now() - stepStartRef.current) / 1000
+      const prevName = prevStepRef.current === 1 ? 'auth' : prevStepRef.current === 2 ? 'otp' : prevStepRef.current === 3 ? 'profile' : 'final'
+      if (duration > 0) {
+        trackStepTiming(PAGE_SLUG, prevStepRef.current, prevName, duration)
+      }
+      trackEvent('wizard_step', PAGE_SLUG, { step_index: currentStepIndex, step_name: currentStepName })
+      stepStartRef.current = Date.now()
+      prevStepRef.current = currentStepIndex
+    }
+  }, [currentStepIndex, currentStepName, isOpen])
+
   useEffect(() => {
     if (isOpen) {
       setLegalView(null)
@@ -91,54 +142,92 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       setLoading(false)
       setError('')
       setVerifiedUserId(null)
+      setIsReturningUser(!!defaultSignIn)
+
+      // Restore draft profile if saved before social login redirect
+      const draftStr = typeof window !== 'undefined' ? sessionStorage.getItem('quick_setup_draft_profile') : null
+      let draft: any = null
+      if (draftStr) {
+        try {
+          draft = JSON.parse(draftStr)
+        } catch (e) {
+          console.error(e)
+        }
+      }
 
       supabase.auth.getUser().then(async ({ data: { user } }: any) => {
         if (user) {
           setEmail(user.email || '')
-          setFullName(user.user_metadata?.full_name || '')
 
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, street_address, city, state_code, zip_code, profile_completed_at, tos_accepted_at')
-            .eq('id', user.id)
-            .single()
+          if (draft?.fullName) {
+            setFullName(draft.fullName)
+          } else if (!fullName) {
+            setFullName(user.user_metadata?.full_name || '')
+          }
+
+          let profile: any = null
+          try {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('full_name, street_address, city, state_code, zip_code, profile_completed_at, tos_accepted_at')
+              .eq('id', user.id)
+              .single()
+            if (!error) {
+              profile = data
+            }
+          } catch (e) {
+            console.error('Failed to select profile', e)
+          }
 
           if (profile?.profile_completed_at && profile?.tos_accepted_at) {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('quick_setup_draft_profile')
+            }
+            isCompleted.current = true
             onComplete()
             return
           }
 
           if (profile?.profile_completed_at) {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('quick_setup_draft_profile')
+            }
             setStep('final')
             setVerifiedUserId(user.id)
             return
           }
 
+          setStreet(draft?.street || profile?.street_address || prefill?.street || '')
+          setCity(draft?.city || profile?.city || prefill?.city || '')
+          setState(draft?.state || profile?.state_code || prefill?.state || '')
+          setZip(draft?.zip || profile?.zip_code || prefill?.zip || '')
+
           setVerifiedUserId(user.id)
           setIsReturningUser(false)
           setStep('profile')
         } else {
+          if (verifiedUserId) return
           setStep('profile')
-          setIsReturningUser(false)
-          setFullName('')
-          setEmail('')
-          setStreet('')
-          setCity('')
-          setState('')
-          setZip('')
+          setFullName(prefill?.name || '')
+          setEmail(prefill?.email || '')
+          setStreet(prefill?.street || '')
+          setCity(prefill?.city || '')
+          setState(prefill?.state || '')
+          setZip(prefill?.zip || '')
         }
-      }).catch(() => {
+      }).catch((e: any) => {
+        console.error('Error fetching user', e)
+        if (verifiedUserId) return
         setStep('profile')
-        setIsReturningUser(false)
-        setFullName('')
-        setEmail('')
-        setStreet('')
-        setCity('')
-        setState('')
-        setZip('')
+        setFullName(prefill?.name || '')
+        setEmail(prefill?.email || '')
+        setStreet(prefill?.street || '')
+        setCity(prefill?.city || '')
+        setState(prefill?.state || '')
+        setZip(prefill?.zip || '')
       })
     }
-  }, [isOpen, user, supabase, onComplete])
+  }, [isOpen, user, supabase, onComplete, defaultSignIn])
 
   // Resend cooldown timers
   useEffect(() => {
@@ -174,8 +263,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       async (pos) => {
         try {
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en', 'User-Agent': 'CasaGrown-Market/1.0 (https://casagrown.com)' } }
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`
           )
           if (!res.ok) {
             setError('Could not look up address — please enter it manually')
@@ -299,9 +387,14 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         .eq('id', verifiedUserId)
         .single()
 
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('quick_setup_draft_profile')
+      }
+
       if (existingProfile?.tos_accepted_at || tosChecked) {
         await refresh()
         setLoading(false)
+        isCompleted.current = true
         onComplete()
         return
       }
@@ -342,6 +435,21 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       setError(oauthError.message)
       setLoading(false)
     }
+  }
+
+  const handleSocialSignUpClick = (provider: 'google' | 'apple') => {
+    if (!fullName.trim()) { setError('Please enter your name'); return }
+    if (!street.trim()) { setError('Please enter your street address'); return }
+    if (!city.trim()) { setError('Please enter your city'); return }
+    if (!state.trim()) { setError('Please enter your state'); return }
+    if (!zip.trim()) { setError('Please enter your zip code'); return }
+
+    if (typeof window !== 'undefined') {
+      const draft = { fullName, street, city, state, zip }
+      sessionStorage.setItem('quick_setup_draft_profile', JSON.stringify(draft))
+    }
+
+    handleSocialLogin(provider)
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -477,7 +585,37 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
         // Returning user — all done! Refresh bootstrap and complete
         await refresh()
         setLoading(false)
+        isCompleted.current = true
         onComplete()
+        return
+      }
+
+      // New user who used Sign In tab — they never entered name/address.
+      // Redirect them to the profile form to collect that info.
+      if (!existingProfile?.profile_completed_at && isReturningUser) {
+        setVerifiedUserId(userId)
+        setIsReturningUser(false)  // Switch to Sign Up view to show name + address fields
+        setStep('profile')
+        setError('Welcome! Please complete your profile to create your account.')
+        setLoading(false)
+        return
+      }
+
+      // Defense-in-depth: never save empty name or address
+      const profileValidationError = validateProfileFields({
+        fullName: fullName,
+        street: street,
+        city: city,
+        state: state,
+        zip: zip,
+      })
+      if (profileValidationError) {
+        // Missing required fields — redirect to profile form
+        setVerifiedUserId(userId)
+        setIsReturningUser(false)
+        setStep('profile')
+        setError(profileValidationError)
+        setLoading(false)
         return
       }
 
@@ -537,10 +675,15 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
 
       if (updateErr) { setError(updateErr.message); setLoading(false); return }
 
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('quick_setup_draft_profile')
+      }
+
       // If TOS already accepted, we're done
       if (existingProfile?.tos_accepted_at) {
         await refresh()
         setLoading(false)
+        isCompleted.current = true
         onComplete()
         return
       }
@@ -703,6 +846,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
       }
       await refresh()
       setLoading(false)
+      isCompleted.current = true
       onComplete()
     } catch (err: any) {
       setError(err?.message || 'Something went wrong')
@@ -834,7 +978,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                     name="email"
                     type="email"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={e => { setEmail(e.target.value); setError('') }}
+                    onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'email', !!email)}
                     placeholder="you@example.com"
                     autoFocus
                   />
@@ -856,68 +1001,49 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
               <>
                 <h2 className={styles.stepTitle}>🌱 Quick Setup</h2>
                 <p className={styles.stepSubtitle}>
-                  Use Google or Apple to autofill your details and skip verification, or fill out the fields below.
+                  {trigger?.includes('listing') || trigger?.includes('simple_listing')
+                    ? 'Set up your account so we can create your listing. This only takes a minute!'
+                    : 'Enter your details below to create your account.'}
                 </p>
 
-                {ENABLE_SOCIAL_LOGIN && !verifiedUserId && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                    <button
-                      type="button"
-                      className={styles.socialButton}
-                      onClick={() => handleSocialLogin('google')}
-                      disabled={loading}
-                    >
-                      <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
-                    </button>
-                    {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
-                    <button
-                      type="button"
-                      className={styles.socialButton}
-                      onClick={() => handleSocialLogin('apple')}
-                      disabled={loading}
-                    >
-                      <span style={{ fontSize: '15px' }}></span> Continue with Apple
-                    </button>
-                    )}
-                    <div className={styles.divider}>
-                      <span>or</span>
-                    </div>
+                {/* Name */}
+                {(!verifiedUserId || !fullName.trim()) && (
+                  <div className={styles.field}>
+                    <label className={styles.label}>Full Name</label>
+                    <input
+                      className={`${styles.input} ${error && !fullName.trim() ? styles.inputError : ''}`}
+                      name="fullName"
+                      value={fullName}
+                      onChange={e => { setFullName(e.target.value); setError('') }}
+                      onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'fullName', !!fullName)}
+                      placeholder="Jane Smith"
+                      autoFocus
+                    />
                   </div>
                 )}
 
-                {/* Name */}
-                <div className={styles.field}>
-                  <label className={styles.label}>Full Name</label>
-                  <input
-                    className={`${styles.input} ${error && !fullName.trim() ? styles.inputError : ''}`}
-                    name="fullName"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    placeholder="Jane Smith"
-                    autoFocus
-                  />
-                </div>
-
-                {/* Email */}
-                <div className={styles.field}>
-                  <label className={styles.label}>Email</label>
-                  <input
-                    className={`${styles.input} ${error && !email.trim() ? styles.inputError : ''}`}
-                    name="email"
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                  />
-                </div>
+                {/* Email (readonly after social login) */}
+                {verifiedUserId && (
+                  <div className={styles.field}>
+                    <label className={styles.label}>Email Address</label>
+                    <input
+                      className={styles.input}
+                      name="email"
+                      type="email"
+                      value={email}
+                      disabled={true}
+                      style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+                )}
 
                 {/* Address Section */}
-                {!isReturningUser && (
+                {!isReturningUser && (!verifiedUserId || !street.trim() || !city.trim() || !state.trim() || !zip.trim()) && (
                   <>
                     <div className={styles.infoCard}>
                       <span className={styles.infoIcon}>🔒</span>
                       <span className={styles.infoText}>
-                        We use your address to find sellers who deliver to your area, show your nearest booths, and calculate delivery options.
+                        {addressNote || 'Your address is stored securely and never shared publicly. We use it to assign you to your local community market, calculate delivery options, and determine sales tax when applicable.'}
                       </span>
                     </div>
 
@@ -942,7 +1068,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                         className={`${styles.input} ${error && !street.trim() ? styles.inputError : ''}`}
                         name="street"
                         value={street}
-                        onChange={e => setStreet(e.target.value)}
+                        onChange={e => { setStreet(e.target.value); setError('') }}
+                        onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'street', !!street)}
                         placeholder="123 Main St"
                       />
                     </div>
@@ -954,7 +1081,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                           className={`${styles.input} ${error && !city.trim() ? styles.inputError : ''}`}
                           name="city"
                           value={city}
-                          onChange={e => setCity(e.target.value)}
+                          onChange={e => { setCity(e.target.value); setError('') }}
+                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'city', !!city)}
                           placeholder="San Jose"
                         />
                       </div>
@@ -964,7 +1092,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                           className={`${styles.input} ${error && !state.trim() ? styles.inputError : ''}`}
                           name="state"
                           value={state}
-                          onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
+                          onChange={e => { setState(e.target.value.toUpperCase().slice(0, 2)); setError('') }}
+                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'state', !!state)}
                           placeholder="CA"
                           maxLength={2}
                         />
@@ -975,7 +1104,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                           className={`${styles.input} ${error && !zip.trim() ? styles.inputError : ''}`}
                           name="zip"
                           value={zip}
-                          onChange={e => setZip(e.target.value)}
+                          onChange={e => { setZip(e.target.value); setError('') }}
+                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'zip', !!zip)}
                           placeholder="95120"
                           maxLength={10}
                         />
@@ -1026,6 +1156,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                           type="tel"
                           value={phone}
                           onChange={e => { setPhone(e.target.value); setPhoneSent(false); setPhoneOtp('') }}
+                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'phone', !!phone)}
                           placeholder="(555) 000-0000"
                         />
                         <button
@@ -1095,19 +1226,83 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                   </>
                 )}
 
-                {error && <div className={styles.errorMsg}>{error}</div>}
+                {/* Identity Verification Section (only shown for guests) */}
+                {!verifiedUserId && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
+                    <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', marginBottom: '12px', textAlign: 'center' }}>
+                      🔑 Verify your identity to sign up:
+                    </h3>
 
-                <button
-                  className={styles.primaryBtn}
-                  onClick={handleContinue}
-                  disabled={loading || !fullName.trim() || !email.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim() || (!!verifiedUserId && !tosChecked)}
-                >
-                  {loading ? (
-                    <><span className={styles.spinner} /> {verifiedUserId ? 'Saving...' : 'Sending code...'}</>
-                  ) : (
-                    verifiedUserId ? 'Complete Setup & Checkout' : 'Continue →'
-                  )}
-                </button>
+                    {ENABLE_SOCIAL_LOGIN && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                        <button
+                          type="button"
+                          className={styles.socialButton}
+                          onClick={() => handleSocialSignUpClick('google')}
+                          disabled={loading}
+                        >
+                          <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
+                        </button>
+                        {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
+                          <button
+                            type="button"
+                            className={styles.socialButton}
+                            onClick={() => handleSocialSignUpClick('apple')}
+                            disabled={loading}
+                          >
+                            <span style={{ fontSize: '15px' }}></span> Continue with Apple
+                          </button>
+                        )}
+                        <div className={styles.divider}>
+                          <span>or verify with email</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={styles.field}>
+                      <label className={styles.label}>Email Address</label>
+                      <input
+                        className={`${styles.input} ${error && !email.trim() ? styles.inputError : ''}`}
+                        name="email"
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'email', !!email)}
+                        placeholder="you@example.com"
+                      />
+                    </div>
+
+                    {error && <div className={styles.errorMsg}>{error}</div>}
+
+                    <button
+                      className={styles.primaryBtn}
+                      onClick={handleContinue}
+                      disabled={loading || !email.trim() || (!isReturningUser && (!fullName.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim()))}
+                      style={{ marginTop: '12px' }}
+                    >
+                      {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Continue →'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Submit button only shown for verified users */}
+                {verifiedUserId && (
+                  <>
+                    {error && <div className={styles.errorMsg}>{error}</div>}
+                    <button
+                      className={styles.primaryBtn}
+                      onClick={handleContinue}
+                      disabled={loading || !fullName.trim() || !email.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim() || !tosChecked}
+                      style={{ marginTop: '16px' }}
+                    >
+                      {loading ? (
+                        <><span className={styles.spinner} /> Saving...</>
+                      ) : (
+                        'Complete Setup →'
+                      )}
+                    </button>
+                  </>
+                )}
 
 
               </>
@@ -1139,6 +1334,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger }
                   value={digit}
                   onChange={e => handleOtpChange(i, e.target.value)}
                   onKeyDown={e => handleOtpKeyDown(i, e)}
+                  onBlur={() => { if (i === 5) trackFieldInteract(PAGE_SLUG, currentStepIndex, 'otp', otpDigits.join('').length === 6) }}
                   autoFocus={i === 0}
                 />
               ))}

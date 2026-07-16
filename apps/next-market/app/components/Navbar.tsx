@@ -654,7 +654,7 @@ export function Navbar() {
                 {/* Auth - Sign In at top when logged out */}
                 {!hasSession && (
                   <div className={styles.menuSection}>
-                    <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in' }) }}>
+                    <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in', defaultSignIn: true }) }}>
                       <span className={styles.menuItemIcon}>🔑</span>
                       <span>Sign In</span>
                     </button>

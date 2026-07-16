@@ -7,6 +7,18 @@ import QuickSetupModal from '../app/components/QuickSetupModal'
 interface RequireAuthOptions {
   trigger?: string          // Analytics context: 'buy_now', 'add_to_cart', 'checkout', 'community_post'
   onReady?: () => void      // Called when user is authenticated + profile complete + TOS accepted
+  onCancel?: () => void     // Called when user cancels/closes modal
+  defaultSignIn?: boolean   // If true, QuickSetup opens with Sign In tab selected
+  addressNote?: string      // Custom note explaining why address is needed
+  prefill?: {               // Pre-fill QuickSetup fields (e.g. from URL params)
+    name?: string
+    email?: string
+    zip?: string
+    phone?: string
+    street?: string
+    city?: string
+    state?: string
+  }
 }
 
 interface QuickSetupContextValue {
@@ -55,8 +67,11 @@ export function QuickSetupProvider({ children }: { children: ReactNode }) {
 
   const handleClose = useCallback(() => {
     setIsOpen(false)
+    if (pendingAction?.onCancel) {
+      pendingAction.onCancel()
+    }
     setPendingAction(null)
-  }, [])
+  }, [pendingAction])
 
   return (
     <QuickSetupContext.Provider value={{ requireAuth }}>
@@ -66,6 +81,9 @@ export function QuickSetupProvider({ children }: { children: ReactNode }) {
         onClose={handleClose}
         onComplete={handleComplete}
         trigger={pendingAction?.trigger}
+        prefill={pendingAction?.prefill}
+        defaultSignIn={pendingAction?.defaultSignIn}
+        addressNote={pendingAction?.addressNote}
       />
     </QuickSetupContext.Provider>
   )

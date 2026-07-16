@@ -1006,7 +1006,7 @@ function BrowseMarketPageInner() {
 
           {/* ── Option B: Sell + GrowBot Action Cards ── */}
           <div className={styles.actionCards}>
-            <Link href="/create-listing" className={styles.actionCardSell}>
+            <Link href="/create-listing-simple" className={styles.actionCardSell}>
               <span className={styles.sellTitle}>Grow & Earn 🌱</span>
               <span className={styles.sellSub}>List produce, eggs, flowers & more — sell to neighbors nearby</span>
               <span className={styles.sellBadge}>⚡ Takes under 2 min</span>
@@ -1101,7 +1101,7 @@ function BrowseMarketPageInner() {
 
         {/* ── Option B: Sell + GrowBot Action Cards ── */}
         <div className={styles.actionCards}>
-          <Link href="/create-listing" className={styles.actionCardSell}>
+          <Link href="/create-listing-simple" className={styles.actionCardSell}>
             <span className={styles.sellTitle}>Grow & Earn 🌱</span>
             <span className={styles.sellSub}>List produce, eggs, flowers & more — sell to neighbors nearby</span>
             <span className={styles.sellBadge}>⚡ Takes under 2 min</span>
@@ -1705,7 +1705,7 @@ function BrowseMarketPageInner() {
               Transactions are not available for demo listings.
             </p>
             <Link
-              href="/create-listing"
+              href="/create-listing-simple"
               style={{
                 display: 'block', padding: '14px 24px', borderRadius: 12,
                 background: 'linear-gradient(135deg, #16a34a, #15803d)',

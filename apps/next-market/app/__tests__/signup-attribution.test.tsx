@@ -97,7 +97,7 @@ describe('Signup Attribution Unit/Integration Tests', () => {
       let authListener: any = null
       vi.spyOn(rawClient.auth, 'onAuthStateChange').mockImplementation((cb: any) => {
         authListener = cb
-        return { data: { subscription: { unsubscribe: vi.fn() } } }
+        return { data: { subscription: { unsubscribe: vi.fn() } } } as any
       })
 
       // Setup chainable database mock
@@ -135,7 +135,7 @@ describe('Signup Attribution Unit/Integration Tests', () => {
       let authListener: any = null
       vi.spyOn(rawClient.auth, 'onAuthStateChange').mockImplementation((cb: any) => {
         authListener = cb
-        return { data: { subscription: { unsubscribe: vi.fn() } } }
+        return { data: { subscription: { unsubscribe: vi.fn() } } } as any
       })
 
       // Setup chainable database mock with pre-existing signup_source value

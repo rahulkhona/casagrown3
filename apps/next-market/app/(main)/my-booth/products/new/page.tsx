@@ -12,6 +12,7 @@ import { trackFormSubmit, trackClick, trackError } from '../../../../../lib/anal
 import { NotificationPromptModal } from '../../../../components/NotificationPromptModal'
 import CameraCapture from '../../../../../components/CameraCapture'
 import { checkTextForViolations } from '../../../../../lib/moderation'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../../../lib/crm-analytics'
 import { ShareIcon } from '../../../../components/icons'
 import SocialShareModal from '../../../../components/SocialShareModal'
 import { getBoothProductShareMessage } from '../../../../../lib/shareMessages'
@@ -82,17 +83,35 @@ function NewProductPageInner() {
   const editId = searchParams.get('edit')
   const prefillId = searchParams.get('prefill') // Re-list from daily digest
   const fromBuzz = searchParams.get('from') === 'buzz'
+  const fromSimpleWizard = searchParams.get('from') === 'simple-wizard'
   const returnTo = searchParams.get('returnTo')
   const isRelist = searchParams.get('relist') === 'true'
   const boothParam = searchParams.get('booth') // Target booth from My Stands page
   const isEditMode = !!editId
   const [editingInactive, setEditingInactive] = useState(false)
   const [prefilled, setPrefilled] = useState(false)
+  const [simpleWizardOriginalText, setSimpleWizardOriginalText] = useState('')
+  const [simpleWizardAiSuccess, setSimpleWizardAiSuccess] = useState(false)
+  const [autoPhotoFill, setAutoPhotoFill] = useState(false)
+  const [showOriginalText, setShowOriginalText] = useState(false)
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
   const supabase = createClient()
   const restriction = useMarketRestriction()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const PAGE_SLUG = '/add-product'
+  const isSubmitted = useRef(false)
+
+  useEffect(() => {
+    resetSessionId(PAGE_SLUG)
+    trackEvent('wizard_step', PAGE_SLUG, { step_index: 1, step_name: 'add_product' })
+    return () => {
+      if (!isSubmitted.current) {
+        trackEvent('wizard_abandon', PAGE_SLUG)
+      }
+    }
+  }, [])
 
   // Market day — computed, not selectable
   const nextMarket = getNextMarketDate(state.marketSchedule)
@@ -156,6 +175,7 @@ function NewProductPageInner() {
 
   // AI auto-fill
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
+  const [aiProgressText, setAiProgressText] = useState('Analyzing product details')
   const [aiToast, setAiToast] = useState<string | null>(null)
 
   // Price suggestion
@@ -179,11 +199,72 @@ function NewProductPageInner() {
   const [inlinePickupAddress, setInlinePickupAddress] = useState('')
   const [boothBaseAddr, setBoothBaseAddr] = useState<AddressFields>(EMPTY_ADDRESS)
   const [productPickupAddr, setProductPickupAddr] = useState<AddressFields>(EMPTY_ADDRESS)
+  const [profileHomeAddr, setProfileHomeAddr] = useState<AddressFields>(EMPTY_ADDRESS)
+  const [profileAddressLoaded, setProfileAddressLoaded] = useState(false)
   const [inlineDeliveryRadius, setInlineDeliveryRadius] = useState(2)
   const [inlineDeliveryZipcodes, setInlineDeliveryZipcodes] = useState<string[]>([])
   const [inlineProfileName, setInlineProfileName] = useState('')
   const [inlineDeliveryWindows, setInlineDeliveryWindows] = useState<string[]>(['8-10', '10-12'])
   const [inlinePickupWindows, setInlinePickupWindows] = useState<string[]>(['8-10', '10-12', '12-14', '14-16'])
+  const [geolocatingDelivery, setGeolocatingDelivery] = useState(false)
+  const [geolocatingPickup, setGeolocatingPickup] = useState(false)
+
+  const handleGeolocate = async (type: 'delivery' | 'pickup') => {
+    if (!navigator.geolocation) return
+    const setGeolocating = type === 'delivery' ? setGeolocatingDelivery : setGeolocatingPickup
+    const setAddr = type === 'delivery' ? setBoothBaseAddr : setProductPickupAddr
+    setGeolocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`
+          )
+          if (res.ok) {
+            const data = await res.json()
+            const addr = data.address || {}
+            const houseNumber = addr.house_number || ''
+            const road = addr.road || ''
+            const stateVal = addr.state || ''
+            let mappedState = ''
+            if (stateVal) {
+              const cleanState = stateVal.trim()
+              if (cleanState.length === 2) {
+                mappedState = cleanState.toUpperCase()
+              } else {
+                const stateMap: Record<string, string> = {
+                  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+                  colorado: 'CO', connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA',
+                  hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA',
+                  kansas: 'KS', kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD',
+                  massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO',
+                  montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+                  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH',
+                  oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+                  'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT',
+                  virginia: 'VA', washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY'
+                }
+                mappedState = stateMap[cleanState.toLowerCase()] || 
+                  addr['ISO3166-2-lvl4']?.split('-')[1]?.toUpperCase() || 
+                  cleanState.slice(0, 2).toUpperCase()
+              }
+            }
+            setAddr({
+              street: [houseNumber, road].filter(Boolean).join(' '),
+              city: addr.city || addr.town || addr.village || addr.hamlet || '',
+              state: mappedState,
+              zip: addr.postcode?.split('-')[0] || '',
+            })
+          }
+        } catch (e) {
+          console.warn('Geolocation failed', e)
+        }
+        setGeolocating(false)
+      },
+      () => setGeolocating(false),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   const INLINE_TIME_WINDOWS = [
     { id: '8-10', label: '8–10a' },
@@ -356,6 +437,27 @@ function NewProductPageInner() {
     return () => clearTimeout(timer)
   }, [name, authUser, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load profile address on mount
+  useEffect(() => {
+    if (!authUser?.id) return
+    supabase.from('profiles')
+      .select('full_name, street_address, city, state_code, zip_code')
+      .eq('id', authUser.id)
+      .single()
+      .then(({ data: profile }: { data: any }) => {
+        if (profile) {
+          const profileAddr = {
+            street: profile.street_address || '',
+            city: profile.city || '',
+            state: profile.state_code || '',
+            zip: profile.zip_code || '',
+          }
+          setProfileHomeAddr(profileAddr)
+          if (profile.full_name) setInlineProfileName(profile.full_name)
+        }
+      })
+  }, [authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Check if user already has a booth (including helper booths)
   useEffect(() => {
     if (!authUser) return
@@ -375,6 +477,7 @@ function NewProductPageInner() {
         } else {
           setAllBooths(ownBooths)
         }
+        setProfileAddressLoaded(true)
       })
       return
     }
@@ -394,6 +497,7 @@ function NewProductPageInner() {
         setHasBooth(true)
         setBoothId(combined[0].id)
         setAllBooths(combined)
+        setProfileAddressLoaded(true)
       } else {
         setHasBooth(false)
         supabase.from('profiles').select('full_name, street_address, city, state_code, zip_code').eq('id', authUser.id).single()
@@ -410,6 +514,7 @@ function NewProductPageInner() {
             if (profile?.street_address) {
               setInlinePickupAddress([profile.street_address, profile.city, profile.state_code].filter(Boolean).join(', '))
             }
+            setProfileAddressLoaded(true)
           })
       }
     })
@@ -429,43 +534,43 @@ function NewProductPageInner() {
         .eq('id', boothId)
         .single()
 
+      // Fetch profile address as fallback
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('street_address, city, state_code, zip_code')
+        .eq('id', authUser.id)
+        .single()
+
+      const profileAddr = profile ? {
+        street: profile.street_address || '',
+        city: profile.city || '',
+        state: profile.state_code || '',
+        zip: profile.zip_code || '',
+      } : EMPTY_ADDRESS
+
       if (booth) {
         let baseAddr = buildAddress(booth.booth_street, booth.booth_city, booth.booth_state, booth.booth_zip)
         if (!hasAddress(baseAddr) && booth.booth_address) {
           baseAddr = parseLegacyAddress(booth.booth_address)
         }
-
+        // Fallback to home address if not provided
         if (!hasAddress(baseAddr)) {
-          let pickAddr = buildAddress(booth.pickup_street, booth.pickup_city, booth.pickup_state, booth.pickup_zip)
-          if (!hasAddress(pickAddr) && booth.pickup_address) {
-            pickAddr = parseLegacyAddress(booth.pickup_address)
-          }
-          if (hasAddress(pickAddr)) {
-            baseAddr = pickAddr
-          } else {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('street_address, city, state_code, zip_code')
-              .eq('id', authUser.id)
-              .single()
-            if (profile) {
-              baseAddr = {
-                street: profile.street_address || '',
-                city: profile.city || '',
-                state: profile.state_code || '',
-                zip: profile.zip_code || '',
-              }
-            }
-          }
+          baseAddr = profileAddr
         }
         setBoothBaseAddr(baseAddr)
 
-        const pickAddr = buildAddress(booth.pickup_street, booth.pickup_city, booth.pickup_state, booth.pickup_zip)
+        let pickAddr = buildAddress(booth.pickup_street, booth.pickup_city, booth.pickup_state, booth.pickup_zip)
         if (!hasAddress(pickAddr) && booth.pickup_address) {
-          setProductPickupAddr(parseLegacyAddress(booth.pickup_address))
-        } else {
-          setProductPickupAddr(pickAddr)
+          pickAddr = parseLegacyAddress(booth.pickup_address)
         }
+        // Fallback to home address if not provided
+        if (!hasAddress(pickAddr)) {
+          pickAddr = profileAddr
+        }
+        setProductPickupAddr(pickAddr)
+      } else {
+        setBoothBaseAddr(profileAddr)
+        setProductPickupAddr(profileAddr)
       }
 
       // 2. Load fulfillment windows from table (same source as booth page)
@@ -661,6 +766,52 @@ function NewProductPageInner() {
     }
     loadPrefill()
   }, [prefillId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fill from simple wizard (sessionStorage)
+  useEffect(() => {
+    if (editId) return
+    try {
+      if (fromSimpleWizard) {
+        const raw = sessionStorage.getItem('simple_listing_prefill')
+        if (raw) {
+          const data = JSON.parse(raw)
+          sessionStorage.removeItem('simple_listing_prefill')
+
+          // Store original text for reference note
+          if (data.originalText) {
+            setSimpleWizardOriginalText(data.originalText)
+            setShowOriginalText(true)
+          }
+
+          // Pre-fill description with user's text
+          if (data.description) setDescription(data.description)
+
+          // Pre-fill photos
+          if (data.photos?.length) setPhotos(data.photos)
+
+          // Mark booth defaults loaded to prevent booth defaults from overwriting
+          setBoothDefaultsLoaded(true)
+
+          // Auto-trigger AI fill (the enhanced analyze-product-photo with text context)
+          setAutoPhotoFill(true)
+        }
+      } else {
+        // Clear prefill to prevent leaks to subsequent listings
+        sessionStorage.removeItem('simple_listing_prefill')
+      }
+    } catch (err) {
+      console.warn('Failed to read simple wizard prefill:', err)
+    }
+  }, [fromSimpleWizard]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-trigger AI photo analysis after photos/text state settles
+  useEffect(() => {
+    if (autoPhotoFill && (photos.length > 0 || simpleWizardOriginalText)) {
+      if (!profileAddressLoaded) return // Wait for profile/booth loader to complete
+      setAutoPhotoFill(false)
+      handleAiAutoFill()
+    }
+  }, [autoPhotoFill, photos, simpleWizardOriginalText, profileAddressLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and restrictions from Supabase
   useEffect(() => {
@@ -882,6 +1033,7 @@ function NewProductPageInner() {
 
     if (!authUser) return
 
+    isSubmitted.current = true
     setValidating(true)
     setAddedProductName(name.trim())
     trackFormSubmit(isEditMode ? 'edit_product' : 'add_product', { category, name: name.trim() })
@@ -1575,6 +1727,11 @@ function NewProductPageInner() {
     // Store boothId for share URL
     setBoothIdForShare(boothId)
 
+    // Clear simple wizard prefill on successful save/publish
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('simple_listing_prefill')
+    }
+
     if (needsDraft) {
       // Drafts: stay on the page so user can continue editing (no toast — user can see the save button reset)
       // Update the URL to edit mode so future saves are updates, not inserts
@@ -1684,19 +1841,280 @@ function NewProductPageInner() {
     setBuzzPosting(false)
   }
 
-  // AI auto-fill from photo — calls analyze-product-photo edge function
+  const applyParsedData = (data: any) => {
+    // Apply basic product info
+    if (data.name) setName(data.name)
+    if (data.category && dbCategories.some(c => c.name === data.category)) setCategory(data.category)
+    if (data.description) setDescription(data.description)
+    if (data.suggested_unit) setUnit(data.suggested_unit)
+
+    // Apply extended fields when text context was provided
+    if (data.price_usd != null) {
+      setPriceUsd(String(data.price_usd))
+      setIsFree(data.price_usd === 0 || data.is_free === true)
+    }
+    if (data.unit) setUnit(data.unit)
+    if (data.quantity != null) setQuantity(String(data.quantity))
+    if (data.offers_delivery != null) {
+      setProductOffersDelivery(data.offers_delivery)
+      setBoothOffersDelivery(data.offers_delivery)
+    }
+    if (data.offers_pickup != null) {
+      setProductOffersPickup(data.offers_pickup)
+      setBoothOffersPickup(data.offers_pickup)
+    }
+    
+    // Apply delivery zipcodes & set radius to 0 if zipcodes exist
+    if (data.delivery_zipcodes && Array.isArray(data.delivery_zipcodes) && data.delivery_zipcodes.length > 0) {
+      setInlineDeliveryZipcodes(data.delivery_zipcodes)
+      setInlineDeliveryRadius(0)
+    } else {
+      if (data.delivery_radius_miles != null) {
+        setInlineDeliveryRadius(data.delivery_radius_miles)
+      }
+    }
+
+    // Apply pickup address override if returned by AI with non-empty values
+    const hasAiPickupAddress = data.pickup_address && 
+      typeof data.pickup_address === 'object' && 
+      (data.pickup_address.street || data.pickup_address.city || data.pickup_address.zip)
+    if (hasAiPickupAddress) {
+      setProductPickupAddr({
+        street: data.pickup_address.street || '',
+        city: data.pickup_address.city || '',
+        state: data.pickup_address.state || '',
+        zip: data.pickup_address.zip || '',
+      })
+    }
+
+    // Apply base address override if returned by AI with non-empty values
+    const hasAiBaseAddress = data.base_address && 
+      typeof data.base_address === 'object' && 
+      (data.base_address.street || data.base_address.city || data.base_address.zip)
+    if (hasAiBaseAddress) {
+      setBoothBaseAddr({
+        street: data.base_address.street || '',
+        city: data.base_address.city || '',
+        state: data.base_address.state || '',
+        zip: data.base_address.zip || '',
+      })
+    }
+
+    // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
+    const TIME_MAP: Record<string, string[]> = {
+      morning: ['8-10', '10-12'],
+      afternoon: ['12-14', '14-16'],
+      evening: ['16-18', '18-20'],
+    }
+    const rawDeliveryDays = (data.delivery_days || []) as string[]
+    const rawPickupDays = (data.pickup_days || []) as string[]
+    if (rawDeliveryDays.length || rawPickupDays.length) {
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      
+      // Use slots if returned directly by AI; otherwise fall back to mapping morning/afternoon/evening
+      const deliverySlots = data.delivery_time_slots || (data.delivery_time_of_day || ['morning', 'afternoon']).flatMap(
+        (t: string) => TIME_MAP[t] || []
+      )
+      const pickupSlots = data.pickup_time_slots || (data.pickup_time_of_day || ['morning', 'afternoon']).flatMap(
+        (t: string) => TIME_MAP[t] || []
+      )
+      
+      const deliveryDaysSet = new Set(rawDeliveryDays.map(d => d.toLowerCase()))
+      const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
+      const requestedDays = new Set([
+        ...rawDeliveryDays.map(d => d.toLowerCase()),
+        ...rawPickupDays.map(d => d.toLowerCase())
+      ])
+      
+      const dates: string[] = []
+      const dwMap: Record<string, string[]> = {}
+      const pwMap: Record<string, string[]> = {}
+      for (let i = 0; i < 7; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() + i)
+        const dayKey = dayNames[d.getDay()]
+        if (requestedDays.has(dayKey)) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          dates.push(dateStr)
+          if (data.offers_delivery !== false && deliveryDaysSet.has(dayKey)) {
+            dwMap[dateStr] = deliverySlots
+          }
+          if (data.offers_pickup !== false && pickupDaysSet.has(dayKey)) {
+            pwMap[dateStr] = pickupSlots
+          }
+        }
+      }
+      if (dates.length > 0) {
+        setSelectedDates(dates)
+        setProductDeliveryWindows(dwMap)
+        setProductPickupWindows(pwMap)
+      }
+    }
+  }
+
+  const parseTextFallback = (text: string) => {
+    const normalized = text.toLowerCase()
+    const result: any = {
+      offers_delivery: normalized.includes('deliver'),
+      offers_pickup: normalized.includes('pickup') || normalized.includes('pick up') || normalized.includes('collect'),
+    }
+
+    if (!normalized.includes('deliver') && !normalized.includes('pickup') && !normalized.includes('pick up') && !normalized.includes('collect')) {
+      result.offers_delivery = true
+      result.offers_pickup = true
+    }
+
+    const qtyMatch = normalized.match(/(\d+)\s*(dozen|dz|bunch|bunches|loaf|loaves|bag|bags|box|boxes|basket|baskets|flat|flats|pint|pints|lb|lbs|each|piece|pieces|rose|roses|apple|apples|orange|oranges)/i)
+    if (qtyMatch) {
+      result.quantity = parseInt(qtyMatch[1])
+      let unit = qtyMatch[2].toLowerCase()
+      if (unit === 'dz') unit = 'dozen'
+      if (unit === 'bunches') unit = 'bunch'
+      if (unit === 'loaves') unit = 'loaf'
+      if (unit === 'bags') unit = 'bag'
+      if (unit === 'boxes') unit = 'box'
+      if (unit === 'baskets') unit = 'basket'
+      if (unit === 'flats') unit = 'flat'
+      if (unit === 'pints') unit = 'pint'
+      if (unit === 'lbs') unit = 'lb'
+      if (unit === 'piece' || unit === 'pieces' || unit === 'rose' || unit === 'roses' || unit === 'apple' || unit === 'apples' || unit === 'orange' || unit === 'oranges') unit = 'each'
+      result.unit = unit
+    }
+
+    const priceMatch = normalized.match(/(?:\$|price\s*(?:is)?\s*)\s*(\d+(?:\.\d{2})?)/i)
+    if (priceMatch) {
+      result.price_usd = parseFloat(priceMatch[1])
+    }
+
+    // Detect price denomination unit
+    let priceUnit = 'each'
+    if (normalized.includes('per dozen') || normalized.includes('/dozen') || normalized.includes('/dz')) {
+      priceUnit = 'dozen'
+    } else if (normalized.includes('per lb') || normalized.includes('per pound') || normalized.includes('/lb') || normalized.includes('/pound')) {
+      priceUnit = 'lb'
+    } else if (normalized.includes('per bunch') || normalized.includes('/bunch')) {
+      priceUnit = 'bunch'
+    } else if (normalized.includes('per piece') || normalized.includes('per each') || normalized.includes('/each') || normalized.includes('/piece') || normalized.includes('each') || normalized.includes('per item')) {
+      priceUnit = 'each'
+    } else {
+      // Fallback to whatever quantity unit we matched
+      priceUnit = result.unit || 'each'
+    }
+
+    // Convert quantity if unit doesn't match pricing unit
+    if (result.unit && result.unit !== priceUnit) {
+      if (result.unit === 'dozen' && priceUnit === 'each') {
+        result.quantity = result.quantity * 12
+      } else if (result.unit === 'each' && priceUnit === 'dozen') {
+        result.quantity = Math.max(1, Math.round(result.quantity / 12))
+      }
+      result.unit = priceUnit
+    } else if (!result.unit) {
+      result.unit = priceUnit
+    }
+
+    const zipCodes: string[] = []
+    const zipRegex = /\b\d{5}\b/g
+    let match
+    while ((match = zipRegex.exec(normalized)) !== null) {
+      zipCodes.push(match[0])
+    }
+    if (zipCodes.length > 0) {
+      result.delivery_zipcodes = zipCodes
+    }
+
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const deliveryDays: string[] = []
+    const pickupDays: string[] = []
+
+    const parts = normalized.split(/(deliver|pickup|pick up|collect)/)
+    let currentMode: 'delivery' | 'pickup' | null = null
+    for (const part of parts) {
+      if (part === 'deliver') {
+        currentMode = 'delivery'
+      } else if (part === 'pickup' || part === 'pick up' || part === 'collect') {
+        currentMode = 'pickup'
+      } else if (currentMode) {
+        for (const day of days) {
+          if (part.includes(day)) {
+            if (currentMode === 'delivery') deliveryDays.push(day)
+            else pickupDays.push(day)
+          }
+        }
+      }
+    }
+
+    if (deliveryDays.length === 0 && pickupDays.length === 0) {
+      for (const day of days) {
+        if (normalized.includes(day)) {
+          if (result.offers_delivery) deliveryDays.push(day)
+          if (result.offers_pickup) pickupDays.push(day)
+        }
+      }
+    }
+
+    if (deliveryDays.length > 0) result.delivery_days = deliveryDays
+    if (pickupDays.length > 0) result.pickup_days = pickupDays
+
+    const times: string[] = []
+    if (normalized.includes('morning') || normalized.includes('9 am') || normalized.includes('9am') || normalized.includes('10 am') || normalized.includes('10am') || normalized.includes('am')) times.push('morning')
+    if (normalized.includes('afternoon') || normalized.includes('pm')) times.push('afternoon')
+    if (normalized.includes('evening') || normalized.includes('night')) times.push('evening')
+    
+    if (times.length > 0) {
+      if (result.offers_delivery) result.delivery_time_of_day = times
+      if (result.offers_pickup) result.pickup_time_of_day = times
+    }
+
+    return result
+  }
+
+  // AI auto-fill from photo and/or text — calls analyze-product-photo edge function
   const handleAiAutoFill = async () => {
-    if (photos.length === 0) return
+    if (photos.length === 0 && !simpleWizardOriginalText) return
     setAiAnalyzing(true)
     setAiToast(null)
+    setAiProgressText('Reading your description...')
+
+    const PROGRESS_STEPS = [
+      'Reading your description...',
+      'Analyzing your photos...',
+      'Identifying product & category...',
+      'Estimating fair pricing...',
+      'Setting up fulfillment options...',
+      'Preparing your listing form...',
+    ]
+
+    let stepIdx = 0
+    const progressInterval = setInterval(() => {
+      if (stepIdx < PROGRESS_STEPS.length - 1) {
+        stepIdx++
+        setAiProgressText(PROGRESS_STEPS[stepIdx])
+      } else {
+        setAiProgressText('Preparing form (still processing...)')
+      }
+    }, 5000)
+
+    const cleanup = () => {
+      clearInterval(progressInterval)
+      setAiAnalyzing(false)
+    }
 
     const tryInvoke = async (): Promise<{ data: any; error: any }> => {
       // 45s timeout to prevent hanging on slow/unreachable edge functions
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 45000)
       try {
+        const body: any = {}
+        if (photos.length > 0) body.image = photos[0]
+        if (simpleWizardOriginalText) body.text = simpleWizardOriginalText
+        
+        const stateCode = boothBaseAddr.state || profileHomeAddr.state || ''
+        const cityName = boothBaseAddr.city || profileHomeAddr.city || ''
+        if (stateCode) body.seller_state = stateCode
+        if (cityName) body.seller_city = cityName
         const res = await supabase.functions.invoke('analyze-product-photo', {
-          body: { image: photos[0] },
+          body,
         })
         clearTimeout(timeout)
         return res
@@ -1719,47 +2137,36 @@ function NewProductPageInner() {
         res = await tryInvoke()
       }
 
-      // Check for invocation errors after retry
-      if (res.error) {
-        const errMsg = res.error?.message || res.error?.name || 'Unknown error'
-        console.warn('AI autofill error after retry:', errMsg, res.error)
-        setAiToast(`⚠️ AI analysis unavailable (${errMsg}) — please fill in manually.`)
-        setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 15000)
-        return
-      }
-
       const data = res.data as any
 
-      // Check for API-level errors returned in the response body
-      if (data?.error) {
-        console.warn('AI autofill API error:', data.error)
-        const errorDetail = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
-        setAiToast(`⚠️ ${data.error === 'AI not configured' ? 'AI service not configured' : `AI analysis failed: ${errorDetail.slice(0, 120)}`} — please fill in manually.`)
-        setAiAnalyzing(false)
+      // Check for invocation/API errors after retry or failed identification
+      if (res.error || data?.error || (!data?.name && !data?.description && !data?.category)) {
+        const errMsg = res.error?.message || data?.error || 'AI could not identify the product'
+        console.warn('AI autofill failed, using client-side fallback parser:', errMsg)
+        
+        // ── Client-side Fallback Parser ──
+        const fallbackData = parseTextFallback(simpleWizardOriginalText || '')
+        applyParsedData(fallbackData)
+        
+        setAiToast(`⚠️ AI analysis failed — populated details using text fallback.`)
+        cleanup()
         setTimeout(() => setAiToast(null), 15000)
         return
       }
 
-      // Check if we got usable data
-      if (!data?.name && !data?.description && !data?.category) {
-        setAiToast('⚠️ AI could not identify the product — please fill in manually.')
-        setAiAnalyzing(false)
-        setTimeout(() => setAiToast(null), 15000)
-        return
-      }
+      // Success Path -> Apply parsed AI data
+      applyParsedData(data)
 
-      if (data.name) setName(data.name)
-      if (data.category && dbCategories.some(c => c.name === data.category)) setCategory(data.category)
-      if (data.description) setDescription(data.description)
-      if (data.suggested_unit) setUnit(data.suggested_unit)
+      setSimpleWizardAiSuccess(true)
       setAiToast('✨ AI filled in product details — review and adjust!')
       trackClick('ai_autofill_product', { category: data?.category })
     } catch (err: any) {
-      console.warn('AI autofill exception:', err)
-      setAiToast(`⚠️ AI analysis failed (${err?.message || 'network error'}) — please fill in manually.`)
+      console.warn('AI autofill exception, using client-side fallback parser:', err)
+      const fallbackData = parseTextFallback(simpleWizardOriginalText || '')
+      applyParsedData(fallbackData)
+      setAiToast(`⚠️ AI analysis failed — populated details using text fallback.`)
     }
-    setAiAnalyzing(false)
+    cleanup()
     setTimeout(() => setAiToast(null), 15000)
   }
 
@@ -1780,7 +2187,7 @@ function NewProductPageInner() {
       <div className={styles.container}>
         <h1 className={styles.title}>{(isRelist || editingInactive) ? 'Re-list Product' : isEditMode ? 'Edit Product' : 'Add Product'}</h1>
 
-        {prefilled && (
+        {prefilled && !fromSimpleWizard && (
           <div style={{
             background: 'linear-gradient(135deg, #e8f5e9, #f1f8e9)',
             border: '1px solid #a5d6a7',
@@ -1794,6 +2201,48 @@ function NewProductPageInner() {
           }}>
             <span style={{ fontSize: 20 }}>🔄</span>
             <span>Pre-filled from your previous listing. Review and publish as a <strong>new listing</strong>.</span>
+          </div>
+        )}
+
+        {/* Simple wizard original text reference */}
+        {simpleWizardOriginalText && (
+          <div style={{
+            background: '#f0f9ff',
+            border: '1px solid #bae6fd',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 16,
+            fontSize: 14,
+          }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              onClick={() => setShowOriginalText(prev => !prev)}
+            >
+              <span style={{ fontSize: 18 }}>{aiAnalyzing ? '🌱' : simpleWizardAiSuccess ? '✨' : '📝'}</span>
+              <span style={{ flex: 1 }}>
+                {aiAnalyzing
+                  ? 'AI is analyzing your description — hang tight!'
+                  : simpleWizardAiSuccess
+                    ? 'We pre-filled your listing from your description. Review and edit as needed.'
+                    : 'We couldn\'t auto-fill everything — please fill in the details below.'}
+              </span>
+              <span style={{ fontSize: 12, color: '#6b7280' }}>{showOriginalText ? '▼' : '▶'} Your text</span>
+            </div>
+            {showOriginalText && (
+              <div style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                background: '#fff',
+                borderRadius: 8,
+                border: '1px solid #e0f2fe',
+                whiteSpace: 'pre-wrap',
+                fontSize: 13,
+                color: '#374151',
+                lineHeight: 1.6,
+              }}>
+                {simpleWizardOriginalText}
+              </div>
+            )}
           </div>
         )}
 
@@ -1922,7 +2371,7 @@ function NewProductPageInner() {
                 {aiAnalyzing ? (
                   <>
                     <span style={{ fontSize: 20 }}>🤖</span>
-                    <span>Analyzing your photo</span>
+                    <span>{aiProgressText}</span>
                     <span className="ai-dots" style={{ letterSpacing: 2 }}>
                       <style>{`@keyframes aiDots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
                         .ai-dots::after { content: '...'; animation: aiDots 1.5s infinite steps(1); }
@@ -1966,7 +2415,7 @@ function NewProductPageInner() {
             <div className={styles.row2}>
               <div className={styles.field}>
                 <label className={styles.label}>Name {name.trim() ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
-                <input className={`${styles.input} ${errors.name ? styles.inputError : name.trim() ? styles.inputFilled : styles.inputRequired}`} value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="e.g. Heritage Tomatoes" />
+                <input className={`${styles.input} ${errors.name ? styles.inputError : name.trim() ? styles.inputFilled : styles.inputRequired}`} value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'name', !!name.trim())} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="e.g. Heritage Tomatoes" />
                 {errors.name && <span className={styles.error}>{errors.name}</span>}
               </div>
               <div className={styles.field}>
@@ -1988,7 +2437,7 @@ function NewProductPageInner() {
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
-              <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} placeholder="What makes these special?" rows={4} />
+              <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'description', !!description.trim())} placeholder="What makes these special?" rows={4} />
               
               {/* CasaBot Recipe Assistant */}
               {name.trim().length > 2 && (
@@ -2098,6 +2547,7 @@ function NewProductPageInner() {
                     min="0"
                     value={restriction.isFreeOnly || isFree ? '0' : priceUsd}
                     onChange={e => { if (!restriction.isFreeOnly && !isFree) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
+                    onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'price_usd', !!priceUsd)}
                     onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                     placeholder={restriction.isFreeOnly || isFree ? '0.00' : '4.50'}
                     disabled={restriction.isFreeOnly || isFree}
@@ -2141,7 +2591,7 @@ function NewProductPageInner() {
             <div className={styles.field}>
               <label className={styles.label}>Available Quantity {quantity && parseInt(quantity) > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
               <div className={styles.fieldHint}>Enter your estimated minimum available quantity so we can prevent orders when you&apos;re sold out.</div>
-              <input className={`${styles.input} ${errors.quantity ? styles.inputError : (quantity && parseInt(quantity) > 0) ? styles.inputFilled : styles.inputRequired}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="10" />
+              <input className={`${styles.input} ${errors.quantity ? styles.inputError : (quantity && parseInt(quantity) > 0) ? styles.inputFilled : styles.inputRequired}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'quantity', !!quantity)} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="10" />
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
             </div>
           </div>
@@ -2203,26 +2653,7 @@ function NewProductPageInner() {
                     </div>
                     {isDeliveryActive && (
                       <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
-                        {/* Base address (no-booth users) */}
-                        {!hasBooth && (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <label className={styles.label}>🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span></label>
-                            <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
-                            <AddressInput
-                              value={boothBaseAddr}
-                              onChange={val => {
-                                setBoothBaseAddr(val)
-                                setErrors(p => ({ ...p, boothAddress: '' }))
-                              }}
-                              showPrivacyNote={true}
-                              placeholderStreet="Street Address"
-                            />
-                            {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
-                          </div>
-                        )}
-
-                        {/* Booth address display (booth users) */}
-                        {hasBooth && boothBaseAddr && hasAddress(boothBaseAddr) && (
+                        {hasBooth ? (
                           <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
                             <label className={styles.label}>🏠 Your Booth Address</label>
                             <div style={{
@@ -2238,6 +2669,37 @@ function NewProductPageInner() {
                             <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
                               Delivery radius is computed from your stand&apos;s base address.
                             </p>
+                          </div>
+                        ) : (
+                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <label className={styles.label}>
+                                🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleGeolocate('delivery')}
+                                disabled={geolocatingDelivery}
+                                style={{
+                                  background: 'none', border: 'none', color: '#16a34a',
+                                  fontSize: 12, fontWeight: 600, cursor: geolocatingDelivery ? 'wait' : 'pointer',
+                                  padding: 0, display: 'flex', alignItems: 'center', gap: 4
+                                }}
+                              >
+                                {geolocatingDelivery ? '⏳ Locating...' : '📍 Use My Location'}
+                              </button>
+                            </div>
+                            <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
+                            <AddressInput
+                              value={boothBaseAddr}
+                              onChange={val => {
+                                setBoothBaseAddr(val)
+                                setErrors(p => ({ ...p, boothAddress: '' }))
+                              }}
+                              showPrivacyNote={true}
+                              placeholderStreet="Street Address"
+                            />
+                            {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
                           </div>
                         )}
 
@@ -2481,37 +2943,34 @@ function NewProductPageInner() {
                     </div>
                     {isPickupActive && (
                       <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
-                        {/* Pickup address (no-booth users) */}
-                        {!hasBooth && (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(leave blank to use Home/Farm Address)</span></label>
-                            <AddressInput
-                              value={productPickupAddr}
-                              onChange={val => {
-                                setProductPickupAddr(val)
-                                setErrors(p => ({ ...p, pickupAddress: '' }))
+                        <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label className={styles.label}>
+                              📍 {hasBooth ? 'Pickup Address Override' : 'Alternate Pickup Address'} <span className={styles.optional}>(leave blank to use base address)</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleGeolocate('pickup')}
+                              disabled={geolocatingPickup}
+                              style={{
+                                background: 'none', border: 'none', color: '#16a34a',
+                                fontSize: 12, fontWeight: 600, cursor: geolocatingPickup ? 'wait' : 'pointer',
+                                padding: 0, display: 'flex', alignItems: 'center', gap: 4
                               }}
-                              placeholderStreet="Street Address"
-                            />
-                            {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+                            >
+                              {geolocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
+                            </button>
                           </div>
-                        )}
-
-                        {/* Pickup address override (booth users) */}
-                        {hasBooth && (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <label className={styles.label}>📍 Pickup Address Override <span className={styles.optional}>(leave blank to use booth default pickup address)</span></label>
-                            <AddressInput
-                              value={productPickupAddr}
-                              onChange={val => {
-                                setProductPickupAddr(val)
-                                setErrors(p => ({ ...p, pickupAddress: '' }))
-                              }}
-                              placeholderStreet="Street Address"
-                            />
-                            {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
-                          </div>
-                        )}
+                          <AddressInput
+                            value={productPickupAddr}
+                            onChange={val => {
+                              setProductPickupAddr(val)
+                              setErrors(p => ({ ...p, pickupAddress: '' }))
+                            }}
+                            placeholderStreet="Street Address"
+                          />
+                          {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+                        </div>
 
                         {/* ── Pickup Day Pills & Time Windows ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>

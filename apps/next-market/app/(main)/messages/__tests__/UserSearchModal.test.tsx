@@ -81,7 +81,7 @@ describe('UserSearchModal', () => {
 
     await waitFor(() => {
       expect(mockQuery.ilike).toHaveBeenCalledWith('full_name', '%Martha%')
-      expect(screen.getByText('Martha')).toBeInTheDocument()
+      expect(screen.getByText('Martha')).toBeTruthy()
     })
   })
 
@@ -102,7 +102,7 @@ describe('UserSearchModal', () => {
     fireEvent.change(input, { target: { value: 'Nobody' } })
 
     await waitFor(() => {
-      expect(screen.getByText('No neighbors found matching "Nobody"')).toBeInTheDocument()
+      expect(screen.getByText('No neighbors found matching "Nobody"')).toBeTruthy()
     })
   })
 })

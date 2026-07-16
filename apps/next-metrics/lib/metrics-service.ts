@@ -800,7 +800,7 @@ export async function fetchWizardDropoffs(dateRange: DateRange, wizardSlug: stri
 }
 
 export async function fetchActiveWizards(dateRange: DateRange): Promise<string[]> {
-  const defaultWizards = ['/join', '/sell', '/create-listing', '/p/[slug]']
+  const defaultWizards = ['/join', '/sell', '/create-listing', '/create-listing-simple', '/quicksetup', '/add-product', '/p/[slug]']
   const { data, error } = await supabase.rpc('metrics_active_wizards', {
     p_start: dateRange.start,
     p_end: dateRange.end,
@@ -1165,7 +1165,21 @@ export async function fetchCrmTrafficAnalysis(
   let step2Path = "/my-booth/products/new";
   let completionCheck = (rows: any[], sessionId?: string) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"));
 
-  if (selectedWizard === "/profile-setup") {
+  if (selectedWizard === "/create-listing-simple") {
+    step1Path = "/create-listing-simple";
+    step2Path = "/my-booth/products/new";
+    completionCheck = (rows: any[], sessionId?: string) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"));
+  }
+
+  if (selectedWizard === "/quicksetup") {
+    step1Path = "/quicksetup";
+    step2Path = "";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup");
+  } else if (selectedWizard === "/add-product") {
+    step1Path = "/add-product";
+    step2Path = "";
+    completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "add_product");
+  } else if (selectedWizard === "/profile-setup") {
     step1Path = "/profile-setup";
     step2Path = "";
     completionCheck = (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup");
@@ -1211,6 +1225,9 @@ export async function fetchCrmTrafficAnalysis(
     if (row.page_path && row.page_path.startsWith('/p/') && targetSlugs.includes('/p/[slug]')) return true;
     if (row.event_type === "form_submit") {
       if (selectedWizard === "/create-listing" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
+      if (selectedWizard === "/create-listing-simple" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
+      if (selectedWizard === "/quicksetup" && row.event_name === "profile_setup") return true;
+      if (selectedWizard === "/add-product" && row.event_name === "add_product") return true;
       if (selectedWizard === "/profile-setup" && row.event_name === "profile_setup") return true;
       if (selectedWizard === "/sell" && row.event_name === "profile_setup") return true;
       if (selectedWizard === "/pro") return true;
@@ -1456,12 +1473,15 @@ export async function fetchCrmTrafficAnalysis(
   // 4 & 5. Drop Off Grids for all wizards
   const dropOffGrids: Record<string, any[]> = {
     listing: createEmptyDropOffGrid(),
+    listingSimple: createEmptyDropOffGrid(),
     join: createEmptyDropOffGrid(),
     sell: createEmptyDropOffGrid(),
     profileSetup: createEmptyDropOffGrid(),
     nutrition: createEmptyDropOffGrid(),
     pro: createEmptyDropOffGrid(),
-    promoOnboarding: createEmptyDropOffGrid()
+    promoOnboarding: createEmptyDropOffGrid(),
+    quicksetup: createEmptyDropOffGrid(),
+    addProduct: createEmptyDropOffGrid()
   };
 
   const wizardConfigs = [
@@ -1470,6 +1490,24 @@ export async function fetchCrmTrafficAnalysis(
       step1Path: "/create-listing",
       step2Path: "/my-booth/products/new",
       completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
+    },
+    {
+      key: "listingSimple",
+      step1Path: "/create-listing-simple",
+      step2Path: "/my-booth/products/new",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
+    },
+    {
+      key: "quicksetup",
+      step1Path: "/quicksetup",
+      step2Path: "",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "profile_setup")
+    },
+    {
+      key: "addProduct",
+      step1Path: "/add-product",
+      step2Path: "",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && r.event_name === "add_product")
     },
     {
       key: "pro",
@@ -1562,6 +1600,9 @@ export async function fetchCrmTrafficAnalysis(
         if (r.page_path && r.page_path.startsWith('/p/') && configSlugs.includes('/p/[slug]')) return true;
         if (r.event_type === "form_submit") {
           if (config.key === "listing" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
+          if (config.key === "listingSimple" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
+          if (config.key === "quicksetup" && r.event_name === "profile_setup") return true;
+          if (config.key === "addProduct" && r.event_name === "add_product") return true;
           if (config.key === "sell" && r.event_name === "profile_setup") return true;
           if (config.key === "profileSetup" && r.event_name === "profile_setup") return true;
           if (config.key === "pro") return true;
@@ -1619,6 +1660,7 @@ export async function fetchCrmTrafficAnalysis(
   const userSignupPathMap = new Map<string, string>();
   const VALID_SIGNUP_PATHS = [
     '/create-listing',
+    '/create-listing-simple',
     '/join',
     '/sell',
     '/profile-setup',
@@ -1704,6 +1746,7 @@ export async function fetchCrmTrafficAnalysis(
       for (const day of weekdaysOrdered) {
         row[day] = {
           "/create-listing": 0,
+          "/create-listing-simple": 0,
           "/join": 0,
           "/sell": 0,
           "/profile-setup": 0,
@@ -1727,6 +1770,7 @@ export async function fetchCrmTrafficAnalysis(
   const signupPathGrid = createEmptySignupPathGrid();
   const VALID_PATHS = [
     '/create-listing',
+    '/create-listing-simple',
     '/join',
     '/sell',
     '/profile-setup',

@@ -59,7 +59,7 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       // 1. Verify that inherited base address card displays the correct address
       const baseAddressCard = page.locator('[data-testid="inherited-base-address"]')
       await expect(baseAddressCard).toBeVisible({ timeout: 10000 })
-      await expect(baseAddressCard).toContainText('1247 Minnesota Ave, San Jose, CA 95125')
+      await expect(baseAddressCard).toContainText(/1247 Minnesota Ave, San Jose, CA 95125/i)
 
       // Ensure pickup is selected (this overrides the base address behavior in the UI)
       const pickupCard = page.getByTestId('pickup-box')

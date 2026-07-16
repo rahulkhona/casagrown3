@@ -152,7 +152,8 @@ export async function POST(request: NextRequest) {
     } else {
       console.log('[Admin API] Auth Cache MISS - executing verification waterfall');
       // Not cached or expired: execute verification waterfall
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
       
       console.log('[Admin API] Fetching user info from Supabase Auth URL:', `${supabaseUrl}/auth/v1/user`);
@@ -216,7 +217,13 @@ export async function POST(request: NextRequest) {
     const serviceClient = getServiceClient()
 
     // 3. Parse and validate request
-    const body: AdminRequestBody = await request.json()
+    let body: AdminRequestBody
+    try {
+      body = await request.json()
+    } catch (parseErr) {
+      console.warn('[Admin API] Failed to parse JSON body:', parseErr)
+      return NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 })
+    }
     console.log('[Admin API] Parsed body:', JSON.stringify(body));
     const { action, table, data, select: selectClause, filters, order, limit, single } = body
 
@@ -316,7 +323,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'functionName is required for rpc' }, { status: 400 })
       }
       // Create a user-scoped client using their JWT so auth.uid() works in RPCs
-      const anonKeyForRpc = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const anonKeyForRpc = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
         || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
       const userScopedClient = createClient(supabaseUrl, anonKeyForRpc, {
         auth: { persistSession: false, autoRefreshToken: false },
