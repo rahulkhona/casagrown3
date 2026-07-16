@@ -15,7 +15,7 @@ import Step6Success from './Step6Success'
 import { useErrorToast } from '../ErrorToast'
 
 function WizardRouter() {
-  const { state, updateState, saveProductToDatabase, isAuthenticated, isAuthLoading } = useWizard()
+  const { state, updateState, saveProductToDatabase, isAuthenticated, isAuthLoading, pageSlug } = useWizard()
   const { showError } = useErrorToast()
 
   const allSteps = [
@@ -33,7 +33,7 @@ function WizardRouter() {
   const stateRef = useRef(state)
 
   useEffect(() => {
-    resetSessionId('/create-listing')
+    resetSessionId(pageSlug)
   }, [])
 
   useEffect(() => {
@@ -45,13 +45,13 @@ function WizardRouter() {
     const duration = (Date.now() - stepEnteredAt.current) / 1000
     const prevStepName = allSteps.find(s => s.id === prevStepRef.current)?.label?.toLowerCase() || 'unknown'
     if (duration > 1) {
-      trackStepTiming('/create-listing', prevStepRef.current, prevStepName, duration)
+      trackStepTiming(pageSlug, prevStepRef.current, prevStepName, duration)
     }
     prevStepRef.current = state.currentStep
     stepEnteredAt.current = Date.now()
 
     const stepName = allSteps.find(s => s.id === state.currentStep)?.label?.toLowerCase() || (state.currentStep === 6 ? 'success' : 'unknown')
-    trackEvent('wizard_step', '/create-listing', { step_index: state.currentStep, step_name: stepName })
+    trackEvent('wizard_step', pageSlug, { step_index: state.currentStep, step_name: stepName })
   }, [state.currentStep])
   
   const steps = allSteps.filter(s => !(s.id === 4 && (isAuthenticated || state.isExistingUser)))
@@ -138,9 +138,9 @@ function WizardRouter() {
   )
 }
 
-export default function ProductListingWizard() {
+export default function ProductListingWizard({ pageSlug = '/create-listing' }: { pageSlug?: string }) {
   return (
-    <WizardProvider>
+    <WizardProvider pageSlug={pageSlug}>
       <WizardRouter />
     </WizardProvider>
   )

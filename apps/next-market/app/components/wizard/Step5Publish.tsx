@@ -7,10 +7,12 @@ import { NotificationPromptModal } from '../NotificationPromptModal'
 import { createClient } from '../../../lib/supabase'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../../(main)/terms/page'
 import { useErrorToast } from '../ErrorToast'
-import { trackFieldInteract, trackEvent } from '../../../lib/crm-analytics'
+import { trackFieldInteract as rawTrackFieldInteract, trackEvent as rawTrackEvent } from '../../../lib/crm-analytics'
 
 export default function Step5Publish() {
-  const { state, updateState, nextStep, prevStep, saveProductToDatabase, checkQuarantine } = useWizard()
+  const { state, updateState, nextStep, prevStep, saveProductToDatabase, checkQuarantine, pageSlug } = useWizard()
+  const trackEvent = (type: any, _: string, data?: any) => rawTrackEvent(type, pageSlug, data)
+  const trackFieldInteract = (_: string, step: number, field: string, value: boolean) => rawTrackFieldInteract(pageSlug, step, field, value)
   const { quarantineInfo } = state
   const showQuarantineWarning = false
   const { showError } = useErrorToast()

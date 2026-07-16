@@ -800,7 +800,7 @@ export async function fetchWizardDropoffs(dateRange: DateRange, wizardSlug: stri
 }
 
 export async function fetchActiveWizards(dateRange: DateRange): Promise<string[]> {
-  const defaultWizards = ['/join', '/sell', '/create-listing', '/create-listing-simple', '/quicksetup', '/add-product', '/p/[slug]']
+  const defaultWizards = ['/join', '/sell', '/create-listing', '/create-listing-simple', '/create-listing-wizard', '/quicksetup', '/add-product', '/p/[slug]']
   const { data, error } = await supabase.rpc('metrics_active_wizards', {
     p_start: dateRange.start,
     p_end: dateRange.end,
@@ -1171,6 +1171,12 @@ export async function fetchCrmTrafficAnalysis(
     completionCheck = (rows: any[], sessionId?: string) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"));
   }
 
+  if (selectedWizard === "/create-listing-wizard") {
+    step1Path = "/create-listing-wizard";
+    step2Path = "/my-booth/products/new";
+    completionCheck = (rows: any[], sessionId?: string) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"));
+  }
+
   if (selectedWizard === "/quicksetup") {
     step1Path = "/quicksetup";
     step2Path = "";
@@ -1226,6 +1232,7 @@ export async function fetchCrmTrafficAnalysis(
     if (row.event_type === "form_submit") {
       if (selectedWizard === "/create-listing" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
       if (selectedWizard === "/create-listing-simple" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
+      if (selectedWizard === "/create-listing-wizard" && (row.event_name === "add_product" || row.event_name === "edit_product")) return true;
       if (selectedWizard === "/quicksetup" && row.event_name === "profile_setup") return true;
       if (selectedWizard === "/add-product" && row.event_name === "add_product") return true;
       if (selectedWizard === "/profile-setup" && row.event_name === "profile_setup") return true;
@@ -1498,6 +1505,12 @@ export async function fetchCrmTrafficAnalysis(
       completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
     },
     {
+      key: "listingWizard",
+      step1Path: "/create-listing-wizard",
+      step2Path: "/my-booth/products/new",
+      completionCheck: (rows: any[]) => rows.some(r => r.event_type === "form_submit" && (r.event_name === "add_product" || r.event_name === "edit_product"))
+    },
+    {
       key: "quicksetup",
       step1Path: "/quicksetup",
       step2Path: "",
@@ -1661,6 +1674,7 @@ export async function fetchCrmTrafficAnalysis(
   const VALID_SIGNUP_PATHS = [
     '/create-listing',
     '/create-listing-simple',
+    '/create-listing-wizard',
     '/join',
     '/sell',
     '/profile-setup',
@@ -1747,6 +1761,7 @@ export async function fetchCrmTrafficAnalysis(
         row[day] = {
           "/create-listing": 0,
           "/create-listing-simple": 0,
+          "/create-listing-wizard": 0,
           "/join": 0,
           "/sell": 0,
           "/profile-setup": 0,
@@ -1771,6 +1786,7 @@ export async function fetchCrmTrafficAnalysis(
   const VALID_PATHS = [
     '/create-listing',
     '/create-listing-simple',
+    '/create-listing-wizard',
     '/join',
     '/sell',
     '/profile-setup',

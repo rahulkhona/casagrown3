@@ -1493,6 +1493,19 @@ function NewProductPageInner() {
 
     setAddedProductId(insertedProduct?.id || null)
 
+    // Mark experiment conversion if user came from multi-arm bandit listing flow
+    if (typeof window !== 'undefined') {
+      const anonId = localStorage.getItem('crm_bandit_anon_id')
+      if (anonId) {
+        supabase.rpc('mark_experiment_conversion', {
+          p_anonymous_id: anonId,
+          p_experiment_name: 'listing_wizard_v2'
+        }).then((res: any) => {
+          if (res.error) console.warn('Failed to mark experiment conversion:', res.error)
+        })
+      }
+    }
+
     if (error || !insertedProduct) {
       setValidating(false)
       setErrors({ submit: 'Failed to add product: ' + (error?.message || 'Unknown error') })

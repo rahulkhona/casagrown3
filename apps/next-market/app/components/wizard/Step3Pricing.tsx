@@ -3,10 +3,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useWizard } from './WizardContext'
 import styles from './wizard.module.css'
 import { createClient } from '../../../lib/supabase'
-import { trackFieldInteract, trackAiUsage, trackEvent } from '../../../lib/crm-analytics'
+import { trackFieldInteract as rawTrackFieldInteract, trackAiUsage as rawTrackAiUsage, trackEvent as rawTrackEvent } from '../../../lib/crm-analytics'
 
 export default function Step3Pricing() {
-  const { state, updateState, nextStep, prevStep, isAuthenticated } = useWizard()
+  const { state, updateState, nextStep, prevStep, isAuthenticated, pageSlug } = useWizard()
+  const trackEvent = (type: any, _: string, data?: any) => rawTrackEvent(type, pageSlug, data)
+  const trackFieldInteract = (_: string, step: number, field: string, value: boolean) => rawTrackFieldInteract(pageSlug, step, field, value)
+  const trackAiUsage = (_: string, action: any, button: string) => rawTrackAiUsage(pageSlug, action, button)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [suggestedPrice, setSuggestedPrice] = useState<{ price_usd: number; unit: string; source: string } | null>(null)
   const [suggestingPrice, setSuggestingPrice] = useState(false)

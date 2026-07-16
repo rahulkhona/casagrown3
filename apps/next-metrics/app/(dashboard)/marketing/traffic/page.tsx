@@ -27,6 +27,8 @@ const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "S
 
 const WIZARDS = [
   { slug: "/create-listing", label: "Listing Creation Wizard" },
+  { slug: "/create-listing-simple", label: "Simple Listing Wizard" },
+  { slug: "/create-listing-wizard", label: "Standard Listing Wizard" },
   { slug: "/join", label: "Buyer Join Wizard" },
   { slug: "/sell", label: "Seller Setup Wizard" },
   { slug: "/profile-setup", label: "Profile Setup Wizard" },
@@ -230,8 +232,8 @@ export default function TrafficAnalysisPage() {
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: 4 }}>
                     {data?.funnelWeekday.reduce((s, r) => s + r.starts, 0) || 0}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                    Seller initiated listing wizard on `/create-listing`
+                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Seller initiated listing wizard on `{selectedWizard}`
                   </div>
                 </div>
                 <div>
@@ -358,8 +360,10 @@ export default function TrafficAnalysisPage() {
                                     .map(([key, val]) => {
                                       const pct = totalVal > 0 ? Math.round((val as number / totalVal) * 100) : 0;
                                       let shortLabel = key;
-                                      if (key === '/create-listing') shortLabel = 'listing';
-                                      else if (key === '/join') shortLabel = 'join';
+                                       if (key === '/create-listing') shortLabel = 'listing';
+                                       else if (key === '/create-listing-simple') shortLabel = 'listing-simple';
+                                       else if (key === '/create-listing-wizard') shortLabel = 'listing-wizard';
+                                       else if (key === '/join') shortLabel = 'join';
                                       else if (key === '/sell') shortLabel = 'sell';
                                       else if (key === '/profile-setup') shortLabel = 'profile';
                                       else if (key === '/check-nutrition-loss') shortLabel = 'nutrition';

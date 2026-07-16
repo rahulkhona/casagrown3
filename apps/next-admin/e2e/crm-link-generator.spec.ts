@@ -79,18 +79,22 @@ test.describe('Link Generator — URL Presets', () => {
     }
   })
 
-  test('/create-listing and /create-listing-simple presets are in the Destination Page dropdown', async ({ page }) => {
+  test('/create-listing, /create-listing-simple and /create-listing-multi-arm presets are in the Destination Page dropdown', async ({ page }) => {
     const destinationSelect = page.locator('label:has-text("Destination Page")').locator('..').locator('select')
     if (await destinationSelect.count() > 0) {
       const createListingOption = destinationSelect.locator('option', { hasText: /create-listing\b(?!-)/i })
       await expect(createListingOption).toHaveCount(1)
       const simpleListingOption = destinationSelect.locator('option', { hasText: /create-listing-simple/i })
       await expect(simpleListingOption).toHaveCount(1)
+      const multiArmOption = destinationSelect.locator('option', { hasText: /create-listing-multi-arm/i })
+      await expect(multiArmOption).toHaveCount(1)
     } else {
       const createListingBtn = page.locator('button', { hasText: /create-listing\b(?!-)/i })
       await expect(createListingBtn.first()).toBeVisible()
       const simpleListingBtn = page.locator('button', { hasText: /create-listing-simple/i })
       await expect(simpleListingBtn.first()).toBeVisible()
+      const multiArmBtn = page.locator('button', { hasText: /create-listing-multi-arm/i })
+      await expect(multiArmBtn.first()).toBeVisible()
     }
   })
 

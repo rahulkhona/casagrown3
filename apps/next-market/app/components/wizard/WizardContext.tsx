@@ -103,6 +103,7 @@ interface WizardContextType {
   state: WizardState;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+  pageSlug: string;
   updateState: (updates: Partial<WizardState> | ((prev: WizardState) => Partial<WizardState>)) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -115,7 +116,7 @@ const WizardContext = createContext<WizardContextType | undefined>(undefined)
 
 
 
-export function WizardProvider({ children }: { children: ReactNode }) {
+export function WizardProvider({ children, pageSlug = '/create-listing' }: { children: ReactNode; pageSlug?: string }) {
   const [state, setState] = useState<WizardState>(defaultState)
   const { user, loading, refresh } = useAuth()
   
@@ -774,7 +775,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <WizardContext.Provider value={{ state, isAuthenticated, isAuthLoading, updateState, nextStep, prevStep, resetWizard, saveProductToDatabase, checkQuarantine }}>
+    <WizardContext.Provider value={{ state, isAuthenticated, isAuthLoading, pageSlug, updateState, nextStep, prevStep, resetWizard, saveProductToDatabase, checkQuarantine }}>
       {children}
     </WizardContext.Provider>
   )

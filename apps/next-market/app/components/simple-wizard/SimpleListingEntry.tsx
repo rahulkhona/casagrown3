@@ -14,9 +14,8 @@ import {
 import CameraCapture from '../../../components/CameraCapture'
 import styles from './simple-wizard.module.css'
 
-const PAGE_SLUG = '/create-listing-simple'
-
-export default function SimpleListingEntry() {
+export default function SimpleListingEntry({ pageSlug = '/create-listing-simple' }: { pageSlug?: string }) {
+  const PAGE_SLUG = pageSlug
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated, user, loading: authLoading, profileComplete, tosAccepted } = useAuth()

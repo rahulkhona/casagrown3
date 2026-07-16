@@ -6,7 +6,7 @@ import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
 import { type AddressFields, formatFullAddress } from '../../../lib/address'
 import styles from './wizard.module.css'
-import { trackFieldInteract, trackEvent } from '../../../lib/crm-analytics'
+import { trackFieldInteract as rawTrackFieldInteract, trackEvent as rawTrackEvent } from '../../../lib/crm-analytics'
 
 interface StandOption {
   id: string
@@ -172,7 +172,9 @@ function WindowSelector({
 }
 
 export default function Step2Fulfillment() {
-  const { state, updateState, nextStep, prevStep } = useWizard()
+  const { state, updateState, nextStep, prevStep, pageSlug } = useWizard()
+  const trackEvent = (type: any, _: string, data?: any) => rawTrackEvent(type, pageSlug, data)
+  const trackFieldInteract = (_: string, step: number, field: string, value: boolean) => rawTrackFieldInteract(pageSlug, step, field, value)
   const { user } = useAuth()
   const [errors, setErrors] = useState<Record<string, string>>({})
   
