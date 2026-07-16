@@ -197,13 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Sidebar content component to reuse for both desktop AND mobile sheet
   const SidebarContent = () => {
-    if (roles === null) {
-      return (
-        <YStack flex={1} padding="$4" gap="$4" alignItems="center" justifyContent="center">
-          <Text color={colors.gray[500]}>Loading...</Text>
-        </YStack>
-      )
-    }
+
 
     const visibleGroups = MENU_GROUPS.filter(group => {
       if (hasOnlyMarketing) {
