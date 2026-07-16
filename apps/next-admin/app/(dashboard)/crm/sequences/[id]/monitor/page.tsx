@@ -56,7 +56,7 @@ export default function SequenceMonitorPage() {
     setLoading(true)
     const [seqRes, sendsRes, enrollRes] = await Promise.all([
       supabase.from('crm_sequences').select('name, definition, status').eq('id', sequenceId).single(),
-      supabase.from('crm_campaign_sends').select('*').eq('sequence_id', sequenceId).order('sent_at', { ascending: false }).limit(5000),
+      supabase.from('crm_campaign_sends').select('*').eq('sequence_id', sequenceId).order('sent_at', { ascending: false, nullsFirst: false }).limit(5000),
       supabase.from('crm_sequence_enrollments').select('id, status, recipient_id, recipient_type, current_node_id').eq('sequence_id', sequenceId),
     ])
     if (seqRes.data) {

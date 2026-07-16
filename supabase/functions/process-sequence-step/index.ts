@@ -456,15 +456,51 @@ serve(async (req) => {
         });
         if (insertError) console.error("Insert error:", insertError);
 
-        // If there was a transient send failure (e.g. rate limit, carrier block, network),
-        // postpone evaluation by 15 minutes and retry instead of skipping.
+        // Handle SMS send failures with retry logic:
+        // - Permanent errors (invalid number, blacklisted, etc.) skip immediately
+        // - Transient errors retry up to 3 times, then skip
+        const MAX_SMS_RETRIES = 3;
+        const PERMANENT_ERROR_PATTERNS = [
+          "invalid 'to' phone number",
+          'is not a valid phone number',
+          'unverified',
+          'blacklisted',
+          'the number is not currently reachable',
+          'landline',
+          'not a mobile number',
+          'permission to send',
+          'number is not eligible',
+        ];
+
         if (errorMsg && errorMsg !== 'missing_phone' && errorMsg !== 'opted_out') {
-          const retryEvalAt = new Date(Date.now() + 15 * 60 * 1000);
-          await supabase.from('crm_sequence_enrollments').update({
-            next_evaluation_at: retryEvalAt.toISOString()
-          }).eq('id', enrollment.id);
-          results.push({ id: enrollment.id, action: 'postponed_retry', node_type: 'action_sms', error: errorMsg });
-          continue;
+          const lowerErr = (errorMsg || '').toLowerCase();
+          const isPermanent = PERMANENT_ERROR_PATTERNS.some(p => lowerErr.includes(p));
+          const currentRetries = (enrollment.sms_retry_count || 0) + 1;
+
+          if (isPermanent || currentRetries >= MAX_SMS_RETRIES) {
+            // Permanent error or max retries exceeded — skip this SMS node and advance
+            console.log(`[SMS SKIP] ${isPermanent ? 'Permanent' : 'Max retries'} for ${enrollment.recipient_id}: ${errorMsg} (retries=${currentRetries})`);
+            await supabase.from('crm_sequence_enrollments').update({
+              sms_retry_count: 0  // reset for future SMS nodes
+            }).eq('id', enrollment.id);
+            // Fall through to the advance logic below (nextNodeId assignment)
+          } else {
+            // Transient error — retry after 15 minutes
+            const retryEvalAt = new Date(Date.now() + 15 * 60 * 1000);
+            await supabase.from('crm_sequence_enrollments').update({
+              next_evaluation_at: retryEvalAt.toISOString(),
+              sms_retry_count: currentRetries
+            }).eq('id', enrollment.id);
+            results.push({ id: enrollment.id, action: 'postponed_retry', node_type: 'action_sms', error: errorMsg, retry: currentRetries });
+            continue;
+          }
+        } else if (!errorMsg) {
+          // Success — reset retry counter
+          if (enrollment.sms_retry_count > 0) {
+            await supabase.from('crm_sequence_enrollments').update({
+              sms_retry_count: 0
+            }).eq('id', enrollment.id);
+          }
         }
         
         const edge = def.edges.find((e: any) => e.source === node.id);
