@@ -3,6 +3,7 @@ import { NextTamaguiProvider } from '@casagrown/app/provider/NextTamaguiProvider
 import { AuthProvider } from '@casagrown/app/features/auth/auth-hook'
 import { AuthGuard } from './auth-guard'
 
+// Trigger vercel automated build from github
 export const metadata: Metadata = {
   title: 'CasaGrown Admin',
   description: 'CasaGrown Admin Dashboard',

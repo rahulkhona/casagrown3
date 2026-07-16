@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 
+// Trigger vercel automated build from github
 export const metadata: Metadata = {
   title: 'CasaGrown Metrics',
   description: 'Analytics dashboards and business intelligence for CasaGrown staff.',
