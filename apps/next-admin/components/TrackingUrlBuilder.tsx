@@ -66,6 +66,7 @@ const UTM_MEDIUMS = [
 const BASE_URLS = [
   { value: 'https://casagrown.com/growbot', label: '/growbot — GrowBot AI Chat' },
   { value: 'https://casagrown.com/create-listing', label: '/create-listing — Create a Listing' },
+  { value: 'https://casagrown.com/create-listing-simple', label: '/create-listing-simple — Quick Listing' },
   { value: 'https://casagrown.com/sell', label: '/sell — Seller Calculator' },
   { value: 'https://casagrown.com/check-nutrition-loss', label: '/check-nutrition-loss — Nutrition Loss Tool' },
   { value: 'https://casagrown.com/join', label: '/join — Buyer Sign Up' },

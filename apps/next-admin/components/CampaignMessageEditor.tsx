@@ -1579,6 +1579,7 @@ export default function CampaignMessageEditor({
                         { url: `${baseUrl}/growbot`, label: 'GrowBot AI Chat', slug: '/growbot' },
                         { url: `${baseUrl}/sell`, label: 'Seller Calculator', slug: '/sell' },
                         { url: `${baseUrl}/create-listing`, label: 'Create a Listing', slug: '/create-listing' },
+                        { url: `${baseUrl}/create-listing-simple`, label: 'Quick Listing', slug: '/create-listing-simple' },
                         { url: `${baseUrl}/check-nutrition-loss`, label: 'Nutrition Loss Checker', slug: '/check-nutrition-loss' },
                         { url: `${baseUrl}/join`, label: 'Buyer Sign Up', slug: '/join' },
                       ].filter(p => p.label.toLowerCase().includes(linkSearch.toLowerCase()) || p.slug.includes(linkSearch.toLowerCase())).map(p => (

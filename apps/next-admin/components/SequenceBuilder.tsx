@@ -1836,6 +1836,12 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.5, margin: 0 }}>Configure the message content that will be sent when a user reaches this node.</p>
                   
+                  {isLocked && (
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#1e40af', lineHeight: 1.4 }}>
+                      ✏️ <strong>Content is editable</strong> — you can update message content, subject lines, and URLs on active sequences without deactivating.
+                    </div>
+                  )}
+                  
                   {editorForm.subject && (
                     <div style={{ padding: 12, background: '#f3f4f6', borderRadius: 6, fontSize: '0.85rem', color: '#374151' }}>
                       <strong>Subject:</strong> {editorForm.subject}
@@ -2030,8 +2036,8 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                     )}
                   </div>
                   
-                  {!isLocked && (
-                    <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 16 }}>Save Node Configuration</button>
+                  {(!isLocked || selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') && (
+                    <button onClick={saveSelectedNode} style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginTop: 16 }}>{isLocked ? 'Save Content Changes' : 'Save Node Configuration'}</button>
                   )}
                 </div>
               )}

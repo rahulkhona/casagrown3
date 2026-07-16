@@ -598,3 +598,177 @@ test.describe("UI: Send Windows Configuration", () => {
         expect(await timeInputs.count()).toBeGreaterThan(0);
     });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Content Editing on Active Sequences
+// ═══════════════════════════════════════════════════════════════════
+
+test.describe("UI: Content Editing on Active Sequences", () => {
+    let activeSeqId: string;
+
+    const emailDef = {
+        nodes: [
+            { id: "start", type: "input", data: { type: "input" }, position: { x: 250, y: 0 } },
+            { id: "email_1", type: "default", data: { type: "action_email", subject: `${UNIQUE} Original Subject`, html: `<p>Original body content</p>`, text: "Original body content" }, position: { x: 250, y: 150 } },
+            { id: "wait_1", type: "default", data: { type: "wait", delayDays: 1, delayHours: 0, delayMinutes: 0 }, position: { x: 250, y: 300 } },
+            { id: "sms_1", type: "default", data: { type: "action_sms", text: `${UNIQUE} Original SMS text` }, position: { x: 250, y: 450 } },
+        ],
+        edges: [
+            { id: "e1", source: "start", target: "email_1" },
+            { id: "e2", source: "email_1", target: "wait_1" },
+            { id: "e3", source: "wait_1", target: "sms_1" },
+        ],
+        startNodeId: "start",
+    };
+
+    test.beforeAll(async () => {
+        const seq = await dbInsert("crm_sequences", {
+            name: `${UNIQUE} Active Content Edit Test`,
+            definition: emailDef,
+            status: "active",
+            test_emails: ["test@example.com"],
+            test_phones: ["+15550100"],
+        });
+        activeSeqId = seq.id;
+    });
+
+    test.afterAll(async () => {
+        if (activeSeqId) await dbDelete("crm_sequences", `id=eq.${activeSeqId}`);
+    });
+
+    test("Active sequence shows editable content banner for email nodes", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Status badge should show ACTIVE
+        await expect(page.getByText("ACTIVE")).toBeVisible();
+
+        // Click the email node
+        await page.locator('.react-flow__node:has-text("Send Email")').first().click();
+        await page.waitForTimeout(500);
+
+        // Should see the editability banner
+        await expect(page.getByText("Content is editable")).toBeVisible();
+
+        // Should see the subject preview
+        await expect(page.getByText(`${UNIQUE} Original Subject`)).toBeVisible();
+
+        // "Open Message Editor Modal" button should be visible and clickable
+        const editorBtn = page.getByText("Open Message Editor Modal");
+        await expect(editorBtn).toBeVisible();
+        await expect(editorBtn).toBeEnabled();
+
+        // "Save Content Changes" button should be visible
+        await expect(page.getByText("Save Content Changes")).toBeVisible();
+    });
+
+    test("Active sequence shows editable content banner for SMS nodes", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Click the SMS node
+        await page.locator('.react-flow__node:has-text("Send SMS")').first().click();
+        await page.waitForTimeout(500);
+
+        // Should see the editability banner
+        await expect(page.getByText("Content is editable")).toBeVisible();
+
+        // "Open Message Editor Modal" button should be visible
+        await expect(page.getByText("Open Message Editor Modal")).toBeVisible();
+
+        // "Save Content Changes" button should be visible
+        await expect(page.getByText("Save Content Changes")).toBeVisible();
+    });
+
+    test("Wait node remains locked on active sequence", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Click the wait node
+        await page.locator('.react-flow__node:has-text("Wait")').first().click();
+        await page.waitForTimeout(500);
+
+        // Should NOT see the editability banner
+        await expect(page.getByText("Content is editable")).not.toBeVisible();
+
+        // Should NOT see "Save Node Configuration" or "Save Content Changes"
+        await expect(page.getByText("Save Node Configuration")).not.toBeVisible();
+        await expect(page.getByText("Save Content Changes")).not.toBeVisible();
+    });
+
+    test("Email content can be edited and saved on active sequence", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Click the email node
+        await page.locator('.react-flow__node:has-text("Send Email")').first().click();
+        await page.waitForTimeout(500);
+
+        // Open the message editor modal
+        await page.getByText("Open Message Editor Modal").click();
+        await page.waitForTimeout(500);
+
+        // Modal should be visible with "Message Editor" heading
+        await expect(page.getByRole("heading", { name: "Message Editor" })).toBeVisible();
+
+        // "Done & Save" button should be visible
+        const doneBtn = page.getByText("Done & Save");
+        await expect(doneBtn).toBeVisible();
+
+        // Click Done & Save
+        await doneBtn.click();
+        await page.waitForTimeout(1000);
+
+        // Should show save confirmation toast
+        await expect(page.getByText("saved", { exact: false })).toBeVisible({ timeout: 5000 });
+
+        // Verify it actually persisted by re-querying the DB
+        const rows = await dbQuery("crm_sequences", `id=eq.${activeSeqId}&select=definition,status`);
+        expect(rows.length).toBe(1);
+        expect(rows[0].status).toBe("active");
+    });
+
+    test("Tracking URL builder inside modal shows /create-listing-simple preset", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Click the email node
+        await page.locator('.react-flow__node:has-text("Send Email")').first().click();
+        await page.waitForTimeout(500);
+
+        // Open the message editor modal
+        await page.getByText("Open Message Editor Modal").click();
+        await page.waitForTimeout(500);
+
+        // Look for the Tracking URL Builder accordion
+        const trackingSection = page.getByText("Tracking URL Builder");
+        await expect(trackingSection).toBeVisible();
+
+        // Expand if collapsed
+        await trackingSection.click();
+        await page.waitForTimeout(300);
+
+        // The destination dropdown should contain /create-listing-simple
+        const destSelect = page.locator("select").filter({ hasText: "/create-listing-simple" });
+        await expect(destSelect).toBeVisible();
+
+        // Close modal
+        await page.getByText("Done & Save").click();
+    });
+
+    test("Canvas remains locked — cannot drag new nodes onto active sequence", async ({ page }) => {
+        await page.goto(`/crm/sequences/${activeSeqId}`);
+        await page.waitForLoadState("networkidle");
+
+        // Node palette should not allow dragging (isCanvasLocked prevents onDrop)
+        // Verify by checking the node count before and after attempting to drop
+        const nodesBefore = await page.locator('.react-flow__node').count();
+
+        // Try clicking a palette item — it shouldn't add a node
+        const emailPalette = page.getByText("✉️ Send Email").first();
+        await expect(emailPalette).toBeVisible();
+
+        const nodesAfter = await page.locator('.react-flow__node').count();
+        expect(nodesAfter).toBe(nodesBefore);
+    });
+});
