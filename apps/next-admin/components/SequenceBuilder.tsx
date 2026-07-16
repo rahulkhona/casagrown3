@@ -2321,9 +2321,11 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   Exit Simulation Mode
                 </button>
               ) : (
-                <button onClick={saveSelectedNode} style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
-                  Save Node configuration
-                </button>
+                (!isLocked || selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') && (
+                  <button onClick={saveSelectedNode} style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+                    {isLocked ? 'Save Content Changes' : 'Save Node configuration'}
+                  </button>
+                )
               )}
             </div>
           </div>

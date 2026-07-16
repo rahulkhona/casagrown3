@@ -473,7 +473,7 @@ test.describe("UI: Sequence Builder Enhancements", () => {
         await page.locator('.react-flow__node:has-text("Condition")').first().click();
 
         // Query builder should be visible
-        await page.waitForSelector(".react-querybuilder");
+        await page.waitForSelector(".queryBuilder");
 
         // Find the select dropdown for fields in the query builder
         const fieldSelect = page.locator("select.rule-fields").first();
@@ -603,7 +603,7 @@ test.describe("UI: Send Windows Configuration", () => {
 // Test Suite: Content Editing on Active Sequences
 // ═══════════════════════════════════════════════════════════════════
 
-test.describe("UI: Content Editing on Active Sequences", () => {
+test.describe.serial("UI: Content Editing on Active Sequences", () => {
     let activeSeqId: string;
 
     const emailDef = {
@@ -641,7 +641,7 @@ test.describe("UI: Content Editing on Active Sequences", () => {
         await page.waitForLoadState("networkidle");
 
         // Status badge should show ACTIVE
-        await expect(page.getByText("ACTIVE")).toBeVisible();
+        await expect(page.getByText("ACTIVE", { exact: true })).toBeVisible();
 
         // Click the email node
         await page.locator('.react-flow__node:has-text("Send Email")').first().click();
@@ -651,7 +651,7 @@ test.describe("UI: Content Editing on Active Sequences", () => {
         await expect(page.getByText("Content is editable")).toBeVisible();
 
         // Should see the subject preview
-        await expect(page.getByText(`${UNIQUE} Original Subject`)).toBeVisible();
+        await expect(page.getByText(`${UNIQUE} Original Subject`).first()).toBeVisible();
 
         // "Open Message Editor Modal" button should be visible and clickable
         const editorBtn = page.getByText("Open Message Editor Modal");
@@ -659,7 +659,7 @@ test.describe("UI: Content Editing on Active Sequences", () => {
         await expect(editorBtn).toBeEnabled();
 
         // "Save Content Changes" button should be visible
-        await expect(page.getByText("Save Content Changes")).toBeVisible();
+        await expect(page.getByText("Save Content Changes").first()).toBeVisible();
     });
 
     test("Active sequence shows editable content banner for SMS nodes", async ({ page }) => {
@@ -677,7 +677,7 @@ test.describe("UI: Content Editing on Active Sequences", () => {
         await expect(page.getByText("Open Message Editor Modal")).toBeVisible();
 
         // "Save Content Changes" button should be visible
-        await expect(page.getByText("Save Content Changes")).toBeVisible();
+        await expect(page.getByText("Save Content Changes").first()).toBeVisible();
     });
 
     test("Wait node remains locked on active sequence", async ({ page }) => {
