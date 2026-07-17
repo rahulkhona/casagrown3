@@ -61,10 +61,10 @@ test.describe('Market Page — Action Cards (Option B)', () => {
     expect(body).toContain('Grow & Earn')
   })
 
-  test('sell card should link to /create-listing-simple', async ({ page }) => {
+  test('sell card should link to /create-listing', async ({ page }) => {
     await page.goto('/market')
     await page.waitForTimeout(2000)
-    const sellLink = page.locator('a[href="/create-listing-simple"]').first()
+    const sellLink = page.locator('a[href="/create-listing"]').first()
     await expect(sellLink).toBeVisible({ timeout: 5000 })
     // Verify it contains the expected CTA text
     const sellText = await sellLink.textContent()
