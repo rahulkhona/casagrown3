@@ -98,7 +98,7 @@ dbTest("Sequence Engine: Enroll and Linear Execution (SMS Stubbing)", async () =
     .select("*").eq("sequence_id", seq.id).eq("recipient_id", lead.id).single();
   assertEquals(enrollment.current_node_id, "node-1");
 
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const processData1 = await processRes.json();
   console.log("processData1:", processData1);
   assertEquals(processRes.status, 200, JSON.stringify(processData1));
@@ -249,7 +249,7 @@ dbTest("process-sequence-step: Skips enrollment with future next_evaluation_at",
   assert(!insErr, `Insert failed: ${JSON.stringify(insErr)}`);
 
   // Run processor — should skip this enrollment
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const processData = await processRes.json();
   assertEquals(processRes.status, 200);
 
@@ -286,7 +286,7 @@ dbTest("process-sequence-step: Advances past wait node when evaluation time has 
   assert(!insErr, `Insert failed: ${JSON.stringify(insErr)}`);
 
   // Run processor — should advance from wait → sms node
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const _pd1 = await processRes.json();
   assertEquals(processRes.status, 200);
 
@@ -368,7 +368,7 @@ dbTest("process-sequence-step: Condition node routes to correct branch (true/fal
     .select("id").eq("sequence_id", seq.id).eq("recipient_id", leadB.id).single();
 
   // Run processor
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const _pd2 = await processRes.json();
   assertEquals(processRes.status, 200);
 
@@ -430,7 +430,7 @@ dbTest("process-sequence-step: AI condition node evaluates SQL and routes correc
     .select("id").eq("sequence_id", seq.id).eq("recipient_id", leadDirect.id).single();
 
   // Process
-  const res = await processStep();
+  const res = await processStep({ sequence_id: seq.id });
   const _pd = await res.json();
   assertEquals(res.status, 200);
 
@@ -472,7 +472,7 @@ dbTest("process-sequence-step: action_email node creates campaign_sends row and 
     .select("id").eq("sequence_id", seq.id).eq("recipient_id", lead.id).single();
 
   // Run processor — should fire the email node
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const _pd3 = await processRes.json();
   assertEquals(processRes.status, 200);
 
@@ -519,7 +519,7 @@ dbTest("process-sequence-step: Correctly handles recipient_type='member' via pro
   assert(!insErr, `Insert failed: ${JSON.stringify(insErr)}`);
 
   // Run processor — should NOT throw "lead not found" error
-  const processRes = await processStep();
+  const processRes = await processStep({ sequence_id: seq.id });
   const processData = await processRes.json();
   assertEquals(processRes.status, 200);
 
@@ -714,7 +714,7 @@ dbTest("process-sequence-step: Auto-transitions deprecated to ready_for_deletion
 
   // Now run in normal mode — the auto-complete check only runs in non-testRunAll mode
   // All enrollments should already be completed, so this triggers the check
-  const normalRes = await processStep();
+  const normalRes = await processStep({ sequence_id: seq.id });
   await normalRes.json(); // consume body
 
   // Check sequence status — should be ready_for_deletion

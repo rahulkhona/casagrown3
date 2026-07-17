@@ -81,6 +81,123 @@ Deno.serve(async (req: Request) => {
       }), { headers: CORS });
     }
 
+    const IS_MOCKED = Deno.env.get("AI_MOCK") === "true";
+    if (IS_MOCKED) {
+      console.log("[AI_MOCK] Extracting mock listing data via heuristics");
+      const normalized = text.toLowerCase();
+      
+      // Extract quantity
+      let quantity = 1;
+      const qtyMatch = normalized.match(/(\d+)\s*(dozen|bunch|jar|bag|box|lb|each|pint|basket|flat|roses|oranges|tomatoes|eggs|honey)/);
+      if (qtyMatch) {
+        quantity = parseInt(qtyMatch[1]);
+      } else {
+        const simpleQtyMatch = normalized.match(/\b(\d+)\b/);
+        if (simpleQtyMatch) quantity = parseInt(simpleQtyMatch[1]);
+      }
+
+      // Extract price
+      let price = 5.00;
+      const priceMatch = normalized.match(/\$\s*(\d+(\.\d{2})?)/);
+      if (priceMatch) {
+        price = parseFloat(priceMatch[1]);
+      } else {
+        const forMatch = normalized.match(/for\s*(\d+(\.\d{2})?)/);
+        if (forMatch) price = parseFloat(forMatch[1]);
+      }
+
+      // Extract unit
+      let unit = "each";
+      for (const u of VALID_UNITS) {
+        if (normalized.includes(u)) {
+          unit = u;
+          break;
+        }
+      }
+
+      // Extract category
+      let category = "produce";
+      if (normalized.includes("rose") || normalized.includes("flower") || normalized.includes("bouquet") || normalized.includes("tulip")) {
+        category = "flowers";
+      } else if (normalized.includes("seed")) {
+        category = "seeds";
+      } else if (normalized.includes("egg")) {
+        category = "eggs";
+      } else if (normalized.includes("honey")) {
+        category = "honey";
+      }
+
+      // Extract name
+      let name = "Fresh Produce";
+      if (normalized.includes("rose")) name = "Fresh Roses";
+      else if (normalized.includes("orange")) name = "Fresh Oranges";
+      else if (normalized.includes("tomato")) name = "Heirloom Tomatoes";
+      else if (normalized.includes("egg")) name = "Fresh Farm Eggs";
+      else if (normalized.includes("honey")) name = "Local Wildflower Honey";
+      else {
+        const words = text.trim().split(/\s+/);
+        if (words.length > 0) {
+          name = words.slice(0, 3).join(" ");
+        }
+      }
+
+      // Extract fulfillment
+      const offers_delivery = !normalized.includes("pickup only") && (normalized.includes("deliver") || normalized.includes("shipping") || !normalized.includes("pickup"));
+      const offers_pickup = !normalized.includes("delivery only") && (normalized.includes("pickup") || normalized.includes("pick up") || !normalized.includes("deliver"));
+
+      // Extract radius
+      let delivery_radius_miles = null;
+      const radiusMatch = normalized.match(/(\d+)\s*mile/);
+      if (radiusMatch) {
+        delivery_radius_miles = parseInt(radiusMatch[1]);
+      } else if (offers_delivery) {
+        delivery_radius_miles = 5;
+      }
+
+      // Extract days
+      const delivery_days: string[] = [];
+      const pickup_days: string[] = [];
+      for (const day of VALID_DAYS) {
+        if (normalized.includes(day)) {
+          if (offers_delivery) delivery_days.push(day);
+          if (offers_pickup) pickup_days.push(day);
+        }
+      }
+      if (normalized.includes("weekend")) {
+        if (offers_delivery) { delivery_days.push("saturday"); delivery_days.push("sunday"); }
+        if (offers_pickup) { pickup_days.push("saturday"); pickup_days.push("sunday"); }
+      }
+
+      // Extract time of day
+      const delivery_time_of_day: string[] = [];
+      const pickup_time_of_day: string[] = [];
+      for (const time of VALID_TIMES) {
+        if (normalized.includes(time)) {
+          if (offers_delivery) delivery_time_of_day.push(time);
+          if (offers_pickup) pickup_time_of_day.push(time);
+        }
+      }
+
+      return new Response(JSON.stringify({
+        name,
+        category,
+        description: `Freshly harvested ${name.toLowerCase()} from my backyard garden. Great quality, grown naturally.`,
+        quantity,
+        unit,
+        price_usd: price,
+        is_free: price === 0,
+        offers_delivery,
+        offers_pickup,
+        delivery_radius_miles,
+        delivery_days,
+        delivery_time_of_day,
+        pickup_days,
+        pickup_time_of_day,
+        delivery_zipcodes: [],
+        suggested_unit: unit,
+      }), { headers: CORS });
+    }
+
     if (!AI_KEY) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500, headers: CORS,

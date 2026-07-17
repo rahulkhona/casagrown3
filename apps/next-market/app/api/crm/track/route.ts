@@ -31,6 +31,18 @@ export async function POST(req: NextRequest) {
 
   const type = body.type as string
 
+  const userAgent = req.headers.get('user-agent') ?? null
+  let isBot = false
+  if (userAgent) {
+    const botKeywords = [
+      'bot', 'crawler', 'spider', 'scrap', 'headless', 'lighthouse', 
+      'ahrefs', 'semrush', 'googlebot', 'bingbot', 'yandexbot', 
+      'baiduspider', 'facebookexternalhit', 'twitterbot', 'ia_archiver'
+    ]
+    const uaLower = userAgent.toLowerCase()
+    isBot = botKeywords.some(keyword => uaLower.includes(keyword))
+  }
+
   // Geo from Vercel/CF headers (populated in production; empty locally)
   const country = req.headers.get('x-vercel-ip-country') ??
     req.headers.get('cf-ipcountry') ?? null
@@ -51,6 +63,8 @@ export async function POST(req: NextRequest) {
       region,
       city,
       zip_code,
+      user_agent: userAgent,
+      is_bot: isBot,
     })
 
     if (error) {

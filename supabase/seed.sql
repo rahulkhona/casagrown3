@@ -1959,24 +1959,43 @@ DECLARE
   u2 UUID := '22222222-2222-2222-2222-222222222222';
   sess_a TEXT := 'sess_test_a_123';
   sess_b TEXT := 'sess_test_b_456';
+  sess_listing TEXT := 'sess_test_listing_123';
+  sess_simple TEXT := 'sess_test_simple_123';
+  sess_wizard TEXT := 'sess_test_wizard_123';
 BEGIN
   INSERT INTO crm_page_visits(session_id, page_slug, utm_source, utm_medium, utm_campaign, visited_at)
   VALUES 
     (sess_a, '/', 'test_a', 'click', 'home_page_test', now()),
-    (sess_b, '/join', 'test_b', 'click', 'join_page_test', now() - interval '1 hour');
+    (sess_b, '/join', 'test_b', 'click', 'join_page_test', now() - interval '1 hour'),
+    (sess_listing, '/create-listing', 'direct', 'link', 'listing_test', now()),
+    (sess_simple, '/create-listing-simple', 'direct', 'link', 'listing_test', now()),
+    (sess_wizard, '/create-listing-wizard', 'direct', 'link', 'listing_test', now());
 
   INSERT INTO user_analytics(user_id, session_id, event_type, event_name, page_path, txn_id)
   VALUES 
     (u1, sess_a, 'page_view', 'load', '/', gen_random_uuid()),
     (u1, sess_a, 'click', 'view_product', '/', gen_random_uuid()),
     (u2, sess_b, 'page_view', 'load', '/join', gen_random_uuid()),
-    (u2, sess_b, 'error', 'form_submission_failed', '/join', gen_random_uuid());
+    (u2, sess_b, 'error', 'form_submission_failed', '/join', gen_random_uuid()),
+    (u1, sess_listing, 'page_view', 'load', '/create-listing', gen_random_uuid()),
+    (u1, sess_simple, 'page_view', 'load', '/create-listing-simple', gen_random_uuid()),
+    (u1, sess_wizard, 'page_view', 'load', '/create-listing-wizard', gen_random_uuid());
 
   INSERT INTO crm_page_events(session_id, page_slug, event_type, target_element, event_data)
   VALUES 
     (sess_a, '/join', 'wizard_step', '/join', '{"step_index": 1, "step_name": "Step 1: Start"}'),
     (sess_a, '/join', 'wizard_step', '/join', '{"step_index": 2, "step_name": "Step 2: Details"}'),
-    (sess_b, '/join', 'wizard_step', '/join', '{"step_index": 1, "step_name": "Step 1: Start"}');
+    (sess_b, '/join', 'wizard_step', '/join', '{"step_index": 1, "step_name": "Step 1: Start"}'),
+    
+    (sess_listing, '/create-listing', 'wizard_step', '/create-listing', '{"step_index": 1, "step_name": "basics"}'),
+    (sess_listing, '/create-listing', 'wizard_step', '/create-listing', '{"step_index": 2, "step_name": "fulfillment"}'),
+    (sess_listing, '/create-listing', 'wizard_step_timing', '/create-listing', '{"step": 1, "step_name": "basics", "duration_secs": 15}'),
+    
+    (sess_simple, '/create-listing-simple', 'wizard_step', '/create-listing-simple', '{"step_index": 1, "step_name": "text_input"}'),
+    (sess_simple, '/create-listing-simple', 'wizard_step_timing', '/create-listing-simple', '{"step": 1, "step_name": "text_input", "duration_secs": 22}'),
+    
+    (sess_wizard, '/create-listing-wizard', 'wizard_step', '/create-listing-wizard', '{"step_index": 1, "step_name": "text_input"}'),
+    (sess_wizard, '/create-listing-wizard', 'wizard_step_timing', '/create-listing-wizard', '{"step": 1, "step_name": "text_input", "duration_secs": 18}');
 
 END;
 $$;

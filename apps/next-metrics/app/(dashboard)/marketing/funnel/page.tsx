@@ -11,7 +11,12 @@ export default function MarketingFunnelPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetchCrmLeadFunnel(dateRange).then(d => { setRows(d); setLoading(false) })
+    fetchCrmLeadFunnel(dateRange)
+      .then(d => { setRows(d); setLoading(false) })
+      .catch(err => {
+        console.error('Failed to fetch CRM lead funnel:', err)
+        setLoading(false)
+      })
   }, [dateRange])
 
   const totals = {

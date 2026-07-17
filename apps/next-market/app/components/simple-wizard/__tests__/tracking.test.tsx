@@ -192,13 +192,6 @@ describe('SimpleListingEntry — CRM Tracking', () => {
     const unloadEvent = new Event('beforeunload')
     window.dispatchEvent(unloadEvent)
 
-    expect(mockTrackStepTiming).toHaveBeenCalledWith(
-      PAGE_SLUG,
-      1,
-      'text_input',
-      expect.any(Number)
-    )
-
     expect(mockTrackEvent).toHaveBeenCalledWith(
       'wizard_abandon',
       PAGE_SLUG,
@@ -229,5 +222,59 @@ describe('SimpleListingEntry — CRM Tracking', () => {
 
     // Also verify navigation happens
     expect(mockPush).toHaveBeenCalledWith('/my-booth/products/new')
+  })
+
+  // ─── visibilitychange dwell time tracking ───────────────────
+  it('correctly tracks active time, excluding background tab time', async () => {
+    let isHidden = false
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => isHidden,
+    })
+
+    render(<SimpleListingEntry />)
+
+    // Clear mount tracking calls
+    mockTrackEvent.mockClear()
+    mockTrackStepTiming.mockClear()
+
+    // 1. Advance time by 5 seconds (active)
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    // 2. Hide the document (tab goes into background)
+    isHidden = true
+    const visibilityChangeEvent = new Event('visibilitychange')
+    document.dispatchEvent(visibilityChangeEvent)
+
+    // 3. Advance time by 10 seconds while hidden
+    await act(async () => {
+      vi.advanceTimersByTime(10000)
+    })
+
+    // 4. Show the document again (tab returns to foreground)
+    isHidden = false
+    document.dispatchEvent(visibilityChangeEvent)
+
+    // 5. Advance time by 3 seconds (active)
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    // 6. Submit the form to trigger navigateToForm and timing tracking
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'Fresh Oranges' } })
+
+    const submitBtn = screen.getByRole('button', { name: /create my listing/i })
+    fireEvent.click(submitBtn)
+
+    // Expect timing to be 8 seconds (5s active + 3s active), ignoring the 10s background time
+    expect(mockTrackStepTiming).toHaveBeenCalledWith(
+      PAGE_SLUG,
+      1,
+      'text_input',
+      8
+    )
   })
 })

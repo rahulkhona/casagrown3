@@ -59,10 +59,15 @@ export default function TrafficAnalysisPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetchCrmTrafficAnalysis(dateRange, utmFilter, selectedWizard).then(res => {
-      setData(res)
-      setLoading(false)
-    })
+    fetchCrmTrafficAnalysis(dateRange, utmFilter, selectedWizard)
+      .then(res => {
+        setData(res)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error("Failed to fetch CRM traffic analysis:", err)
+        setLoading(false)
+      })
   }, [dateRange, utmFilter, selectedWizard])
 
   // Aggregate stats

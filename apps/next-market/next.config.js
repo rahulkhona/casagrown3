@@ -10,6 +10,9 @@ module.exports = {
   experimental: {
     scrollRestoration: true,
   },
+  turbopack: {
+    root: require('path').resolve(__dirname, '../../'),
+  },
   images: {
     remotePatterns: [
       {

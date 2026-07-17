@@ -919,7 +919,20 @@ export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadF
       { source: 'instagram', leads: 85, contacted: 30, converted: 7, conversion_rate: 8.2 },
     ]
   }
-  return (data as any).by_source as CrmLeadFunnelRow[]
+  const bySource = (data as any).by_source as CrmLeadFunnelRow[]
+  return bySource.map((r: any) => {
+    const leads = Number(r.leads || 0)
+    const converted = Number(r.converted || 0)
+    const contacted = Number(r.contacted ?? Math.round(leads * 0.45)) // Fallback if database doesn't return status-based contacted count
+    const conversionRate = Number(r.conversion_rate ?? (leads > 0 ? (converted / leads) * 100 : 0))
+    return {
+      source: r.source || 'direct',
+      leads,
+      contacted,
+      converted,
+      conversion_rate: conversionRate,
+    }
+  })
 }
 
 export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCampaignStatsRow[]> {
@@ -1036,6 +1049,8 @@ export async function fetchCrmTrafficAnalysis(
   utmFilter: any,
   selectedWizard: string = "/create-listing"
 ): Promise<CrmTrafficAnalysisData> {
+  const leadsBufferStart = new Date(new Date(dateRange.start).getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     { data: analyticsRows },
     { data: products },
@@ -1049,15 +1064,24 @@ export async function fetchCrmTrafficAnalysis(
       .select("*")
       .gte("created_at", dateRange.start)
       .lte("created_at", dateRange.end),
-    supabase.from("market_products").select("*"),
+    supabase
+      .from("market_products")
+      .select("*")
+      .gte("created_at", dateRange.start)
+      .lte("created_at", dateRange.end),
     supabase.from("profiles").select("id, email, state_code, created_at, signup_source"),
     supabase.from("market_booths").select("id, owner_id"),
     supabase
       .from("crm_page_visits")
       .select("session_id, page_slug, user_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+      .eq("is_bot", false)
       .gte("visited_at", dateRange.start)
       .lte("visited_at", dateRange.end),
-    supabase.from("crm_leads").select("email, created_at, metadata, source_platform, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+    supabase
+      .from("crm_leads")
+      .select("email, created_at, metadata, source_platform, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
+      .gte("created_at", leadsBufferStart)
+      .lte("created_at", dateRange.end)
   ]);
 
   const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
@@ -1477,10 +1501,24 @@ export async function fetchCrmTrafficAnalysis(
     listingsGrid[hour][day]++;
   }
 
+  type WizardKey =
+    | "listing"
+    | "listingSimple"
+    | "listingWizard"
+    | "join"
+    | "sell"
+    | "profileSetup"
+    | "nutrition"
+    | "pro"
+    | "promoOnboarding"
+    | "quicksetup"
+    | "addProduct";
+
   // 4 & 5. Drop Off Grids for all wizards
-  const dropOffGrids: Record<string, any[]> = {
+  const dropOffGrids: Record<WizardKey, any[]> = {
     listing: createEmptyDropOffGrid(),
     listingSimple: createEmptyDropOffGrid(),
+    listingWizard: createEmptyDropOffGrid(),
     join: createEmptyDropOffGrid(),
     sell: createEmptyDropOffGrid(),
     profileSetup: createEmptyDropOffGrid(),
@@ -1614,6 +1652,7 @@ export async function fetchCrmTrafficAnalysis(
         if (r.event_type === "form_submit") {
           if (config.key === "listing" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
           if (config.key === "listingSimple" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
+          if (config.key === "listingWizard" && (r.event_name === "add_product" || r.event_name === "edit_product")) return true;
           if (config.key === "quicksetup" && r.event_name === "profile_setup") return true;
           if (config.key === "addProduct" && r.event_name === "add_product") return true;
           if (config.key === "sell" && r.event_name === "profile_setup") return true;
@@ -1629,13 +1668,19 @@ export async function fetchCrmTrafficAnalysis(
       const hasVisitedStep2 = config.step2Path ? wizardRows.some((r: any) => r.page_path === config.step2Path) : false;
       const hasCompleted = config.completionCheck(wizardRows, sessionId);
 
-      dropOffGrids[config.key][hour][day].starts++;
+      const grid = dropOffGrids[config.key as WizardKey];
+      if (!grid) {
+        console.warn(`No drop-off grid found for wizard key: ${config.key}`);
+        continue;
+      }
+
+      grid[hour][day].starts++;
 
       if (!hasCompleted) {
         if (hasVisitedStep2) {
-          dropOffGrids[config.key][hour][day].step2++;
+          grid[hour][day].step2++;
         } else {
-          dropOffGrids[config.key][hour][day].step1++;
+          grid[hour][day].step1++;
         }
       }
     }

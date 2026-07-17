@@ -186,11 +186,13 @@ serve(async (req) => {
       .select('*, crm_sequences(id, definition, status)')
       .eq('status', 'active');
 
-    if (testRunAll && filterSequenceId) {
-      // In test mode: only this sequence, ignore next_evaluation_at (skip wait delays)
+    if (filterSequenceId) {
+      // Isolate execution to the requested sequence to prevent cross-test race conditions
       query = query.eq('sequence_id', filterSequenceId);
-    } else {
-      // Normal cron mode: only process enrollments whose wait has elapsed
+    }
+
+    if (!testRunAll) {
+      // Enforce scheduled wait delays if not in test_run_all mode
       query = query.lte('next_evaluation_at', new Date(startWallClock).toISOString());
     }
 

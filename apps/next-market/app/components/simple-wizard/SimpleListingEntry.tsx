@@ -36,14 +36,40 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
   // General
   const [error, setError] = useState('')
   const [showCamera, setShowCamera] = useState(false)
-  const startTimeRef = useRef(Date.now())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isSubmittedRef = useRef(false)
+  const submitDurationRef = useRef<number | null>(null)
+
+  const accumulatedTimeRef = useRef(0)
+  const lastActiveTimeRef = useRef(Date.now())
+
+  const freeformTextRef = useRef(freeformText)
+  const photosRef = useRef(photos)
+
+  useEffect(() => {
+    freeformTextRef.current = freeformText
+  }, [freeformText])
+
+  useEffect(() => {
+    photosRef.current = photos
+  }, [photos])
+
+  const getActiveDurationSecs = useCallback(() => {
+    let totalMs = accumulatedTimeRef.current
+    if (typeof document !== 'undefined' && !document.hidden) {
+      totalMs += Date.now() - lastActiveTimeRef.current
+    }
+    // Convert to seconds, capped at 15 minutes (900 seconds) as a safety boundary
+    return Math.min(Math.round(totalMs / 1000), 900)
+  }, [])
 
   // ── Tracking: reset session and track step 1 on mount ──
   useEffect(() => {
     resetSessionId(PAGE_SLUG)
     trackEvent('wizard_step', PAGE_SLUG, { step_index: 1, step_name: 'text_input' })
-    startTimeRef.current = Date.now()
+    isSubmittedRef.current = false
+    accumulatedTimeRef.current = 0
+    lastActiveTimeRef.current = Date.now()
 
     // Restore prefill from sessionStorage if present (e.g. after social login redirect)
     if (typeof window !== 'undefined') {
@@ -63,23 +89,38 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
       }
     }
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        accumulatedTimeRef.current += Date.now() - lastActiveTimeRef.current
+      } else {
+        lastActiveTimeRef.current = Date.now()
+      }
+    }
+
     // Track abandon on unload
     const handleUnload = () => {
-      const secs = Math.round((Date.now() - startTimeRef.current) / 1000)
-      trackStepTiming(PAGE_SLUG, 1, 'text_input', secs)
+      if (isSubmittedRef.current) return
+      const secs = getActiveDurationSecs()
       trackEvent('wizard_abandon', PAGE_SLUG, {
         last_step: 1,
         last_step_name: 'text_input',
         time_on_step_secs: secs,
-        has_text: !!freeformText,
-        photo_count: photos.length,
+        has_text: !!freeformTextRef.current,
+        photo_count: photosRef.current.length,
       })
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
     }
     window.addEventListener('beforeunload', handleUnload)
     return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
       window.removeEventListener('beforeunload', handleUnload)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [getActiveDurationSecs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Placeholders ──
   const placeholderLoggedIn =
@@ -107,7 +148,8 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
 
 
   // ── Navigate to Add Product Listing with text + photos ──
-  const navigateToForm = useCallback(() => {
+  const navigateToForm = useCallback((overrideDuration?: number) => {
+    isSubmittedRef.current = true
     console.log('[SimpleListingEntry] navigateToForm called. text:', freeformText, 'photos:', photos.length)
     // Store text + photos for AddProductListing to read and auto-fill
     const prefillData = {
@@ -119,13 +161,16 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
     sessionStorage.setItem('simple_listing_prefill', JSON.stringify(prefillData))
 
     // Track step transition
-    const secs = Math.round((Date.now() - startTimeRef.current) / 1000)
+    const secs = overrideDuration !== undefined 
+      ? overrideDuration 
+      : getActiveDurationSecs()
+
     trackStepTiming(PAGE_SLUG, 1, 'text_input', secs)
     trackEvent('wizard_step', PAGE_SLUG, { step_index: 2, step_name: 'add_product_form' })
 
     console.log('[SimpleListingEntry] pushing to /my-booth/products/new?from=simple-wizard')
     router.push('/my-booth/products/new?from=simple-wizard')
-  }, [freeformText, photos, router])
+  }, [freeformText, photos, router, getActiveDurationSecs])
 
   // ── Auto-redirect after social login/OTP onboarding completion ──
   useEffect(() => {
@@ -137,7 +182,7 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
         try {
           const data = JSON.parse(stored)
           if (data.intent === 'submit') {
-            navigateToForm()
+            navigateToForm(submitDurationRef.current ?? undefined)
           } else {
             // For 'login' intent or default, stay on the page, restore values, and clear prefill
             if (data.originalText) setFreeformText(data.originalText)
@@ -160,6 +205,9 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
       setError('Please describe what you want to sell or add some photos.')
       return
     }
+
+    const currentDuration = getActiveDurationSecs()
+    submitDurationRef.current = currentDuration
 
     if (!isAuthenticated) {
       // Save text + photos to sessionStorage immediately so they are preserved across redirect
@@ -184,13 +232,13 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
           street: paramAddress || undefined,
         },
         onReady: () => {
-          navigateToForm()
+          navigateToForm(submitDurationRef.current ?? undefined)
         },
       })
       return
     }
 
-    navigateToForm()
+    navigateToForm(currentDuration)
   }
 
   // ── Loading state ──

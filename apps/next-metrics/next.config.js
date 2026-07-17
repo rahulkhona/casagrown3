@@ -29,6 +29,7 @@ module.exports = {
     scrollRestoration: true,
   },
   turbopack: {
+    root: require('path').resolve(__dirname, '../../'),
     resolveAlias: {
       'react-native': 'react-native-web',
       'react-native-svg': '@tamagui/react-native-svg',
