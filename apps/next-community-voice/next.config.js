@@ -78,3 +78,4 @@ module.exports = withTamagui({
   outputCSS: process.env.NODE_ENV === 'production',
   doesNotCompileTwice: true,
 })(nextConfig)
+// Trigger Vercel rebuild 20260717-200535

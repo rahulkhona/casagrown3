@@ -31,3 +31,4 @@ module.exports = {
     ],
   },
 }
+// Trigger Vercel rebuild 20260717-200535
