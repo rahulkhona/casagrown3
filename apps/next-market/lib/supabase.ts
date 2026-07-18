@@ -55,7 +55,22 @@ export function createClient() {
 
   const client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        flowType: 'pkce',
+        // Use a no-op lock instead of navigator.locks.
+        // navigator.locks can hang indefinitely (e.g. cross-origin popups,
+        // OAuth redirects). This matches the workaround in auth-hook.ts.
+        lock: async (
+          _name: string,
+          _acquireTimeout: number,
+          fn: () => Promise<any>,
+        ) => {
+          return await fn()
+        },
+      },
+    }
   )
 
   if (typeof window !== 'undefined') {
