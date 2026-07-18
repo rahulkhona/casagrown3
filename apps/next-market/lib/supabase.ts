@@ -53,8 +53,62 @@ export function createClient() {
     } as any
   }
 
-  return createBrowserClient(
+  const client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  if (typeof window !== 'undefined') {
+    const originalSignIn = client.auth.signInWithOtp.bind(client.auth)
+    client.auth.signInWithOtp = async (credentials) => {
+      // Unconditionally capture first touch page path if not already done
+      const pathKey = 'casagrown_first_page'
+      if (!localStorage.getItem(pathKey)) {
+        let path = window.location.pathname
+        if (path.startsWith('/p/')) {
+          path = '/p/[slug]'
+        }
+        localStorage.setItem(pathKey, path)
+      }
+      const firstPage = localStorage.getItem(pathKey) || 'organic'
+
+      const options = credentials.options || {}
+      const data = options.data || {}
+
+      let signupSource = firstPage
+      let firstTouchSource = 'organic'
+      let utmSource = null
+      let utmMedium = null
+      let utmCampaign = null
+
+      try {
+        const stored = localStorage.getItem('casagrown_referral')
+        if (stored) {
+          const state = JSON.parse(stored)
+          const lastTouch = state.last_touch || state.first_touch
+          const firstTouch = state.first_touch || state.last_touch
+          if (firstTouch?.source) firstTouchSource = firstTouch.source
+          if (lastTouch?.utm_source) utmSource = lastTouch.utm_source
+          if (lastTouch?.utm_medium) utmMedium = lastTouch.utm_medium
+          if (lastTouch?.utm_campaign) utmCampaign = lastTouch.utm_campaign
+        }
+      } catch {}
+
+      options.data = {
+        signup_source: signupSource,
+        first_touch_source: firstTouchSource,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        ...data
+      }
+
+      return originalSignIn({
+        ...credentials,
+        options
+      })
+    }
+  }
+
+  return client
 }

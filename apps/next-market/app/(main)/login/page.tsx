@@ -54,7 +54,7 @@ function LoginPageInner() {
       supabase.auth.signInWithOAuth({
         provider: provider as any,
         options: {
-          redirectTo: `${window.location.origin}/auth-callback?native=true`,
+          redirectTo: `${window.location.origin}/api/auth/callback?native=true`,
           queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
         }
       }).then(({ error }: { error: any }) => {
@@ -97,7 +97,7 @@ function LoginPageInner() {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth-callback?redirect=${encodeURIComponent(redirectTo || '/market')}`
+        redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent(redirectTo || '/market')}`
       }
     })
 
