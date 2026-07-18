@@ -55,7 +55,21 @@ export function createClient() {
 
   const client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        // Bypass navigator.locks which hangs after OAuth redirect chains.
+        // Code exchange is handled server-side in /api/auth/callback.
+        // This no-op lock prevents getSession/autoRefresh from hanging.
+        lock: async (
+          _name: string,
+          _acquireTimeout: number,
+          fn: () => Promise<any>,
+        ) => {
+          return await fn()
+        },
+      },
+    }
   )
 
   if (typeof window !== 'undefined') {
