@@ -2,8 +2,8 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@casagrown/app/features/auth/auth-hook'
-import { supabase } from '@casagrown/app/features/auth/auth-hook'
+import { useAuth } from '../../../lib/useAuth'
+import { createClient } from '../../../lib/supabase'
 
 function AuthCallbackInner() {
   const router = useRouter()
@@ -21,9 +21,9 @@ function AuthCallbackInner() {
 
   const redirectPath = searchParams.get('redirect') || '/market'
 
-  // The shared AuthProvider client (which has detectSessionInUrl: true)
-  // will automatically detect the ?code= parameter and exchange it.
-  // We just wait for the user to appear in the auth context.
+  // The shared AuthProvider (in the layout) has detectSessionInUrl: true
+  // and will automatically exchange the ?code= PKCE parameter.
+  // We just watch for `user` to appear in the auth context.
   useEffect(() => {
     if (handled) return
     if (loading) return // still exchanging the PKCE code
@@ -36,7 +36,8 @@ function AuthCallbackInner() {
           window.sessionStorage.removeItem('is_native_auth')
           document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         }
-        // Get fresh session for tokens
+        // Get fresh session for tokens via the same client the login page uses
+        const supabase = createClient()
         supabase.auth.getSession().then(({ data: { session } }: any) => {
           if (session) {
             const accessToken = session.access_token
@@ -50,7 +51,7 @@ function AuthCallbackInner() {
         router.replace(redirectPath)
       }
     }
-  }, [user, loading, handled, isNative, redirectPath, router, supabase])
+  }, [user, loading, handled, isNative, redirectPath, router])
 
   // Safety timeout — if auth exchange takes too long, show error
   useEffect(() => {
