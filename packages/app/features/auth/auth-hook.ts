@@ -60,7 +60,7 @@ function getOrCreateClient() {
       storage: authStorage,
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: Platform.OS === "web",
       flowType: "pkce",
       // Use a no-op lock instead of navigator.locks.
       // navigator.locks can hang indefinitely when a page is opened

@@ -18,76 +18,62 @@ function AuthCallbackInner() {
       (typeof window !== 'undefined' && window.sessionStorage.getItem('is_native_auth') === 'true') ||
       hasNativeCookie
 
-    const redirectPath = searchParams.get('redirect') || '/market'
 
-    const handleSession = (session: any) => {
-      if (isNative) {
-        setStatus('Returning to app...')
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem('is_native_auth')
-          document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-        }
-        const accessToken = session.access_token
-        const refreshToken = session.refresh_token
-        const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
-        setDeepLink(dl)
-        window.location.href = dl
-      } else {
-        router.replace(redirectPath)
-      }
-    }
-
-    const exchangeAndRedirect = async () => {
+    const checkSession = async () => {
       try {
-        // 1. Try explicit PKCE code exchange first
-        const code = new URL(window.location.href).searchParams.get('code')
-        if (code) {
-          console.log('[auth-callback] Exchanging PKCE code...')
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) {
-            console.error('[auth-callback] Code exchange failed:', exchangeError.message)
-            // Code might already be exchanged — fall through to getSession
-          } else if (data?.session) {
-            console.log('[auth-callback] Code exchange succeeded')
-            handleSession(data.session)
-            return
-          }
-        }
-
-        // 2. Check if session already exists (e.g. code was auto-exchanged)
         const { data: { session } } = await supabase.auth.getSession()
+        const redirectPath = searchParams.get('redirect') || '/market'
         if (session) {
-          console.log('[auth-callback] Session found via getSession')
-          handleSession(session)
-          return
-        }
-
-        // 3. Last resort: listen for auth state changes
-        console.log('[auth-callback] No session yet, waiting for onAuthStateChange...')
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, newSession: any) => {
-          if (newSession) {
-            subscription.unsubscribe()
-            handleSession(newSession)
+          if (isNative) {
+            setStatus('Returning to app...')
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.removeItem('is_native_auth')
+              document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+            }
+            const accessToken = session.access_token
+            const refreshToken = session.refresh_token
+            const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+            setDeepLink(dl)
+            window.location.href = dl
+          } else {
+            router.replace(redirectPath)
           }
-        })
+        } else {
+          // If no session found immediately, listen to auth state changes
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, newSession: any) => {
+            if (newSession) {
+              subscription.unsubscribe()
+              if (isNative) {
+                setStatus('Returning to app...')
+                if (typeof window !== 'undefined') {
+                  window.sessionStorage.removeItem('is_native_auth')
+                  document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+                }
+                const accessToken = newSession.access_token
+                const refreshToken = newSession.refresh_token
+                const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+                setDeepLink(dl)
+                window.location.href = dl
+              } else {
+                router.replace(redirectPath)
+              }
+            }
+          })
 
-        // Safety timeout
-        const timeout = setTimeout(() => {
-          subscription.unsubscribe()
-          setError('Authentication timed out. Please try logging in again.')
-        }, 15000)
+          // Safety timeout (10 seconds)
+          const timeout = setTimeout(() => {
+            subscription.unsubscribe()
+            setError('Authentication timed out. Please try logging in again.')
+          }, 10000)
 
-        return () => {
-          subscription.unsubscribe()
-          clearTimeout(timeout)
+          return () => clearTimeout(timeout)
         }
       } catch (err: any) {
-        console.error('[auth-callback] Error:', err)
         setError(err?.message || 'Failed to complete login')
       }
     }
 
-    exchangeAndRedirect()
+    checkSession()
   }, [searchParams, router])
 
   return (
