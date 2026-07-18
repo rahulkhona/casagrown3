@@ -41,11 +41,10 @@ yarn-error.log
 .yarn/cache
 unplugged/
 
-# Local env files
-.env
-.env*.local
-supabase/.env
-supabase/functions/.env
+# Local env files — recursive to catch all apps/*/
+**/.env
+**/.env.local
+**/.env*.local
 
 # Simulator artifacts
 *.sim_log.txt
