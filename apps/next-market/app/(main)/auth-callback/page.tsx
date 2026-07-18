@@ -2,66 +2,79 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 
 function AuthCallbackInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, loading } = useAuth()
   const [status, setStatus] = useState('Finalizing login...')
   const [error, setError] = useState('')
   const [deepLink, setDeepLink] = useState('')
-  const [handled, setHandled] = useState(false)
 
-  const hasNativeCookie = typeof document !== 'undefined' && document.cookie.includes('is_native_auth=true')
-  const isNative = searchParams.get('native') === 'true' || 
-    (typeof window !== 'undefined' && window.sessionStorage.getItem('is_native_auth') === 'true') ||
-    hasNativeCookie
-
-  const redirectPath = searchParams.get('redirect') || '/market'
-
-  // The shared AuthProvider (in the layout) has detectSessionInUrl: true
-  // and will automatically exchange the ?code= PKCE parameter.
-  // We just watch for `user` to appear in the auth context.
   useEffect(() => {
-    if (handled) return
-    if (loading) return // still exchanging the PKCE code
+    const supabase = createClient()
+    const hasNativeCookie = typeof document !== 'undefined' && document.cookie.includes('is_native_auth=true')
+    const isNative = searchParams.get('native') === 'true' || 
+      (typeof window !== 'undefined' && window.sessionStorage.getItem('is_native_auth') === 'true') ||
+      hasNativeCookie
 
-    if (user) {
-      setHandled(true)
-      if (isNative) {
-        setStatus('Returning to app...')
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem('is_native_auth')
-          document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-        }
-        // Get fresh session for tokens via the same client the login page uses
-        const supabase = createClient()
-        supabase.auth.getSession().then(({ data: { session } }: any) => {
-          if (session) {
+
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const redirectPath = searchParams.get('redirect') || '/market'
+        if (session) {
+          if (isNative) {
+            setStatus('Returning to app...')
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.removeItem('is_native_auth')
+              document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+            }
             const accessToken = session.access_token
             const refreshToken = session.refresh_token
             const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
             setDeepLink(dl)
             window.location.href = dl
+          } else {
+            router.replace(redirectPath)
           }
-        })
-      } else {
-        router.replace(redirectPath)
+        } else {
+          // If no session found immediately, listen to auth state changes
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, newSession: any) => {
+            if (newSession) {
+              subscription.unsubscribe()
+              if (isNative) {
+                setStatus('Returning to app...')
+                if (typeof window !== 'undefined') {
+                  window.sessionStorage.removeItem('is_native_auth')
+                  document.cookie = "is_native_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+                }
+                const accessToken = newSession.access_token
+                const refreshToken = newSession.refresh_token
+                const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+                setDeepLink(dl)
+                window.location.href = dl
+              } else {
+                router.replace(redirectPath)
+              }
+            }
+          })
+
+          // Safety timeout (10 seconds)
+          const timeout = setTimeout(() => {
+            subscription.unsubscribe()
+            setError('Authentication timed out. Please try logging in again.')
+          }, 10000)
+
+          return () => clearTimeout(timeout)
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Failed to complete login')
       }
     }
-  }, [user, loading, handled, isNative, redirectPath, router])
 
-  // Safety timeout — if auth exchange takes too long, show error
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!user && !handled) {
-        setError('Authentication timed out. Please try logging in again.')
-      }
-    }, 15000)
-    return () => clearTimeout(timeout)
-  }, [user, handled])
+    checkSession()
+  }, [searchParams, router])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', fontFamily: 'sans-serif' }}>
