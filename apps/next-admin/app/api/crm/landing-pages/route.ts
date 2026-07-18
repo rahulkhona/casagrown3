@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
-
 /**
  * POST /api/crm/landing-pages
  * Creates a new landing page registration (service role bypasses RLS).
  */
 export async function POST(request: Request) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
     const body = await request.json()
     const { title, slug, description, is_active } = body
 

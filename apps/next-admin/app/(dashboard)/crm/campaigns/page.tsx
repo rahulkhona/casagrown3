@@ -87,6 +87,15 @@ export default function CrmCampaignsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selectedCampaignVariants, setSelectedCampaignVariants] = useState<any[]>([])
+  const [activeVariantIndex, setActiveVariantIndex] = useState<number>(-1)
+
+  function generateTempId(): string {
+    if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
 
   const emptyForm = {
     name: '',
@@ -104,7 +113,8 @@ export default function CrmCampaignsPage() {
     data_source_id: '',
     postmark_template_alias: '',
     test_emails: '',
-    test_phones: ''
+    test_phones: '',
+    variant_name: ''
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -140,27 +150,245 @@ export default function CrmCampaignsPage() {
     setAudienceMembers(filtered)
   }
 
+  const handleSwitchCampaignVariant = (newIndex: number) => {
+    if (activeVariantIndex === newIndex) return;
+
+    const updatedVars = [...selectedCampaignVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: form.subject,
+        content_html: form.content_html,
+        content_text: form.content_text,
+        variant_name: form.variant_name || `Variant ${activeVariantIndex + 1}`
+      };
+      setSelectedCampaignVariants(updatedVars);
+    }
+
+    if (newIndex >= 0 && updatedVars[newIndex]) {
+      const v = updatedVars[newIndex];
+      setForm(f => ({
+        ...f,
+        subject: v.subject || '',
+        content_html: v.content_html || '',
+        content_text: v.content_text || '',
+        variant_name: v.variant_name || `Variant ${newIndex + 1}`
+      }));
+      setActiveVariantIndex(newIndex);
+    } else if (newIndex === -1) {
+      setActiveVariantIndex(-1);
+    }
+  };
+
+  const handleAddCampaignVariant = () => {
+    const updatedVars = [...selectedCampaignVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: form.subject,
+        content_html: form.content_html,
+        content_text: form.content_text,
+        variant_name: form.variant_name || `Variant ${activeVariantIndex + 1}`
+      };
+    } else if (activeVariantIndex === -1) {
+      const varA = {
+        id: `temp_${generateTempId()}`,
+        variant_name: 'Variant A',
+        subject: form.subject,
+        content_html: form.content_html,
+        content_text: form.content_text,
+        is_active: true
+      };
+      updatedVars.push(varA);
+    }
+
+    const newIdx = updatedVars.length;
+    const activeVar = activeVariantIndex >= 0 ? updatedVars[activeVariantIndex] : updatedVars[0];
+    const newVar = {
+      id: `temp_${generateTempId()}`,
+      variant_name: `Variant ${String.fromCharCode(65 + newIdx)}`,
+      subject: activeVar ? activeVar.subject : '',
+      content_html: activeVar ? activeVar.content_html : '',
+      content_text: activeVar ? activeVar.content_text : '',
+      is_active: true
+    };
+    updatedVars.push(newVar);
+
+    setSelectedCampaignVariants(updatedVars);
+    setActiveVariantIndex(newIdx);
+
+    setForm(f => ({
+      ...f,
+      subject: newVar.subject,
+      content_html: newVar.content_html,
+      content_text: newVar.content_text,
+      variant_name: newVar.variant_name
+    }));
+  };
+
+  const handleDeleteCampaignVariant = (indexToDelete: number) => {
+    if (selectedCampaignVariants.length <= 1) return;
+
+    let updatedVars = selectedCampaignVariants.filter((_, idx) => idx !== indexToDelete);
+    setSelectedCampaignVariants(updatedVars);
+
+    let newIdx = activeVariantIndex;
+    if (activeVariantIndex === indexToDelete) {
+      newIdx = Math.max(0, indexToDelete - 1);
+    } else if (activeVariantIndex > indexToDelete) {
+      newIdx = activeVariantIndex - 1;
+    }
+    setActiveVariantIndex(newIdx);
+
+    const v = updatedVars[newIdx];
+    setForm(f => ({
+      ...f,
+      subject: v.subject || '',
+      content_html: v.content_html || '',
+      content_text: v.content_text || '',
+      variant_name: v.variant_name || `Variant ${newIdx + 1}`
+    }));
+  };
+
+  const handleCampaignAiTweak = async () => {
+    const channel = form.channel;
+    const currentContent = channel === 'email' ? form.content_html : form.content_text;
+    
+    if (!currentContent || currentContent.trim().length === 0) {
+      toast('Error: Add content to the editor first before tweaking with AI.');
+      return;
+    }
+
+    toast('Tweak with AI: Generating alternative variation...');
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-campaign-content`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            prompt: 'Generate an alternative variant that is slightly tweaked in tone or phrasing but keeps the same message meaning. Keep the format identical.',
+            channel,
+            currentContent,
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`AI generation failed: ${res.status}`);
+      const data = await res.json();
+
+      if (data.content) {
+        const updatedVars = [...selectedCampaignVariants];
+        if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+          updatedVars[activeVariantIndex] = {
+            ...updatedVars[activeVariantIndex],
+            subject: form.subject,
+            content_html: form.content_html,
+            content_text: form.content_text,
+            variant_name: form.variant_name || `Variant ${activeVariantIndex + 1}`
+          };
+        } else if (activeVariantIndex === -1) {
+          const varA = {
+            id: `temp_${generateTempId()}`,
+            variant_name: 'Variant A',
+            subject: form.subject,
+            content_html: form.content_html,
+            content_text: form.content_text,
+            is_active: true
+          };
+          updatedVars.push(varA);
+        }
+
+        const newIdx = updatedVars.length;
+        const newVar = {
+          id: `temp_${generateTempId()}`,
+          variant_name: `Variant ${String.fromCharCode(65 + newIdx)} (AI)`,
+          subject: channel === 'email' ? `${form.subject} (Alternative)` : '',
+          content_html: channel === 'email' ? data.content : '',
+          content_text: channel === 'sms' ? data.content : '',
+          is_active: true
+        };
+        updatedVars.push(newVar);
+
+        setSelectedCampaignVariants(updatedVars);
+        setActiveVariantIndex(newIdx);
+
+        setForm(f => ({
+          ...f,
+          subject: newVar.subject,
+          content_html: newVar.content_html,
+          content_text: newVar.content_text,
+          variant_name: newVar.variant_name
+        }));
+        toast('✅ Tweaked Variant generated successfully!');
+      } else {
+        throw new Error('No content returned from AI');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast(`Error: AI Tweak failed - ${err.message || err}`);
+    }
+  };
+
   const handleEdit = async (c: Campaign) => {
     const { data } = await supabase.from('crm_campaigns').select('*').eq('id', c.id).single()
     if (!data) return
-    setForm({
-      name: data.name,
-      channel: data.channel,
-      subject: data.subject || '',
-      content_html: data.content_html || '',
-      content_text: data.content_text || '',
-      audience_id: data.audience_id || '',
-      sequence_id: data.sequence_id || '',
-      scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
-      target_states: data.target_states || [],
-      target_cities: data.target_cities || [],
-      target_counties: data.target_counties || [],
-      target_zips: data.target_zips || [],
-      data_source_id: data.data_source_id || '',
-      postmark_template_alias: data.postmark_template_alias || '',
-      test_emails: data.test_emails ? data.test_emails.join(', ') : '',
-      test_phones: data.test_phones ? data.test_phones.join(', ') : ''
-    })
+
+    // Fetch campaign MAB variants
+    const { data: dbVars } = await supabase
+      .from('crm_message_variants')
+      .select('*')
+      .eq('campaign_id', c.id)
+      .eq('is_active', true);
+
+    if (dbVars && dbVars.length > 0) {
+      setSelectedCampaignVariants(dbVars)
+      setActiveVariantIndex(0)
+      setForm({
+        name: data.name,
+        channel: data.channel,
+        subject: dbVars[0].subject || '',
+        content_html: dbVars[0].content_html || '',
+        content_text: dbVars[0].content_text || '',
+        audience_id: data.audience_id || '',
+        sequence_id: data.sequence_id || '',
+        scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
+        target_states: data.target_states || [],
+        target_cities: data.target_cities || [],
+        target_counties: data.target_counties || [],
+        target_zips: data.target_zips || [],
+        data_source_id: data.data_source_id || '',
+        postmark_template_alias: data.postmark_template_alias || '',
+        test_emails: data.test_emails ? data.test_emails.join(', ') : '',
+        test_phones: data.test_phones ? data.test_phones.join(', ') : '',
+        variant_name: dbVars[0].variant_name || ''
+      })
+    } else {
+      setSelectedCampaignVariants([])
+      setActiveVariantIndex(-1)
+      setForm({
+        name: data.name,
+        channel: data.channel,
+        subject: data.subject || '',
+        content_html: data.content_html || '',
+        content_text: data.content_text || '',
+        audience_id: data.audience_id || '',
+        sequence_id: data.sequence_id || '',
+        scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
+        target_states: data.target_states || [],
+        target_cities: data.target_cities || [],
+        target_counties: data.target_counties || [],
+        target_zips: data.target_zips || [],
+        data_source_id: data.data_source_id || '',
+        postmark_template_alias: data.postmark_template_alias || '',
+        test_emails: data.test_emails ? data.test_emails.join(', ') : '',
+        test_phones: data.test_phones ? data.test_phones.join(', ') : '',
+        variant_name: ''
+      })
+    }
     setTemplateMode(!!data.postmark_template_alias)
     setEditingId(c.id)
     setCreating(true)
@@ -309,6 +537,19 @@ export default function CrmCampaignsPage() {
       status: form.scheduled_at ? 'scheduled' : 'draft',
     }
 
+    // Save current active variant edits into local state in memory first
+    let updatedVars = [...selectedCampaignVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: form.subject,
+        content_html: form.content_html,
+        content_text: form.content_text,
+        variant_name: form.name || `Variant ${activeVariantIndex + 1}`
+      };
+      setSelectedCampaignVariants(updatedVars);
+    }
+
     let error, data;
     if (editingId) {
       const res = await supabase.from('crm_campaigns').update(payload).eq('id', editingId).select().single()
@@ -321,10 +562,47 @@ export default function CrmCampaignsPage() {
     }
 
     if (!error && data) {
+      const campaignId = data.id;
+
+      // Save/upsert campaign variants to database
+      if (updatedVars.length > 0) {
+        const rowsToSave = updatedVars.map((v, idx) => ({
+          id: v.id && !String(v.id).startsWith('temp_') ? v.id : undefined,
+          sequence_id: null,
+          campaign_id: campaignId,
+          node_id: null,
+          variant_name: v.variant_name || `Variant ${idx + 1}`,
+          subject: v.subject || null,
+          content_html: v.content_html || null,
+          content_text: v.content_text || null,
+          is_active: v.is_active !== false,
+          prior_alpha: v.prior_alpha || 1,
+          prior_beta: v.prior_beta || 9,
+          sends_count: v.sends_count || 0,
+          conversions_count: v.conversions_count || 0
+        }));
+
+        const existingIds = rowsToSave.map(r => r.id).filter(Boolean);
+        await supabase
+          .from('crm_message_variants')
+          .delete()
+          .eq('campaign_id', campaignId)
+          .not('id', 'in', `(${existingIds.length > 0 ? existingIds.map(id => `'${id}'`).join(',') : "'00000000-0000-0000-0000-000000000000'"})`);
+
+        await supabase.from('crm_message_variants').upsert(rowsToSave);
+      } else {
+        await supabase
+          .from('crm_message_variants')
+          .delete()
+          .eq('campaign_id', campaignId);
+      }
+
       const { data: refreshed } = await supabase.from('crm_campaigns').select('*').order('created_at', { ascending: false })
       if (refreshed) setCampaigns(refreshed as Campaign[])
       setCreating(false)
       setEditingId(null)
+      setSelectedCampaignVariants([])
+      setActiveVariantIndex(-1)
       setForm(emptyForm)
       toast(editingId ? 'Campaign updated' : 'Campaign created')
     } else {
@@ -399,6 +677,119 @@ export default function CrmCampaignsPage() {
               <input placeholder="e.g. Spring Launch Email" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="crm-field full-width" style={{ gridColumn: '1 / -1' }}>
+              {/* Campaign MAB Variants Panel */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🎯 Multi-Arm Bandit (MAB) Copy Experiments
+                  </span>
+                  {selectedCampaignVariants.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCampaignAiTweak}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}
+                    >
+                      🪄 Tweak with AI
+                    </button>
+                  )}
+                </div>
+
+                {selectedCampaignVariants.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const varA = {
+                        id: `temp_${generateTempId()}`,
+                        variant_name: 'Variant A',
+                        subject: form.subject,
+                        content_html: form.content_html,
+                        content_text: form.content_text,
+                        is_active: true
+                      };
+                      const varB = {
+                        id: `temp_${generateTempId()}`,
+                        variant_name: 'Variant B',
+                        subject: form.subject,
+                        content_html: form.content_html,
+                        content_text: form.content_text,
+                        is_active: true
+                      };
+                      setSelectedCampaignVariants([varA, varB]);
+                      setActiveVariantIndex(0);
+                      setForm({
+                        ...form,
+                        variant_name: 'Variant A'
+                      });
+                    }}
+                    style={{ padding: '8px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '0.85rem', color: '#475569', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    ➕ Enable MAB for this Campaign (Create Variants)
+                  </button>
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                      {selectedCampaignVariants.map((v, idx) => (
+                        <div
+                          key={v.id}
+                          onClick={() => handleSwitchCampaignVariant(idx)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            background: idx === activeVariantIndex ? '#3b82f6' : '#ffffff',
+                            color: idx === activeVariantIndex ? '#ffffff' : '#334155',
+                            border: '1px solid',
+                            borderColor: idx === activeVariantIndex ? '#2563eb' : '#cbd5e1',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 500
+                          }}
+                        >
+                          <span>{v.variant_name}</span>
+                          {selectedCampaignVariants.length > 1 && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCampaignVariant(idx);
+                              }}
+                              style={{
+                                marginLeft: 4,
+                                color: idx === activeVariantIndex ? '#93c5fd' : '#94a3b8',
+                                fontSize: '1rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ×
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleAddCampaignVariant}
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'transparent', color: '#2563eb', border: '1px dashed #cbd5e1', borderRadius: 6, cursor: 'pointer' }}
+                      >
+                        + Add Variant
+                      </button>
+                    </div>
+                    {activeVariantIndex >= 0 && (
+                      <div style={{ maxWidth: '300px', marginBottom: 8 }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: 4 }}>Active Variant Name</label>
+                        <input
+                          type="text"
+                          value={form.variant_name || ''}
+                          onChange={(e) => setForm(f => ({ ...f, variant_name: e.target.value }))}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <CampaignMessageEditor
                 form={form as any}
                 setForm={setForm as any}

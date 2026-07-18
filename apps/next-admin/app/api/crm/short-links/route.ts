@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
-
 /** Generate a short random token (8 chars, URL-safe) */
 function generateToken(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789' // no lookalikes (0/o/1/l/i)
@@ -18,6 +13,11 @@ function generateToken(): string {
 
 export async function POST(request: Request) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
     const body = await request.json()
     const { destination_url, campaign_id, label, sequence_id, node_id } = body
 

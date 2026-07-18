@@ -24,6 +24,13 @@ import AiQueryChat from './AiQueryChat'
 import { QueryBuilder, Field, RuleGroupType } from 'react-querybuilder'
 import 'react-querybuilder/dist/query-builder.css'
 
+function generateTempId(): string {
+  if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 const booleanValues = [
   { name: 'true', label: 'True' },
   { name: 'false', label: 'False' }
@@ -180,7 +187,9 @@ const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.
     case 'action_email': {
       icon = '✉️';
       title = userLabel || 'Send Email';
-      if (data?.postmark_template_alias) {
+      if (data?.variantsCount && data.variantsCount > 0) {
+        summaryLines.push(`📊 Bandit: ${data.variantsCount} variants`);
+      } else if (data?.postmark_template_alias) {
         summaryLines.push(`Template: ${data.postmark_template_alias}`);
       } else if (data?.subject) {
         summaryLines.push(`Subject: ${data.subject.length > 45 ? data.subject.slice(0, 42) + '...' : data.subject}`);
@@ -194,7 +203,9 @@ const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.
     case 'action_sms': {
       icon = '💬';
       title = userLabel || 'Send SMS';
-      if (data?.text) {
+      if (data?.variantsCount && data.variantsCount > 0) {
+        summaryLines.push(`📊 Bandit: ${data.variantsCount} variants`);
+      } else if (data?.text) {
         const preview = data.text.length > 50 ? data.text.slice(0, 47) + '...' : data.text;
         summaryLines.push(preview);
         tooltipLines.push(`Message: ${data.text}`);
@@ -420,6 +431,12 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   // Sidebar state
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   
+  // MAB States
+  const [variants, setVariants] = useState<any[]>([])
+  const [selectedNodeVariants, setSelectedNodeVariants] = useState<any[]>([])
+  const [activeVariantIndex, setActiveVariantIndex] = useState<number>(-1)
+  const [nodePreviewIndices, setNodePreviewIndices] = useState<Record<string, number>>({})
+  
   // Modals state for editing
   const [dataSources, setDataSources] = useState<any[]>([])
   
@@ -534,18 +551,20 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
   useEffect(() => {
     const fetchData = async () => {
-      const [seqRes, dsRes, audRes, lpRes, promoRes, allSeqsRes] = await Promise.all([
+      const [seqRes, dsRes, audRes, lpRes, promoRes, allSeqsRes, variantsRes] = await Promise.all([
         adminApi.select('crm_sequences', '*', { eq: { id: sequenceId } }),
         adminApi.select('crm_data_sources', 'id, name, rpc_name'),
         adminApi.select('crm_audiences', 'id, name, audience_rpc_name'),
         adminApi.select('crm_landing_pages', 'id, slug, title', { eq: { is_active: true } }),
         adminApi.select('crm_promotions', 'id, name, landing_page_id'),
-        adminApi.select('crm_sequences', 'id, name')
+        adminApi.select('crm_sequences', 'id, name'),
+        supabase.from('crm_message_variants').select('*').eq('sequence_id', sequenceId)
       ])
       
       if (lpRes.data) setLandingPages(lpRes.data)
       if (promoRes.data) setPromotions(promoRes.data)
       if (allSeqsRes.data) setAllSequences(allSeqsRes.data)
+      if (variantsRes.data) setVariants(variantsRes.data)
 
       // Fetch send slot defaults
       const slotDefaultsRes = await adminApi.select('crm_send_slot_defaults', '*')
@@ -590,7 +609,18 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
               color = 'white';
               border = 'none';
             } else {
-              label = buildNodeLabel(nodeType, n.data, queryBuilderFields);
+              const nodeVars = (variantsRes.data || []).filter((v: any) => v.node_id === n.id);
+              const previewIdx = nodePreviewIndices[n.id] || 0;
+              const activeVariant = nodeVars[previewIdx] || nodeVars[0];
+
+              const labelData = {
+                ...n.data,
+                variantsCount: nodeVars.length,
+                subject: activeVariant ? activeVariant.subject : n.data.subject,
+                html: activeVariant ? activeVariant.content_html : n.data.html,
+                text: activeVariant ? activeVariant.content_text : n.data.text
+              };
+              label = buildNodeLabel(nodeType, labelData, queryBuilderFields);
             }
 
             return {
@@ -621,11 +651,41 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       }
       if (dsRes.data) setDataSources(dsRes.data)
       if (audRes.data) setAudiences(audRes.data)
-      
       setLoading(false)
     }
     fetchData()
   }, [sequenceId, setNodes, setEdges])
+
+  // Synchronize variant counts and previews onto the canvas nodes dynamically
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.data.type === 'action_email' || n.data.type === 'action_sms') {
+          const nodeVars = variants.filter((v) => v.node_id === n.id);
+          const previewIdx = nodePreviewIndices[n.id] || 0;
+          const activeVariant = nodeVars[previewIdx] || nodeVars[0];
+          
+          const labelData = {
+            ...n.data,
+            variantsCount: nodeVars.length,
+            subject: activeVariant ? activeVariant.subject : n.data.subject,
+            html: activeVariant ? activeVariant.content_html : n.data.html,
+            text: activeVariant ? activeVariant.content_text : n.data.text,
+          };
+          
+          const label = buildNodeLabel(n.data.type as string, labelData, queryBuilderFields);
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              label,
+            },
+          };
+        }
+        return n;
+      })
+    );
+  }, [variants, nodePreviewIndices, queryBuilderFields, setNodes]);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {
@@ -857,21 +917,236 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     document.body.removeChild(link)
   }
 
+  const handleSwitchVariant = (newIndex: number) => {
+    if (activeVariantIndex === newIndex) return;
+
+    const updatedVars = [...selectedNodeVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: editorForm.subject,
+        content_html: editorForm.content_html,
+        content_text: editorForm.content_text,
+        variant_name: editorForm.name || `Variant ${activeVariantIndex + 1}`
+      };
+      setSelectedNodeVariants(updatedVars);
+    }
+
+    if (newIndex >= 0 && updatedVars[newIndex]) {
+      const v = updatedVars[newIndex];
+      setEditorForm({
+        name: v.variant_name,
+        channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+        subject: v.subject || '',
+        content_html: v.content_html || '',
+        content_text: v.content_text || '',
+        postmark_template_alias: '',
+        test_emails: '',
+        data_source_id: (selectedNode?.data.data_source_id as string) || ''
+      });
+      setActiveVariantIndex(newIndex);
+    } else if (newIndex === -1) {
+      setActiveVariantIndex(-1);
+    }
+  };
+
+  const handleAddVariant = () => {
+    const updatedVars = [...selectedNodeVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: editorForm.subject,
+        content_html: editorForm.content_html,
+        content_text: editorForm.content_text,
+        variant_name: editorForm.name || `Variant ${activeVariantIndex + 1}`
+      };
+    } else if (activeVariantIndex === -1) {
+      const varA = {
+        id: `temp_${generateTempId()}`,
+        variant_name: 'Variant A',
+        subject: editorForm.subject,
+        content_html: editorForm.content_html,
+        content_text: editorForm.content_text,
+        is_active: true
+      };
+      updatedVars.push(varA);
+    }
+
+    const newIdx = updatedVars.length;
+    const activeVar = activeVariantIndex >= 0 ? updatedVars[activeVariantIndex] : updatedVars[0];
+    const newVar = {
+      id: `temp_${generateTempId()}`,
+      variant_name: `Variant ${String.fromCharCode(65 + newIdx)}`,
+      subject: activeVar ? activeVar.subject : '',
+      content_html: activeVar ? activeVar.content_html : '',
+      content_text: activeVar ? activeVar.content_text : '',
+      is_active: true
+    };
+    updatedVars.push(newVar);
+
+    setSelectedNodeVariants(updatedVars);
+    setActiveVariantIndex(newIdx);
+
+    setEditorForm({
+      name: newVar.variant_name,
+      channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+      subject: newVar.subject,
+      content_html: newVar.content_html,
+      content_text: newVar.content_text,
+      postmark_template_alias: '',
+      test_emails: '',
+      data_source_id: (selectedNode?.data.data_source_id as string) || ''
+    });
+  };
+
+  const handleDeleteVariant = (indexToDelete: number) => {
+    if (selectedNodeVariants.length <= 1) return;
+
+    let updatedVars = selectedNodeVariants.filter((_, idx) => idx !== indexToDelete);
+    setSelectedNodeVariants(updatedVars);
+
+    let newIdx = activeVariantIndex;
+    if (activeVariantIndex === indexToDelete) {
+      newIdx = Math.max(0, indexToDelete - 1);
+    } else if (activeVariantIndex > indexToDelete) {
+      newIdx = activeVariantIndex - 1;
+    }
+    setActiveVariantIndex(newIdx);
+
+    const v = updatedVars[newIdx];
+    setEditorForm({
+      name: v.variant_name,
+      channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+      subject: v.subject || '',
+      content_html: v.content_html || '',
+      content_text: v.content_text || '',
+      postmark_template_alias: '',
+      test_emails: '',
+      data_source_id: (selectedNode?.data.data_source_id as string) || ''
+    });
+  };
+
+  const handleAiTweak = async () => {
+    const channel = selectedNode?.data.type === 'action_email' ? 'email' : 'sms';
+    const currentContent = channel === 'email' ? editorForm.content_html : editorForm.content_text;
+    
+    if (!currentContent || currentContent.trim().length === 0) {
+      alert('Add content to the message editor first before tweaking with AI.');
+      return;
+    }
+
+    setToastMsg('Tweak with AI: Generating alternative variation...');
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-campaign-content`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            prompt: 'Generate an alternative variant that is slightly tweaked in tone or phrasing but keeps the same message meaning. Keep the format identical.',
+            channel,
+            currentContent,
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`AI generation failed: ${res.status}`);
+      const data = await res.json();
+
+      if (data.content) {
+        const updatedVars = [...selectedNodeVariants];
+        if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+          updatedVars[activeVariantIndex] = {
+            ...updatedVars[activeVariantIndex],
+            subject: editorForm.subject,
+            content_html: editorForm.content_html,
+            content_text: editorForm.content_text,
+            variant_name: editorForm.name || `Variant ${activeVariantIndex + 1}`
+          };
+        } else if (activeVariantIndex === -1) {
+          const varA = {
+            id: `temp_${generateTempId()}`,
+            variant_name: 'Variant A',
+            subject: editorForm.subject,
+            content_html: editorForm.content_html,
+            content_text: editorForm.content_text,
+            is_active: true
+          };
+          updatedVars.push(varA);
+        }
+
+        const newIdx = updatedVars.length;
+        const newVar = {
+          id: `temp_${generateTempId()}`,
+          variant_name: `Variant ${String.fromCharCode(65 + newIdx)} (AI)`,
+          subject: channel === 'email' ? `${editorForm.subject} (Alternative)` : '',
+          content_html: channel === 'email' ? data.content : '',
+          content_text: channel === 'sms' ? data.content : '',
+          is_active: true
+        };
+        updatedVars.push(newVar);
+
+        setSelectedNodeVariants(updatedVars);
+        setActiveVariantIndex(newIdx);
+
+        setEditorForm({
+          name: newVar.variant_name,
+          channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+          subject: newVar.subject,
+          content_html: newVar.content_html,
+          content_text: newVar.content_text,
+          postmark_template_alias: '',
+          test_emails: '',
+          data_source_id: (selectedNode?.data.data_source_id as string) || ''
+        });
+        setToastMsg('✅ Tweaked Variant generated successfully!');
+      } else {
+        throw new Error('No content returned from AI');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`AI Tweak failed: ${err.message || err}`);
+    } finally {
+      setTimeout(() => setToastMsg(''), 3000);
+    }
+  };
+
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
     setSelectedNode(node)
     setUserLabel((node.data.userLabel as string) || '')
     
     if (node.data.type === 'action_email' || node.data.type === 'action_sms') {
-      setEditorForm({
-        name: '',
-        channel: node.data.type === 'action_email' ? 'email' : 'sms',
-        subject: (node.data.subject as string) || '',
-        content_html: (node.data.html as string) || '',
-        content_text: (node.data.text as string) || '',
-        postmark_template_alias: (node.data.postmark_template_alias as string) || '',
-        test_emails: '',
-        data_source_id: (node.data.data_source_id as string) || ''
-      })
+      const nodeVars = variants.filter(v => v.node_id === node.id);
+      setSelectedNodeVariants(nodeVars);
+
+      if (nodeVars.length > 0) {
+        setActiveVariantIndex(0);
+        setEditorForm({
+          name: nodeVars[0].variant_name,
+          channel: node.data.type === 'action_email' ? 'email' : 'sms',
+          subject: nodeVars[0].subject || '',
+          content_html: nodeVars[0].content_html || '',
+          content_text: nodeVars[0].content_text || '',
+          postmark_template_alias: '',
+          test_emails: '',
+          data_source_id: (node.data.data_source_id as string) || ''
+        });
+      } else {
+        setActiveVariantIndex(-1);
+        setEditorForm({
+          name: '',
+          channel: node.data.type === 'action_email' ? 'email' : 'sms',
+          subject: (node.data.subject as string) || '',
+          content_html: (node.data.html as string) || '',
+          content_text: (node.data.text as string) || '',
+          postmark_template_alias: (node.data.postmark_template_alias as string) || '',
+          test_emails: '',
+          data_source_id: (node.data.data_source_id as string) || ''
+        });
+      }
       setTemplateMode(!!node.data.postmark_template_alias)
     } else if (node.data.type === 'wait') {
       setWaitConfig({ 
@@ -907,6 +1182,18 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
   const saveSelectedNode = async () => {
     if (!selectedNode) return
 
+    let updatedVars = [...selectedNodeVariants];
+    if (activeVariantIndex >= 0 && updatedVars[activeVariantIndex]) {
+      updatedVars[activeVariantIndex] = {
+        ...updatedVars[activeVariantIndex],
+        subject: editorForm.subject,
+        content_html: editorForm.content_html,
+        content_text: editorForm.content_text,
+        variant_name: editorForm.name || `Variant ${activeVariantIndex + 1}`
+      };
+      setSelectedNodeVariants(updatedVars);
+    }
+
     let finalNodes = [...nodes]
 
     finalNodes = finalNodes.map(n => {
@@ -919,6 +1206,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           newData.text = editorForm.content_text
           newData.postmark_template_alias = templateMode ? editorForm.postmark_template_alias : null
           newData.data_source_id = editorForm.data_source_id || null
+          newData.variantsCount = updatedVars.length
         } else if (n.data.type === 'wait') {
           const d = parseInt(waitConfig.days) || 0;
           const h = parseInt(waitConfig.hours) || 0;
@@ -982,6 +1270,62 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       test_phones: parsedPhones,
       backfill_on_activate: backfillOnActivate
     }, { eq: { id: sequenceId } })
+
+    // Save/upsert MAB variants to database
+    if (selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') {
+      if (updatedVars.length > 0) {
+        const rowsToSave = updatedVars.map((v, idx) => ({
+          id: v.id && !String(v.id).startsWith('temp_') ? v.id : undefined,
+          sequence_id: sequenceId,
+          campaign_id: null,
+          node_id: selectedNode.id,
+          variant_name: v.variant_name || `Variant ${idx + 1}`,
+          subject: v.subject || null,
+          content_html: v.content_html || null,
+          content_text: v.content_text || null,
+          is_active: v.is_active !== false,
+          prior_alpha: v.prior_alpha || 1,
+          prior_beta: v.prior_beta || 9,
+          sends_count: v.sends_count || 0,
+          conversions_count: v.conversions_count || 0
+        }));
+
+        const existingIds = rowsToSave.map(r => r.id).filter(Boolean);
+        await supabase
+          .from('crm_message_variants')
+          .delete()
+          .eq('sequence_id', sequenceId)
+          .eq('node_id', selectedNode.id)
+          .not('id', 'in', `(${existingIds.length > 0 ? existingIds.map(id => `'${id}'`).join(',') : "'00000000-0000-0000-0000-000000000000'"})`);
+
+        const { data: savedData, error: upsertErr } = await supabase
+          .from('crm_message_variants')
+          .upsert(rowsToSave)
+          .select();
+
+        if (upsertErr) {
+          console.error('[MAB DB SAVE ERROR]', upsertErr);
+        } else if (savedData) {
+          setVariants(prev => {
+            const otherNodesVariants = prev.filter(v => v.node_id !== selectedNode.id || v.sequence_id !== sequenceId);
+            return [...otherNodesVariants, ...savedData];
+          });
+          // Refresh selected node variants with persisted IDs
+          const nodeVars = savedData.filter((v: any) => v.node_id === selectedNode.id);
+          setSelectedNodeVariants(nodeVars);
+        }
+      } else {
+        await supabase
+          .from('crm_message_variants')
+          .delete()
+          .eq('sequence_id', sequenceId)
+          .eq('node_id', selectedNode.id);
+
+        setVariants(prev => prev.filter(v => v.node_id !== selectedNode.id || v.sequence_id !== sequenceId));
+        setSelectedNodeVariants([]);
+        setActiveVariantIndex(-1);
+      }
+    }
 
     setToastMsg('Node saved locally and auto-saved to database draft.')
     setTimeout(() => setToastMsg(''), 3000)
@@ -1832,10 +2176,118 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                 </div>
               )}
 
-              {(selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') && (
+               {(selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.5, margin: 0 }}>Configure the message content that will be sent when a user reaches this node.</p>
                   
+                  {/* Variant Selection Panel */}
+                  <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>🎯 Multi-Arm Bandit (MAB)</span>
+                      {selectedNodeVariants.length > 0 && (
+                        <button
+                          onClick={handleAiTweak}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          🪄 Tweak with AI
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedNodeVariants.length === 0 ? (
+                      <button
+                        onClick={() => {
+                          const varA = {
+                            id: `temp_${generateTempId()}`,
+                            variant_name: 'Variant A',
+                            subject: editorForm.subject,
+                            content_html: editorForm.content_html,
+                            content_text: editorForm.content_text,
+                            is_active: true
+                          };
+                          const varB = {
+                            id: `temp_${generateTempId()}`,
+                            variant_name: 'Variant B',
+                            subject: editorForm.subject,
+                            content_html: editorForm.content_html,
+                            content_text: editorForm.content_text,
+                            is_active: true
+                          };
+                          setSelectedNodeVariants([varA, varB]);
+                          setActiveVariantIndex(0);
+                          setEditorForm({
+                            ...editorForm,
+                            name: 'Variant A'
+                          });
+                        }}
+                        style={{ width: '100%', padding: '8px 12px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.82rem', color: '#4b5563', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        ➕ Enable Copy MAB (Create Variants)
+                      </button>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                          {selectedNodeVariants.map((v, idx) => (
+                            <div
+                              key={v.id}
+                              onClick={() => handleSwitchVariant(idx)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 8px',
+                                background: idx === activeVariantIndex ? '#3b82f6' : '#f3f4f6',
+                                color: idx === activeVariantIndex ? 'white' : '#374151',
+                                border: '1px solid',
+                                borderColor: idx === activeVariantIndex ? '#2563eb' : '#d1d5db',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                              }}
+                            >
+                              <span>{v.variant_name}</span>
+                              {selectedNodeVariants.length > 1 && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteVariant(idx);
+                                  }}
+                                  style={{
+                                    marginLeft: 4,
+                                    color: idx === activeVariantIndex ? '#bfdbfe' : '#9ca3af',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ×
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            onClick={handleAddVariant}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'transparent', color: '#2563eb', border: '1px dashed #d1d5db', borderRadius: 4, cursor: 'pointer' }}
+                          >
+                            + Add Variant
+                          </button>
+                        </div>
+                        {activeVariantIndex >= 0 && (
+                          <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>Variant Name</label>
+                            <input
+                              type="text"
+                              value={editorForm.name || ''}
+                              onChange={(e) => setEditorForm(f => ({ ...f, name: e.target.value }))}
+                              style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.8rem' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {isLocked && (
                     <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: '0.82rem', color: '#1e40af', lineHeight: 1.4 }}>
                       ✏️ <strong>Content is editable</strong> — you can update message content, subject lines, and URLs on active sequences without deactivating.

@@ -23,6 +23,7 @@ const DefinitionSchema = z.object({
 });
 
 import { evaluateRule, evaluateQuery } from '../_shared/evaluate.ts';
+import { sampleVariant } from '../_shared/mab.ts';
 
 import { buildTemplateModel, interpolateTemplate } from "../_shared/template-interpolation.ts";
 import { sendBroadcastEmail, sendBroadcastEmailBatch } from "../_shared/postmark.ts";
@@ -208,6 +209,23 @@ serve(async (req) => {
   const results: any[] = [];
   const emailsToBatch: any[] = [];
 
+  // ── Batch-prefetch MAB variants (1 query instead of N queries) ──
+  const sequenceIds = Array.from(new Set(enrollments.map((e: any) => e.sequence_id)));
+  const { data: batchVariants } = await supabase
+    .from('crm_message_variants')
+    .select('id, sequence_id, node_id, variant_name, subject, content_html, content_text, prior_alpha, prior_beta, sends_count, conversions_count')
+    .in('sequence_id', sequenceIds)
+    .eq('is_active', true);
+  
+  const variantMap = new Map<string, any[]>();
+  if (batchVariants) {
+    for (const v of batchVariants) {
+      if (!variantMap.has(v.node_id)) variantMap.set(v.node_id, []);
+      variantMap.get(v.node_id)!.push(v);
+    }
+  }
+  const variantSendCounts = new Map<string, number>();
+
   // ── Batch-prefetch metadata for all enrollments (3 queries instead of N×3) ──
   const leadRecipientIds = enrollments
     .filter((e: any) => !e.recipient_type || e.recipient_type === 'lead')
@@ -327,8 +345,25 @@ serve(async (req) => {
         if (edge) nextNodeId = edge.target;
       } else if (nodeLogicType === 'action_email') {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
-        const subject = interpolateTemplate(node.data.subject || '', model);
-        let htmlBody = interpolateTemplate(node.data.html || '', model);
+        
+        // Check for variants configured in crm_message_variants
+        const dbVariants = variantMap.get(node.id) || [];
+
+        let subject = '';
+        let htmlBody = '';
+        let selectedVariantId: string | null = null;
+
+        if (dbVariants.length > 0) {
+          const variant = sampleVariant(dbVariants);
+          subject = interpolateTemplate(variant.subject || '', model);
+          htmlBody = interpolateTemplate(variant.content_html || '', model);
+          selectedVariantId = variant.id;
+          variantSendCounts.set(variant.id, (variantSendCounts.get(variant.id) || 0) + 1);
+        } else {
+          // Fallback: Legacy flat-field sequence node (backward compatible)
+          subject = interpolateTemplate(node.data.subject || '', model);
+          htmlBody = interpolateTemplate(node.data.html || '', model);
+        }
 
         // Rewrite links to short URLs with sequence tracking
         htmlBody = await rewriteLinks(
@@ -336,7 +371,7 @@ serve(async (req) => {
           enrollment.recipient_id,
           enrollment.recipient_type,
           supabase,
-          { sequenceId: sequence.id, nodeId: node.id }
+          { sequenceId: sequence.id, nodeId: node.id, variantId: selectedVariantId }
         );
 
         const email = profileRes.data?.email;
@@ -403,13 +438,29 @@ serve(async (req) => {
             recipientId: enrollment.recipient_id,
             email,
             nextNodeId,
-            nextEvalAt
+            nextEvalAt,
+            variantId: selectedVariantId
           });
         }
         continue;
       } else if (nodeLogicType === 'action_sms') {
         const model = buildTemplateModel(profileRes.data, metaRes.data);
-        let textBody = interpolateTemplate(node.data.text || '', model);
+
+        // Check for variants configured in crm_message_variants
+        const dbVariants = variantMap.get(node.id) || [];
+
+        let textBody = '';
+        let selectedVariantId: string | null = null;
+
+        if (dbVariants.length > 0) {
+          const variant = sampleVariant(dbVariants);
+          textBody = interpolateTemplate(variant.content_text || '', model);
+          selectedVariantId = variant.id;
+          variantSendCounts.set(variant.id, (variantSendCounts.get(variant.id) || 0) + 1);
+        } else {
+          // Fallback: Legacy flat-field sequence node (backward compatible)
+          textBody = interpolateTemplate(node.data.text || '', model);
+        }
 
         // Rewrite links to short URLs with sequence tracking
         textBody = await rewriteLinksText(
@@ -417,7 +468,7 @@ serve(async (req) => {
           enrollment.recipient_id,
           enrollment.recipient_type,
           supabase,
-          { sequenceId: sequence.id, nodeId: node.id }
+          { sequenceId: sequence.id, nodeId: node.id, variantId: selectedVariantId }
         );
 
         const phone = profileRes.data?.phone_number;
@@ -450,6 +501,7 @@ serve(async (req) => {
           campaign_id: null,
           sequence_id: sequence.id,
           node_id: node.id,
+          variant_id: selectedVariantId,
           recipient_type: enrollment.recipient_type,
           recipient_id: enrollment.recipient_id,
           phone: phone || null,
@@ -776,6 +828,7 @@ serve(async (req) => {
         campaign_id: null,
         sequence_id: item.sequenceId,
         node_id: item.nodeId,
+        variant_id: item.variantId || null,
         recipient_type: item.recipientType,
         recipient_id: item.recipientId,
         email: item.email,
@@ -821,6 +874,7 @@ serve(async (req) => {
         campaign_id: null,
         sequence_id: item.sequenceId,
         node_id: item.nodeId,
+        variant_id: item.variantId || null,
         recipient_type: item.recipientType,
         recipient_id: item.recipientId,
         email: item.email,
@@ -833,6 +887,19 @@ serve(async (req) => {
       }
     }
   }
+
+    // ── Bulk update sends_count for sampled variants ──
+    if (!isTest && variantSendCounts.size > 0) {
+      for (const [variantId, count] of variantSendCounts.entries()) {
+        const { error: incError } = await supabase.rpc('increment_message_variant_sends_by', {
+          p_variant_id: variantId,
+          p_inc: count
+        });
+        if (incError) {
+          console.error(`[MAB] Error incrementing variant sends count:`, incError);
+        }
+      }
+    }
 
     allResults.push(...results);
 

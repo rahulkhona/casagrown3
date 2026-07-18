@@ -19,12 +19,14 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { buildTemplateModel } from "../_shared/template-interpolation.ts";
 import { rewriteLinks, rewriteLinksText } from "../_shared/short-links.ts";
 
+import { sampleVariant } from "../_shared/mab.ts";
+
 // Safety guard: never use localhost URLs in production emails
 const _rawSiteUrl = Deno.env.get("SITE_URL") ?? "https://casagrown.com";
 const SITE_URL = (
   _rawSiteUrl.includes("localhost") && Deno.env.get("POSTMARK_SERVER_TOKEN")
 ) ? "https://casagrown.com" : _rawSiteUrl;
-const BATCH_SIZE = 500;
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -218,6 +220,19 @@ Deno.serve(async (req: Request) => {
       let sent = 0;
       let failed = 0;
 
+      // ── Fetch active variants for this campaign (MAB) ──
+      const { data: dbVariants, error: varError } = await supabase
+        .from('crm_message_variants')
+        .select('id, variant_name, subject, content_html, content_text, prior_alpha, prior_beta, sends_count, conversions_count')
+        .eq('campaign_id', campaign.id)
+        .eq('is_active', true);
+
+      if (varError) {
+        console.error(`[MAB] Error fetching campaign variants:`, varError);
+      }
+
+      const variantSendCounts = new Map<string, number>();
+
       for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
         const batch = recipients.slice(i, i + BATCH_SIZE);
 
@@ -262,8 +277,21 @@ Deno.serve(async (req: Request) => {
             // ── Standard Custom HTML Mode ──
             const emailPayloads = await Promise.all(
               batch.map(async (r) => {
-                const rawBody = campaign.content_html ?? "";
-                const rawText = campaign.content_text ?? "";
+                let rawBody = campaign.content_html ?? "";
+                let rawText = campaign.content_text ?? "";
+                let rawSubject = campaign.subject ?? "Message from CasaGrown";
+                let selectedVariantId: string | null = null;
+
+                if (dbVariants && dbVariants.length > 0) {
+                  const variant = sampleVariant(dbVariants);
+                  rawBody = variant.content_html ?? "";
+                  rawText = variant.content_text ?? "";
+                  rawSubject = variant.subject ?? rawSubject;
+                  selectedVariantId = variant.id;
+
+                  variantSendCounts.set(variant.id, (variantSendCounts.get(variant.id) || 0) + 1);
+                }
+
                 const model = buildTemplateModel(r, metadataMap.get(r.id) || {}, dynamicModel);
                 
                 const renderedHtml = Mustache.render(rawBody, model);
@@ -274,7 +302,7 @@ Deno.serve(async (req: Request) => {
                   r.id,
                   r.recipient_type,
                   supabase,
-                  { campaignId: campaign.id }
+                  { campaignId: campaign.id, variantId: selectedVariantId }
                 );
 
                 const personalizedText = renderedText ? await rewriteLinksText(
@@ -282,18 +310,19 @@ Deno.serve(async (req: Request) => {
                   r.id,
                   r.recipient_type,
                   supabase,
-                  { campaignId: campaign.id }
+                  { campaignId: campaign.id, variantId: selectedVariantId }
                 ) : undefined;
 
                 const sendId = crypto.randomUUID();
                 return {
                   to: r.email!,
-                  subject: Mustache.render(campaign.subject ?? "Message from CasaGrown", model),
+                  subject: Mustache.render(rawSubject, model),
                   htmlBody: personalizedHtml,
                   textBody: personalizedText,
                   recipientId: r.id,
                   metadata: { send_id: sendId },
-                  _sendId: sendId
+                  _sendId: sendId,
+                  variantId: selectedVariantId
                 };
               }),
             );
@@ -311,6 +340,7 @@ Deno.serve(async (req: Request) => {
             sendRecords.push(...emailPayloads.map(p => ({
               id: p._sendId,
               campaign_id: campaign.id,
+              variant_id: p.variantId || null,
               recipient_type: batch.find((r) => r.email === p.to)?.recipient_type ?? "user",
               recipient_id: p.recipientId,
               email: p.to,
@@ -326,7 +356,17 @@ Deno.serve(async (req: Request) => {
         } else {
           // SMS: send one by one (Twilio doesn't have batch API)
           for (const r of batch) {
-            const rawText = campaign.content_text ?? "";
+            let rawText = campaign.content_text ?? "";
+            let selectedVariantId: string | null = null;
+
+            if (dbVariants && dbVariants.length > 0) {
+              const variant = sampleVariant(dbVariants);
+              rawText = variant.content_text ?? "";
+              selectedVariantId = variant.id;
+
+              variantSendCounts.set(variant.id, (variantSendCounts.get(variant.id) || 0) + 1);
+            }
+
             const model = buildTemplateModel(r, metadataMap.get(r.id) || {}, dynamicModel);
             const renderedText = Mustache.render(rawText, model);
 
@@ -335,7 +375,7 @@ Deno.serve(async (req: Request) => {
               r.id,
               r.recipient_type,
               supabase,
-              { campaignId: campaign.id }
+              { campaignId: campaign.id, variantId: selectedVariantId }
             );
 
             const sendId = crypto.randomUUID();
@@ -343,6 +383,7 @@ Deno.serve(async (req: Request) => {
             await supabase.from("crm_campaign_sends").insert({
               id: sendId,
               campaign_id: campaign.id,
+              variant_id: selectedVariantId,
               recipient_type: r.recipient_type,
               recipient_id: r.id,
               phone: r.phone,
@@ -368,6 +409,19 @@ Deno.serve(async (req: Request) => {
         await supabase.from("crm_campaigns").update({
           status: campaign.status === 'sending' ? 'scheduled' : campaign.status
         }).eq("id", campaign.id);
+      }
+
+      // ── Bulk update sends_count for campaign variants ──
+      if (!isTest && variantSendCounts.size > 0) {
+        for (const [variantId, count] of variantSendCounts.entries()) {
+          const { error: incError } = await supabase.rpc('increment_message_variant_sends_by', {
+            p_variant_id: variantId,
+            p_inc: count
+          });
+          if (incError) {
+            console.error(`[MAB] Error incrementing variant sends count:`, incError);
+          }
+        }
       }
 
       // ── Enroll in follow-up sequence ──────────────────────────────
