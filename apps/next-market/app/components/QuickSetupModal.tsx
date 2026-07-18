@@ -426,7 +426,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth-callback?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+        redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`,
         queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
       }
     })
