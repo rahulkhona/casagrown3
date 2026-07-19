@@ -497,10 +497,11 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {
-    const { status } = await invoke('pair-delegation', {
+    const { status, data } = await invoke('pair-delegation', {
       action: 'lookup',
       code: 'd-nonexistent123',
     })
+    console.log('DEBUG lookup nonexistent code:', status, data)
     assertEquals(status, 404)
     console.log('✅ pair-delegation: lookup returns 404 for nonexistent code')
   },
