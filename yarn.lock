@@ -18951,6 +18951,8 @@ __metadata:
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
     vitest: "npm:^2.1.1"
+    wink-eng-lite-web-model: "npm:^1.8.1"
+    wink-nlp: "npm:^2.4.0"
   languageName: unknown
   linkType: soft
 
@@ -24713,6 +24715,20 @@ __metadata:
   bin:
     why-is-node-running: cli.js
   checksum: 10/0de6e6cd8f2f94a8b5ca44e84cf1751eadcac3ebedcdc6e5fbbe6c8011904afcbc1a2777c53496ec02ced7b81f2e7eda61e76bf8262a8bc3ceaa1f6040508051
+  languageName: node
+  linkType: hard
+
+"wink-eng-lite-web-model@npm:^1.8.1":
+  version: 1.8.1
+  resolution: "wink-eng-lite-web-model@npm:1.8.1"
+  checksum: 10/103ee632f458c60a3e4199e7220065728ba87e50d7e857879fa5b3e88edff9d4a7893be85ffe5851171d8866321c90adb906e686b33a5602947f3dd0531e81eb
+  languageName: node
+  linkType: hard
+
+"wink-nlp@npm:^2.4.0":
+  version: 2.4.0
+  resolution: "wink-nlp@npm:2.4.0"
+  checksum: 10/5a7f5c8b3c594dea760e5591b27c8d2a2a2993423a77784cf0bf617c515f50250ad7aea654a167e1f3ef4a4b968bd517166ae598854cfcfb60475c36dc89fb94
   languageName: node
   linkType: hard
 

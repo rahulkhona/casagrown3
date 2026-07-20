@@ -1,6 +1,26 @@
-import nlp from 'compromise'
-import compromiseNumbers from 'compromise-numbers'
-nlp.plugin(compromiseNumbers)
+let nlpInstance: any = null
+const getNlp = () => {
+  if (!nlpInstance) {
+    const winkNLP = require('wink-nlp')
+    const model = require('wink-eng-lite-web-model')
+    nlpInstance = winkNLP(model)
+  }
+  return nlpInstance
+}
+
+const numberWords: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, a: 1, an: 1
+}
+
+const parseNumericValue = (text: string): number | null => {
+  const cleaned = text.trim().toLowerCase()
+  if (numberWords[cleaned] !== undefined) {
+    return numberWords[cleaned]
+  }
+  const val = parseFloat(cleaned.replace(/[^0-9.]/g, ''))
+  return isNaN(val) ? null : val
+}
 
 export interface AddressFields {
   street: string
@@ -68,12 +88,11 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   const preprocessed = text
     .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
     .replace(/\b(st|ave|rd|dr|ln|ct|pl|sq|blvd|hwy|apt|ste)\.(?!\s*(?:on|at|within|for|will|no|during|from|deliver|delivery|pickup|pick|collect|to|between|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|weekday|weekend|weekdays|weekends|i|we|you|they|he|she|it|please|our|your|the|a|an)\b)/gi, '$1')
-  const doc = nlp(preprocessed)
+  const nlpInstance = getNlp()
+  const its = nlpInstance.its
+  const doc = nlpInstance.readDoc(preprocessed)
   const normalized = preprocessed.toLowerCase()
-
-  // 1. Normalize numbers (e.g. "three dozen" -> "3 dozen")
-  doc.numbers().toNumber()
-  const cleanText = doc.text()
+  const cleanText = doc.out()
 
   const result: ParsedListingData = {
     name: null,
@@ -124,10 +143,8 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   if (!foundQtyUnit) {
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i]
-      const cleaned = token.replace(/[^0-9.]/g, '')
-      if (!cleaned || cleaned === '.') continue
-      const valNum = parseFloat(cleaned)
-      if (isNaN(valNum)) continue
+      const valNum = parseNumericValue(token)
+      if (valNum === null || isNaN(valNum)) continue
 
       if (i < tokens.length - 1) {
         const nextWord = tokens[i + 1]
@@ -145,10 +162,8 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   if (!foundQtyUnit) {
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i]
-      const cleaned = token.replace(/[^0-9.]/g, '')
-      if (!cleaned || cleaned === '.') continue
-      const valNum = parseFloat(cleaned)
-      if (isNaN(valNum)) continue
+      const valNum = parseNumericValue(token)
+      if (valNum === null || isNaN(valNum)) continue
 
       // Ignore if it's a price (e.g. contains $ or is followed by "dollar")
       if (token.includes('$') || (i < tokens.length - 1 && tokens[i + 1] === 'dollar') || (i < tokens.length - 1 && tokens[i + 1] === 'dollars')) {
@@ -213,20 +228,31 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     price = parseFloat(regPrice[1])
   } else {
     // Try to find value + "dollar(s)" or "usd"
-    const valueDollars = doc.match('#Value (dollar|dollars|usd)')
-    if (valueDollars.found) {
-      const priceStr = valueDollars.match('#Value').first().text().replace(/[^0-9.]/g, '')
-      price = parseFloat(priceStr) || null
-    } else {
+    const tokensList = doc.tokens().out(its.normal)
+    const posList = doc.tokens().out(its.pos)
+    let foundPrice = false
+    for (let i = 0; i < tokensList.length - 1; i++) {
+      if (posList[i] === 'NUM' || numberWords[tokensList[i]] !== undefined) {
+        const nextWord = tokensList[i + 1]
+        if (nextWord === 'dollar' || nextWord === 'dollars' || nextWord === 'usd') {
+          const val = parseNumericValue(doc.tokens().itemAt(i).out(its.value))
+          if (val !== null) {
+            price = val
+            foundPrice = true
+            break
+          }
+        }
+      }
+    }
+
+    if (!foundPrice) {
       // Find the last value or a decimal value
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i]
-        const cleaned = token.replace(/[^0-9.]/g, '')
-        if (!cleaned || cleaned === '.') continue
-        const valNum = parseFloat(cleaned)
-        if (isNaN(valNum)) continue
+        const valNum = parseNumericValue(token)
+        if (valNum === null || isNaN(valNum)) continue
 
-        const isDecimal = cleaned.includes('.')
+        const isDecimal = token.includes('.')
         const isPrecededByPricePrep = i > 0 && (tokens[i - 1] === 'at' || tokens[i - 1] === 'for')
         
         // Make sure it's not a street address number
@@ -382,7 +408,13 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     result.name = cleanProductName(rawName, keyword)
   } else {
     // Fallback if no keywords matched
-    const firstNoun = doc.nouns().first().text()
+    const unitNouns = new Set(['lbs', 'lb', 'pound', 'pounds', 'dozen', 'doz', 'dz', 'box', 'boxes', 'bag', 'bags', 'jar', 'jars', 'bunch', 'bunches', 'loaf', 'loaves', 'basket', 'baskets', 'flat', 'flats', 'pint', 'pints', 'piece', 'pieces', 'packet', 'packets', 'bouquet', 'bouquets', 'set', 'sets', 'dollar', 'dollars'])
+    const nouns = doc.tokens().filter((t: any) => {
+      const pos = t.out(its.pos)
+      const val = t.out(its.normal)
+      return (pos === 'NOUN' || pos === 'PROPN') && !unitNouns.has(val)
+    })
+    const firstNoun = nouns.length() > 0 ? nouns.itemAt(0).out(its.value) : null
     result.name = firstNoun ? cleanProductName(firstNoun, 'Fresh Produce') : 'Fresh Produce'
     result.category = 'produce'
   }
@@ -407,7 +439,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     }
 
     const resolvedAddr = decomposeAddress(matchedText)
-    const isPickupContext = doc.has('(pickup|pick up|collect|from)')
+    const isPickupContext = /(pickup|pick\s*(?:[a-zA-Z'-]+\s*){0,2}up|collect|from)/i.test(normalized)
     if (isPickupContext) {
       result.pickup_address = resolvedAddr
       result.offers_pickup = true
@@ -429,10 +461,19 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   }
   if (zipcodesList.length > 0) result.delivery_zipcodes = zipcodesList
 
-  const radiusMatch = doc.match('#Value (mile|miles|mi)')
-  if (radiusMatch.found) {
-    const valText = radiusMatch.match('#Value').first().text()
-    result.delivery_radius_miles = parseInt(valText.replace(/[^0-9]/g, '')) || null
+  const tokensList = doc.tokens().out(its.normal)
+  const posList = doc.tokens().out(its.pos)
+  for (let i = 0; i < tokensList.length - 1; i++) {
+    if (posList[i] === 'NUM' || numberWords[tokensList[i]] !== undefined) {
+      const nextWord = tokensList[i + 1].replace(/\.+$/, '')
+      if (nextWord === 'mile' || nextWord === 'miles' || nextWord === 'mi') {
+        const val = parseNumericValue(doc.tokens().itemAt(i).out(its.value))
+        if (val !== null) {
+          result.delivery_radius_miles = val
+          break
+        }
+      }
+    }
   }
 
   // 7. Days & Times extraction (Clause-based context routing)

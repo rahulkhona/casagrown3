@@ -20,7 +20,9 @@
     "lucide-react": "^0.563.0",
     "next": "16.1.1",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "wink-eng-lite-web-model": "^1.8.1",
+    "wink-nlp": "^2.4.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
