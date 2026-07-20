@@ -126,10 +126,10 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
 
   // ── Placeholders ──
   const placeholderLoggedIn =
-    "Describe what you'd like to sell. For example:\nI want to create a listing for 5 dozen oranges at $5 per dozen."
+    "e.g. I have about 5 dozen Meyer lemons ready this week, $5/dozen.\n\nBuyers can pick up from my place mornings."
 
   const placeholderLoggedOut =
-    "Describe what you'd like to sell. For example:\nI want to create a listing for 5 dozen oranges at $5 per dozen.\n\nI can deliver Saturday afternoon within 2 miles of my address, or buyers can pick up Sunday morning from my home in 95110."
+    "e.g. I have about 5 dozen Meyer lemons ready this week, $5/dozen.\n\nI can deliver Saturdays within 3 miles, or buyers can pick up from my place Sunday mornings."
 
   // ── Photo handling ──
   const handlePhotoFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
