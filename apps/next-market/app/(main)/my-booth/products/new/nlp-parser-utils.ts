@@ -65,8 +65,9 @@ export const decomposeAddress = (addressStr: string): AddressFields => {
 
 // New compromise-based client-side NLP parser
 export const parseTextFallback = (text: string): ParsedListingData => {
-  const doc = nlp(text)
-  const normalized = text.toLowerCase()
+  const preprocessed = text.replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
+  const doc = nlp(preprocessed)
+  const normalized = preprocessed.toLowerCase()
 
   // 1. Normalize numbers (e.g. "three dozen" -> "3 dozen")
   doc.numbers().toNumber()
@@ -225,8 +226,19 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
         const isDecimal = cleaned.includes('.')
         const isPrecededByPricePrep = i > 0 && (tokens[i - 1] === 'at' || tokens[i - 1] === 'for')
-        // Make sure it's not a zip code or a quantity
-        if ((isDecimal || isPrecededByPricePrep) && !/^\d{5}$/.test(token) && valNum !== qty) {
+        
+        // Make sure it's not a street address number
+        let isAddressNum = false
+        const streetSuffixes = ['street', 'st', 'avenue', 'ave', 'road', 'rd', 'drive', 'dr', 'court', 'ct', 'lane', 'ln', 'way', 'circle', 'cir', 'broadway', 'highway', 'hwy', 'place', 'pl', 'square', 'sq', 'parkway', 'pkwy']
+        if (i < tokens.length - 1 && streetSuffixes.includes(tokens[i + 1])) {
+          isAddressNum = true
+        }
+        if (i < tokens.length - 2 && streetSuffixes.includes(tokens[i + 2])) {
+          isAddressNum = true
+        }
+
+        // Make sure it's not a zip code, quantity, or address number
+        if ((isDecimal || isPrecededByPricePrep) && !/^\d{5}$/.test(token) && valNum !== qty && !isAddressNum) {
           price = valNum
           break
         }
@@ -377,7 +389,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   const addrRegex = /\b(\d+)\s+(?!(?:am|pm|a|p)\b)([a-zA-Z0-9']+\s+){0,4}\b(street|st|avenue|ave|road|rd|drive|dr|court|ct|lane|ln|way|circle|cir|broadway|highway|hwy|place|pl|square|sq|parkway|pkwy)\b/i
   const addressMatch = normalized.match(addrRegex)
   if (addressMatch) {
-    let matchedText = text.substring(addressMatch.index!)
+    let matchedText = preprocessed.substring(addressMatch.index!)
     // Clean up leading radius/mile patterns (only whole words to avoid mission/mint)
     matchedText = matchedText.replace(/^\d+\s*(miles?|mi)\b\s*(of)?\s*/i, '')
     
