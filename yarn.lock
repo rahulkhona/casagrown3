@@ -18951,6 +18951,7 @@ __metadata:
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
     vitest: "npm:^2.1.1"
+    wink-distance: "npm:^2.0.2"
     wink-eng-lite-web-model: "npm:^1.8.1"
     wink-nlp: "npm:^2.4.0"
   languageName: unknown
@@ -24718,10 +24719,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"wink-distance@npm:^2.0.2":
+  version: 2.0.2
+  resolution: "wink-distance@npm:2.0.2"
+  dependencies:
+    wink-helpers: "npm:^2.0.0"
+    wink-jaro-distance: "npm:^2.0.0"
+  checksum: 10/65d25ec667c5d58dc8d0cc078fd054c3cd272491a93c9ce7957365a078207f8e3285df9d4631d1d0f3d1b958c5e9be5c9ec896d05d3fe258564fb69aa4eecb0b
+  languageName: node
+  linkType: hard
+
 "wink-eng-lite-web-model@npm:^1.8.1":
   version: 1.8.1
   resolution: "wink-eng-lite-web-model@npm:1.8.1"
   checksum: 10/103ee632f458c60a3e4199e7220065728ba87e50d7e857879fa5b3e88edff9d4a7893be85ffe5851171d8866321c90adb906e686b33a5602947f3dd0531e81eb
+  languageName: node
+  linkType: hard
+
+"wink-helpers@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "wink-helpers@npm:2.0.0"
+  checksum: 10/fb05cf1993dd15cfcce36dc47ed8312ee7d0bc36ef7fd10b978fa2dca70a4bd57756b6e2a724f21fa7eb2482b06670e91d57e708da44f03c3393db47fdf740ee
+  languageName: node
+  linkType: hard
+
+"wink-jaro-distance@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "wink-jaro-distance@npm:2.0.0"
+  checksum: 10/6559614e344b10210b0c58bdc1ca46506f57b7da20c4e595fe2e5405dacc304cf31a4ff6a17190bd8a0f5408d4fe4bc5bde4f0187b8520c852bc9f3a2c429c6f
   languageName: node
   linkType: hard
 
