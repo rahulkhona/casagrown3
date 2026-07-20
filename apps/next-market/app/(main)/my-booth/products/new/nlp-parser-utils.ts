@@ -422,12 +422,15 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
   // 7. Days & Times extraction (Clause-based context routing)
   const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-  const clauses = normalized.split(/\s*(?:\b(?:or|but|otherwise)\b|;|[.,!?\r\n]|\s+-\s+|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s*/i).filter(Boolean)
+  const dayAbbrevs: Record<string, string> = {
+    mon: 'monday', tue: 'tuesday', wed: 'wednesday', thu: 'thursday', fri: 'friday', sat: 'saturday', sun: 'sunday'
+  }
+  const clauses = normalized.split(/\s*(?:\b(?:or|but|otherwise|whereas|while|although)\b|;|[.,!?\r\n]|\s+-\s+(?!\s*\d+)|(?<!\d)\s*\/\s*(?!\d)|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s*/i).filter(Boolean)
 
   clauses.forEach(clause => {
     // Identify clause context
     let isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(clause)
-    let isPickup = /(pickup|pick up|collect|from|at my house|my home)/i.test(clause)
+    let isPickup = /(pickup|pick up|pick-up|collect|from|at my house|my home)/i.test(clause)
     
     // If the clause doesn't explicitly mention either, check the global text context
     if (!isDelivery && !isPickup) {
@@ -451,6 +454,12 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       daysOfWeek.forEach(day => {
         if (clause.includes(day)) {
           clauseDays.push(day)
+        }
+      })
+      Object.entries(dayAbbrevs).forEach(([abbrev, fullDay]) => {
+        const regex = new RegExp('\\b' + abbrev + '\\b', 'i')
+        if (regex.test(clause)) {
+          if (!clauseDays.includes(fullDay)) clauseDays.push(fullDay)
         }
       })
       if (weekendMatch) {
@@ -504,13 +513,22 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       clauseExplicitSlots.push(`${actualHour}-${actualHour + 1}`)
     }
 
-    const rangeMatch = clause.match(/\b(?:between|from\s+)?(\d{1,2})\s*(am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
+    const rangeMatch = clause.match(/\b(?:between|from\s+)?(\d{1,2})\s*(am|pm|a|p)?\s*(?:and|to|-|&)\s*(\d{1,2})\s*(am|pm|a|p)?\b/i)
     const clauseRangeSlots: string[] = []
     if (rangeMatch) {
       let h1 = parseInt(rangeMatch[1])
       const meridian1 = rangeMatch[2] ? rangeMatch[2].toLowerCase() : null
       let h2 = parseInt(rangeMatch[3])
-      const meridian2 = rangeMatch[4].toLowerCase()
+      let meridian2 = rangeMatch[4] ? rangeMatch[4].toLowerCase() : null
+      
+      // If second meridian is missing, infer from clause context
+      if (!meridian2) {
+        if (/(afternoon|evening|night|\bpm\b|\bp\b)/i.test(clause)) {
+          meridian2 = 'pm'
+        } else {
+          meridian2 = 'am'
+        }
+      }
       
       if (meridian1) {
         if ((meridian1 === 'pm' || meridian1 === 'p') && h1 < 12) h1 += 12

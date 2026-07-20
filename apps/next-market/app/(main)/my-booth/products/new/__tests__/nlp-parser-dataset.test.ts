@@ -1162,4 +1162,41 @@ describe('Clause-based Day and Time Parsing Tests (50 Compound Cases)', () => {
   })
 })
 
+describe('NLP Parser - 20 Linguistic Permutations of the Same Payload', () => {
+  const targetPayloadVariations = [
+    "Deliver Friday 2pm-4pm. Pickup Saturday 9am-11am.",
+    "Pickup on Saturday between 9 and 11 am or I can deliver Friday from 2 to 4 pm.",
+    "friday delivery between 2pm & 4pm. pickup saturdays 9am to 11am",
+    "i'll drop off on fri between 2pm-4pm, otherwise you can collect sat 9am-11am",
+    "Delivery: Fri 2-4 PM / Pickup: Sat 9-11 AM",
+    "we deliver friday afternoons (2pm-4pm); pickup saturday mornings (9am-11am)",
+    "sat 9a-11a pickup. fri 2p-4p delivery.",
+    "deliver Friday 2pm - 4pm but pick-up Saturday 9am - 11am",
+    "Friday 2pm-4pm delivery, Saturday 9am-11am pickup",
+    "For pickup: Saturday morning 9am to 11am. For delivery: Friday afternoon 2pm to 4pm.",
+    "will deliver Fri 2pm to 4pm. Saturday pickup is 9am-11am.",
+    "pickup sat 9am-11am, deliver fri 2pm-4pm",
+    "I can deliver Friday between 2 and 4pm. You can also pickup Saturday between 9 and 11am.",
+    "drop-off: Friday 2p-4p, pick-up: Saturday 9a-11a",
+    "fri 2pm to 4pm deliver. sat 9am to 11am pickup.",
+    "deliver Fri 2pm-4pm; pickup Saturday 9am-11am",
+    "delivery is fri between 2 and 4 in the afternoon. pickup is sat between 9 and 11 in the morning.",
+    "I will deliver on Friday from 2pm to 4pm or you can pickup on Saturday from 9am to 11am",
+    "pickup Saturday 9am-11am whereas delivery is Friday 2pm-4pm",
+    "Delivery: Friday 2pm-4pm\nPickup: Saturday 9am-11am"
+  ]
+
+  targetPayloadVariations.forEach((input, idx) => {
+    it(`Permutation #${idx + 1}: "${input.replace(/\n/g, '\\n')}"`, () => {
+      const res = parseTextFallback(input)
+
+      expect(res.delivery_days).toEqual(expect.arrayContaining(["friday"]))
+      expect(res.pickup_days).toEqual(expect.arrayContaining(["saturday"]))
+      expect(res.delivery_time_slots).toEqual(expect.arrayContaining(["14-15", "15-16"]))
+      expect(res.pickup_time_slots).toEqual(expect.arrayContaining(["9-10", "10-11"]))
+    })
+  })
+})
+
+
 
