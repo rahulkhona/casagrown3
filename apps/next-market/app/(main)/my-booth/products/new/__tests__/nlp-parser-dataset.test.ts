@@ -614,6 +614,42 @@ const testCases: TestCase[] = [
       delivery_time_of_day: ["morning"],
       delivery_zipcodes: ["95112"]
     }
+  },
+  {
+    input: "i have 2 dz oranges at $1 per piece. You can pick it up from 978 Wallace Dr. San Jose between 10am and 1pm",
+    expected: {
+      name: "Oranges",
+      category: "produce",
+      quantity: 24,
+      unit: "each",
+      price_usd: 1,
+      offers_pickup: true,
+      pickup_address: "978 Wallace Dr"
+    }
+  },
+  {
+    input: "i have 20dz oranges for $5 per dozen and can deliver in 95120 and 95123 zipcodes on weekend envenings or you can pickup from 970 Wallace Dr. San Jose on weekday evenings.",
+    expected: {
+      name: "Oranges",
+      category: "produce",
+      quantity: 20,
+      unit: "dozen",
+      price_usd: 5,
+      offers_delivery: true,
+      offers_pickup: true,
+      delivery_zipcodes: ["95120", "95123"],
+      delivery_time_of_day: ["evening"],
+      pickup_time_of_day: ["evening"],
+      pickup_address: "970 Wallace Dr"
+    }
+  },
+  {
+    input: "555 Market St daily 8a-11a pickup. no delivery.",
+    expected: {
+      pickup_address: "555 Market St",
+      offers_pickup: true,
+      offers_delivery: false
+    }
   }
 ]
 

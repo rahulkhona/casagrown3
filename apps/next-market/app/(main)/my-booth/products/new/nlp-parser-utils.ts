@@ -385,29 +385,50 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
   const ALL_CATEGORY_KEYWORDS = new Set(Object.values(CATEGORY_TAGS).flat().map(k => k.replace(/[?*+()\[\]\\^$|{}]/g, '')))
 
-  const findFuzzyKeywordMatch = (text: string, keyword: string): { index: number; matchedWord: string } | null => {
-    const regex = /[a-zA-Z]+/g
-    let match
-    while ((match = regex.exec(text)) !== null) {
-      const word = match[0].toLowerCase()
-      const wordIndex = match.index
-      if (word === 'house' || word === 'home') {
-        continue
-      }
-      if (word === keyword || word.replace(/s$/, '') === keyword) {
-        return { index: wordIndex, matchedWord: match[0] }
-      }
+  const findFuzzyKeywordMatch = (text: string, originalText: string, keyword: string): { index: number; matchedWord: string } | null => {
+    const origWords = originalText.split(/(\b[a-zA-Z]+\b)/)
+    const normWords = text.split(/(\b[a-zA-Z]+\b)/)
+    
+    let wordCount = 0
+    let charIndex = 0
+    
+    for (let i = 0; i < normWords.length; i++) {
+      const normWord = normWords[i]
+      const origWord = origWords[i]
       
-      // If the word matches another valid category keyword exactly, do not fuzzy match it to this one
-      if (ALL_CATEGORY_KEYWORDS.has(word) || ALL_CATEGORY_KEYWORDS.has(word.replace(/s$/, ''))) {
-        continue
-      }
+      if (/^[a-zA-Z]+$/.test(normWord)) {
+        const isFirstWord = (wordCount === 0)
+        wordCount++
+        
+        const isCapitalized = (origWord && origWord.charAt(0) === origWord.charAt(0).toUpperCase())
+        if (isCapitalized && !isFirstWord) {
+          charIndex += normWord.length
+          continue
+        }
+        
+        const word = normWord.toLowerCase()
+        if (word === 'house' || word === 'home') {
+          charIndex += normWord.length
+          continue
+        }
+        
+        if (word === keyword || word.replace(/s$/, '') === keyword) {
+          return { index: charIndex, matchedWord: origWord }
+        }
+        
+        // If the word matches another valid category keyword exactly, do not fuzzy match it to this one
+        if (ALL_CATEGORY_KEYWORDS.has(word) || ALL_CATEGORY_KEYWORDS.has(word.replace(/s$/, ''))) {
+          charIndex += normWord.length
+          continue
+        }
 
-      const dist = getLevenshteinDistance(word, keyword)
-      const limit = keyword.length > 5 ? 2 : 1
-      if (dist <= limit) {
-        return { index: wordIndex, matchedWord: match[0] }
+        const dist = getLevenshteinDistance(word, keyword)
+        const limit = keyword.length > 5 ? 2 : 1
+        if (dist <= limit) {
+          return { index: charIndex, matchedWord: origWord }
+        }
       }
+      charIndex += normWord.length
     }
     return null
   }
@@ -443,7 +464,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   const matches: Array<{ category: string; keyword: string; index: number }> = []
   for (const [catName, keywords] of Object.entries(CATEGORY_TAGS)) {
     for (const keyword of keywords) {
-      const fuzzyMatch = findFuzzyKeywordMatch(normalized, keyword)
+      const fuzzyMatch = findFuzzyKeywordMatch(normalized, preprocessed, keyword)
       if (fuzzyMatch) {
         matches.push({
           category: catName,
