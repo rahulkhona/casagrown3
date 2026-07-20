@@ -2113,19 +2113,50 @@ function NewProductPageInner() {
 
     // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
     const TIME_MAP: Record<string, string[]> = {
-      morning: ['8-9', '9-10', '10-11', '11-12'],
-      afternoon: ['12-13', '13-14', '14-15', '15-16', '16-17'],
-      evening: ['17-18', '18-19', '19-20'],
+      morning: ['8-10', '10-12'],
+      afternoon: ['12-14', '14-16'],
+      evening: ['16-18', '18-20'],
     }
-    // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
+
+    const mapParsedSlots = (timeSlots: string[], timeOfDay: string[]): string[] => {
+      const slots = new Set<string>()
+      
+      // If we have explicit 1-hour slots, map their start hours to 2-hour slots
+      if (timeSlots && timeSlots.length > 0) {
+        timeSlots.forEach(s => {
+          const startHour = parseInt(s.split('-')[0])
+          if (!isNaN(startHour)) {
+            const slotId = mapHourToSlotId(startHour)
+            if (slotId) slots.add(slotId)
+          }
+        })
+      }
+      
+      // If we also have time of day, add those 2-hour slots
+      if (timeOfDay && timeOfDay.length > 0) {
+        timeOfDay.forEach(tod => {
+          const mapped = TIME_MAP[tod.toLowerCase()]
+          if (mapped) {
+            mapped.forEach(s => slots.add(s))
+          }
+        })
+      }
+      
+      // Default to morning/afternoon if empty
+      if (slots.size === 0) {
+        TIME_MAP.morning.forEach(s => slots.add(s))
+        TIME_MAP.afternoon.forEach(s => slots.add(s))
+      }
+      
+      return Array.from(slots)
+    }
+
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const rawDeliveryDays = (data.delivery_days || []) as string[]
     const rawPickupDays = (data.pickup_days || []) as string[]
 
     if (rawDeliveryDays.length > 0) {
-      const deliverySlots = data.delivery_time_slots || (data.delivery_time_of_day && data.delivery_time_of_day.length > 0 ? data.delivery_time_of_day : ['morning', 'afternoon']).flatMap(
-        (t: string) => TIME_MAP[t] || []
-      )
+      const deliverySlots = mapParsedSlots(data.delivery_time_slots || [], data.delivery_time_of_day || [])
       const deliveryDaysSet = new Set(rawDeliveryDays.map(d => d.toLowerCase()))
       const dwMap: Record<string, string[]> = {}
       for (let i = 0; i < 7; i++) {
@@ -2142,9 +2173,7 @@ function NewProductPageInner() {
     }
 
     if (rawPickupDays.length > 0) {
-      const pickupSlots = data.pickup_time_slots || (data.pickup_time_of_day && data.pickup_time_of_day.length > 0 ? data.pickup_time_of_day : ['morning', 'afternoon']).flatMap(
-        (t: string) => TIME_MAP[t] || []
-      )
+      const pickupSlots = mapParsedSlots(data.pickup_time_slots || [], data.pickup_time_of_day || [])
       const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
       const pwMap: Record<string, string[]> = {}
       for (let i = 0; i < 7; i++) {
