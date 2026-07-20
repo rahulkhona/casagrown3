@@ -659,10 +659,10 @@ describe('100 NLP Parser Dataset Verification Tests', () => {
         expect(res.pickup_time_of_day).toEqual(expect.arrayContaining(tc.expected.pickup_time_of_day))
       }
       if (tc.expected.base_address !== undefined) {
-        expect(res.base_address).toBe(tc.expected.base_address)
+        expect(res.base_address ? res.base_address.street : null).toBe(tc.expected.base_address)
       }
       if (tc.expected.pickup_address !== undefined) {
-        expect(res.pickup_address).toBe(tc.expected.pickup_address)
+        expect(res.pickup_address ? res.pickup_address.street : null).toBe(tc.expected.pickup_address)
       }
     })
   })

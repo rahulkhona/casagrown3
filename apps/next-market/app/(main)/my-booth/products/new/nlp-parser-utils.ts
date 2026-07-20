@@ -24,8 +24,8 @@ export interface ParsedListingData {
   pickup_days: string[]
   delivery_time_of_day: string[]
   pickup_time_of_day: string[]
-  pickup_address: string | null
-  base_address: string | null
+  pickup_address: AddressFields | null
+  base_address: AddressFields | null
 }
 
 // Decompose address string to structured AddressFields
@@ -34,12 +34,13 @@ export const decomposeAddress = (addressStr: string): AddressFields => {
   const zipMatch = addressStr.match(/\b\d{5}\b/)
   const zip = zipMatch ? zipMatch[0] : ''
   let remaining = addressStr.replace(/\b\d{5}\b/, '').trim()
-  const stateMatch = remaining.match(/\b([A-Z]{2}|California|Oregon|Washington)\b/i)
+  const stateRegex = /\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|California|Oregon|Washington)\b/i
+  const stateMatch = remaining.match(stateRegex)
   let state = stateMatch ? stateMatch[1].toUpperCase() : ''
   if (state.toLowerCase() === 'california') state = 'CA'
   if (state.toLowerCase() === 'oregon') state = 'OR'
   if (state.toLowerCase() === 'washington') state = 'WA'
-  remaining = remaining.replace(/\b([A-Z]{2}|California|Oregon|Washington)\b/i, '').trim().replace(/,\s*$/, '').trim()
+  remaining = remaining.replace(stateRegex, '').trim().replace(/,\s*$/, '').trim()
   const parts = remaining.split(',')
   let street = ''
   let city = ''
@@ -369,16 +370,28 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   const addrRegex = /\b(\d+)\s+([a-zA-Z0-9']+\s+){0,4}\b(street|st|avenue|ave|road|rd|drive|dr|court|ct|lane|ln|way|circle|cir|broadway|highway|hwy|place|pl|square|sq|parkway|pkwy)\b/i
   const addressMatch = normalized.match(addrRegex)
   if (addressMatch) {
-    let matchedText = text.substring(addressMatch.index!, addressMatch.index! + addressMatch[0].length)
+    let matchedText = text.substring(addressMatch.index!)
     // Clean up leading radius/mile patterns (only whole words to avoid mission/mint)
     matchedText = matchedText.replace(/^\d+\s*(miles?|mi)\b\s*(of)?\s*/i, '')
     
+    // Cut off at prepositions or clause boundaries
+    const cutRegex = /\b(on|at|within|for|will|no|during|from|deliver|pickup|pick|collect|to)\b/i
+    const matchCut = matchedText.match(cutRegex)
+    if (matchCut && matchCut.index !== undefined && matchCut.index > 0) {
+      matchedText = matchedText.substring(0, matchCut.index).trim()
+    }
+    const stopIdx = matchedText.search(/[.!?\r\n]/)
+    if (stopIdx !== -1) {
+      matchedText = matchedText.substring(0, stopIdx).trim()
+    }
+
+    const resolvedAddr = decomposeAddress(matchedText)
     const isPickupContext = doc.has('(pickup|pick up|collect|from)')
     if (isPickupContext) {
-      result.pickup_address = matchedText
+      result.pickup_address = resolvedAddr
       result.offers_pickup = true
     } else {
-      result.base_address = matchedText
+      result.base_address = resolvedAddr
       result.offers_delivery = true
     }
   }
