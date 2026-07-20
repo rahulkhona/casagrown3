@@ -420,111 +420,139 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     result.delivery_radius_miles = parseInt(valText.replace(/[^0-9]/g, '')) || null
   }
 
-  // 7. Days & Times extraction
+  // 7. Days & Times extraction (Clause-based context routing)
   const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-  const weekdayMatch = /(weekday|weekdays|mon-fri|monday-friday|mon to fri)/i.test(normalized)
-  const weekendMatch = /(weekend|weekends|sat-sun|saturday-sunday|sat to sun)/i.test(normalized)
-  const everydayMatch = /(everyday|every day|daily|all week)/i.test(normalized)
+  const clauses = normalized.split(/\s*(?:or|but|otherwise|;|[.,!?\r\n]|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s+/i).filter(Boolean)
 
-  if (everydayMatch) {
-    if (normalized.includes('deliver') || !normalized.includes('pickup')) result.delivery_days = [...daysOfWeek]
-    if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) result.pickup_days = [...daysOfWeek]
-  } else {
-    daysOfWeek.forEach(day => {
-      if (normalized.includes(day)) {
-        if (normalized.includes('deliver') || !normalized.includes('pickup')) result.delivery_days.push(day)
-        if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) result.pickup_days.push(day)
+  clauses.forEach(clause => {
+    // Identify clause context
+    let isDelivery = /(deliver|drop off|drop-off|ship|send|to)/i.test(clause)
+    let isPickup = /(pickup|pick up|collect|from|at my house|my home)/i.test(clause)
+    
+    // If the clause doesn't explicitly mention either, check the global text context
+    if (!isDelivery && !isPickup) {
+      isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(normalized)
+      isPickup = /(pickup|pick up|collect|from)/i.test(normalized)
+      if (!isDelivery && !isPickup) {
+        isDelivery = true
+        isPickup = true
+      }
+    }
+
+    // Extract days from this clause
+    const clauseDays: string[] = []
+    const everydayMatch = /(everyday|every day|daily|all week)/i.test(clause)
+    const weekendMatch = /(weekend|weekends|sat-sun|saturday-sunday|sat to sun)/i.test(clause)
+    const weekdayMatch = /(weekday|weekdays|mon-fri|monday-friday|mon to fri)/i.test(clause)
+
+    if (everydayMatch) {
+      clauseDays.push(...daysOfWeek)
+    } else {
+      daysOfWeek.forEach(day => {
+        if (clause.includes(day)) {
+          clauseDays.push(day)
+        }
+      })
+      if (weekendMatch) {
+        ['saturday', 'sunday'].forEach(day => {
+          if (!clauseDays.includes(day)) clauseDays.push(day)
+        })
+      }
+      if (weekdayMatch) {
+        ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].forEach(day => {
+          if (!clauseDays.includes(day)) clauseDays.push(day)
+        })
+      }
+    }
+
+    if (isDelivery) {
+      clauseDays.forEach(d => {
+        if (!result.delivery_days.includes(d)) result.delivery_days.push(d)
+      })
+    }
+    if (isPickup) {
+      clauseDays.forEach(d => {
+        if (!result.pickup_days.includes(d)) result.pickup_days.push(d)
+      })
+    }
+
+    // Extract time categories & slots from this clause
+    const clauseInferredTimes = new Set<string>()
+    const clauseExplicitSlots: string[] = []
+
+    const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm|a|p)\b/gi
+    let timeMatch: RegExpExecArray | null
+    while ((timeMatch = timeRegex.exec(clause)) !== null) {
+      let hour = parseInt(timeMatch[1])
+      const meridian = timeMatch[2].toLowerCase()
+      if (meridian === 'p' || meridian === 'a') {
+        const matchIndex = timeMatch.index
+        const precedingText = clause.substring(Math.max(0, matchIndex - 10), matchIndex)
+        const hasPreposition = /\b(at|around|by|from|to)\s*$/i.test(precedingText)
+        if (!hasPreposition) {
+          continue
+        }
+      }
+      let actualHour = hour
+      if ((meridian === 'pm' || meridian === 'p') && hour < 12) actualHour += 12
+      if ((meridian === 'am' || meridian === 'a') && hour === 12) actualHour = 0
+      
+      if (actualHour >= 8 && actualHour < 12) clauseInferredTimes.add('morning')
+      else if (actualHour >= 12 && actualHour < 17) clauseInferredTimes.add('afternoon')
+      else if (actualHour >= 17 && actualHour < 21) clauseInferredTimes.add('evening')
+      
+      clauseExplicitSlots.push(`${actualHour}-${actualHour + 1}`)
+    }
+
+    const rangeMatch = clause.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
+    const clauseRangeSlots: string[] = []
+    if (rangeMatch) {
+      const meridian = rangeMatch[3].toLowerCase()
+      let h1 = parseInt(rangeMatch[1])
+      let h2 = parseInt(rangeMatch[2])
+      if (meridian === 'pm' || meridian === 'p') {
+        if (h1 < 12) h1 += 12
+        if (h2 < 12) h2 += 12
+      } else {
+        if (h1 === 12) h1 = 0
+        if (h2 === 12) h2 = 0
+      }
+      const start = Math.min(h1, h2)
+      const end = Math.max(h1, h2)
+      for (let h = start; h < end; h++) {
+        clauseRangeSlots.push(`${h}-${h + 1}`)
+        if (h >= 8 && h < 12) clauseInferredTimes.add('morning')
+        else if (h >= 12 && h < 17) clauseInferredTimes.add('afternoon')
+        else if (h >= 17 && h < 21) clauseInferredTimes.add('evening')
+      }
+    }
+
+    const resolvedSlots = clauseRangeSlots.length > 0 ? clauseRangeSlots : clauseExplicitSlots
+    if (resolvedSlots.length > 0) {
+      if (isDelivery) {
+        resolvedSlots.forEach(s => {
+          if (!result.delivery_time_slots.includes(s)) result.delivery_time_slots.push(s)
+        })
+      }
+      if (isPickup) {
+        resolvedSlots.forEach(s => {
+          if (!result.pickup_time_slots.includes(s)) result.pickup_time_slots.push(s)
+        })
+      }
+    }
+
+    const times = ['morning', 'afternoon', 'evening', 'night']
+    times.forEach(t => {
+      if (clause.includes(t) || clauseInferredTimes.has(t)) {
+        const cat = t === 'night' ? 'evening' : t
+        if (isDelivery && !result.delivery_time_of_day.includes(cat)) {
+          result.delivery_time_of_day.push(cat)
+        }
+        if (isPickup && !result.pickup_time_of_day.includes(cat)) {
+          result.pickup_time_of_day.push(cat)
+        }
       }
     })
-
-    if (weekendMatch) {
-      const weekendDays = ['saturday', 'sunday']
-      weekendDays.forEach(day => {
-        if (!result.delivery_days.includes(day) && (normalized.includes('deliver') || !normalized.includes('pickup'))) {
-          result.delivery_days.push(day)
-        }
-        if (!result.pickup_days.includes(day) && (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver'))) {
-          result.pickup_days.push(day)
-        }
-      })
-    }
-    if (weekdayMatch) {
-      const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-      weekdays.forEach(day => {
-        if (!result.delivery_days.includes(day) && (normalized.includes('deliver') || !normalized.includes('pickup'))) {
-          result.delivery_days.push(day)
-        }
-        if (!result.pickup_days.includes(day) && (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver'))) {
-          result.pickup_days.push(day)
-        }
-      })
-    }
-  }
-
-  // Scan for explicit hours to infer categories and specific hourly slots (allowing am/pm/a/p)
-  const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm|a|p)\b/gi
-  const inferredTimes = new Set<string>()
-  const explicitSlots: string[] = []
-  
-  let timeMatch: RegExpExecArray | null
-  while ((timeMatch = timeRegex.exec(normalized)) !== null) {
-    let hour = parseInt(timeMatch[1])
-    const meridian = timeMatch[2].toLowerCase()
-    if ((meridian === 'pm' || meridian === 'p') && hour < 12) hour += 12
-    if ((meridian === 'am' || meridian === 'a') && hour === 12) hour = 0
-    if (hour >= 8 && hour < 12) inferredTimes.add('morning')
-    else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
-    else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
-    
-    explicitSlots.push(`${hour}-${hour + 1}`)
-  }
-
-  // Also handle range patterns like "between 1 and 3 pm" or "1pm to 3pm" (allowing am/pm/a/p)
-  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
-  const rangeSlots: string[] = []
-  if (rangeMatch) {
-    const meridian = rangeMatch[3].toLowerCase()
-    let h1 = parseInt(rangeMatch[1])
-    let h2 = parseInt(rangeMatch[2])
-    if (meridian === 'pm' || meridian === 'p') {
-      if (h1 < 12) h1 += 12
-      if (h2 < 12) h2 += 12
-    } else {
-      if (h1 === 12) h1 = 0
-      if (h2 === 12) h2 = 0
-    }
-    const start = Math.min(h1, h2)
-    const end = Math.max(h1, h2)
-    for (let h = start; h < end; h++) {
-      rangeSlots.push(`${h}-${h + 1}`)
-      if (h >= 8 && h < 12) inferredTimes.add('morning')
-      else if (h >= 12 && h < 17) inferredTimes.add('afternoon')
-      else if (h >= 17 && h < 21) inferredTimes.add('evening')
-    }
-  }
-
-  const resolvedSlots = rangeSlots.length > 0 ? rangeSlots : explicitSlots
-  if (resolvedSlots.length > 0) {
-    if (normalized.includes('deliver') || !normalized.includes('pickup')) {
-      result.delivery_time_slots = resolvedSlots
-    }
-    if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) {
-      result.pickup_time_slots = resolvedSlots
-    }
-  }
-
-  const times = ['morning', 'afternoon', 'evening', 'night']
-  times.forEach(t => {
-    if (normalized.includes(t) || inferredTimes.has(t)) {
-      if (normalized.includes('deliver') || !normalized.includes('pickup')) {
-        const cat = t === 'night' ? 'evening' : t
-        if (!result.delivery_time_of_day.includes(cat)) result.delivery_time_of_day.push(cat)
-      }
-      if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) {
-        const cat = t === 'night' ? 'evening' : t
-        if (!result.pickup_time_of_day.includes(cat)) result.pickup_time_of_day.push(cat)
-      }
-    }
   })
 
   // Defaults for offers_delivery and offers_pickup

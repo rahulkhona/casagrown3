@@ -667,3 +667,20 @@ describe('100 NLP Parser Dataset Verification Tests', () => {
     })
   })
 })
+
+describe('Clause-based Day and Time Parsing Tests', () => {
+  it('correctly segments delivery and pickup contexts with separate times and days', () => {
+    const input = "i will deliver between 3pm and 5pm on saturday or you can pickup between 4pm and 6pm on sunday"
+    const res = parseTextFallback(input)
+    
+    expect(res.offers_delivery).toBe(true)
+    expect(res.offers_pickup).toBe(true)
+    
+    expect(res.delivery_days).toEqual(['saturday'])
+    expect(res.pickup_days).toEqual(['sunday'])
+    
+    expect(res.delivery_time_slots).toEqual(['15-16', '16-17'])
+    expect(res.pickup_time_slots).toEqual(['16-17', '17-18'])
+  })
+})
+
