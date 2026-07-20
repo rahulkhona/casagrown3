@@ -374,7 +374,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   }
 
   // 5. Physical Address extraction
-  const addrRegex = /\b(\d+)\s+([a-zA-Z0-9']+\s+){0,4}\b(street|st|avenue|ave|road|rd|drive|dr|court|ct|lane|ln|way|circle|cir|broadway|highway|hwy|place|pl|square|sq|parkway|pkwy)\b/i
+  const addrRegex = /\b(\d+)\s+(?!(?:am|pm|a|p)\b)([a-zA-Z0-9']+\s+){0,4}\b(street|st|avenue|ave|road|rd|drive|dr|court|ct|lane|ln|way|circle|cir|broadway|highway|hwy|place|pl|square|sq|parkway|pkwy)\b/i
   const addressMatch = normalized.match(addrRegex)
   if (addressMatch) {
     let matchedText = text.substring(addressMatch.index!)
@@ -405,13 +405,14 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
   // 6. Zipcodes & Radius extraction
   const zipcodesList: string[] = []
-  const valObjs = doc.match('#Value').json() as any[]
-  valObjs.forEach((o: any) => {
-    const txt = (o.text || '').trim()
-    if (/^\b\d{5}\b$/.test(txt)) {
-      zipcodesList.push(txt)
-    }
-  })
+  const zipMatches = normalized.match(/\b\d{5}\b/g)
+  if (zipMatches) {
+    zipMatches.forEach((z) => {
+      if (!zipcodesList.includes(z)) {
+        zipcodesList.push(z)
+      }
+    })
+  }
   if (zipcodesList.length > 0) result.delivery_zipcodes = zipcodesList
 
   const radiusMatch = doc.match('#Value (mile|miles|mi)')
@@ -427,19 +428,18 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   }
   const clauses = normalized.split(/\s*(?:\b(?:or|but|otherwise|whereas|while|although)\b|;|[.,!?\r\n]|\s+-\s+(?!\s*\d+)|(?<!\d)\s*\/\s*(?!\d)|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s*/i).filter(Boolean)
 
+  let currentContext = { isDelivery: true, isPickup: true }
+
   clauses.forEach(clause => {
     // Identify clause context
     let isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(clause)
-    let isPickup = /(pickup|pick up|pick-up|collect|from|at my house|my home)/i.test(clause)
+    let isPickup = /(pickup|pick up|pick-up|collect|at my house|my home)/i.test(clause)
     
-    // If the clause doesn't explicitly mention either, check the global text context
-    if (!isDelivery && !isPickup) {
-      isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(normalized)
-      isPickup = /(pickup|pick up|collect|from)/i.test(normalized)
-      if (!isDelivery && !isPickup) {
-        isDelivery = true
-        isPickup = true
-      }
+    if (isDelivery || isPickup) {
+      currentContext = { isDelivery, isPickup }
+    } else {
+      isDelivery = currentContext.isDelivery
+      isPickup = currentContext.isPickup
     }
 
     // Extract days from this clause
@@ -513,6 +513,21 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       clauseExplicitSlots.push(`${actualHour}-${actualHour + 1}`)
     }
 
+    const timeOfDayTimeRegex = /\b(\d{1,2})\s*(?:o'clock)?\s*in\s*the\s*(morning|afternoon|evening|night)\b/gi
+    let todtMatch: RegExpExecArray | null
+    while ((todtMatch = timeOfDayTimeRegex.exec(clause)) !== null) {
+      let hour = parseInt(todtMatch[1])
+      const period = todtMatch[2].toLowerCase()
+      let actualHour = hour
+      if ((period === 'afternoon' || period === 'evening' || period === 'night') && hour < 12) {
+        actualHour += 12
+      }
+      if (period === 'morning' && hour === 12) {
+        actualHour = 0
+      }
+      clauseExplicitSlots.push(`${actualHour}-${actualHour + 1}`)
+    }
+
     const rangeMatch = clause.match(/\b(?:between|from\s+)?(\d{1,2})\s*(am|pm|a|p)?\s*(?:and|to|-|&)\s*(\d{1,2})\s*(am|pm|a|p)?\b/i)
     const clauseRangeSlots: string[] = []
     if (rangeMatch) {
@@ -534,12 +549,25 @@ export const parseTextFallback = (text: string): ParsedListingData => {
         if ((meridian1 === 'pm' || meridian1 === 'p') && h1 < 12) h1 += 12
         if ((meridian1 === 'am' || meridian1 === 'a') && h1 === 12) h1 = 0
       } else {
-        if ((meridian2 === 'pm' || meridian2 === 'p') && h1 < 12) h1 += 12
-        if ((meridian2 === 'am' || meridian2 === 'a') && h1 === 12) h1 = 0
+        // Fallback: use meridian 2 if meridian 1 is not specified
+        // But if h2 is 12 and meridian2 is pm, do NOT default a smaller h1 to pm (since 10 to 12pm means 10am to 12pm)
+        // Also if h1 > h2 and meridian2 is pm, do NOT default to pm (since 10 to 1pm means 10am to 1pm)
+        if ((h2 === 12 && (meridian2 === 'pm' || meridian2 === 'p')) || (h1 > h2 && (meridian2 === 'pm' || meridian2 === 'p'))) {
+          // Keep h1 as AM
+        } else {
+          if ((meridian2 === 'pm' || meridian2 === 'p') && h1 < 12) h1 += 12
+          if ((meridian2 === 'am' || meridian2 === 'a') && h1 === 12) h1 = 0
+        }
       }
       
       if ((meridian2 === 'pm' || meridian2 === 'p') && h2 < 12) h2 += 12
-      if ((meridian2 === 'am' || meridian2 === 'a') && h2 === 12) h2 = 0
+      if ((meridian2 === 'am' || meridian2 === 'a') && h2 === 12) {
+        if (h1 >= 12) {
+          h2 = 24 // 12 AM as midnight
+        } else {
+          h2 = 12 // 12 AM as noon
+        }
+      }
       
       const start = Math.min(h1, h2)
       const end = Math.max(h1, h2)
@@ -580,20 +608,50 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   })
 
   // Defaults for offers_delivery and offers_pickup
-  if (!normalized.includes('deliver') && !normalized.includes('pickup') && !normalized.includes('pick up')) {
+  const hasDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(normalized)
+  const hasPickup = /(pickup|pick up|pick-up|collect)/i.test(normalized)
+
+  if (!hasDelivery && !hasPickup) {
     result.offers_pickup = true
     result.offers_delivery = true
   } else {
-    if (normalized.includes('deliver')) result.offers_delivery = true
-    if (normalized.includes('pickup') || normalized.includes('pick up')) result.offers_pickup = true
+    result.offers_delivery = hasDelivery
+    result.offers_pickup = hasPickup
 
     // Explicit negations/exclusions
-    if (normalized.includes('no pickup') || normalized.includes('no pick up') || normalized.includes('delivery only') || normalized.includes('deliver only')) {
+    const dayTimeFollowPattern = `(?!\\s+(?:on|during|for|in|at)?\\s*(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|weekday|mon|tue|wed|thu|fri|sat|sun|daily|everyday|weekdays|weekends))`
+    
+    const noPickupRegex = new RegExp(
+      `(?:\\bno\\s+pickup\\b|\\bno\\s+pick\\s+up\\b|\\bno\\s+pick-up\\b|\\bno\\s+collect[a-z]*\\b|\\bpickup\\s+not\\s+available\\b|\\bpick\\s+up\\s+not\\s+available\\b|\\bdelivery\\s+only\\b|\\bdeliver\\s+only\\b|\\bdrop-off\\s+only\\b|\\bdrop\\s+off\\s+only\\b)${dayTimeFollowPattern}`,
+      'i'
+    )
+    
+    const noDeliveryRegex = new RegExp(
+      `(?:\\bno\\s+delivery\\b|\\bno\\s+deliver\\b|\\bno\\s+drop\\s+off\\b|\\bno\\s+drop-off\\b|\\bno\\s+shipping\\b|\\bno\\s+ship\\b|\\bpickup\\s+only\\b|\\bpick\\s+up\\s+only\\b|\\bpick-up\\s+only\\b|\\bcollect\\s+only\\b|\\bdelivery\\s+not\\s+available\\b|\\bdeliver\\s+not\\s+available\\b|\\bdo\\s+not\\s+deliver\\b)${dayTimeFollowPattern}`,
+      'i'
+    )
+    
+    if (noPickupRegex.test(normalized)) {
       result.offers_pickup = false
     }
-    if (normalized.includes('no delivery') || normalized.includes('no deliver') || normalized.includes('pickup only') || normalized.includes('pick up only') || normalized.includes('pickup at') || normalized.includes('pick up at')) {
+    if (noDeliveryRegex.test(normalized)) {
       result.offers_delivery = false
     }
+  }
+
+  // Clear fields if fulfillment type is disabled
+  if (!result.offers_delivery) {
+    result.delivery_days = []
+    result.delivery_time_slots = []
+    result.delivery_time_of_day = []
+    result.delivery_radius_miles = null
+    result.delivery_zipcodes = []
+  }
+  if (!result.offers_pickup) {
+    result.pickup_days = []
+    result.pickup_time_slots = []
+    result.pickup_time_of_day = []
+    result.pickup_address = null
   }
 
   return result
