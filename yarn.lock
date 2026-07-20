@@ -11903,6 +11903,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"compromise-numbers@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "compromise-numbers@npm:1.4.0"
+  peerDependencies:
+    compromise: ">=12.0.0"
+  checksum: 10/2f8005a4700c7125750b5195b54c93cf0f24a47e7f3d4bde7f6523873d071492a025141dd8e3fd1e7ef9898320d0b382d0f01ccb25820befe340d48b033d8d7e
+  languageName: node
+  linkType: hard
+
+"compromise@npm:^14.16.0":
+  version: 14.16.0
+  resolution: "compromise@npm:14.16.0"
+  dependencies:
+    efrt: "npm:2.7.0"
+    grad-school: "npm:0.0.5"
+    suffix-thumb: "npm:5.0.2"
+  checksum: 10/87509e44e77e39eadb733942fe2159b26c683dc4e459169b1d493337899a3aa5c943eca0fa8e703ca451e5516038f308ad6d134551592d95ea79b215f632b361
+  languageName: node
+  linkType: hard
+
 "concat-map@npm:0.0.1":
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
@@ -12789,6 +12809,13 @@ __metadata:
   version: 1.1.1
   resolution: "ee-first@npm:1.1.1"
   checksum: 10/1b4cac778d64ce3b582a7e26b218afe07e207a0f9bfe13cc7395a6d307849cfe361e65033c3251e00c27dd060cab43014c2d6b2647676135e18b77d2d05b3f4f
+  languageName: node
+  linkType: hard
+
+"efrt@npm:2.7.0":
+  version: 2.7.0
+  resolution: "efrt@npm:2.7.0"
+  checksum: 10/76febcd9efccce436beca5c5cc056187f9d9f4c64c9528b6fb467b4eb91f2b9f689f602f2451cd6bf37c77a2664b38ae4a6c506c03db462fec6c74d9d92b4e67
   languageName: node
   linkType: hard
 
@@ -15199,6 +15226,13 @@ __metadata:
   version: 4.2.11
   resolution: "graceful-fs@npm:4.2.11"
   checksum: 10/bf152d0ed1dc159239db1ba1f74fdbc40cb02f626770dcd5815c427ce0688c2635a06ed69af364396da4636d0408fcf7d4afdf7881724c3307e46aff30ca49e2
+  languageName: node
+  linkType: hard
+
+"grad-school@npm:0.0.5":
+  version: 0.0.5
+  resolution: "grad-school@npm:0.0.5"
+  checksum: 10/1330b02b71ef37f9a507261c1219056d19caa46f99e65fe30fe9b5c98235b5dec23d74928ed166516054b30c4cf470903de482311d2d25d985e904989b53c69a
   languageName: node
   linkType: hard
 
@@ -18908,6 +18942,8 @@ __metadata:
     "@types/node": "npm:^20.14.1"
     "@types/react": "npm:^19.2.14"
     "@types/react-dom": "npm:^19.2.3"
+    compromise: "npm:^14.16.0"
+    compromise-numbers: "npm:^1.4.0"
     html2canvas: "npm:^1.4.1"
     jsdom: "npm:^29.0.0"
     lucide-react: "npm:^0.563.0"
@@ -22872,6 +22908,13 @@ __metadata:
     sucrase: bin/sucrase
     sucrase-node: bin/sucrase-node
   checksum: 10/539f5c6ebc1ff8d449a89eb52b8c8944a730b9840ddadbd299a7d89ebcf16c3f4bc9aa59e1f2e112a502e5cf1508f7e02065f0e97c0435eb9a7058e997dfff5a
+  languageName: node
+  linkType: hard
+
+"suffix-thumb@npm:5.0.2":
+  version: 5.0.2
+  resolution: "suffix-thumb@npm:5.0.2"
+  checksum: 10/cd1d656c5804ad686b7d0b89eba3dcc47a55a8134c5f4dc6cff1cfb7b12bb26007ec8f58e52b5a29e0a9812d463f93f4091942f9cb6c76e53ab88280ded9c1cb
   languageName: node
   linkType: hard
 

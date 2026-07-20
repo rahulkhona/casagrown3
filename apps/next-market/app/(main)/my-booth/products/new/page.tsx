@@ -20,6 +20,7 @@ import styles from './page.module.css'
 import AddressInput from '../../../../components/AddressInput'
 import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressComplete, buildAddress } from '../../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
+import { decomposeAddress, parseTextFallback } from './nlp-parser-utils'
 
 // Compute the next upcoming market date from the schedule
 function getNextMarketDate(schedule: { dayOfWeek: number; dayName: string; openTime: string; closeTime: string }[]): {
@@ -92,7 +93,7 @@ function NewProductPageInner() {
   const [prefilled, setPrefilled] = useState(false)
   const [simpleWizardOriginalText, setSimpleWizardOriginalText] = useState('')
   const [simpleWizardAiSuccess, setSimpleWizardAiSuccess] = useState(false)
-  const [autoPhotoFill, setAutoPhotoFill] = useState(false)
+  const [aiGeneratingDescription, setAiGeneratingDescription] = useState(false)
   const [showOriginalText, setShowOriginalText] = useState(false)
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
@@ -720,97 +721,114 @@ function NewProductPageInner() {
       } else {
         setBoothBaseAddr(profileAddr)
         setProductPickupAddr(profileAddr)
+        if (fromSimpleWizard && profileAddr.street) {
+          setInlinePickupAddress([profileAddr.street, profileAddr.city, profileAddr.state].filter(Boolean).join(', '))
+        }
       }
 
-      // 2. Load fulfillment windows from table (same source as booth page)
-      const { data: windows } = await supabase
-        .from('booth_fulfillment_windows')
-        .select('*')
-        .eq('booth_id', boothId)
+      if (!fromSimpleWizard) {
+        // 2. Load fulfillment windows from table (same source as booth page)
+        const { data: windows } = await supabase
+          .from('booth_fulfillment_windows')
+          .select('*')
+          .eq('booth_id', boothId)
 
-      const hasBoothWindows = windows && windows.length > 0
+        const hasBoothWindows = windows && windows.length > 0
 
-      if (hasBoothWindows && !editId) {
-        // ── Booth HAS fulfillment defaults → use them (create mode only) ──
-        const del = booth?.offers_delivery ?? false
-        const pick = booth?.offers_pickup ?? false
-        setBoothOffersDelivery(del)
-        setBoothOffersPickup(pick)
-        setProductOffersDelivery(del)
-        setProductOffersPickup(pick)
-        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
-        if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
-        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
+        if (hasBoothWindows && !editId) {
+          // ── Booth HAS fulfillment defaults → use them (create mode only) ──
+          const del = booth?.offers_delivery ?? false
+          const pick = booth?.offers_pickup ?? false
+          setBoothOffersDelivery(del)
+          setBoothOffersPickup(pick)
+          setProductOffersDelivery(del)
+          setProductOffersPickup(pick)
+          if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+          if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
+          if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
-        // Build weekly schedule from table rows (same logic as booth page)
-        const weeklyDw: Record<string, string[]> = {}
-        const weeklyPw: Record<string, string[]> = {}
-        for (const w of windows) {
-          const startH = parseInt(w.start_time.split(':')[0])
-          const endH = parseInt(w.end_time.split(':')[0])
-          const slotId = `${startH}-${endH}`
-          if (w.window_type === 'delivery') {
-            if (!weeklyDw[w.day_of_week]) weeklyDw[w.day_of_week] = []
-            weeklyDw[w.day_of_week].push(slotId)
-          } else {
-            if (!weeklyPw[w.day_of_week]) weeklyPw[w.day_of_week] = []
-            weeklyPw[w.day_of_week].push(slotId)
+          // Build weekly schedule from table rows (same logic as booth page)
+          const weeklyDw: Record<string, string[]> = {}
+          const weeklyPw: Record<string, string[]> = {}
+          for (const w of windows) {
+            const startH = parseInt(w.start_time.split(':')[0])
+            const endH = parseInt(w.end_time.split(':')[0])
+            const slotId = `${startH}-${endH}`
+            if (w.window_type === 'delivery') {
+              if (!weeklyDw[w.day_of_week]) weeklyDw[w.day_of_week] = []
+              weeklyDw[w.day_of_week].push(slotId)
+            } else {
+              if (!weeklyPw[w.day_of_week]) weeklyPw[w.day_of_week] = []
+              weeklyPw[w.day_of_week].push(slotId)
+            }
+          }
+
+          // Map weekly schedule → next 7 calendar days
+          const dates: string[] = []
+          const dwMap: Record<string, string[]> = {}
+          const pwMap: Record<string, string[]> = {}
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
+            const dayKey = DAY_NAMES[d.getDay()]
+            const dw = weeklyDw[dayKey] || []
+            const pw = weeklyPw[dayKey] || []
+            if (dw.length > 0 || pw.length > 0) {
+              const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+              dates.push(dateStr)
+              dwMap[dateStr] = dw
+              pwMap[dateStr] = pw
+            }
+          }
+          if (dates.length > 0) {
+            setSelectedDates(dates)
+            setProductDeliveryWindows(dwMap)
+            setProductPickupWindows(pwMap)
+            setDeliveryPreset(detectPresetFromWindows(dwMap, del))
+            setPickupPreset(detectPresetFromWindows(pwMap, pick))
+          }
+        } else if (!editId) {
+          // ── Sensible defaults: Use 'Both' preset defaults (create mode only) ──
+          setBoothOffersDelivery(true)
+          setBoothOffersPickup(true)
+          setProductOffersDelivery(true)
+          setProductOffersPickup(true)
+          if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+          if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
+
+          const defaultDw = getWindowsForPreset('both')
+          const defaultPw = getWindowsForPreset('both')
+          setProductDeliveryWindows(defaultDw)
+          setProductPickupWindows(defaultPw)
+          setDeliveryPreset('both')
+          setPickupPreset('both')
+
+          // Use profile address as pickup address fallback
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('street_address, city, state_code, zip_code')
+            .eq('id', authUser.id)
+            .single()
+          if (profile?.street_address) {
+            const profileAddr = {
+              street: profile.street_address || '',
+              city: profile.city || '',
+              state: profile.state_code || '',
+              zip: profile.zip_code || '',
+            }
+            setProductPickupAddr(profileAddr)
           }
         }
-
-        // Map weekly schedule → next 7 calendar days
-        const dates: string[] = []
-        const dwMap: Record<string, string[]> = {}
-        const pwMap: Record<string, string[]> = {}
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
-          const dayKey = DAY_NAMES[d.getDay()]
-          const dw = weeklyDw[dayKey] || []
-          const pw = weeklyPw[dayKey] || []
-          if (dw.length > 0 || pw.length > 0) {
-            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-            dates.push(dateStr)
-            dwMap[dateStr] = dw
-            pwMap[dateStr] = pw
+      } else {
+        // Simple wizard path: update inlinePickupAddress string representation from resolved objects
+        if (booth?.pickup_address) {
+          setInlinePickupAddress(booth.pickup_address)
+        } else {
+          const resolvedStreet = booth?.booth_street || profileAddr.street
+          const resolvedCity = booth?.booth_city || profileAddr.city
+          const resolvedState = booth?.booth_state || profileAddr.state
+          if (resolvedStreet) {
+            setInlinePickupAddress([resolvedStreet, resolvedCity, resolvedState].filter(Boolean).join(', '))
           }
-        }
-        if (dates.length > 0) {
-          setSelectedDates(dates)
-          setProductDeliveryWindows(dwMap)
-          setProductPickupWindows(pwMap)
-          setDeliveryPreset(detectPresetFromWindows(dwMap, del))
-          setPickupPreset(detectPresetFromWindows(pwMap, pick))
-        }
-      } else if (!editId) {
-        // ── Sensible defaults: Use 'Both' preset defaults (create mode only) ──
-        setBoothOffersDelivery(true)
-        setBoothOffersPickup(true)
-        setProductOffersDelivery(true)
-        setProductOffersPickup(true)
-        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
-        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
-
-        const defaultDw = getWindowsForPreset('both')
-        const defaultPw = getWindowsForPreset('both')
-        setProductDeliveryWindows(defaultDw)
-        setProductPickupWindows(defaultPw)
-        setDeliveryPreset('both')
-        setPickupPreset('both')
-
-        // Use profile address as pickup address fallback
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('street_address, city, state_code, zip_code')
-          .eq('id', authUser.id)
-          .single()
-        if (profile?.street_address) {
-          const profileAddr = {
-            street: profile.street_address || '',
-            city: profile.city || '',
-            state: profile.state_code || '',
-            zip: profile.zip_code || '',
-          }
-          setProductPickupAddr(profileAddr)
         }
       }
 
@@ -946,11 +964,9 @@ function NewProductPageInner() {
           // Pre-fill photos
           if (data.photos?.length) setPhotos(data.photos)
 
-          // Mark booth defaults loaded to prevent booth defaults from overwriting
-          setBoothDefaultsLoaded(true)
-
-          // Auto-trigger AI fill (the enhanced analyze-product-photo with text context)
-          setAutoPhotoFill(true)
+          // Run local NLP parser instantly and apply the fields
+          const fallbackData = parseTextFallback(data.originalText || '')
+          applyParsedData(fallbackData)
         }
       } else {
         // Clear prefill to prevent leaks to subsequent listings
@@ -960,15 +976,6 @@ function NewProductPageInner() {
       console.warn('Failed to read simple wizard prefill:', err)
     }
   }, [fromSimpleWizard]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-trigger AI photo analysis after photos/text state settles
-  useEffect(() => {
-    if (autoPhotoFill && (photos.length > 0 || simpleWizardOriginalText)) {
-      if (!profileAddressLoaded) return // Wait for profile/booth loader to complete
-      setAutoPhotoFill(false)
-      handleAiAutoFill()
-    }
-  }, [autoPhotoFill, photos, simpleWizardOriginalText, profileAddressLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and restrictions from Supabase
   useEffect(() => {
@@ -2076,199 +2083,114 @@ function NewProductPageInner() {
       }
     }
 
-    // Apply pickup address override if returned by AI with non-empty values
-    const hasAiPickupAddress = data.pickup_address && 
-      typeof data.pickup_address === 'object' && 
-      (data.pickup_address.street || data.pickup_address.city || data.pickup_address.zip)
-    if (hasAiPickupAddress) {
-      setProductPickupAddr({
-        street: data.pickup_address.street || '',
-        city: data.pickup_address.city || '',
-        state: data.pickup_address.state || '',
-        zip: data.pickup_address.zip || '',
-      })
+    // Apply pickup address override if returned with non-empty values (as object or string)
+    if (data.pickup_address) {
+      if (typeof data.pickup_address === 'object') {
+        setProductPickupAddr({
+          street: data.pickup_address.street || '',
+          city: data.pickup_address.city || '',
+          state: data.pickup_address.state || '',
+          zip: data.pickup_address.zip || '',
+        })
+      } else if (typeof data.pickup_address === 'string' && data.pickup_address.trim().length > 0) {
+        setProductPickupAddr(decomposeAddress(data.pickup_address))
+      }
     }
 
-    // Apply base address override if returned by AI with non-empty values
-    const hasAiBaseAddress = data.base_address && 
-      typeof data.base_address === 'object' && 
-      (data.base_address.street || data.base_address.city || data.base_address.zip)
-    if (hasAiBaseAddress) {
-      setBoothBaseAddr({
-        street: data.base_address.street || '',
-        city: data.base_address.city || '',
-        state: data.base_address.state || '',
-        zip: data.base_address.zip || '',
-      })
+    // Apply base address override if returned with non-empty values
+    if (data.base_address) {
+      if (typeof data.base_address === 'object') {
+        setBoothBaseAddr({
+          street: data.base_address.street || '',
+          city: data.base_address.city || '',
+          state: data.base_address.state || '',
+          zip: data.base_address.zip || '',
+        })
+      } else if (typeof data.base_address === 'string' && data.base_address.trim().length > 0) {
+        setBoothBaseAddr(decomposeAddress(data.base_address))
+      }
     }
 
     // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
     const TIME_MAP: Record<string, string[]> = {
-      morning: ['8-10', '10-12'],
-      afternoon: ['12-14', '14-16'],
-      evening: ['16-18', '18-20'],
+      morning: ['8-9', '9-10', '10-11', '11-12'],
+      afternoon: ['12-13', '13-14', '14-15', '15-16', '16-17'],
+      evening: ['17-18', '18-19', '19-20'],
     }
+    // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const rawDeliveryDays = (data.delivery_days || []) as string[]
     const rawPickupDays = (data.pickup_days || []) as string[]
-    if (rawDeliveryDays.length || rawPickupDays.length) {
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-      
-      // Use slots if returned directly by AI; otherwise fall back to mapping morning/afternoon/evening
-      const deliverySlots = data.delivery_time_slots || (data.delivery_time_of_day || ['morning', 'afternoon']).flatMap(
+
+    if (rawDeliveryDays.length > 0) {
+      const deliverySlots = data.delivery_time_slots || (data.delivery_time_of_day && data.delivery_time_of_day.length > 0 ? data.delivery_time_of_day : ['morning', 'afternoon']).flatMap(
         (t: string) => TIME_MAP[t] || []
       )
-      const pickupSlots = data.pickup_time_slots || (data.pickup_time_of_day || ['morning', 'afternoon']).flatMap(
-        (t: string) => TIME_MAP[t] || []
-      )
-      
       const deliveryDaysSet = new Set(rawDeliveryDays.map(d => d.toLowerCase()))
-      const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
-      const requestedDays = new Set([
-        ...rawDeliveryDays.map(d => d.toLowerCase()),
-        ...rawPickupDays.map(d => d.toLowerCase())
-      ])
-      
-      const dates: string[] = []
       const dwMap: Record<string, string[]> = {}
+      for (let i = 0; i < 7; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() + i)
+        const dayKey = dayNames[d.getDay()]
+        if (deliveryDaysSet.has(dayKey)) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          dwMap[dateStr] = deliverySlots
+        }
+      }
+      setProductDeliveryWindows(dwMap)
+      setDeliveryPreset(detectPresetFromWindows(dwMap, data.offers_delivery !== false))
+    }
+
+    if (rawPickupDays.length > 0) {
+      const pickupSlots = data.pickup_time_slots || (data.pickup_time_of_day && data.pickup_time_of_day.length > 0 ? data.pickup_time_of_day : ['morning', 'afternoon']).flatMap(
+        (t: string) => TIME_MAP[t] || []
+      )
+      const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
       const pwMap: Record<string, string[]> = {}
       for (let i = 0; i < 7; i++) {
         const d = new Date()
         d.setDate(d.getDate() + i)
         const dayKey = dayNames[d.getDay()]
-        if (requestedDays.has(dayKey)) {
+        if (pickupDaysSet.has(dayKey)) {
           const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-          dates.push(dateStr)
-          if (data.offers_delivery !== false && deliveryDaysSet.has(dayKey)) {
-            dwMap[dateStr] = deliverySlots
-          }
-          if (data.offers_pickup !== false && pickupDaysSet.has(dayKey)) {
-            pwMap[dateStr] = pickupSlots
-          }
+          pwMap[dateStr] = pickupSlots
         }
       }
-      if (dates.length > 0) {
-        setSelectedDates(dates)
-        setProductDeliveryWindows(dwMap)
-        setProductPickupWindows(pwMap)
-      }
+      setProductPickupWindows(pwMap)
+      setPickupPreset(detectPresetFromWindows(pwMap, data.offers_pickup !== false))
     }
   }
 
-  const parseTextFallback = (text: string) => {
-    const normalized = text.toLowerCase()
-    const result: any = {
-      offers_delivery: normalized.includes('deliver'),
-      offers_pickup: normalized.includes('pickup') || normalized.includes('pick up') || normalized.includes('collect'),
-    }
 
-    if (!normalized.includes('deliver') && !normalized.includes('pickup') && !normalized.includes('pick up') && !normalized.includes('collect')) {
-      result.offers_delivery = true
-      result.offers_pickup = true
-    }
 
-    const qtyMatch = normalized.match(/(\d+)\s*(dozen|dz|bunch|bunches|loaf|loaves|bag|bags|box|boxes|basket|baskets|flat|flats|pint|pints|lb|lbs|each|piece|pieces|rose|roses|apple|apples|orange|oranges)/i)
-    if (qtyMatch) {
-      result.quantity = parseInt(qtyMatch[1])
-      let unit = qtyMatch[2].toLowerCase()
-      if (unit === 'dz') unit = 'dozen'
-      if (unit === 'bunches') unit = 'bunch'
-      if (unit === 'loaves') unit = 'loaf'
-      if (unit === 'bags') unit = 'bag'
-      if (unit === 'boxes') unit = 'box'
-      if (unit === 'baskets') unit = 'basket'
-      if (unit === 'flats') unit = 'flat'
-      if (unit === 'pints') unit = 'pint'
-      if (unit === 'lbs') unit = 'lb'
-      if (unit === 'piece' || unit === 'pieces' || unit === 'rose' || unit === 'roses' || unit === 'apple' || unit === 'apples' || unit === 'orange' || unit === 'oranges') unit = 'each'
-      result.unit = unit
-    }
-
-    const priceMatch = normalized.match(/(?:\$|price\s*(?:is)?\s*)\s*(\d+(?:\.\d{2})?)/i)
-    if (priceMatch) {
-      result.price_usd = parseFloat(priceMatch[1])
-    }
-
-    // Detect price denomination unit
-    let priceUnit = 'each'
-    if (normalized.includes('per dozen') || normalized.includes('/dozen') || normalized.includes('/dz')) {
-      priceUnit = 'dozen'
-    } else if (normalized.includes('per lb') || normalized.includes('per pound') || normalized.includes('/lb') || normalized.includes('/pound')) {
-      priceUnit = 'lb'
-    } else if (normalized.includes('per bunch') || normalized.includes('/bunch')) {
-      priceUnit = 'bunch'
-    } else if (normalized.includes('per piece') || normalized.includes('per each') || normalized.includes('/each') || normalized.includes('/piece') || normalized.includes('each') || normalized.includes('per item')) {
-      priceUnit = 'each'
-    } else {
-      // Fallback to whatever quantity unit we matched
-      priceUnit = result.unit || 'each'
-    }
-
-    // Convert quantity if unit doesn't match pricing unit
-    if (result.unit && result.unit !== priceUnit) {
-      if (result.unit === 'dozen' && priceUnit === 'each') {
-        result.quantity = result.quantity * 12
-      } else if (result.unit === 'each' && priceUnit === 'dozen') {
-        result.quantity = Math.max(1, Math.round(result.quantity / 12))
-      }
-      result.unit = priceUnit
-    } else if (!result.unit) {
-      result.unit = priceUnit
-    }
-
-    const zipCodes: string[] = []
-    const zipRegex = /\b\d{5}\b/g
-    let match
-    while ((match = zipRegex.exec(normalized)) !== null) {
-      zipCodes.push(match[0])
-    }
-    if (zipCodes.length > 0) {
-      result.delivery_zipcodes = zipCodes
-    }
-
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const deliveryDays: string[] = []
-    const pickupDays: string[] = []
-
-    const parts = normalized.split(/(deliver|pickup|pick up|collect)/)
-    let currentMode: 'delivery' | 'pickup' | null = null
-    for (const part of parts) {
-      if (part === 'deliver') {
-        currentMode = 'delivery'
-      } else if (part === 'pickup' || part === 'pick up' || part === 'collect') {
-        currentMode = 'pickup'
-      } else if (currentMode) {
-        for (const day of days) {
-          if (part.includes(day)) {
-            if (currentMode === 'delivery') deliveryDays.push(day)
-            else pickupDays.push(day)
-          }
-        }
-      }
-    }
-
-    if (deliveryDays.length === 0 && pickupDays.length === 0) {
-      for (const day of days) {
-        if (normalized.includes(day)) {
-          if (result.offers_delivery) deliveryDays.push(day)
-          if (result.offers_pickup) pickupDays.push(day)
-        }
-      }
-    }
-
-    if (deliveryDays.length > 0) result.delivery_days = deliveryDays
-    if (pickupDays.length > 0) result.pickup_days = pickupDays
-
-    const times: string[] = []
-    if (normalized.includes('morning') || normalized.includes('9 am') || normalized.includes('9am') || normalized.includes('10 am') || normalized.includes('10am') || normalized.includes('am')) times.push('morning')
-    if (normalized.includes('afternoon') || normalized.includes('pm')) times.push('afternoon')
-    if (normalized.includes('evening') || normalized.includes('night')) times.push('evening')
+  const handleAiDescriptionGeneration = async () => {
+    if (photos.length === 0 && !simpleWizardOriginalText) return
+    setAiGeneratingDescription(true)
+    setAiToast(null)
     
-    if (times.length > 0) {
-      if (result.offers_delivery) result.delivery_time_of_day = times
-      if (result.offers_pickup) result.pickup_time_of_day = times
+    try {
+      const body: any = {}
+      if (photos.length > 0) body.image = photos[0]
+      if (simpleWizardOriginalText) body.text = simpleWizardOriginalText
+      
+      const res = await supabase.functions.invoke('analyze-product-photo', {
+        body,
+      })
+      
+      const data = res.data as any
+      if (data?.description) {
+        setDescription(data.description)
+        setAiToast('✨ AI successfully generated description!')
+      } else {
+        setAiToast('⚠️ AI could not generate a description. Please write one manually.')
+      }
+    } catch (err) {
+      console.warn('AI description generation failed:', err)
+      setAiToast('⚠️ AI generation failed. Please try again or write manually.')
+    } finally {
+      setAiGeneratingDescription(false)
+      setTimeout(() => setAiToast(null), 5000)
     }
-
-    return result
   }
 
   // AI auto-fill from photo and/or text — calls analyze-product-photo edge function
@@ -2638,7 +2560,31 @@ function NewProductPageInner() {
               </div>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label className={styles.label} style={{ marginBottom: 0 }}>Description <span className={styles.optional}>(optional)</span></label>
+                {(photos.length > 0 || simpleWizardOriginalText) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); handleAiDescriptionGeneration() }}
+                    disabled={aiGeneratingDescription}
+                    style={{
+                      background: 'linear-gradient(135deg, #e0f2fe, #f0f9ff)',
+                      border: '1px solid #7dd3fc',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      color: '#0369a1',
+                      cursor: aiGeneratingDescription ? 'wait' : 'pointer',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {aiGeneratingDescription ? 'Generating...' : '✨ Generate with AI'}
+                  </button>
+                )}
+              </div>
               <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'description', !!description.trim())} placeholder="What makes these special?" rows={4} />
               
               {/* CasaBot Recipe Assistant */}
