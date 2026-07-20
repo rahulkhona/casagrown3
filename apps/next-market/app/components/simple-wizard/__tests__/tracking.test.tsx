@@ -211,7 +211,7 @@ describe('SimpleListingEntry — CRM Tracking', () => {
     // Clear mount tracking calls
     mockTrackEvent.mockClear()
 
-    const skipBtn = screen.getByRole('button', { name: /skip to full form/i })
+    const skipBtn = screen.getByRole('button', { name: /or use step-by-step form/i })
     fireEvent.click(skipBtn)
 
     expect(mockTrackEvent).toHaveBeenCalledWith(

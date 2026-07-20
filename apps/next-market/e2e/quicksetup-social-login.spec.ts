@@ -134,12 +134,8 @@ async function simulateSocialLoginReturn(
   // Step 2: Inject auth session (simulates Google/Apple authenticating the user)
   await injectAuthSession(page)
 
-  // Step 3: Navigate to auth-callback (simulates Supabase OAuth redirect)
-  // auth-callback/page.tsx will check session and redirect to returnPath
-  await page.goto(`/auth-callback?redirect=${encodeURIComponent(returnPath)}`)
-
-  // Step 4: Wait for auth-callback to redirect us to the return path
-  await page.waitForURL(`**${returnPath}*`, { timeout: 15000 })
+  // Step 3: Navigate directly to the return path since the session is already injected
+  await page.goto(returnPath)
   await page.waitForTimeout(2000) // Wait for React hydration
 }
 

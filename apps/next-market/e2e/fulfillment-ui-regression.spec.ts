@@ -30,95 +30,94 @@ test.describe('Booth Product Form — Separate Fulfillment Cards', () => {
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
   })
 
-  test('delivery card has its own day pills and time windows', async ({ page }) => {
+  test('delivery card has presets and expands custom weekly grid on click', async ({ page }) => {
     await page.goto('/my-booth/products/new')
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(3000)
     if (!page.url().includes('/products')) return
 
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
     await expect(deliveryBox).toBeVisible({ timeout: 10000 })
 
-    // Delivery card should show day/time related label
-    const hasDeliveryDays = await deliveryBox.locator('text=/Delivery Days|Available Days/i').count()
-    expect(hasDeliveryDays).toBeGreaterThan(0)
+    // Delivery card should show presets list
+    await expect(deliveryBox.locator('text=Schedule:')).toBeVisible()
+    await expect(deliveryBox.locator('text=Both — Recommended')).toBeVisible()
 
-    // Should have day pill buttons inside the delivery card
-    const dayPills = deliveryBox.locator('button:has-text("Today"), button:has-text("Tomorrow")')
-    expect(await dayPills.count()).toBeGreaterThan(0)
+    // Grid should be collapsed by default
+    await expect(deliveryBox.locator('text=Tap to select your available hours')).not.toBeVisible()
+
+    // Click 'Custom schedule' preset to expand grid
+    await deliveryBox.locator('text=Custom schedule').click()
+    await page.waitForTimeout(500)
+
+    // Grid should now be visible
+    await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible()
 
     // Should have delivery radius slider inside delivery card
     await expect(deliveryBox.locator('label:has-text("Delivery Radius")')).toBeVisible()
   })
 
-  test('pickup card has its own day pills and time windows', async ({ page }) => {
+  test('pickup card has presets and expands custom grid', async ({ page }) => {
     await page.goto('/my-booth/products/new')
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(3000)
     if (!page.url().includes('/products')) return
 
     const pickupBox = page.locator('[data-testid="pickup-box"]')
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
 
-    // Pickup card should show day/time related label
-    const hasPickupDays = await pickupBox.locator('text=/Pickup Days|Available Days/i').count()
-    expect(hasPickupDays).toBeGreaterThan(0)
+    // Pickup card should show presets list
+    await expect(pickupBox.locator('text=Schedule:')).toBeVisible()
 
-    // Should have day pill buttons inside the pickup card
-    const dayPills = pickupBox.locator('button:has-text("Today"), button:has-text("Tomorrow")')
-    expect(await dayPills.count()).toBeGreaterThan(0)
+    // Grid should be collapsed by default
+    await expect(pickupBox.locator('text=Tap to select your available hours')).not.toBeVisible()
+
+    // Click 'Custom schedule' preset to expand grid
+    await pickupBox.locator('text=Custom schedule').click()
+    await page.waitForTimeout(500)
+
+    // Grid should now be visible
+    await expect(pickupBox.locator('text=Tap to select your available hours')).toBeVisible()
   })
 
   test('toggling delivery card off hides its content', async ({ page }) => {
     await page.goto('/my-booth/products/new')
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(3000)
     if (!page.url().includes('/products')) return
 
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
     await expect(deliveryBox).toBeVisible({ timeout: 10000 })
 
-    // Check if delivery is active (has green border / checkbox checked)
+    // Check if delivery is active (checkbox checked)
     const checkbox = deliveryBox.locator('input[type="checkbox"]')
     const isChecked = await checkbox.isChecked()
 
     if (isChecked) {
-      // Day pills should be visible when delivery is active
-      await expect(deliveryBox.locator('text=Delivery Days')).toBeVisible()
+      // Content should be visible when delivery is active
+      await expect(deliveryBox.locator('text=Schedule:')).toBeVisible()
 
       // Toggle delivery off by clicking the header
-      await deliveryBox.locator('text=I\'ll Deliver').click()
+      await deliveryBox.locator('text=Delivery Available').or(deliveryBox.locator('text=I\'ll Deliver')).click()
       await page.waitForTimeout(500)
 
-      // Day pills should now be hidden
-      await expect(deliveryBox.locator('text=Delivery Days')).not.toBeVisible()
+      // Content should now be hidden
+      await expect(deliveryBox.locator('text=Schedule:')).not.toBeVisible()
     }
   })
 
-  test('delivery and pickup can select different days', async ({ page }) => {
+  test('delivery and pickup custom grids manage schedule independently', async ({ page }) => {
     await page.goto('/my-booth/products/new')
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(3000)
     if (!page.url().includes('/products')) return
 
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
     const pickupBox = page.locator('[data-testid="pickup-box"]')
 
-    // Ensure both are expanded
-    const deliveryCheckbox = deliveryBox.locator('input[type="checkbox"]')
-    const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
+    // Expand Custom Schedule for Delivery
+    await deliveryBox.locator('text=Custom schedule').click()
+    await page.waitForTimeout(500)
 
-    if (!(await deliveryCheckbox.isChecked())) {
-      await deliveryBox.locator('text=I\'ll Deliver').click()
-      await page.waitForTimeout(500)
-    }
-    if (!(await pickupCheckbox.isChecked())) {
-      await pickupBox.locator('text=Pickup Available').click()
-      await page.waitForTimeout(500)
-    }
-
-    // The day pills in delivery and pickup are independent
-    // Both should have their own set of day buttons
-    const deliveryDayPills = deliveryBox.locator('button:has-text("Today")')
-    const pickupDayPills = pickupBox.locator('button:has-text("Today")')
-    expect(await deliveryDayPills.count()).toBeGreaterThanOrEqual(1)
-    expect(await pickupDayPills.count()).toBeGreaterThanOrEqual(1)
+    // Pickup should still be collapsed
+    await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible()
+    await expect(pickupBox.locator('text=Tap to select your available hours')).not.toBeVisible()
   })
 })
 
@@ -292,9 +291,9 @@ test.describe('Create Listing Wizard — SMS/Push Prompts', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 test.describe('Fulfillment State Integrity', () => {
 
-  test('toggling delivery day does not affect pickup days', async ({ page }) => {
+  test('toggling delivery preset does not affect pickup preset', async ({ page }) => {
     await page.goto('/my-booth/products/new')
-    await page.waitForTimeout(5000)
+    await page.waitForTimeout(3000)
     if (!page.url().includes('/products')) return
 
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
@@ -313,18 +312,16 @@ test.describe('Fulfillment State Integrity', () => {
       await page.waitForTimeout(500)
     }
 
-    // Count pickup "Today" pills that are active before
-    const pickupTodayBefore = await pickupBox.locator('button:has-text("Today")').first().getAttribute('class') || ''
+    // Verify initial preset of Pickup is 'Both' (default)
+    // Both has text 'Both — Recommended' or just 'Both'
+    const bothLabel = pickupBox.locator('text=Both — Recommended')
+    await expect(bothLabel).toBeVisible()
 
-    // Click "Today" in delivery box
-    const deliveryToday = deliveryBox.locator('button:has-text("Today")').first()
-    if (await deliveryToday.isVisible()) {
-      await deliveryToday.click()
-      await page.waitForTimeout(300)
-    }
+    // Click 'Weekend mornings' in delivery box
+    await deliveryBox.locator('text=Weekend mornings').click()
+    await page.waitForTimeout(300)
 
-    // Pickup "Today" state should not have changed
-    const pickupTodayAfter = await pickupBox.locator('button:has-text("Today")').first().getAttribute('class') || ''
-    expect(pickupTodayAfter).toBe(pickupTodayBefore)
+    // Pickup preset should still be 'Both' (unaffected)
+    await expect(bothLabel).toBeVisible()
   })
 })

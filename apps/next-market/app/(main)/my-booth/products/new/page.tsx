@@ -20,6 +20,7 @@ import styles from './page.module.css'
 import AddressInput from '../../../../components/AddressInput'
 import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressComplete, buildAddress } from '../../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
+import { decomposeAddress, parseTextFallback } from './nlp-parser-utils'
 
 // Compute the next upcoming market date from the schedule
 function getNextMarketDate(schedule: { dayOfWeek: number; dayName: string; openTime: string; closeTime: string }[]): {
@@ -92,7 +93,7 @@ function NewProductPageInner() {
   const [prefilled, setPrefilled] = useState(false)
   const [simpleWizardOriginalText, setSimpleWizardOriginalText] = useState('')
   const [simpleWizardAiSuccess, setSimpleWizardAiSuccess] = useState(false)
-  const [autoPhotoFill, setAutoPhotoFill] = useState(false)
+  const [aiGeneratingDescription, setAiGeneratingDescription] = useState(false)
   const [showOriginalText, setShowOriginalText] = useState(false)
   const { state, dispatch } = useMarket()
   const { isAuthenticated, loading: authLoading, user: authUser } = useAuth()
@@ -142,10 +143,12 @@ function NewProductPageInner() {
     // With Today/Tomorrow windows, expiry is simply end-of-latest-selected-date.
     // Products auto-expire when their window dates pass — no complex calculation needed.
     if (selectedDates.length > 0) {
-      // Sort dates and pick the latest one, expire at end of that day (23:59:59)
+      // Sort dates and pick the latest one, expire at end of next day (last date + 1 day)
       const sorted = [...selectedDates].sort()
       const latest = sorted[sorted.length - 1]
-      return new Date(latest + 'T23:59:59').toISOString()
+      const expDate = new Date(latest + 'T23:59:59')
+      expDate.setDate(expDate.getDate() + 1)
+      return expDate.toISOString()
     }
     // Fallback: expire end of tomorrow
     const tomorrow = new Date()
@@ -249,12 +252,18 @@ function NewProductPageInner() {
                   cleanState.slice(0, 2).toUpperCase()
               }
             }
-            setAddr({
+            const newAddress = {
               street: [houseNumber, road].filter(Boolean).join(' '),
               city: addr.city || addr.town || addr.village || addr.hamlet || '',
               state: mappedState,
               zip: addr.postcode?.split('-')[0] || '',
-            })
+            }
+            setAddr(newAddress)
+            if (type === 'delivery') {
+              if (!productPickupAddr.street || formatFullAddress(productPickupAddr) === formatFullAddress(boothBaseAddr)) {
+                setProductPickupAddr(newAddress)
+              }
+            }
           }
         } catch (e) {
           console.warn('Geolocation failed', e)
@@ -307,6 +316,154 @@ function NewProductPageInner() {
   const [showProductCustomPick, setShowProductCustomPick] = useState<Record<string, boolean>>({})
   const [prodCustomStart, setProdCustomStart] = useState('17:00')
   const [prodCustomEnd, setProdCustomEnd] = useState('19:00')
+
+  // ── Fulfillment Window presets (Revised Per-Card layout) ──
+  type PresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom'
+  const [deliveryPreset, setDeliveryPreset] = useState<PresetType>('both')
+  const [pickupPreset, setPickupPreset] = useState<PresetType>('both')
+
+  // Map 1-hour rows to 2-hour database slots
+  const mapHourToSlotId = (hour: number): string | null => {
+    if (hour >= 8 && hour < 10) return '8-10'
+    if (hour >= 10 && hour < 12) return '10-12'
+    if (hour >= 12 && hour < 14) return '12-14'
+    if (hour >= 14 && hour < 16) return '14-16'
+    if (hour >= 16 && hour < 18) return '16-18'
+    if (hour >= 18 && hour <= 20) return '18-20'
+    return null
+  }
+
+  // Detect preset type based on loaded calendar windows
+  const detectPresetFromWindows = (windows: Record<string, string[]>, isOffersActive: boolean): PresetType => {
+    if (!isOffersActive) return 'both'
+    const dates = Object.keys(windows).filter(d => (windows[d] || []).length > 0)
+    if (dates.length === 0) return 'both'
+
+    let isWeekendMorningsMatch = true
+    let isWeekdayEveningsMatch = true
+    let isBothMatch = true
+    
+    let hasWeekend = false
+    let hasWeekday = false
+
+    for (const d of dates) {
+      const slots = windows[d] || []
+      if (slots.length === 0) continue
+
+      const dateObj = new Date(d + 'T12:00:00')
+      const day = dateObj.getDay() // 0 = Sunday, 6 = Saturday
+      const isWeekend = day === 0 || day === 6
+
+      if (isWeekend) {
+        hasWeekend = true
+        isWeekdayEveningsMatch = false
+        const matchesMorning = slots.includes('8-10') && slots.includes('10-12') && slots.length === 2
+        if (!matchesMorning) {
+          isWeekendMorningsMatch = false
+          isBothMatch = false
+        }
+      } else {
+        hasWeekday = true
+        isWeekendMorningsMatch = false
+        const matchesEvening = slots.includes('16-18') && slots.includes('18-20') && slots.length === 2
+        if (!matchesEvening) {
+          isWeekdayEveningsMatch = false
+          isBothMatch = false
+        }
+      }
+    }
+
+    if (isBothMatch && hasWeekend && hasWeekday) return 'both'
+    if (isWeekendMorningsMatch && hasWeekend && !hasWeekday) return 'weekend_mornings'
+    if (isWeekdayEveningsMatch && hasWeekday && !hasWeekend) return 'weekday_evenings'
+    return 'custom'
+  }
+
+  // Generate calendar windows mapping for a specific preset
+  const getWindowsForPreset = (preset: PresetType): Record<string, string[]> => {
+    const result: Record<string, string[]> = {}
+    if (preset === 'custom') return result
+
+    const localToday = new Date()
+    for (let offset = 0; offset < 7; offset++) {
+      const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      const day = d.getDay()
+      const isWeekend = day === 0 || day === 6
+
+      if (preset === 'weekend_mornings') {
+        if (isWeekend) {
+          result[dateStr] = ['8-10', '10-12']
+        }
+      } else if (preset === 'weekday_evenings') {
+        if (!isWeekend) {
+          result[dateStr] = ['16-18', '18-20']
+        }
+      } else if (preset === 'both') {
+        if (isWeekend) {
+          result[dateStr] = ['8-10', '10-12']
+        } else {
+          result[dateStr] = ['16-18', '18-20']
+        }
+      }
+    }
+    return result
+  }
+
+  // Checks if a specific hour is covered by any active slots
+  const isHourSelected = (hour: number, activeSlots: string[]): boolean => {
+    return activeSlots.some(slotId => {
+      const parts = slotId.split('-').map(Number)
+      if (parts.length < 2) return false
+      const start = parts[0]
+      const end = parts[1]
+      return hour >= start && hour < end
+    })
+  }
+
+  // Toggles an hour slot inside state, breaking down or joining 1-hour slots
+  const toggleHourCell = (
+    dateStr: string,
+    hour: number,
+    windowsState: Record<string, string[]>,
+    setWindowsState: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  ) => {
+    setWindowsState(prev => {
+      const activeSlots = prev[dateStr] || []
+      const isSelected = isHourSelected(hour, activeSlots)
+
+      let nextSlots: string[] = []
+
+      if (isSelected) {
+        // Remove hour H from any slot that covers it
+        for (const slotId of activeSlots) {
+          const parts = slotId.split('-').map(Number)
+          if (parts.length < 2) continue
+          const start = parts[0]
+          const end = parts[1]
+
+          if (hour >= start && hour < end) {
+            if (start < hour) {
+              nextSlots.push(`${start}-${hour}`)
+            }
+            if (hour + 1 < end) {
+              nextSlots.push(`${hour + 1}-${end}`)
+            }
+          } else {
+            nextSlots.push(slotId)
+          }
+        }
+      } else {
+        // Add hour H as a 1-hour slot 'H-(H+1)'
+        nextSlots = [...activeSlots, `${hour}-${hour + 1}`]
+      }
+
+      return {
+        ...prev,
+        [dateStr]: nextSlots
+      }
+    })
+  }
 
   // Derive selectedDates from union of delivery + pickup window dates so save logic stays intact
   useEffect(() => {
@@ -563,101 +720,122 @@ function NewProductPageInner() {
         if (!hasAddress(pickAddr) && booth.pickup_address) {
           pickAddr = parseLegacyAddress(booth.pickup_address)
         }
-        // Fallback to home address if not provided
+        // Fallback to booth base address if not provided
         if (!hasAddress(pickAddr)) {
-          pickAddr = profileAddr
+          pickAddr = baseAddr
         }
         setProductPickupAddr(pickAddr)
       } else {
         setBoothBaseAddr(profileAddr)
         setProductPickupAddr(profileAddr)
+        if (fromSimpleWizard && profileAddr.street) {
+          setInlinePickupAddress([profileAddr.street, profileAddr.city, profileAddr.state].filter(Boolean).join(', '))
+        }
       }
 
-      // 2. Load fulfillment windows from table (same source as booth page)
-      const { data: windows } = await supabase
-        .from('booth_fulfillment_windows')
-        .select('*')
-        .eq('booth_id', boothId)
+      if (!fromSimpleWizard) {
+        // 2. Load fulfillment windows from table (same source as booth page)
+        const { data: windows } = await supabase
+          .from('booth_fulfillment_windows')
+          .select('*')
+          .eq('booth_id', boothId)
 
-      const hasBoothWindows = windows && windows.length > 0
+        const hasBoothWindows = windows && windows.length > 0
 
-      if (hasBoothWindows && !editId) {
-        // ── Booth HAS fulfillment defaults → use them (create mode only) ──
-        const del = booth?.offers_delivery ?? false
-        const pick = booth?.offers_pickup ?? false
-        setBoothOffersDelivery(del)
-        setBoothOffersPickup(pick)
-        setProductOffersDelivery(del)
-        setProductOffersPickup(pick)
-        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
-        if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
-        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
+        if (hasBoothWindows && !editId) {
+          // ── Booth HAS fulfillment defaults → use them (create mode only) ──
+          const del = booth?.offers_delivery ?? false
+          const pick = booth?.offers_pickup ?? false
+          setBoothOffersDelivery(del)
+          setBoothOffersPickup(pick)
+          setProductOffersDelivery(del)
+          setProductOffersPickup(pick)
+          if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+          if (booth?.pickup_address) setInlinePickupAddress(booth.pickup_address)
+          if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
-        // Build weekly schedule from table rows (same logic as booth page)
-        const weeklyDw: Record<string, string[]> = {}
-        const weeklyPw: Record<string, string[]> = {}
-        for (const w of windows) {
-          const startH = parseInt(w.start_time.split(':')[0])
-          const endH = parseInt(w.end_time.split(':')[0])
-          const slotId = `${startH}-${endH}`
-          if (w.window_type === 'delivery') {
-            if (!weeklyDw[w.day_of_week]) weeklyDw[w.day_of_week] = []
-            weeklyDw[w.day_of_week].push(slotId)
-          } else {
-            if (!weeklyPw[w.day_of_week]) weeklyPw[w.day_of_week] = []
-            weeklyPw[w.day_of_week].push(slotId)
+          // Build weekly schedule from table rows (same logic as booth page)
+          const weeklyDw: Record<string, string[]> = {}
+          const weeklyPw: Record<string, string[]> = {}
+          for (const w of windows) {
+            const startH = parseInt(w.start_time.split(':')[0])
+            const endH = parseInt(w.end_time.split(':')[0])
+            const slotId = `${startH}-${endH}`
+            if (w.window_type === 'delivery') {
+              if (!weeklyDw[w.day_of_week]) weeklyDw[w.day_of_week] = []
+              weeklyDw[w.day_of_week].push(slotId)
+            } else {
+              if (!weeklyPw[w.day_of_week]) weeklyPw[w.day_of_week] = []
+              weeklyPw[w.day_of_week].push(slotId)
+            }
+          }
+
+          // Map weekly schedule → next 7 calendar days
+          const dates: string[] = []
+          const dwMap: Record<string, string[]> = {}
+          const pwMap: Record<string, string[]> = {}
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
+            const dayKey = DAY_NAMES[d.getDay()]
+            const dw = weeklyDw[dayKey] || []
+            const pw = weeklyPw[dayKey] || []
+            if (dw.length > 0 || pw.length > 0) {
+              const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+              dates.push(dateStr)
+              dwMap[dateStr] = dw
+              pwMap[dateStr] = pw
+            }
+          }
+          if (dates.length > 0) {
+            setSelectedDates(dates)
+            setProductDeliveryWindows(dwMap)
+            setProductPickupWindows(pwMap)
+            setDeliveryPreset(detectPresetFromWindows(dwMap, del))
+            setPickupPreset(detectPresetFromWindows(pwMap, pick))
+          }
+        } else if (!editId) {
+          // ── Sensible defaults: Use 'Both' preset defaults (create mode only) ──
+          setBoothOffersDelivery(true)
+          setBoothOffersPickup(true)
+          setProductOffersDelivery(true)
+          setProductOffersPickup(true)
+          if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
+          if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
+
+          const defaultDw = getWindowsForPreset('both')
+          const defaultPw = getWindowsForPreset('both')
+          setProductDeliveryWindows(defaultDw)
+          setProductPickupWindows(defaultPw)
+          setDeliveryPreset('both')
+          setPickupPreset('both')
+
+          // Use profile address as pickup address fallback
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('street_address, city, state_code, zip_code')
+            .eq('id', authUser.id)
+            .single()
+          if (profile?.street_address) {
+            const profileAddr = {
+              street: profile.street_address || '',
+              city: profile.city || '',
+              state: profile.state_code || '',
+              zip: profile.zip_code || '',
+            }
+            setProductPickupAddr(profileAddr)
           }
         }
-
-        // Map weekly schedule → next 7 calendar days
-        const dates: string[] = []
-        const dwMap: Record<string, string[]> = {}
-        const pwMap: Record<string, string[]> = {}
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + i)
-          const dayKey = DAY_NAMES[d.getDay()]
-          const dw = weeklyDw[dayKey] || []
-          const pw = weeklyPw[dayKey] || []
-          if (dw.length > 0 || pw.length > 0) {
-            const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-            dates.push(dateStr)
-            dwMap[dateStr] = dw
-            pwMap[dateStr] = pw
+      } else {
+        // Simple wizard path: update inlinePickupAddress string representation from resolved objects
+        if (booth?.pickup_address) {
+          setInlinePickupAddress(booth.pickup_address)
+        } else {
+          const resolvedStreet = booth?.booth_street || profileAddr.street
+          const resolvedCity = booth?.booth_city || profileAddr.city
+          const resolvedState = booth?.booth_state || profileAddr.state
+          if (resolvedStreet) {
+            setInlinePickupAddress([resolvedStreet, resolvedCity, resolvedState].filter(Boolean).join(', '))
           }
-        }
-        if (dates.length > 0) {
-          setSelectedDates(dates)
-          setProductDeliveryWindows(dwMap)
-          setProductPickupWindows(pwMap)
-        }
-      } else if (!editId) {
-        // ── Booth has NO fulfillment defaults → sensible defaults (create mode only) ──
-        setBoothOffersDelivery(true)
-        setBoothOffersPickup(true)
-        setProductOffersDelivery(true)
-        setProductOffersPickup(true)
-        if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
-        if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
-
-        // Default to today + tomorrow with all time slots selected
-        setSelectedDates([todayStr, tomorrowStr])
-        setProductDeliveryWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
-        setProductPickupWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
-
-        // Use profile address as pickup address fallback
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('street_address, city, state_code, zip_code')
-          .eq('id', authUser.id)
-          .single()
-        if (profile?.street_address) {
-          const profileAddr = {
-            street: profile.street_address || '',
-            city: profile.city || '',
-            state: profile.state_code || '',
-            zip: profile.zip_code || '',
-          }
-          setProductPickupAddr(profileAddr)
         }
       }
 
@@ -702,8 +880,12 @@ function NewProductPageInner() {
         setProductDeliveryWindows(dwMap)
         setProductPickupWindows(pwMap)
         // Restore fulfillment mode toggles from saved product data
-        setProductOffersDelivery(data.product_delivery_windows != null)
-        setProductOffersPickup(data.product_pickup_windows != null)
+        const del = data.product_delivery_windows != null
+        const pick = data.product_pickup_windows != null
+        setProductOffersDelivery(del)
+        setProductOffersPickup(pick)
+        setDeliveryPreset(detectPresetFromWindows(dwMap, del))
+        setPickupPreset(detectPresetFromWindows(pwMap, pick))
       } else {
         // Product has no saved fulfillment windows — fall back to booth defaults
         // This handles legacy products created before product-level windows were stored
@@ -768,8 +950,11 @@ function NewProductPageInner() {
   }, [prefillId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill from simple wizard (sessionStorage)
+  const isLoaded = boothId ? boothDefaultsLoaded : profileAddressLoaded
+  const [prefillApplied, setPrefillApplied] = useState(false)
+
   useEffect(() => {
-    if (editId) return
+    if (editId || !isLoaded || prefillApplied) return
     try {
       if (fromSimpleWizard) {
         const raw = sessionStorage.getItem('simple_listing_prefill')
@@ -789,11 +974,10 @@ function NewProductPageInner() {
           // Pre-fill photos
           if (data.photos?.length) setPhotos(data.photos)
 
-          // Mark booth defaults loaded to prevent booth defaults from overwriting
-          setBoothDefaultsLoaded(true)
-
-          // Auto-trigger AI fill (the enhanced analyze-product-photo with text context)
-          setAutoPhotoFill(true)
+          // Run local NLP parser instantly and apply the fields on top of loaded defaults!
+          const fallbackData = parseTextFallback(data.originalText || '')
+          applyParsedData(fallbackData)
+          setPrefillApplied(true)
         }
       } else {
         // Clear prefill to prevent leaks to subsequent listings
@@ -802,16 +986,7 @@ function NewProductPageInner() {
     } catch (err) {
       console.warn('Failed to read simple wizard prefill:', err)
     }
-  }, [fromSimpleWizard]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-trigger AI photo analysis after photos/text state settles
-  useEffect(() => {
-    if (autoPhotoFill && (photos.length > 0 || simpleWizardOriginalText)) {
-      if (!profileAddressLoaded) return // Wait for profile/booth loader to complete
-      setAutoPhotoFill(false)
-      handleAiAutoFill()
-    }
-  }, [autoPhotoFill, photos, simpleWizardOriginalText, profileAddressLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fromSimpleWizard, isLoaded, prefillApplied, editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and restrictions from Supabase
   useEffect(() => {
@@ -1336,7 +1511,14 @@ function NewProductPageInner() {
             const obj: Record<string, any[]> = {}
             for (const d of selectedDates) {
               const ids = productDeliveryWindows[d] || []
-              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+              if (ids.length > 0) {
+                obj[d] = ids.map(id => {
+                  const parts = id.split('-')
+                  const start = parts[0]
+                  const end = parts[1] || String(parseInt(start) + 2)
+                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+                })
+              }
             }
             return Object.keys(obj).length > 0 ? obj : null
           })(),
@@ -1344,7 +1526,14 @@ function NewProductPageInner() {
             const obj: Record<string, any[]> = {}
             for (const d of selectedDates) {
               const ids = productPickupWindows[d] || []
-              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+              if (ids.length > 0) {
+                obj[d] = ids.map(id => {
+                  const parts = id.split('-')
+                  const start = parts[0]
+                  const end = parts[1] || String(parseInt(start) + 2)
+                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+                })
+              }
             }
             return Object.keys(obj).length > 0 ? obj : null
           })(),
@@ -1474,7 +1663,14 @@ function NewProductPageInner() {
           const obj: Record<string, any[]> = {}
           for (const d of selectedDates) {
             const ids = productDeliveryWindows[d] || []
-            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
           }
           return Object.keys(obj).length > 0 ? obj : null
         })(),
@@ -1482,7 +1678,14 @@ function NewProductPageInner() {
           const obj: Record<string, any[]> = {}
           for (const d of selectedDates) {
             const ids = productPickupWindows[d] || []
-            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
           }
           return Object.keys(obj).length > 0 ? obj : null
         })(),
@@ -1582,8 +1785,9 @@ function NewProductPageInner() {
             if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
             for (const slotId of dwIds) {
               if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
-              const [startH] = slotId.split('-').map(Number)
-              const endH = startH + 2
+              const parts = slotId.split('-').map(Number)
+              const startH = parts[0]
+              const endH = parts[1] || (startH + 2)
               tableRows.push({
                 booth_id: boothId!,
                 day_of_week: dayKey,
@@ -1597,8 +1801,9 @@ function NewProductPageInner() {
             if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
             for (const slotId of pwIds) {
               if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
-              const [startH] = slotId.split('-').map(Number)
-              const endH = startH + 2
+              const parts = slotId.split('-').map(Number)
+              const startH = parts[0]
+              const endH = parts[1] || (startH + 2)
               tableRows.push({
                 booth_id: boothId!,
                 day_of_week: dayKey,
@@ -1654,8 +1859,9 @@ function NewProductPageInner() {
               if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
               for (const slotId of dwIds) {
                 if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
-                const [startH] = slotId.split('-').map(Number)
-                const endH = startH + 2
+                const parts = slotId.split('-').map(Number)
+                const startH = parts[0]
+                const endH = parts[1] || (startH + 2)
                 tableRows.push({
                   booth_id: boothId!,
                   day_of_week: dayKey,
@@ -1669,8 +1875,9 @@ function NewProductPageInner() {
               if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
               for (const slotId of pwIds) {
                 if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
-                const [startH] = slotId.split('-').map(Number)
-                const endH = startH + 2
+                const parts = slotId.split('-').map(Number)
+                const startH = parts[0]
+                const endH = parts[1] || (startH + 2)
                 tableRows.push({
                   booth_id: boothId!,
                   day_of_week: dayKey,
@@ -1887,30 +2094,104 @@ function NewProductPageInner() {
       }
     }
 
-    // Apply pickup address override if returned by AI with non-empty values
-    const hasAiPickupAddress = data.pickup_address && 
-      typeof data.pickup_address === 'object' && 
-      (data.pickup_address.street || data.pickup_address.city || data.pickup_address.zip)
-    if (hasAiPickupAddress) {
-      setProductPickupAddr({
-        street: data.pickup_address.street || '',
-        city: data.pickup_address.city || '',
-        state: data.pickup_address.state || '',
-        zip: data.pickup_address.zip || '',
-      })
+    const resolveAndApplyAddress = async (parsedAddr: { street: string; city: string; state?: string; zip?: string }) => {
+      if (!parsedAddr.street || !parsedAddr.city) return
+      const assumedState = parsedAddr.state || boothBaseAddr.state || profileHomeAddr.state || 'CA'
+      const assumedZip = parsedAddr.zip || ''
+
+      try {
+        const { data: uspsResult } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            streetAddress: parsedAddr.street,
+            city: parsedAddr.city,
+            state: assumedState,
+            zipCode: assumedZip.substring(0, 5),
+          }
+        })
+
+        if (uspsResult?.address?.ZIPCode) {
+          setProductPickupAddr({
+            street: uspsResult.address.streetAddress || parsedAddr.street,
+            city: uspsResult.address.city || parsedAddr.city,
+            state: uspsResult.address.state || assumedState,
+            zip: uspsResult.address.ZIPPlus4 || uspsResult.address.ZIPCode,
+          })
+        }
+      } catch (err) {
+        console.warn('[AddProduct] Background address verification failed:', err)
+      }
     }
 
-    // Apply base address override if returned by AI with non-empty values
-    const hasAiBaseAddress = data.base_address && 
-      typeof data.base_address === 'object' && 
-      (data.base_address.street || data.base_address.city || data.base_address.zip)
-    if (hasAiBaseAddress) {
-      setBoothBaseAddr({
-        street: data.base_address.street || '',
-        city: data.base_address.city || '',
-        state: data.base_address.state || '',
-        zip: data.base_address.zip || '',
-      })
+    const resolveAndApplyBaseAddress = async (parsedAddr: { street: string; city: string; state?: string; zip?: string }) => {
+      if (!parsedAddr.street || !parsedAddr.city) return
+      const assumedState = parsedAddr.state || profileHomeAddr.state || 'CA'
+      const assumedZip = parsedAddr.zip || ''
+
+      try {
+        const { data: uspsResult } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            streetAddress: parsedAddr.street,
+            city: parsedAddr.city,
+            state: assumedState,
+            zipCode: assumedZip.substring(0, 5),
+          }
+        })
+
+        if (uspsResult?.address?.ZIPCode) {
+          setBoothBaseAddr({
+            street: uspsResult.address.streetAddress || parsedAddr.street,
+            city: uspsResult.address.city || parsedAddr.city,
+            state: uspsResult.address.state || assumedState,
+            zip: uspsResult.address.ZIPPlus4 || uspsResult.address.ZIPCode,
+          })
+        }
+      } catch (err) {
+        console.warn('[AddProduct] Background base address verification failed:', err)
+      }
+    }
+
+    // Apply pickup address override if returned with non-empty values (as object or string)
+    if (data.pickup_address) {
+      let parsed: AddressFields | null = null
+      if (typeof data.pickup_address === 'object') {
+        parsed = {
+          street: data.pickup_address.street || '',
+          city: data.pickup_address.city || '',
+          state: data.pickup_address.state || '',
+          zip: data.pickup_address.zip || '',
+        }
+      } else if (typeof data.pickup_address === 'string' && data.pickup_address.trim().length > 0) {
+        parsed = decomposeAddress(data.pickup_address)
+      }
+
+      if (parsed && parsed.street && parsed.city) {
+        setProductPickupAddr(parsed)
+        if (!parsed.state || !parsed.zip) {
+          resolveAndApplyAddress(parsed)
+        }
+      }
+    }
+
+    // Apply base address override if returned with non-empty values
+    if (data.base_address) {
+      let parsed: AddressFields | null = null
+      if (typeof data.base_address === 'object') {
+        parsed = {
+          street: data.base_address.street || '',
+          city: data.base_address.city || '',
+          state: data.base_address.state || '',
+          zip: data.base_address.zip || '',
+        }
+      } else if (typeof data.base_address === 'string' && data.base_address.trim().length > 0) {
+        parsed = decomposeAddress(data.base_address)
+      }
+
+      if (parsed && parsed.street && parsed.city) {
+        setBoothBaseAddr(parsed)
+        if (!parsed.state || !parsed.zip) {
+          resolveAndApplyBaseAddress(parsed)
+        }
+      }
     }
 
     // Map delivery/pickup days + time_of_day or time_slots to concrete calendar windows
@@ -1919,167 +2200,109 @@ function NewProductPageInner() {
       afternoon: ['12-14', '14-16'],
       evening: ['16-18', '18-20'],
     }
+
+    const mapParsedSlots = (timeSlots: string[], timeOfDay: string[]): string[] => {
+      const slots = new Set<string>()
+      
+      // If we have explicit 1-hour slots, map their start hours to 2-hour slots
+      if (timeSlots && timeSlots.length > 0) {
+        timeSlots.forEach(s => {
+          const startHour = parseInt(s.split('-')[0])
+          if (!isNaN(startHour)) {
+            const slotId = mapHourToSlotId(startHour)
+            if (slotId) slots.add(slotId)
+          }
+        })
+      }
+      
+      // If we also have time of day, add those 2-hour slots
+      if (timeOfDay && timeOfDay.length > 0) {
+        timeOfDay.forEach(tod => {
+          const mapped = TIME_MAP[tod.toLowerCase()]
+          if (mapped) {
+            mapped.forEach(s => slots.add(s))
+          }
+        })
+      }
+      
+      // Default to morning/afternoon if empty
+      if (slots.size === 0) {
+        TIME_MAP.morning.forEach(s => slots.add(s))
+        TIME_MAP.afternoon.forEach(s => slots.add(s))
+      }
+      
+      return Array.from(slots)
+    }
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const rawDeliveryDays = (data.delivery_days || []) as string[]
     const rawPickupDays = (data.pickup_days || []) as string[]
-    if (rawDeliveryDays.length || rawPickupDays.length) {
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-      
-      // Use slots if returned directly by AI; otherwise fall back to mapping morning/afternoon/evening
-      const deliverySlots = data.delivery_time_slots || (data.delivery_time_of_day || ['morning', 'afternoon']).flatMap(
-        (t: string) => TIME_MAP[t] || []
-      )
-      const pickupSlots = data.pickup_time_slots || (data.pickup_time_of_day || ['morning', 'afternoon']).flatMap(
-        (t: string) => TIME_MAP[t] || []
-      )
-      
+
+    if (rawDeliveryDays.length > 0) {
+      const deliverySlots = mapParsedSlots(data.delivery_time_slots || [], data.delivery_time_of_day || [])
       const deliveryDaysSet = new Set(rawDeliveryDays.map(d => d.toLowerCase()))
-      const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
-      const requestedDays = new Set([
-        ...rawDeliveryDays.map(d => d.toLowerCase()),
-        ...rawPickupDays.map(d => d.toLowerCase())
-      ])
-      
-      const dates: string[] = []
       const dwMap: Record<string, string[]> = {}
+      for (let i = 0; i < 7; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() + i)
+        const dayKey = dayNames[d.getDay()]
+        if (deliveryDaysSet.has(dayKey)) {
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          dwMap[dateStr] = deliverySlots
+        }
+      }
+      setProductDeliveryWindows(dwMap)
+      setDeliveryPreset(detectPresetFromWindows(dwMap, data.offers_delivery !== false))
+    }
+
+    if (rawPickupDays.length > 0) {
+      const pickupSlots = mapParsedSlots(data.pickup_time_slots || [], data.pickup_time_of_day || [])
+      const pickupDaysSet = new Set(rawPickupDays.map(d => d.toLowerCase()))
       const pwMap: Record<string, string[]> = {}
       for (let i = 0; i < 7; i++) {
         const d = new Date()
         d.setDate(d.getDate() + i)
         const dayKey = dayNames[d.getDay()]
-        if (requestedDays.has(dayKey)) {
+        if (pickupDaysSet.has(dayKey)) {
           const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-          dates.push(dateStr)
-          if (data.offers_delivery !== false && deliveryDaysSet.has(dayKey)) {
-            dwMap[dateStr] = deliverySlots
-          }
-          if (data.offers_pickup !== false && pickupDaysSet.has(dayKey)) {
-            pwMap[dateStr] = pickupSlots
-          }
+          pwMap[dateStr] = pickupSlots
         }
       }
-      if (dates.length > 0) {
-        setSelectedDates(dates)
-        setProductDeliveryWindows(dwMap)
-        setProductPickupWindows(pwMap)
-      }
+      setProductPickupWindows(pwMap)
+      setPickupPreset(detectPresetFromWindows(pwMap, data.offers_pickup !== false))
     }
   }
 
-  const parseTextFallback = (text: string) => {
-    const normalized = text.toLowerCase()
-    const result: any = {
-      offers_delivery: normalized.includes('deliver'),
-      offers_pickup: normalized.includes('pickup') || normalized.includes('pick up') || normalized.includes('collect'),
-    }
 
-    if (!normalized.includes('deliver') && !normalized.includes('pickup') && !normalized.includes('pick up') && !normalized.includes('collect')) {
-      result.offers_delivery = true
-      result.offers_pickup = true
-    }
 
-    const qtyMatch = normalized.match(/(\d+)\s*(dozen|dz|bunch|bunches|loaf|loaves|bag|bags|box|boxes|basket|baskets|flat|flats|pint|pints|lb|lbs|each|piece|pieces|rose|roses|apple|apples|orange|oranges)/i)
-    if (qtyMatch) {
-      result.quantity = parseInt(qtyMatch[1])
-      let unit = qtyMatch[2].toLowerCase()
-      if (unit === 'dz') unit = 'dozen'
-      if (unit === 'bunches') unit = 'bunch'
-      if (unit === 'loaves') unit = 'loaf'
-      if (unit === 'bags') unit = 'bag'
-      if (unit === 'boxes') unit = 'box'
-      if (unit === 'baskets') unit = 'basket'
-      if (unit === 'flats') unit = 'flat'
-      if (unit === 'pints') unit = 'pint'
-      if (unit === 'lbs') unit = 'lb'
-      if (unit === 'piece' || unit === 'pieces' || unit === 'rose' || unit === 'roses' || unit === 'apple' || unit === 'apples' || unit === 'orange' || unit === 'oranges') unit = 'each'
-      result.unit = unit
-    }
-
-    const priceMatch = normalized.match(/(?:\$|price\s*(?:is)?\s*)\s*(\d+(?:\.\d{2})?)/i)
-    if (priceMatch) {
-      result.price_usd = parseFloat(priceMatch[1])
-    }
-
-    // Detect price denomination unit
-    let priceUnit = 'each'
-    if (normalized.includes('per dozen') || normalized.includes('/dozen') || normalized.includes('/dz')) {
-      priceUnit = 'dozen'
-    } else if (normalized.includes('per lb') || normalized.includes('per pound') || normalized.includes('/lb') || normalized.includes('/pound')) {
-      priceUnit = 'lb'
-    } else if (normalized.includes('per bunch') || normalized.includes('/bunch')) {
-      priceUnit = 'bunch'
-    } else if (normalized.includes('per piece') || normalized.includes('per each') || normalized.includes('/each') || normalized.includes('/piece') || normalized.includes('each') || normalized.includes('per item')) {
-      priceUnit = 'each'
-    } else {
-      // Fallback to whatever quantity unit we matched
-      priceUnit = result.unit || 'each'
-    }
-
-    // Convert quantity if unit doesn't match pricing unit
-    if (result.unit && result.unit !== priceUnit) {
-      if (result.unit === 'dozen' && priceUnit === 'each') {
-        result.quantity = result.quantity * 12
-      } else if (result.unit === 'each' && priceUnit === 'dozen') {
-        result.quantity = Math.max(1, Math.round(result.quantity / 12))
-      }
-      result.unit = priceUnit
-    } else if (!result.unit) {
-      result.unit = priceUnit
-    }
-
-    const zipCodes: string[] = []
-    const zipRegex = /\b\d{5}\b/g
-    let match
-    while ((match = zipRegex.exec(normalized)) !== null) {
-      zipCodes.push(match[0])
-    }
-    if (zipCodes.length > 0) {
-      result.delivery_zipcodes = zipCodes
-    }
-
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const deliveryDays: string[] = []
-    const pickupDays: string[] = []
-
-    const parts = normalized.split(/(deliver|pickup|pick up|collect)/)
-    let currentMode: 'delivery' | 'pickup' | null = null
-    for (const part of parts) {
-      if (part === 'deliver') {
-        currentMode = 'delivery'
-      } else if (part === 'pickup' || part === 'pick up' || part === 'collect') {
-        currentMode = 'pickup'
-      } else if (currentMode) {
-        for (const day of days) {
-          if (part.includes(day)) {
-            if (currentMode === 'delivery') deliveryDays.push(day)
-            else pickupDays.push(day)
-          }
-        }
-      }
-    }
-
-    if (deliveryDays.length === 0 && pickupDays.length === 0) {
-      for (const day of days) {
-        if (normalized.includes(day)) {
-          if (result.offers_delivery) deliveryDays.push(day)
-          if (result.offers_pickup) pickupDays.push(day)
-        }
-      }
-    }
-
-    if (deliveryDays.length > 0) result.delivery_days = deliveryDays
-    if (pickupDays.length > 0) result.pickup_days = pickupDays
-
-    const times: string[] = []
-    if (normalized.includes('morning') || normalized.includes('9 am') || normalized.includes('9am') || normalized.includes('10 am') || normalized.includes('10am') || normalized.includes('am')) times.push('morning')
-    if (normalized.includes('afternoon') || normalized.includes('pm')) times.push('afternoon')
-    if (normalized.includes('evening') || normalized.includes('night')) times.push('evening')
+  const handleAiDescriptionGeneration = async () => {
+    if (photos.length === 0 && !simpleWizardOriginalText) return
+    setAiGeneratingDescription(true)
+    setAiToast(null)
     
-    if (times.length > 0) {
-      if (result.offers_delivery) result.delivery_time_of_day = times
-      if (result.offers_pickup) result.pickup_time_of_day = times
+    try {
+      const body: any = {}
+      if (photos.length > 0) body.image = photos[0]
+      if (simpleWizardOriginalText) body.text = simpleWizardOriginalText
+      
+      const res = await supabase.functions.invoke('analyze-product-photo', {
+        body,
+      })
+      
+      const data = res.data as any
+      if (data?.description) {
+        setDescription(data.description)
+        setAiToast('✨ AI successfully generated description!')
+      } else {
+        setAiToast('⚠️ AI could not generate a description. Please write one manually.')
+      }
+    } catch (err) {
+      console.warn('AI description generation failed:', err)
+      setAiToast('⚠️ AI generation failed. Please try again or write manually.')
+    } finally {
+      setAiGeneratingDescription(false)
+      setTimeout(() => setAiToast(null), 5000)
     }
-
-    return result
   }
 
   // AI auto-fill from photo and/or text — calls analyze-product-photo edge function
@@ -2167,8 +2390,22 @@ function NewProductPageInner() {
         return
       }
 
-      // Success Path -> Apply parsed AI data
-      applyParsedData(data)
+      // Success Path -> Apply parsed AI data merged with local fallback extraction for addresses/schedules
+      const localData = parseTextFallback(simpleWizardOriginalText || '')
+      const mergedData = {
+        ...data,
+        pickup_address: data.pickup_address || localData.pickup_address,
+        base_address: data.base_address || localData.base_address,
+        delivery_radius_miles: data.delivery_radius_miles ?? localData.delivery_radius_miles,
+        delivery_zipcodes: (data.delivery_zipcodes && data.delivery_zipcodes.length > 0) ? data.delivery_zipcodes : localData.delivery_zipcodes,
+        delivery_days: (data.delivery_days && data.delivery_days.length > 0) ? data.delivery_days : localData.delivery_days,
+        delivery_time_of_day: (data.delivery_time_of_day && data.delivery_time_of_day.length > 0) ? data.delivery_time_of_day : localData.delivery_time_of_day,
+        delivery_time_slots: (data.delivery_time_slots && data.delivery_time_slots.length > 0) ? data.delivery_time_slots : localData.delivery_time_slots,
+        pickup_days: (data.pickup_days && data.pickup_days.length > 0) ? data.pickup_days : localData.pickup_days,
+        pickup_time_of_day: (data.pickup_time_of_day && data.pickup_time_of_day.length > 0) ? data.pickup_time_of_day : localData.pickup_time_of_day,
+        pickup_time_slots: (data.pickup_time_slots && data.pickup_time_slots.length > 0) ? data.pickup_time_slots : localData.pickup_time_slots,
+      }
+      applyParsedData(mergedData)
 
       setSimpleWizardAiSuccess(true)
       setAiToast('✨ AI filled in product details — review and adjust!')
@@ -2449,7 +2686,31 @@ function NewProductPageInner() {
               </div>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Description <span className={styles.optional}>(optional)</span></label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label className={styles.label} style={{ marginBottom: 0 }}>Description <span className={styles.optional}>(optional)</span></label>
+                {(photos.length > 0 || simpleWizardOriginalText) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); handleAiDescriptionGeneration() }}
+                    disabled={aiGeneratingDescription}
+                    style={{
+                      background: 'linear-gradient(135deg, #e0f2fe, #f0f9ff)',
+                      border: '1px solid #7dd3fc',
+                      borderRadius: 8,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      color: '#0369a1',
+                      cursor: aiGeneratingDescription ? 'wait' : 'pointer',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {aiGeneratingDescription ? 'Generating...' : '✨ Generate with AI'}
+                  </button>
+                )}
+              </div>
               <textarea className={`${styles.input} ${errors.description ? styles.inputError : ''}`} value={description} onChange={e => { setDescription(e.target.value); setErrors(p => ({ ...p, description: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'description', !!description.trim())} placeholder="What makes these special?" rows={4} />
               
               {/* CasaBot Recipe Assistant */}
@@ -2666,55 +2927,40 @@ function NewProductPageInner() {
                     </div>
                     {isDeliveryActive && (
                       <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
-                        {hasBooth ? (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <label className={styles.label}>🏠 Your Booth Address</label>
-                            <div style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              background: '#f3f4f6',
-                              color: '#4b5563',
-                              fontSize: 14,
-                              border: '1px solid #e5e7eb',
-                            }} data-testid="inherited-base-address">
-                              {formatFullAddress(boothBaseAddr)}
-                            </div>
-                            <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                              Delivery radius is computed from your stand&apos;s base address.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <label className={styles.label}>
-                                🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span>
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => handleGeolocate('delivery')}
-                                disabled={geolocatingDelivery}
-                                style={{
-                                  background: 'none', border: 'none', color: '#16a34a',
-                                  fontSize: 12, fontWeight: 600, cursor: geolocatingDelivery ? 'wait' : 'pointer',
-                                  padding: 0, display: 'flex', alignItems: 'center', gap: 4
-                                }}
-                              >
-                                {geolocatingDelivery ? '⏳ Locating...' : '📍 Use My Location'}
-                              </button>
-                            </div>
-                            <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
-                            <AddressInput
-                              value={boothBaseAddr}
-                              onChange={val => {
-                                setBoothBaseAddr(val)
-                                setErrors(p => ({ ...p, boothAddress: '' }))
+                        <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label className={styles.label}>
+                              🏠 {hasBooth ? 'Your Booth Address' : 'Home/Farm Address (Base Address)'} <span className={styles.required}>*</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleGeolocate('delivery')}
+                              disabled={geolocatingDelivery}
+                              style={{
+                                background: 'none', border: 'none', color: '#16a34a',
+                                fontSize: 12, fontWeight: 600, cursor: geolocatingDelivery ? 'wait' : 'pointer',
+                                padding: 0, display: 'flex', alignItems: 'center', gap: 4
                               }}
-                              showPrivacyNote={true}
-                              placeholderStreet="Street Address"
-                            />
-                            {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+                            >
+                              {geolocatingDelivery ? '⏳ Locating...' : '📍 Use My Location'}
+                            </button>
                           </div>
-                        )}
+                          <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
+                          <AddressInput
+                            value={boothBaseAddr}
+                            onChange={val => {
+                              setBoothBaseAddr(val)
+                              setErrors(p => ({ ...p, boothAddress: '' }))
+                              // Sync pickup address if it hasn't been customized
+                              if (!productPickupAddr.street || formatFullAddress(productPickupAddr) === formatFullAddress(boothBaseAddr)) {
+                                setProductPickupAddr(val)
+                              }
+                            }}
+                            showPrivacyNote={true}
+                            placeholderStreet="Street Address"
+                          />
+                          {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+                        </div>
 
                         {/* Delivery Radius */}
                         <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
@@ -2811,106 +3057,95 @@ function NewProductPageInner() {
                           </div>
                         </div>
 
-                        {/* ── Delivery Day Pills & Time Windows ── */}
+                        {/* ── Delivery presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Delivery Days &amp; Times</label>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                            {dayOptions.map(opt => {
-                              const isActive = (productDeliveryWindows[opt.date] || []).length > 0
+                          <div className={styles.presetGroup}>
+                            <label className={styles.label}>Schedule:</label>
+                            {[
+                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                            ].map(p => {
+                              const isActive = deliveryPreset === p.id
                               return (
                                 <button
-                                  key={opt.date}
+                                  key={p.id}
                                   type="button"
-                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
                                   onClick={() => {
-                                    setProductDeliveryWindows(prev => {
-                                      const next = { ...prev }
-                                      if (next[opt.date] && next[opt.date].length > 0) {
-                                        delete next[opt.date]
-                                      } else {
-                                        next[opt.date] = ['10-12', '16-18']
-                                      }
-                                      return next
-                                    })
+                                    setDeliveryPreset(p.id)
+                                    if (p.id !== 'custom') {
+                                      setProductDeliveryWindows(getWindowsForPreset(p.id))
+                                    }
                                   }}
                                 >
-                                  {isActive ? '✅' : '📅'} {opt.label}
+                                  <input
+                                    type="radio"
+                                    checked={isActive}
+                                    onChange={() => {}}
+                                    className={styles.presetRadio}
+                                  />
+                                  <div className={styles.presetText}>
+                                    <span className={styles.presetLabel}>{p.label}</span>
+                                    <span className={styles.presetDesc}>{p.desc}</span>
+                                  </div>
                                 </button>
                               )
                             })}
                           </div>
 
-                          {deliverySelectedDays.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {deliverySelectedDays.map(dateStr => {
-                                const dateObj = new Date(dateStr + 'T12:00:00')
-                                const isToday = dateStr === todayStr
-                                const isTomorrow = dateStr === tomorrowStr
-                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
-                                const dwIds = productDeliveryWindows[dateStr] || []
-                                const now = new Date()
-                                const currentHour = now.getHours()
+                          {deliveryPreset === 'custom' && (
+                            <div className={styles.gridContainer}>
+                              <div className={styles.gridTitle}>Tap to select your available hours</div>
+                              <table className={styles.gridTable}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 45 }}></th>
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
+                                      <th key={name} className={styles.gridTh}>{name}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index // 8am to 8pm
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
 
-                                return (
-                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div className={styles.windowPills}>
-                                          {PRODUCT_TIME_WINDOWS.map(w => {
-                                            const [startH] = w.id.split('-').map(Number)
-                                            const isPast = isToday && startH < currentHour
-                                            const isSelected = dwIds.includes(w.id)
-                                            return (
-                                              <button
-                                                key={`d-${dateStr}-${w.id}`}
-                                                type="button"
-                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                                                onClick={() => {
-                                                  setProductDeliveryWindows(prev => ({
-                                                    ...prev,
-                                                    [dateStr]: isSelected
-                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                                      : [...(prev[dateStr] || []), w.id]
-                                                  }))
-                                                }}
-                                              >
-                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                                              </button>
-                                            )
-                                          })}
-                                        </div>
-                                        {/* Custom delivery slots */}
-                                        {(productCustomDelivery[dateStr] || []).map((s, i) => (
-                                          <div key={`cd-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                                              onClick={() => setProductCustomDelivery(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                                          </div>
-                                        ))}
-                                        {showProductCustomDel[dateStr] ? (
-                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <span style={{ fontSize: 13 }}>to</span>
-                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                                              setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                                              setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))
-                                            }}>Add</button>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                                              onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                                          </div>
-                                        ) : (
-                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                                            onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                                    const getDayIndex = (d: Date) => (d.getDay() === 0 ? 6 : d.getDay() - 1)
+                                    const sortedDayOptions = [...dayOptions].sort((a, b) => {
+                                      const dateA = new Date(a.date + 'T12:00:00')
+                                      const dateB = new Date(b.date + 'T12:00:00')
+                                      return getDayIndex(dateA) - getDayIndex(dateB)
+                                    })
+
+                                    return (
+                                      <tr key={hour}>
+                                        <td className={styles.gridTimeCol}>{hourLabel}</td>
+                                        {sortedDayOptions.map(opt => {
+                                          const isSelected = isHourSelected(hour, productDeliveryWindows[opt.date] || [])
+                                          const now = new Date()
+                                          const currentHour = now.getHours()
+                                          const isPast = opt.date === todayStr && hour < currentHour
+
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              className={`${styles.gridCell} ${isSelected ? styles.gridCellActive : ''} ${isPast ? styles.gridCellPast : ''}`}
+                                              onClick={() => {
+                                                if (isPast) return
+                                                toggleHourCell(opt.date, hour, productDeliveryWindows, setProductDeliveryWindows)
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>
@@ -2985,106 +3220,95 @@ function NewProductPageInner() {
                           {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
                         </div>
 
-                        {/* ── Pickup Day Pills & Time Windows ── */}
+                        {/* ── Pickup presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Pickup Days &amp; Times</label>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                            {dayOptions.map(opt => {
-                              const isActive = (productPickupWindows[opt.date] || []).length > 0
+                          <div className={styles.presetGroup}>
+                            <label className={styles.label}>Schedule:</label>
+                            {[
+                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                            ].map(p => {
+                              const isActive = pickupPreset === p.id
                               return (
                                 <button
-                                  key={opt.date}
+                                  key={p.id}
                                   type="button"
-                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
                                   onClick={() => {
-                                    setProductPickupWindows(prev => {
-                                      const next = { ...prev }
-                                      if (next[opt.date] && next[opt.date].length > 0) {
-                                        delete next[opt.date]
-                                      } else {
-                                        next[opt.date] = ['10-12', '16-18']
-                                      }
-                                      return next
-                                    })
+                                    setPickupPreset(p.id)
+                                    if (p.id !== 'custom') {
+                                      setProductPickupWindows(getWindowsForPreset(p.id))
+                                    }
                                   }}
                                 >
-                                  {isActive ? '✅' : '📅'} {opt.label}
+                                  <input
+                                    type="radio"
+                                    checked={isActive}
+                                    onChange={() => {}}
+                                    className={styles.presetRadio}
+                                  />
+                                  <div className={styles.presetText}>
+                                    <span className={styles.presetLabel}>{p.label}</span>
+                                    <span className={styles.presetDesc}>{p.desc}</span>
+                                  </div>
                                 </button>
                               )
                             })}
                           </div>
 
-                          {pickupSelectedDays.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {pickupSelectedDays.map(dateStr => {
-                                const dateObj = new Date(dateStr + 'T12:00:00')
-                                const isToday = dateStr === todayStr
-                                const isTomorrow = dateStr === tomorrowStr
-                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
-                                const pwIds = productPickupWindows[dateStr] || []
-                                const now = new Date()
-                                const currentHour = now.getHours()
+                          {pickupPreset === 'custom' && (
+                            <div className={styles.gridContainer}>
+                              <div className={styles.gridTitle}>Tap to select your available hours</div>
+                              <table className={styles.gridTable}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 45 }}></th>
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
+                                      <th key={name} className={styles.gridTh}>{name}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index // 8am to 8pm
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
 
-                                return (
-                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div className={styles.windowPills}>
-                                          {PRODUCT_TIME_WINDOWS.map(w => {
-                                            const [startH] = w.id.split('-').map(Number)
-                                            const isPast = isToday && startH < currentHour
-                                            const isSelected = pwIds.includes(w.id)
-                                            return (
-                                              <button
-                                                key={`p-${dateStr}-${w.id}`}
-                                                type="button"
-                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                                                onClick={() => {
-                                                  setProductPickupWindows(prev => ({
-                                                    ...prev,
-                                                    [dateStr]: isSelected
-                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                                      : [...(prev[dateStr] || []), w.id]
-                                                  }))
-                                                }}
-                                              >
-                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                                              </button>
-                                            )
-                                          })}
-                                        </div>
-                                        {/* Custom pickup slots */}
-                                        {(productCustomPickup[dateStr] || []).map((s, i) => (
-                                          <div key={`cp-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                                              onClick={() => setProductCustomPickup(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                                          </div>
-                                        ))}
-                                        {showProductCustomPick[dateStr] ? (
-                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <span style={{ fontSize: 13 }}>to</span>
-                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                                              setProductCustomPickup(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                                              setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))
-                                            }}>Add</button>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                                              onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                                          </div>
-                                        ) : (
-                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                                            onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                                    const getDayIndex = (d: Date) => (d.getDay() === 0 ? 6 : d.getDay() - 1)
+                                    const sortedDayOptions = [...dayOptions].sort((a, b) => {
+                                      const dateA = new Date(a.date + 'T12:00:00')
+                                      const dateB = new Date(b.date + 'T12:00:00')
+                                      return getDayIndex(dateA) - getDayIndex(dateB)
+                                    })
+
+                                    return (
+                                      <tr key={hour}>
+                                        <td className={styles.gridTimeCol}>{hourLabel}</td>
+                                        {sortedDayOptions.map(opt => {
+                                          const isSelected = isHourSelected(hour, productPickupWindows[opt.date] || [])
+                                          const now = new Date()
+                                          const currentHour = now.getHours()
+                                          const isPast = opt.date === todayStr && hour < currentHour
+
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              className={`${styles.gridCell} ${isSelected ? styles.gridCellActive : ''} ${isPast ? styles.gridCellPast : ''}`}
+                                              onClick={() => {
+                                                if (isPast) return
+                                                toggleHourCell(opt.date, hour, productPickupWindows, setProductPickupWindows)
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>

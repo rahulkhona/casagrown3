@@ -62,6 +62,7 @@ interface OrderDetail {
   buyer_avatar?: string
   seller_avatar?: string
   booth_name: string
+  delivery_instructions?: string | null
 }
 
 interface Dispute {
@@ -326,6 +327,11 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery Address</div>
               <div style={{ color: 'var(--gray-800)', lineHeight: '1.4' }}>{order.buyer_address}</div>
+              {order.delivery_instructions && (
+                <div style={{ marginTop: 6, padding: '6px 10px', background: '#f3f4f6', borderLeft: '3px solid #d1d5db', fontSize: 13, color: '#4b5563', borderRadius: '0 4px 4px 0' }}>
+                  <strong>Instructions:</strong> {order.delivery_instructions}
+                </div>
+              )}
               {isSellerOrHelper && (
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.buyer_address)}`}

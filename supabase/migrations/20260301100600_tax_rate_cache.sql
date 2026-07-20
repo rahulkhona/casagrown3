@@ -16,11 +16,24 @@ CREATE TABLE IF NOT EXISTS zip_tax_cache (
   expires_at     TIMESTAMPTZ NOT NULL DEFAULT (date_trunc('month', now()) + interval '1 month')
 );
 
+COMMENT ON TABLE zip_tax_cache IS 'Cache for ZipTax API sales tax rates resolved by ZIP code.';
+COMMENT ON COLUMN zip_tax_cache.zip_code IS 'Primary key: The ZIP code (stored as ZIP+4 or 5-digit for fallback).';
+COMMENT ON COLUMN zip_tax_cache.combined_rate IS 'Total combined sales tax rate percentage.';
+COMMENT ON COLUMN zip_tax_cache.state_rate IS 'State-level component of the sales tax rate.';
+COMMENT ON COLUMN zip_tax_cache.county_rate IS 'County-level component of the sales tax rate.';
+COMMENT ON COLUMN zip_tax_cache.city_rate IS 'City-level component of the sales tax rate.';
+COMMENT ON COLUMN zip_tax_cache.district_rate IS 'District-level component of the sales tax rate.';
+COMMENT ON COLUMN zip_tax_cache.fetched_at IS 'Timestamp of when the rate was fetched from the external API.';
+COMMENT ON COLUMN zip_tax_cache.expires_at IS 'Timestamp after which the cached rate expires and must be refetched.';
+
 -- RLS for zip_tax_cache
 ALTER TABLE zip_tax_cache ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can read cached rates"
   ON zip_tax_cache FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Anon users can read cached rates"
+  ON zip_tax_cache FOR SELECT TO anon USING (true);
 
 -- Service role can insert/update (Edge Function uses service_role key)
 -- No explicit policy needed for service_role as it bypasses RLS

@@ -162,30 +162,27 @@ describe('SimpleListingEntry', () => {
     render(<SimpleListingEntry />)
 
     expect(screen.getByRole('textbox')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /create account & listing/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /create my listing/i })).toBeTruthy()
   })
 
-  // ─── Returning user button visibility ─────────────────────
-  it('shows returning user button when not authenticated', () => {
-    mockIsAuthenticated = false
+  // ─── Trust Chips & Photo Zone ───────────────────────────────────────
+  it('renders trust chips', () => {
     render(<SimpleListingEntry />)
-
-    expect(screen.getByRole('button', { name: /returning user/i })).toBeTruthy()
+    expect(screen.getByText('⏱ 2 minutes')).toBeTruthy()
+    expect(screen.getByText('🔒 Free to list')).toBeTruthy()
   })
 
-  it('hides returning user button when authenticated', () => {
-    mockIsAuthenticated = true
-    mockUser = { id: 'user-123', email: 'test@test.com' }
+  it('renders photo upload zone when empty', () => {
     render(<SimpleListingEntry />)
-
-    expect(screen.queryByRole('button', { name: /returning user/i })).toBeFalsy()
+    expect(screen.getByText('Add your first photo')).toBeTruthy()
+    expect(screen.getByText(/Listings with photos sell 3× faster/)).toBeTruthy()
   })
 
   // ─── Submit disabled/enabled state ────────────────────────
   it('disables submit when text and photos are empty', () => {
     render(<SimpleListingEntry />)
 
-    const submitBtn = screen.getByRole('button', { name: /create account & listing/i }) as HTMLButtonElement
+    const submitBtn = screen.getByRole('button', { name: /create my listing/i }) as HTMLButtonElement
     expect(submitBtn.disabled).toBe(true)
   })
 
@@ -195,7 +192,7 @@ describe('SimpleListingEntry', () => {
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '5 dozen oranges at $5 each' } })
 
-    const submitBtn = screen.getByRole('button', { name: /create account & listing/i }) as HTMLButtonElement
+    const submitBtn = screen.getByRole('button', { name: /create my listing/i }) as HTMLButtonElement
     expect(submitBtn.disabled).toBe(false)
   })
 
@@ -208,7 +205,7 @@ describe('SimpleListingEntry', () => {
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'Selling fresh tomatoes' } })
 
-    const submitBtn = screen.getByRole('button', { name: /create account & listing/i })
+    const submitBtn = screen.getByRole('button', { name: /create my listing/i })
     fireEvent.click(submitBtn)
 
     expect(mockRequireAuth).toHaveBeenCalledWith(
@@ -265,7 +262,7 @@ describe('SimpleListingEntry', () => {
     mockIsAuthenticated = true
     render(<SimpleListingEntry />)
 
-    const skipBtn = screen.getByRole('button', { name: /skip to full form/i })
+    const skipBtn = screen.getByRole('button', { name: /or use step-by-step form/i })
     expect(skipBtn).toBeTruthy()
   })
 
@@ -277,21 +274,6 @@ describe('SimpleListingEntry', () => {
       'wizard_step',
       '/create-listing-simple',
       expect.objectContaining({ step_index: 1, step_name: 'text_input' })
-    )
-  })
-
-  // ─── Tracking: button_click for returning user ───────────
-  it('tracks button_click for returning user', () => {
-    mockIsAuthenticated = false
-    render(<SimpleListingEntry />)
-
-    const returningBtn = screen.getByRole('button', { name: /returning user/i })
-    fireEvent.click(returningBtn)
-
-    expect(mockTrackEvent).toHaveBeenCalledWith(
-      'button_click',
-      '/create-listing-simple',
-      expect.objectContaining({ button: 'returning_user' })
     )
   })
 })

@@ -11903,6 +11903,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"compromise-numbers@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "compromise-numbers@npm:1.4.0"
+  peerDependencies:
+    compromise: ">=12.0.0"
+  checksum: 10/2f8005a4700c7125750b5195b54c93cf0f24a47e7f3d4bde7f6523873d071492a025141dd8e3fd1e7ef9898320d0b382d0f01ccb25820befe340d48b033d8d7e
+  languageName: node
+  linkType: hard
+
+"compromise@npm:^14.16.0":
+  version: 14.16.0
+  resolution: "compromise@npm:14.16.0"
+  dependencies:
+    efrt: "npm:2.7.0"
+    grad-school: "npm:0.0.5"
+    suffix-thumb: "npm:5.0.2"
+  checksum: 10/87509e44e77e39eadb733942fe2159b26c683dc4e459169b1d493337899a3aa5c943eca0fa8e703ca451e5516038f308ad6d134551592d95ea79b215f632b361
+  languageName: node
+  linkType: hard
+
 "concat-map@npm:0.0.1":
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
@@ -12789,6 +12809,13 @@ __metadata:
   version: 1.1.1
   resolution: "ee-first@npm:1.1.1"
   checksum: 10/1b4cac778d64ce3b582a7e26b218afe07e207a0f9bfe13cc7395a6d307849cfe361e65033c3251e00c27dd060cab43014c2d6b2647676135e18b77d2d05b3f4f
+  languageName: node
+  linkType: hard
+
+"efrt@npm:2.7.0":
+  version: 2.7.0
+  resolution: "efrt@npm:2.7.0"
+  checksum: 10/76febcd9efccce436beca5c5cc056187f9d9f4c64c9528b6fb467b4eb91f2b9f689f602f2451cd6bf37c77a2664b38ae4a6c506c03db462fec6c74d9d92b4e67
   languageName: node
   linkType: hard
 
@@ -15199,6 +15226,13 @@ __metadata:
   version: 4.2.11
   resolution: "graceful-fs@npm:4.2.11"
   checksum: 10/bf152d0ed1dc159239db1ba1f74fdbc40cb02f626770dcd5815c427ce0688c2635a06ed69af364396da4636d0408fcf7d4afdf7881724c3307e46aff30ca49e2
+  languageName: node
+  linkType: hard
+
+"grad-school@npm:0.0.5":
+  version: 0.0.5
+  resolution: "grad-school@npm:0.0.5"
+  checksum: 10/1330b02b71ef37f9a507261c1219056d19caa46f99e65fe30fe9b5c98235b5dec23d74928ed166516054b30c4cf470903de482311d2d25d985e904989b53c69a
   languageName: node
   linkType: hard
 
@@ -18908,6 +18942,8 @@ __metadata:
     "@types/node": "npm:^20.14.1"
     "@types/react": "npm:^19.2.14"
     "@types/react-dom": "npm:^19.2.3"
+    compromise: "npm:^14.16.0"
+    compromise-numbers: "npm:^1.4.0"
     html2canvas: "npm:^1.4.1"
     jsdom: "npm:^29.0.0"
     lucide-react: "npm:^0.563.0"
@@ -18915,6 +18951,9 @@ __metadata:
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
     vitest: "npm:^2.1.1"
+    wink-distance: "npm:^2.0.2"
+    wink-eng-lite-web-model: "npm:^1.8.1"
+    wink-nlp: "npm:^2.4.0"
   languageName: unknown
   linkType: soft
 
@@ -22875,6 +22914,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"suffix-thumb@npm:5.0.2":
+  version: 5.0.2
+  resolution: "suffix-thumb@npm:5.0.2"
+  checksum: 10/cd1d656c5804ad686b7d0b89eba3dcc47a55a8134c5f4dc6cff1cfb7b12bb26007ec8f58e52b5a29e0a9812d463f93f4091942f9cb6c76e53ab88280ded9c1cb
+  languageName: node
+  linkType: hard
+
 "supports-color@npm:^5.3.0":
   version: 5.5.0
   resolution: "supports-color@npm:5.5.0"
@@ -24670,6 +24716,44 @@ __metadata:
   bin:
     why-is-node-running: cli.js
   checksum: 10/0de6e6cd8f2f94a8b5ca44e84cf1751eadcac3ebedcdc6e5fbbe6c8011904afcbc1a2777c53496ec02ced7b81f2e7eda61e76bf8262a8bc3ceaa1f6040508051
+  languageName: node
+  linkType: hard
+
+"wink-distance@npm:^2.0.2":
+  version: 2.0.2
+  resolution: "wink-distance@npm:2.0.2"
+  dependencies:
+    wink-helpers: "npm:^2.0.0"
+    wink-jaro-distance: "npm:^2.0.0"
+  checksum: 10/65d25ec667c5d58dc8d0cc078fd054c3cd272491a93c9ce7957365a078207f8e3285df9d4631d1d0f3d1b958c5e9be5c9ec896d05d3fe258564fb69aa4eecb0b
+  languageName: node
+  linkType: hard
+
+"wink-eng-lite-web-model@npm:^1.8.1":
+  version: 1.8.1
+  resolution: "wink-eng-lite-web-model@npm:1.8.1"
+  checksum: 10/103ee632f458c60a3e4199e7220065728ba87e50d7e857879fa5b3e88edff9d4a7893be85ffe5851171d8866321c90adb906e686b33a5602947f3dd0531e81eb
+  languageName: node
+  linkType: hard
+
+"wink-helpers@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "wink-helpers@npm:2.0.0"
+  checksum: 10/fb05cf1993dd15cfcce36dc47ed8312ee7d0bc36ef7fd10b978fa2dca70a4bd57756b6e2a724f21fa7eb2482b06670e91d57e708da44f03c3393db47fdf740ee
+  languageName: node
+  linkType: hard
+
+"wink-jaro-distance@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "wink-jaro-distance@npm:2.0.0"
+  checksum: 10/6559614e344b10210b0c58bdc1ca46506f57b7da20c4e595fe2e5405dacc304cf31a4ff6a17190bd8a0f5408d4fe4bc5bde4f0187b8520c852bc9f3a2c429c6f
+  languageName: node
+  linkType: hard
+
+"wink-nlp@npm:^2.4.0":
+  version: 2.4.0
+  resolution: "wink-nlp@npm:2.4.0"
+  checksum: 10/5a7f5c8b3c594dea760e5591b27c8d2a2a2993423a77784cf0bf617c515f50250ad7aea654a167e1f3ef4a4b968bd517166ae598854cfcfb60475c36dc89fb94
   languageName: node
   linkType: hard
 

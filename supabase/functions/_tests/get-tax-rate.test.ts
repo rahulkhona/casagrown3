@@ -95,7 +95,7 @@ Deno.test({
   async fn() {
     // Ensure no category rule for seeds in CA
     await clearCategoryRules('CA', 'seeds')
-    await seedCache('95126', 9.125)
+    await seedCache('95126-1234', 9.125)
     const token = await getTestToken()
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/get-tax-rate`, {
@@ -105,7 +105,7 @@ Deno.test({
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
-        zip_code: '95126',
+        zip_code: '95126-1234',
         state_code: 'CA',
         category: 'seeds', // No active category rule for seeds → falls through to cache
       }),

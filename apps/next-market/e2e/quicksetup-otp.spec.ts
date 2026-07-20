@@ -9,14 +9,16 @@ test.describe('QuickSetup - OTP Empty Profile Prevention (Sign In)', () => {
     await page.goto('/create-listing-simple')
     await page.waitForTimeout(2000)
 
-    // Click the "I'm a returning user" button on the simple listing wizard page
-    const returningUserBtn = page.getByRole('button', { name: /I'm a returning user/i })
-    await expect(returningUserBtn).toBeVisible({ timeout: 5000 })
-    await returningUserBtn.click()
+    // Enter text and click submit to trigger auth requirement/modal
+    await page.locator('textarea').fill('Fresh organic oranges ready to eat')
+    await page.locator('button:has-text("Create My Listing")').click()
 
     // Now the modal should open
     const modal = page.locator('[data-testid="quick-setup-modal"]')
     await expect(modal).toBeVisible({ timeout: 5000 })
+
+    // Click 'Sign In' tab toggle in the modal
+    await page.locator('[data-testid="returning-user-toggle"]').click()
 
     // Verify we are on Sign In (name/address hidden)
     await expect(page.getByText('Welcome Back')).toBeVisible()
