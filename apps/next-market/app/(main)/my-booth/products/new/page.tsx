@@ -2312,8 +2312,22 @@ function NewProductPageInner() {
         return
       }
 
-      // Success Path -> Apply parsed AI data
-      applyParsedData(data)
+      // Success Path -> Apply parsed AI data merged with local fallback extraction for addresses/schedules
+      const localData = parseTextFallback(simpleWizardOriginalText || '')
+      const mergedData = {
+        ...data,
+        pickup_address: data.pickup_address || localData.pickup_address,
+        base_address: data.base_address || localData.base_address,
+        delivery_radius_miles: data.delivery_radius_miles ?? localData.delivery_radius_miles,
+        delivery_zipcodes: (data.delivery_zipcodes && data.delivery_zipcodes.length > 0) ? data.delivery_zipcodes : localData.delivery_zipcodes,
+        delivery_days: (data.delivery_days && data.delivery_days.length > 0) ? data.delivery_days : localData.delivery_days,
+        delivery_time_of_day: (data.delivery_time_of_day && data.delivery_time_of_day.length > 0) ? data.delivery_time_of_day : localData.delivery_time_of_day,
+        delivery_time_slots: (data.delivery_time_slots && data.delivery_time_slots.length > 0) ? data.delivery_time_slots : localData.delivery_time_slots,
+        pickup_days: (data.pickup_days && data.pickup_days.length > 0) ? data.pickup_days : localData.pickup_days,
+        pickup_time_of_day: (data.pickup_time_of_day && data.pickup_time_of_day.length > 0) ? data.pickup_time_of_day : localData.pickup_time_of_day,
+        pickup_time_slots: (data.pickup_time_slots && data.pickup_time_slots.length > 0) ? data.pickup_time_slots : localData.pickup_time_slots,
+      }
+      applyParsedData(mergedData)
 
       setSimpleWizardAiSuccess(true)
       setAiToast('✨ AI filled in product details — review and adjust!')
