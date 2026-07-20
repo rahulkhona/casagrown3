@@ -65,7 +65,9 @@ export const decomposeAddress = (addressStr: string): AddressFields => {
 
 // New compromise-based client-side NLP parser
 export const parseTextFallback = (text: string): ParsedListingData => {
-  const preprocessed = text.replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
+  const preprocessed = text
+    .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
+    .replace(/\b(st|ave|rd|dr|ln|ct|pl|sq|blvd|hwy|apt|ste)\.(?!\s*(?:on|at|within|for|will|no|during|from|deliver|delivery|pickup|pick|collect|to|between|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|weekday|weekend|weekdays|weekends|i|we|you|they|he|she|it|please|our|your|the|a|an)\b)/gi, '$1')
   const doc = nlp(preprocessed)
   const normalized = preprocessed.toLowerCase()
 
@@ -394,7 +396,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     matchedText = matchedText.replace(/^\d+\s*(miles?|mi)\b\s*(of)?\s*/i, '')
     
     // Cut off at prepositions or clause boundaries
-    const cutRegex = /\b(on|at|within|for|will|no|during|from|deliver|pickup|pick|collect|to)\b/i
+    const cutRegex = /\b(on|at|within|for|will|no|during|from|deliver|delivery|pickup|pick|collect|to|between|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|weekday|weekend|weekdays|weekends)\b/i
     const matchCut = matchedText.match(cutRegex)
     if (matchCut && matchCut.index !== undefined && matchCut.index > 0) {
       matchedText = matchedText.substring(0, matchCut.index).trim()
@@ -445,7 +447,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   clauses.forEach(clause => {
     // Identify clause context
     let isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(clause)
-    let isPickup = /(pickup|pick up|pick-up|collect|at my house|my home)/i.test(clause)
+    let isPickup = /(pickup|pick\s*(?:[a-zA-Z'-]+\s*){0,2}up|collect|at my house|my home)/i.test(clause)
     
     if (isDelivery || isPickup) {
       currentContext = { isDelivery, isPickup }
@@ -621,7 +623,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
   // Defaults for offers_delivery and offers_pickup
   const hasDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(normalized)
-  const hasPickup = /(pickup|pick up|pick-up|collect)/i.test(normalized)
+  const hasPickup = /(pickup|pick\s*(?:[a-zA-Z'-]+\s*){0,2}up|collect)/i.test(normalized)
 
   if (!hasDelivery && !hasPickup) {
     result.offers_pickup = true
@@ -658,12 +660,23 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     result.delivery_time_of_day = []
     result.delivery_radius_miles = null
     result.delivery_zipcodes = []
+  } else {
+    // If times are specified but no days are matched, default delivery to everyday
+    if (result.delivery_days.length === 0 && (result.delivery_time_slots.length > 0 || result.delivery_time_of_day.length > 0)) {
+      result.delivery_days = [...daysOfWeek]
+    }
   }
+
   if (!result.offers_pickup) {
     result.pickup_days = []
     result.pickup_time_slots = []
     result.pickup_time_of_day = []
     result.pickup_address = null
+  } else {
+    // If times are specified but no days are matched, default pickup to everyday
+    if (result.pickup_days.length === 0 && (result.pickup_time_slots.length > 0 || result.pickup_time_of_day.length > 0)) {
+      result.pickup_days = [...daysOfWeek]
+    }
   }
 
   return result
