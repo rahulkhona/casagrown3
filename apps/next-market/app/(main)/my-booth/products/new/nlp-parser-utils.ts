@@ -24,6 +24,8 @@ export interface ParsedListingData {
   pickup_days: string[]
   delivery_time_of_day: string[]
   pickup_time_of_day: string[]
+  delivery_time_slots: string[]
+  pickup_time_slots: string[]
   pickup_address: AddressFields | null
   base_address: AddressFields | null
 }
@@ -85,6 +87,8 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     pickup_days: [],
     delivery_time_of_day: [],
     pickup_time_of_day: [],
+    delivery_time_slots: [],
+    pickup_time_slots: [],
     pickup_address: null,
     base_address: null
   }
@@ -185,10 +189,13 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     foundQtyUnit = true
   }
 
-  // Convert dozen to 12 each
+  // Convert dozen to 12 each unless priced per dozen
   if (unit === 'dozen') {
-    qty = qty * 12
-    unit = 'each'
+    const isPricedPerDozen = /per\s+dozen/i.test(normalized) || /\/dozen/i.test(normalized) || /\/doz/i.test(normalized) || /\/dz/i.test(normalized)
+    if (!isPricedPerDozen) {
+      qty = qty * 12
+      unit = 'each'
+    }
   }
 
   result.quantity = qty
@@ -454,9 +461,11 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     }
   }
 
-  // Scan for explicit hours to infer categories
+  // Scan for explicit hours to infer categories and specific hourly slots
   const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm)\b/gi
   const inferredTimes = new Set<string>()
+  const explicitSlots: string[] = []
+  
   let timeMatch: RegExpExecArray | null
   while ((timeMatch = timeRegex.exec(normalized)) !== null) {
     let hour = parseInt(timeMatch[1])
@@ -466,10 +475,13 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     if (hour >= 8 && hour < 12) inferredTimes.add('morning')
     else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
     else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
+    
+    explicitSlots.push(`${hour}-${hour + 1}`)
   }
 
-  // Also handle range patterns like "between 1 and 3 pm"
-  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s+(?:and|to|-)\s+(\d{1,2})\s*(am|pm)\b/i)
+  // Also handle range patterns like "between 1 and 3 pm" or "1pm to 3pm"
+  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm)\b/i)
+  const rangeSlots: string[] = []
   if (rangeMatch) {
     const meridian = rangeMatch[3].toLowerCase()
     let h1 = parseInt(rangeMatch[1])
@@ -481,12 +493,24 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       if (h1 === 12) h1 = 0
       if (h2 === 12) h2 = 0
     }
-    const hours = [h1, h2]
-    hours.forEach(hour => {
-      if (hour >= 8 && hour < 12) inferredTimes.add('morning')
-      else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
-      else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
-    })
+    const start = Math.min(h1, h2)
+    const end = Math.max(h1, h2)
+    for (let h = start; h < end; h++) {
+      rangeSlots.push(`${h}-${h + 1}`)
+      if (h >= 8 && h < 12) inferredTimes.add('morning')
+      else if (h >= 12 && h < 17) inferredTimes.add('afternoon')
+      else if (h >= 17 && h < 21) inferredTimes.add('evening')
+    }
+  }
+
+  const resolvedSlots = rangeSlots.length > 0 ? rangeSlots : explicitSlots
+  if (resolvedSlots.length > 0) {
+    if (normalized.includes('deliver') || !normalized.includes('pickup')) {
+      result.delivery_time_slots = resolvedSlots
+    }
+    if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) {
+      result.pickup_time_slots = resolvedSlots
+    }
   }
 
   const times = ['morning', 'afternoon', 'evening', 'night']
