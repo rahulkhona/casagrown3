@@ -143,10 +143,12 @@ function NewProductPageInner() {
     // With Today/Tomorrow windows, expiry is simply end-of-latest-selected-date.
     // Products auto-expire when their window dates pass — no complex calculation needed.
     if (selectedDates.length > 0) {
-      // Sort dates and pick the latest one, expire at end of that day (23:59:59)
+      // Sort dates and pick the latest one, expire at end of next day (last date + 1 day)
       const sorted = [...selectedDates].sort()
       const latest = sorted[sorted.length - 1]
-      return new Date(latest + 'T23:59:59').toISOString()
+      const expDate = new Date(latest + 'T23:59:59')
+      expDate.setDate(expDate.getDate() + 1)
+      return expDate.toISOString()
     }
     // Fallback: expire end of tomorrow
     const tomorrow = new Date()

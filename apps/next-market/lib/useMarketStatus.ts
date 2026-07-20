@@ -15,7 +15,6 @@
  *   - nextOpenDate: Date | null — when the market next opens
  *   - loading: boolean
  *
- * Also exports isProductExpired(marketDate) helper.
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -47,17 +46,6 @@ interface MarketStatus {
   isGrandOpening: boolean
 }
 
-/** Check if a product's market_date is in the past (expired) */
-export function isProductExpired(marketDate: string | Date, productsNeverExpire: boolean): boolean {
-  if (productsNeverExpire) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  // Parse YYYY-MM-DD as local time (not UTC) to avoid timezone mismatch
-  const d = typeof marketDate === 'string' ? marketDate : marketDate.toISOString().slice(0, 10)
-  const [y, m, day] = d.split('-').map(Number)
-  const mDate = new Date(y, m - 1, day) // local midnight
-  return mDate < today
-}
 
 /**
  * Compute the next Date the market will be open,

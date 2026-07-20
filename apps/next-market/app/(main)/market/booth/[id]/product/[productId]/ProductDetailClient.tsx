@@ -1,7 +1,7 @@
 'use client'
 
 
-import { use, useState, useEffect , Suspense } from 'react'
+import { use, useState, useEffect, useMemo, Suspense } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../../../../../lib/supabase'
 import { formatUsd } from '../../../../../../../lib/store'
@@ -44,7 +44,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user, isAuthenticated, profileComplete } = useAuth()
-  const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, loading: marketLoading } = useMarketStatus()
+  const { isOpen: marketIsOpen, isScheduleOpen, nextOpenDate, productsNeverExpire, loading: marketLoading } = useMarketStatus()
   const autoBuy = searchParams.get('autoBuy') === 'true'
   const { requireAuth } = useQuickSetup()
   // Messenger PSID linking — capture from URL, link to profile for cross-seller memory
@@ -206,12 +206,14 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     }
     // Fall back to profile address
     if (!user) return
-    supabase.from('profiles').select('street_address, city, state_code, zip_plus4').eq('id', user.id).single()
+    supabase.from('profiles').select('street_address, city, state_code, zip_code, zip_plus4').eq('id', user.id).single()
       .then(({ data: profile }: { data: any }) => {
         if (profile?.street_address) {
-          const addr = [profile.street_address, profile.city, profile.state_code, profile.zip_plus4].filter(Boolean).join(', ')
+          const activeZip = profile.zip_plus4 ? profile.zip_plus4 : profile.zip_code
+          const addr = [profile.street_address, profile.city, profile.state_code, activeZip].filter(Boolean).join(', ')
           setAddrLabel(addr)
-          if (profile.zip_plus4) setBuyerZip(profile.zip_plus4.split('-')[0])
+          const zip = profile.zip_plus4 ? profile.zip_plus4.split('-')[0] : profile.zip_code
+          if (zip) setBuyerZip(zip)
           geocodeAddress(addr).then(geo => {
             if (geo) {
               setBuyerLat(geo.lat)
@@ -382,7 +384,17 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
     deliveryResolved.windows,
     pickupResolved.windows,
   ) : false
-  const isExpired = product?.expires_at ? new Date(product.expires_at) < new Date() : false
+  const isExpired = useMemo(() => {
+    if (productsNeverExpire) return false
+    if (product?.expires_at) {
+      return new Date(product.expires_at) < new Date()
+    }
+    // Fallback: listing date (created_at) + 7 days
+    const listingDate = product?.created_at ? new Date(product.created_at) : new Date()
+    const fallbackExpiry = new Date(listingDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+    return fallbackExpiry < new Date()
+  }, [product?.expires_at, product?.created_at, productsNeverExpire])
+
   const isClosed = windowsExpired || isExpired
 
   // Fulfillment: null = seller didn't enable. Empty array or object = enabled (fall back to booth)
@@ -1228,7 +1240,7 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             setShowBuy(false)
             showSuccess(`Order placed! Hold: $${order.holdAmount.toFixed(2)}. You'll only be charged the net amount at end of day.`)
             showPrompt()
-            router.push(`/market/booth/${boothId}`)
+            router.push(`/orders/${order.orderId}`)
           }}
         />
       )}

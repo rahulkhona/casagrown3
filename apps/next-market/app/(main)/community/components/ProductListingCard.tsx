@@ -36,6 +36,7 @@ interface ProductData {
   is_active: boolean
   seller_id: string
   expires_at: string | null
+  created_at: string | null
   window_dates: string[] | null
   product_delivery_windows: any[] | null
   product_pickup_windows: any[] | null
@@ -81,7 +82,7 @@ export default function ProductListingCard({ productId, messageContent, currentU
       setLoading(true)
       const { data: prod } = await supabase
         .from('market_products')
-        .select('id, name, description, price_usd, unit, photos, category, inventory, is_active, seller_id, expires_at, window_dates, product_delivery_windows, product_pickup_windows')
+        .select('id, name, description, price_usd, unit, photos, category, inventory, is_active, seller_id, expires_at, created_at, window_dates, product_delivery_windows, product_pickup_windows')
         .eq('id', productId)
         .single()
       
@@ -262,7 +263,17 @@ export default function ProductListingCard({ productId, messageContent, currentU
     )
   }
 
-  const isExpired = product.expires_at && new Date(product.expires_at) < new Date()
+  const isExpired = (() => {
+    if (product.expires_at) {
+      return new Date(product.expires_at) < new Date()
+    }
+    if (product.created_at) {
+      const listingDate = new Date(product.created_at)
+      const fallbackExpiry = new Date(listingDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+      return fallbackExpiry < new Date()
+    }
+    return false
+  })()
   const isSoldOut = product.inventory <= 0
   const isUnavailable = !product.is_active || isExpired || isSoldOut
   const photos = product.photos || []

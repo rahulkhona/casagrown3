@@ -688,6 +688,7 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
       if (state.selectedDates.length > 0) {
         const maxDateStr = state.selectedDates.reduce((a, b) => (new Date(a) > new Date(b) ? a : b))
         const maxDate = new Date(maxDateStr + 'T23:59:59')
+        maxDate.setDate(maxDate.getDate() + 1)
         expiresAt = maxDate.toISOString()
       }
 

@@ -202,11 +202,11 @@ GRANT SELECT ON receipt_footers TO authenticated;
 GRANT ALL ON receipt_footers TO service_role;
 GRANT SELECT ON tax_reporting_thresholds TO authenticated;
 GRANT ALL ON tax_reporting_thresholds TO service_role;
-GRANT SELECT ON category_tax_rules TO authenticated;
+GRANT SELECT ON category_tax_rules TO anon, authenticated;
 GRANT ALL ON category_tax_rules TO service_role;
-GRANT SELECT ON product_tax_overrides TO authenticated;
+GRANT SELECT ON product_tax_overrides TO anon, authenticated;
 GRANT ALL ON product_tax_overrides TO service_role;
-GRANT SELECT ON zip_tax_cache TO authenticated;
+GRANT SELECT ON zip_tax_cache TO anon, authenticated;
 GRANT ALL ON zip_tax_cache TO service_role;
 
 -- Stripe/Payout internals

@@ -27,7 +27,13 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     if (auth instanceof Response) return auth;
 
     // Parse request body
-    const { zip_code, state_code, category, product_name } = await req.json();
+    const body = await req.json();
+    const zip_code = body.zip_code || body.zip;
+    const state_code = body.state_code;
+    const category = body.category;
+    const product_name = body.product_name;
+    const street_address = body.street_address;
+    const city = body.city;
 
     if (!zip_code || !state_code || !category) {
         return jsonError(
@@ -110,39 +116,44 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // ── 3. Check zip_tax_cache ──────────────────────────────────────────
     // Use the 9-digit zip if available, fallback to 5-digit for legacy/API
     const zipOnly = zip_code.replace(/[^0-9-]/g, "");
+    const isZip9 = zipOnly.length > 5 && zipOnly.includes("-");
 
-    const { data: cached } = await supabase
-        .from("zip_tax_cache")
-        .select(
-            "combined_rate, state_rate, county_rate, city_rate, district_rate, expires_at",
-        )
-        .eq("zip_code", zipOnly)
-        .gt("expires_at", new Date().toISOString())
-        .maybeSingle();
+    if (isZip9) {
+        const { data: cached } = await supabase
+            .from("zip_tax_cache")
+            .select(
+                "combined_rate, state_rate, county_rate, city_rate, district_rate, expires_at",
+            )
+            .eq("zip_code", zipOnly)
+            .gt("expires_at", new Date().toISOString())
+            .maybeSingle();
 
-    if (cached) {
-        const cachedRate = Number(cached.combined_rate);
-        return jsonOk(
-            {
-                rate_pct: cachedRate,
-                rule_type: "evaluate",
-                is_exempt: cachedRate === 0,
-                source: "cache",
-                detail: {
-                    state_rate: Number(cached.state_rate) || 0,
-                    county_rate: Number(cached.county_rate) || 0,
-                    city_rate: Number(cached.city_rate) || 0,
-                    district_rate: Number(cached.district_rate) || 0,
+        if (cached) {
+            const cachedRate = Number(cached.combined_rate);
+            return jsonOk(
+                {
+                    rate_pct: cachedRate,
+                    rule_type: "evaluate",
+                    is_exempt: cachedRate === 0,
+                    source: "cache",
+                    detail: {
+                        state_rate: Number(cached.state_rate) || 0,
+                        county_rate: Number(cached.county_rate) || 0,
+                        city_rate: Number(cached.city_rate) || 0,
+                        district_rate: Number(cached.district_rate) || 0,
+                    },
                 },
-            },
-            corsHeaders,
-        );
+                corsHeaders,
+            );
+        }
     }
 
     // ── 4. Call ZipTax API ──────────────────────────────────────────────
     const apiKey = env("ZIPTAX_API_KEY", true);
-    const ziptaxUrl =
-        `https://api.zip-tax.com/request/v40?key=${apiKey}&postalcode=${zipOnly}&format=json`;
+    let ziptaxUrl = `https://api.zip-tax.com/request/v40?key=${apiKey}&postalcode=${zipOnly}&format=json`;
+    if (!isZip9 && street_address && city) {
+        ziptaxUrl = `https://api.zip-tax.com/request/v40?key=${apiKey}&address=${encodeURIComponent(street_address)}&city=${encodeURIComponent(city)}&state=${normState}&postalcode=${zipOnly}&format=json`;
+    }
 
     try {
         const response = await fetch(ziptaxUrl);
@@ -175,22 +186,65 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         const cityRate = 0;
         const districtRate = 0;
 
-        // ── 5. Cache the result ─────────────────────────────────────────
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        nextMonth.setDate(1);
-        nextMonth.setHours(0, 0, 0, 0);
+        // Try to resolve 9-digit ZIP code for caching
+        let resolvedZip: string | null = null;
+        if (isZip9) {
+            resolvedZip = zipOnly;
+        } else {
+            const ztZip = result.postalCode || result.zipCode || null;
+            if (ztZip && typeof ztZip === 'string') {
+                const cleaned = ztZip.replace(/[^0-9-]/g, "");
+                if (cleaned.length > 5 && cleaned.includes("-")) {
+                    resolvedZip = cleaned;
+                }
+            }
 
-        await supabase.from("zip_tax_cache").upsert({
-            zip_code: zipOnly,
-            combined_rate: combinedRate,
-            state_rate: stateRate,
-            county_rate: countyRate,
-            city_rate: cityRate,
-            district_rate: districtRate,
-            fetched_at: new Date().toISOString(),
-            expires_at: nextMonth.toISOString(),
-        });
+            // Fallback: If ZipTax didn't give 9-digit, use USPS resolution API
+            if (!resolvedZip && street_address && city) {
+                try {
+                    const { data: uspsData } = await supabase.functions.invoke("resolve-usps-address", {
+                        body: {
+                            streetAddress: street_address,
+                            city: city,
+                            state: normState,
+                            zipCode: zipOnly,
+                        },
+                    });
+                    if (uspsData?.address?.ZIPPlus4) {
+                        resolvedZip = uspsData.address.ZIPPlus4;
+                        // Asynchronously update profile with resolved ZIP+4
+                        if (auth?.id) {
+                            supabase
+                                .from("profiles")
+                                .update({ zip_plus4: resolvedZip })
+                                .eq("id", auth.id)
+                                .then(() => {});
+                        }
+                    }
+                } catch (uspsErr) {
+                    console.warn("[get-tax-rate] Fallback USPS resolution failed:", uspsErr);
+                }
+            }
+        }
+
+        // ── 5. Cache the result if we have a resolved 9-digit ZIP ───────────
+        if (resolvedZip && resolvedZip.length > 5 && resolvedZip.includes("-")) {
+            const nextMonth = new Date();
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            nextMonth.setDate(1);
+            nextMonth.setHours(0, 0, 0, 0);
+
+            await supabase.from("zip_tax_cache").upsert({
+                zip_code: resolvedZip,
+                combined_rate: combinedRate,
+                state_rate: stateRate,
+                county_rate: countyRate,
+                city_rate: cityRate,
+                district_rate: districtRate,
+                fetched_at: new Date().toISOString(),
+                expires_at: nextMonth.toISOString(),
+            });
+        }
 
         return jsonOk(
             {

@@ -31,9 +31,19 @@ const mockRpc = vi.fn().mockResolvedValue({ data: { available_usd: 10 } })
 const mockFunctionsInvoke = vi.fn().mockResolvedValue({ data: { holdAmountCents: 250, requiresCardEntry: false } })
 const mockUpdateChain = createMockChain({ data: null })
 
+let mockProductData = {
+  price_usd: 2.50,
+  inventory: 5,
+  window_dates: [] as any[],
+  product_delivery_windows: [{ day_of_week: 1 }] as any[],
+  product_pickup_windows: [{ day_of_week: 1 }] as any[],
+  expires_at: null as string | null,
+  created_at: new Date().toISOString(),
+}
+
 vi.mock('../../../lib/supabase', () => ({
   createClient: () => {
-    const productChain = createMockChain({ data: { price_usd: 2.50, inventory: 5 } })
+    const productChain = createMockChain({ get data() { return mockProductData } })
     const zipChain = createMockChain({ data: null })
     const taxChain = createMockChain({ data: null })
     const cacheChain = createMockChain({ data: null })
@@ -66,8 +76,7 @@ vi.mock('../../../lib/store', () => ({
 }))
 
 vi.mock('../../../lib/useMarketStatus', () => ({
-  useMarketStatus: () => ({ isOpen: true, todaySchedule: null, productsNeverExpire: true, loading: false }),
-  isProductExpired: () => false,
+  useMarketStatus: () => ({ isOpen: true, todaySchedule: null, productsNeverExpire: false, loading: false }),
 }))
 
 vi.mock('../../../lib/useNotificationPrompt', () => ({
@@ -106,9 +115,18 @@ describe('BuyModal — Negative Tests', () => {
     // This lets us test RPC/hold error paths without Stripe being ready
     mockRpc.mockResolvedValue({ data: { available_usd: 10.00 } })
     mockFunctionsInvoke.mockResolvedValue({
-      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false },
+      data: { holdAmountCents: 0, balanceAppliedCents: 250, isTopUp: false, requiresCardEntry: false, holdId: 'hold-1' },
       error: null,
     })
+    mockProductData = {
+      price_usd: 2.50,
+      inventory: 5,
+      window_dates: [],
+      product_delivery_windows: [{ day_of_week: 1 }],
+      product_pickup_windows: [{ day_of_week: 1 }],
+      expires_at: null,
+      created_at: new Date().toISOString(),
+    }
   })
 
   // ── Removed hold UI ──
@@ -344,5 +362,66 @@ describe('BuyModal — Negative Tests', () => {
     const { container } = render(React.createElement(BuyModal, defaultProps))
     expect(container.textContent).toContain('Secured by Stripe')
     expect(container.textContent).toContain('card details never touch our servers')
+  })
+
+  // ── Expiration / Expiry checks ──
+  describe('Expiry boundary checks', () => {
+    it('is buyable when expires_at is in the future', async () => {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      mockProductData.expires_at = tomorrow.toISOString()
+
+      const { container } = render(React.createElement(BuyModal, defaultProps))
+      await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+      const orderBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Place Order'))
+      expect(orderBtn).toBeTruthy()
+      expect(orderBtn?.disabled).toBe(false)
+      expect(container.textContent).not.toContain('This product has expired')
+    })
+
+    it('is expired when expires_at is in the past', async () => {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      mockProductData.expires_at = yesterday.toISOString()
+
+      const { container } = render(React.createElement(BuyModal, defaultProps))
+      await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+      const expiredBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Product Expired'))
+      expect(expiredBtn).toBeTruthy()
+      expect(expiredBtn?.disabled).toBe(true)
+      expect(container.textContent).toContain('This product has expired')
+    })
+
+    it('is buyable when created_at fallback is within 7 days', async () => {
+      const fiveDaysAgo = new Date()
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+      mockProductData.expires_at = null
+      mockProductData.created_at = fiveDaysAgo.toISOString()
+
+      const { container } = render(React.createElement(BuyModal, defaultProps))
+      await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+      const orderBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Place Order'))
+      expect(orderBtn).toBeTruthy()
+      expect(orderBtn?.disabled).toBe(false)
+      expect(container.textContent).not.toContain('This product has expired')
+    })
+
+    it('is expired when created_at fallback is older than 7 days', async () => {
+      const eightDaysAgo = new Date()
+      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8)
+      mockProductData.expires_at = null
+      mockProductData.created_at = eightDaysAgo.toISOString()
+
+      const { container } = render(React.createElement(BuyModal, defaultProps))
+      await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+      const expiredBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Product Expired'))
+      expect(expiredBtn).toBeTruthy()
+      expect(expiredBtn?.disabled).toBe(true)
+      expect(container.textContent).toContain('This product has expired')
+    })
   })
 })

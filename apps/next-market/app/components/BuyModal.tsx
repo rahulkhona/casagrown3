@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import { formatUsd } from '../../lib/store'
 import { trackClick, trackError } from '../../lib/analytics'
 import { useNotificationPrompt } from '../../lib/useNotificationPrompt'
-import { useMarketStatus, isProductExpired } from '../../lib/useMarketStatus'
+import { useMarketStatus } from '../../lib/useMarketStatus'
 import { hasValidWindows } from '../../lib/windowUtils'
 import { NotificationPromptModal } from './NotificationPromptModal'
 import styles from './BuyModal.module.css'
@@ -14,17 +14,18 @@ import styles from './BuyModal.module.css'
 interface BuyModalProps {
   product: {
     id: string; name: string; price_usd: number; unit: string;
-    inventory: number; category: string; photos?: string[]; market_date?: string; expires_at?: string;
-    window_dates?: any[]; product_delivery_windows?: any[]; product_pickup_windows?: any[]
+    inventory: number; category: string; photos?: string[]; market_date?: string; expires_at?: string; created_at?: string;
+    window_dates?: any[]; product_delivery_windows?: any[] | null; product_pickup_windows?: any[] | null
   }
   booth: {
     id: string; name: string; offers_delivery: boolean; offers_pickup: boolean;
-    pickup_address?: string; pickup_display_address?: string; delivery_radius_miles?: number
+    pickup_address?: string; pickup_display_address?: string; delivery_radius_miles?: number;
+    pickup_zip?: string; pickup_state?: string; booth_zip?: string; booth_state?: string;
   }
-  buyerZip?: string
-  buyerAddress?: string
-  onClose: () => void
-  onSuccess: (order: any) => void
+  buyerZip?: string;
+  buyerAddress?: string;
+  onClose: () => void;
+  onSuccess: (order: any) => void;
 }
 
 export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClose, onSuccess }: BuyModalProps) {
@@ -60,7 +61,20 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
   // Market hours + product expiry
   const { isOpen: marketIsOpen, todaySchedule, productsNeverExpire, loading: marketLoading } = useMarketStatus()
-  const productExpired = product.market_date ? isProductExpired(product.market_date, productsNeverExpire) : false
+  
+  const [expiresAt, setExpiresAt] = useState<string | null>(product.expires_at || null)
+  const [createdAt, setCreatedAt] = useState<string | null>(product.created_at || null)
+
+  const productExpired = useMemo(() => {
+    if (productsNeverExpire) return false
+    if (expiresAt) {
+      return new Date(expiresAt) < new Date()
+    }
+    // Fallback: listing date (createdAt) + 7 days
+    const listingDate = createdAt ? new Date(createdAt) : new Date()
+    const fallbackExpiry = new Date(listingDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+    return fallbackExpiry < new Date()
+  }, [expiresAt, createdAt, productsNeverExpire])
 
   // Window data state (fetched fresh or from props)
   const [windowDates, setWindowDates] = useState<any[]>(product.window_dates || [])
@@ -93,7 +107,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     const fetchFresh = async () => {
       const { data } = await supabase
         .from('market_products')
-        .select('price_usd, inventory, window_dates, product_delivery_windows, product_pickup_windows, delivery_radius_miles, pickup_address')
+        .select('price_usd, inventory, window_dates, product_delivery_windows, product_pickup_windows, delivery_radius_miles, pickup_address, expires_at, created_at')
         .eq('id', product.id)
         .single()
       if (data) {
@@ -106,6 +120,8 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         if (data.product_pickup_windows) setPickupWindows(data.product_pickup_windows)
         if (data.delivery_radius_miles !== undefined) setProductRadius(data.delivery_radius_miles)
         if (data.pickup_address) setProductPickupAddress(data.pickup_address)
+        if (data.expires_at) setExpiresAt(data.expires_at)
+        if (data.created_at) setCreatedAt(data.created_at)
       }
     }
     fetchFresh()
@@ -194,12 +210,16 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   useEffect(() => {
     if (isFreeProduct) { setTaxInfo({ rate: 0, amount: 0 }); return }
     const fetchTax = async () => {
-      if (!buyerZip || !product.category) { setTaxInfo({ rate: 0, amount: 0 }); return }
+      const activeZip = fulfillment === 'pickup'
+        ? (booth.pickup_zip || booth.booth_zip || (booth.pickup_address ? booth.pickup_address.match(/\b\d{5}\b/)?.[0] : null))
+        : buyerZip;
+
+      if (!activeZip || !product.category) { setTaxInfo({ rate: 0, amount: 0 }); return }
 
       const { data: zipData } = await supabase
         .from('zip_codes')
         .select('city_id, cities!inner(state_id, states!inner(code))')
-        .eq('zip_code', buyerZip)
+        .eq('zip_code', activeZip)
         .limit(1)
         .single()
 
@@ -224,14 +244,48 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         const { data: cached } = await supabase
           .from('zip_tax_cache')
           .select('combined_rate')
-          .eq('zip_code', buyerZip)
+          .eq('zip_code', activeZip)
           .gt('expires_at', new Date().toISOString())
           .single()
-        setTaxInfo({ rate: cached?.combined_rate || 0, amount: 0 })
+
+        if (cached) {
+          setTaxInfo({ rate: cached.combined_rate || 0, amount: 0 })
+        } else {
+          // Cache miss: fetch rate dynamically via get-tax-rate edge function
+          let streetAddress: string | null = null
+          let city: string | null = null
+
+          if (fulfillment === 'pickup') {
+            streetAddress = booth.pickup_address || null
+            city = booth.pickup_address ? booth.pickup_address.split(',')[1]?.trim() || null : null
+          } else if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('street_address, city')
+              .eq('id', user.id)
+              .single()
+            if (profile) {
+              streetAddress = profile.street_address
+              city = profile.city
+            }
+          }
+
+          const { data: rateData } = await supabase.functions.invoke('get-tax-rate', {
+            body: {
+              zip_code: activeZip,
+              state_code: stateCode,
+              category: product.category,
+              product_name: product.name,
+              street_address: streetAddress,
+              city: city
+            },
+          })
+          setTaxInfo({ rate: rateData?.rate_pct || 0, amount: 0 })
+        }
       }
     }
     fetchTax()
-  }, [buyerZip, product.category]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buyerZip, product.category, fulfillment, booth.pickup_zip, booth.booth_zip, booth.pickup_address, user?.id])
 
   const handleQtyChange = (val: string) => {
     const n = parseInt(val, 10)
@@ -319,24 +373,66 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
         p_expected_price: currentPrice,
         p_hold_id: holdResult.holdId || null,
         p_fb_metadata: fbMetadata || null,
+        p_delivery_instructions: fulfillment === 'delivery' ? deliveryInstructions : null,
       })
 
       // BUG-10: Handle tax_cache_miss — warm cache and retry once
-      if (orderResult?.code === 'tax_cache_miss' && buyerZip) {
-        await supabase.functions.invoke('get-tax-rate', {
-          body: { zip: buyerZip, category: product.category },
-        })
-        const retry = await supabase.rpc('place_market_order', {
-          p_product_id: product.id,
-          p_quantity: qty,
-          p_fulfillment_type: fulfillment,
-          p_buyer_zip: buyerZip || null,
-          p_expected_price: currentPrice,
-          p_hold_id: holdResult.holdId || null,
-          p_fb_metadata: fbMetadata || null,
-        })
-        orderResult = retry.data
-        orderErr = retry.error
+      if (orderResult?.code === 'tax_cache_miss') {
+        const activeZip = fulfillment === 'pickup'
+          ? (booth.pickup_zip || booth.booth_zip || (booth.pickup_address ? booth.pickup_address.match(/\b\d{5}\b/)?.[0] : null))
+          : buyerZip;
+        if (activeZip) {
+          // Fetch stateCode from zip_codes
+          const { data: zipData } = await supabase
+            .from('zip_codes')
+            .select('cities!inner(states!inner(code))')
+            .eq('zip_code', activeZip)
+            .limit(1)
+            .single()
+          const stateCode = (zipData as any)?.cities?.states?.code || null
+
+          // Fetch street_address and city
+          let streetAddress: string | null = null
+          let city: string | null = null
+
+          if (fulfillment === 'pickup') {
+            streetAddress = booth.pickup_address || null
+            city = booth.pickup_address ? booth.pickup_address.split(',')[1]?.trim() || null : null
+          } else if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('street_address, city')
+              .eq('id', user.id)
+              .single()
+            if (profile) {
+              streetAddress = profile.street_address
+              city = profile.city
+            }
+          }
+
+          await supabase.functions.invoke('get-tax-rate', {
+            body: {
+              zip_code: activeZip,
+              state_code: stateCode,
+              category: product.category,
+              product_name: product.name,
+              street_address: streetAddress,
+              city: city
+            },
+          })
+          const retry = await supabase.rpc('place_market_order', {
+            p_product_id: product.id,
+            p_quantity: qty,
+            p_fulfillment_type: fulfillment,
+            p_buyer_zip: buyerZip || null,
+            p_expected_price: currentPrice,
+            p_hold_id: holdResult.holdId || null,
+            p_fb_metadata: fbMetadata || null,
+            p_delivery_instructions: fulfillment === 'delivery' ? deliveryInstructions : null,
+          })
+          orderResult = retry.data
+          orderErr = retry.error
+        }
       }
 
       if (orderErr) { setError(orderErr.message); setLoading(false); return }
@@ -402,7 +498,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           {/* Expired product banner */}
           {productExpired && (
             <div className={styles.error} style={{ background: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' }}>
-              ⏰ <strong>This product was listed for a previous market day</strong> ({product.market_date}) and is no longer available.
+              ⏰ <strong>This product has expired</strong> and is no longer available.
             </div>
           )}
 

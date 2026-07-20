@@ -125,6 +125,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     await page.click('[data-testid="img-size-medium"]', { force: true })
     await page.waitForTimeout(300)
@@ -140,6 +141,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     const widthInput = page.locator('[data-testid="img-custom-width"]')
     await widthInput.fill('250')
@@ -157,6 +159,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     await page.click('[data-testid="img-align-center"]', { force: true })
     await page.waitForTimeout(300)
@@ -178,6 +181,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     const altInput = page.locator('[data-testid="img-alt-text"]')
     await altInput.fill('Fresh garden produce from CasaGrown')
@@ -196,6 +200,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     await page.click('[data-testid="img-size-small"]', { force: true })
     await page.waitForTimeout(300)
@@ -211,6 +216,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     await page.click('[data-testid="img-size-full"]', { force: true })
     await page.waitForTimeout(300)
@@ -226,6 +232,7 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await expect(img).toBeVisible({ timeout: 5000 })
 
     await clickImageAndOpenPopover(page, img)
+    await page.waitForTimeout(300)
 
     await page.click('[data-testid="img-remove"]', { force: true })
     await page.waitForTimeout(500)
