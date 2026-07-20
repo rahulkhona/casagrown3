@@ -111,13 +111,6 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     set: 'each', sets: 'each'
   }
 
-  // Check if "dozen" is specified without a preceding number
-  if (/\b(a\s+)?dozen\b/i.test(normalized) && !/\d+\s+dozen/i.test(normalized)) {
-    qty = 12
-    unit = 'each'
-    foundQtyUnit = true
-  }
-
   // Tokenize text preserving decimals
   const tokens = normalized.split(/[^a-zA-Z0-9$.]+/).filter(Boolean).map(w => w.replace(/\.+$/, ''))
 
@@ -183,6 +176,13 @@ export const parseTextFallback = (text: string): ParsedListingData => {
         break
       }
     }
+  }
+
+  // Check if "dozen" is specified without a preceding number as a fallback
+  if (!foundQtyUnit && /\b(a\s+)?dozen\b/i.test(normalized) && !/\d+\s+dozen/i.test(normalized)) {
+    qty = 12
+    unit = 'each'
+    foundQtyUnit = true
   }
 
   // Convert dozen to 12 each
@@ -454,11 +454,52 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     }
   }
 
+  // Scan for explicit hours to infer categories
+  const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm)\b/gi
+  const inferredTimes = new Set<string>()
+  let timeMatch: RegExpExecArray | null
+  while ((timeMatch = timeRegex.exec(normalized)) !== null) {
+    let hour = parseInt(timeMatch[1])
+    const meridian = timeMatch[2].toLowerCase()
+    if (meridian === 'pm' && hour < 12) hour += 12
+    if (meridian === 'am' && hour === 12) hour = 0
+    if (hour >= 8 && hour < 12) inferredTimes.add('morning')
+    else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
+    else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
+  }
+
+  // Also handle range patterns like "between 1 and 3 pm"
+  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s+(?:and|to|-)\s+(\d{1,2})\s*(am|pm)\b/i)
+  if (rangeMatch) {
+    const meridian = rangeMatch[3].toLowerCase()
+    let h1 = parseInt(rangeMatch[1])
+    let h2 = parseInt(rangeMatch[2])
+    if (meridian === 'pm') {
+      if (h1 < 12) h1 += 12
+      if (h2 < 12) h2 += 12
+    } else {
+      if (h1 === 12) h1 = 0
+      if (h2 === 12) h2 = 0
+    }
+    const hours = [h1, h2]
+    hours.forEach(hour => {
+      if (hour >= 8 && hour < 12) inferredTimes.add('morning')
+      else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
+      else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
+    })
+  }
+
   const times = ['morning', 'afternoon', 'evening', 'night']
   times.forEach(t => {
-    if (normalized.includes(t)) {
-      if (normalized.includes('deliver') || !normalized.includes('pickup')) result.delivery_time_of_day.push(t === 'night' ? 'evening' : t)
-      if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) result.pickup_time_of_day.push(t === 'night' ? 'evening' : t)
+    if (normalized.includes(t) || inferredTimes.has(t)) {
+      if (normalized.includes('deliver') || !normalized.includes('pickup')) {
+        const cat = t === 'night' ? 'evening' : t
+        if (!result.delivery_time_of_day.includes(cat)) result.delivery_time_of_day.push(cat)
+      }
+      if (normalized.includes('pickup') || normalized.includes('pick up') || !normalized.includes('deliver')) {
+        const cat = t === 'night' ? 'evening' : t
+        if (!result.pickup_time_of_day.includes(cat)) result.pickup_time_of_day.push(cat)
+      }
     }
   })
 
