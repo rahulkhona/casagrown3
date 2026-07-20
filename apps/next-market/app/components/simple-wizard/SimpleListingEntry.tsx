@@ -36,7 +36,9 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
   // General
   const [error, setError] = useState('')
   const [showCamera, setShowCamera] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isSubmittedRef = useRef(false)
   const submitDurationRef = useRef<number | null>(null)
 
@@ -252,147 +254,190 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
 
   // ── Input phase ──
   return (
-    <div className={styles.container}>
-      {/* Header */}
-      <div className={styles.header}>
-        <h1 className={styles.title}>List Your Product</h1>
-        <p className={styles.subtitle}>
-          Describe what you&apos;d like to sell and we&apos;ll set everything up for you.
-        </p>
-      </div>
-
-      {/* Error banner */}
-      {error && <div className={styles.errorBanner}>{error}</div>}
-
-      {/* Returning user — opens QuickSetup with Sign In tab */}
-      {!isAuthenticated && (
-        <div className={styles.returningUserSection}>
-          <button
-            className={styles.returningUserBtn}
-            onClick={() => {
-              // Save text + photos to sessionStorage immediately so they are preserved across redirect
-              const prefillData = {
-                photos,
-                originalText: freeformText,
-                description: freeformText,
-                fromSimpleWizard: true,
-                intent: 'login',
-              }
-              sessionStorage.setItem('simple_listing_prefill', JSON.stringify(prefillData))
-
-              trackEvent('button_click', PAGE_SLUG, { button: 'returning_user' })
-              requireAuth({
-                trigger: 'simple_listing_returning',
-                defaultSignIn: true,
-                prefill: paramEmail ? { email: paramEmail } : undefined,
-                onReady: () => {
-                  // Do not navigate immediately; stay on page to allow entering details
-                },
-              })
-            }}
-          >
-            🔑 I&apos;m a returning user
-          </button>
-        </div>
-      )}
-
-      {/* Textarea */}
-      <div className={styles.textareaSection}>
-        <label className={styles.textareaLabel}>What are you selling?</label>
-        <textarea
-          className={styles.textarea}
-          placeholder={isAuthenticated ? placeholderLoggedIn : placeholderLoggedOut}
-          value={freeformText}
-          onChange={e => setFreeformText(e.target.value)}
-          onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'freeform_text', !!freeformText.trim())}
-        />
-      </div>
-
-      {/* Photos */}
-      <div className={styles.photosSection}>
-        <label className={styles.photosLabel}>
-          📸 Add photos <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span>
-        </label>
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
-          You can always add photos later before publishing.
-        </p>
-        <div className={styles.photosGrid}>
-          {photos.map((photo, i) => (
-            <div key={i} className={styles.photoThumb}>
-              <img src={photo} alt={`Product photo ${i + 1}`} />
-              <button
-                className={styles.photoRemove}
-                onClick={() => removePhoto(i)}
-                aria-label="Remove photo"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <div className={styles.buttonPair}>
-            <button
-              className={styles.photoBtn}
-              onClick={() => setShowCamera(true)}
-            >
-              📷 Take Photo
-            </button>
-            <button
-              className={styles.photoBtn}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              📁 Upload
-            </button>
+    <div>
+      {/* Hero Header */}
+      <div className={styles.hero}>
+        <div className={styles.header}>
+          <h1 className={styles.title}>Start <span className={styles.titleHighlight}>Earning</span> From Your Garden</h1>
+          <p className={styles.subtitle}>
+            Tell us what you're growing — we'll handle the rest. It's free.
+          </p>
+          <div className={styles.trustChips}>
+            <span className={styles.trustChip}>⏱ 2 minutes</span>
+            <span className={styles.trustChip}>🔒 Free to list</span>
           </div>
         </div>
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handlePhotoFile}
-          hidden
-        />
       </div>
 
-      {/* Camera Widget */}
-      {showCamera && (
-        <CameraCapture
-          facingMode="environment"
-          closeLabel="✕ Cancel"
-          onClose={() => setShowCamera(false)}
-          onCapture={({ file }) => {
-            setShowCamera(false)
-            const reader = new FileReader()
-            reader.onload = (ev) => {
-              const dataUrl = ev.target?.result as string
-              setPhotos(prev => [...prev, dataUrl])
-            }
-            reader.readAsDataURL(file)
-          }}
-        />
-      )}
+      <div className={`${styles.container} ${styles.formCard}`}>
+        {/* Error banner */}
+        {error && <div className={styles.errorBanner}>{error}</div>}
 
-      {/* Submit */}
-      <div className={styles.submitSection}>
-        <button
-          className={styles.submitBtn}
-          onClick={handleSubmit}
-          disabled={!freeformText.trim() && photos.length === 0}
-        >
-          {isAuthenticated ? 'Create My Listing ✨' : 'Create Account & Listing ✨'}
-        </button>
-        <button
-          className={styles.skipLink}
-          onClick={() => {
-            trackEvent('button_click', PAGE_SLUG, { button: 'skip_to_full_form' })
-            if (typeof window !== 'undefined') {
-              sessionStorage.removeItem('simple_listing_prefill')
-            }
-            router.push(isAuthenticated ? '/my-booth/products/new' : '/create-listing')
-          }}
-        >
-          {isAuthenticated ? 'Skip to full form →' : 'Use step-by-step wizard →'}
-        </button>
+        {/* Textarea */}
+        <div className={styles.textareaSection}>
+          <label className={styles.textareaLabel}>What are you selling?</label>
+          <textarea
+            ref={textareaRef}
+            className={styles.textarea}
+            placeholder={isAuthenticated ? placeholderLoggedIn : placeholderLoggedOut}
+            value={freeformText}
+            onChange={e => {
+              setFreeformText(e.target.value)
+              // Auto-grow
+              const el = textareaRef.current
+              if (el) {
+                el.style.height = 'auto'
+                el.style.height = `${Math.max(140, el.scrollHeight)}px`
+              }
+            }}
+            onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'freeform_text', !!freeformText.trim())}
+          />
+          {freeformText.length > 0 && (
+            <div className={`${styles.charHint} ${freeformText.length > 20 ? styles.charHintActive : ''}`}>
+              {freeformText.length < 20 ? 'Keep going — the more detail, the better your listing!' : '✓ Great description'}
+            </div>
+          )}
+        </div>
+
+        {/* Photos */}
+        <div className={styles.photosSection}>
+          <label className={styles.photosLabel}>
+            📸 Add photos
+          </label>
+          
+          {photos.length === 0 ? (
+            <div
+              className={`${styles.photoUploadZone} ${dragActive ? styles.dragActive : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragActive(true) }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={e => {
+                e.preventDefault()
+                setDragActive(false)
+                const file = e.dataTransfer.files?.[0]
+                if (file && file.type.startsWith('image/')) {
+                  const reader = new FileReader()
+                  reader.onload = (ev) => {
+                    const dataUrl = ev.target?.result as string
+                    setPhotos(prev => [...prev, dataUrl])
+                  }
+                  reader.readAsDataURL(file)
+                }
+              }}
+            >
+              <span className={styles.photoUploadIcon}>{dragActive ? '📥' : '📷'}</span>
+              <span className={styles.photoUploadText}>{dragActive ? 'Drop your photo here' : 'Add your first photo'}</span>
+              <span className={styles.photoUploadHint}>Listings with photos sell 3× faster. You can add them later too.</span>
+              <div className={styles.buttonPair} style={{ marginTop: 12, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+                <button
+                  className={styles.photoBtn}
+                  onClick={e => { e.stopPropagation(); setShowCamera(true) }}
+                >
+                  📷 Take Photo
+                </button>
+                <button
+                  className={styles.photoBtn}
+                  onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
+                >
+                  📁 Upload
+                </button>
+                <button
+                  type="button"
+                  className={styles.doItLaterLink}
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleSubmit()
+                  }}
+                >
+                  I&apos;ll do it later
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>
+                Listings with photos sell 3× faster. You can add them later too.
+              </p>
+              <div className={styles.photosGrid}>
+                {photos.map((photo, i) => (
+                  <div key={i} className={styles.photoThumb}>
+                    <img src={photo} alt={`Product photo ${i + 1}`} />
+                    <button
+                      className={styles.photoRemove}
+                      onClick={() => removePhoto(i)}
+                      aria-label="Remove photo"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <div className={styles.buttonPair}>
+                  <button
+                    className={styles.photoBtn}
+                    onClick={() => setShowCamera(true)}
+                  >
+                    📷 Take Photo
+                  </button>
+                  <button
+                    className={styles.photoBtn}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    📁 Upload
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoFile}
+            hidden
+          />
+        </div>
+
+        {/* Camera Widget */}
+        {showCamera && (
+          <CameraCapture
+            facingMode="environment"
+            closeLabel="✕ Cancel"
+            onClose={() => setShowCamera(false)}
+            onCapture={({ file }) => {
+              setShowCamera(false)
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                const dataUrl = ev.target?.result as string
+                setPhotos(prev => [...prev, dataUrl])
+              }
+              reader.readAsDataURL(file)
+            }}
+          />
+        )}
+
+        {/* Submit */}
+        <div className={styles.submitSection}>
+          <button
+            className={styles.submitBtn}
+            onClick={handleSubmit}
+            disabled={!freeformText.trim() && photos.length === 0}
+          >
+            Create My Listing
+          </button>
+          <button
+            className={styles.skipLink}
+            onClick={() => {
+              trackEvent('button_click', PAGE_SLUG, { button: 'skip_to_full_form' })
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('simple_listing_prefill')
+              }
+              router.push(isAuthenticated ? '/my-booth/products/new' : '/create-listing')
+            }}
+          >
+            or use step-by-step form →
+          </button>
+        </div>
       </div>
     </div>
   )

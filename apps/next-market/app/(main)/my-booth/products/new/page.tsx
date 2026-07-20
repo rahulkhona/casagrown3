@@ -249,12 +249,18 @@ function NewProductPageInner() {
                   cleanState.slice(0, 2).toUpperCase()
               }
             }
-            setAddr({
+            const newAddress = {
               street: [houseNumber, road].filter(Boolean).join(' '),
               city: addr.city || addr.town || addr.village || addr.hamlet || '',
               state: mappedState,
               zip: addr.postcode?.split('-')[0] || '',
-            })
+            }
+            setAddr(newAddress)
+            if (type === 'delivery') {
+              if (!productPickupAddr.street || formatFullAddress(productPickupAddr) === formatFullAddress(boothBaseAddr)) {
+                setProductPickupAddr(newAddress)
+              }
+            }
           }
         } catch (e) {
           console.warn('Geolocation failed', e)
@@ -563,9 +569,9 @@ function NewProductPageInner() {
         if (!hasAddress(pickAddr) && booth.pickup_address) {
           pickAddr = parseLegacyAddress(booth.pickup_address)
         }
-        // Fallback to home address if not provided
+        // Fallback to booth base address if not provided
         if (!hasAddress(pickAddr)) {
-          pickAddr = profileAddr
+          pickAddr = baseAddr
         }
         setProductPickupAddr(pickAddr)
       } else {
@@ -2666,55 +2672,40 @@ function NewProductPageInner() {
                     </div>
                     {isDeliveryActive && (
                       <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
-                        {hasBooth ? (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <label className={styles.label}>🏠 Your Booth Address</label>
-                            <div style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              background: '#f3f4f6',
-                              color: '#4b5563',
-                              fontSize: 14,
-                              border: '1px solid #e5e7eb',
-                            }} data-testid="inherited-base-address">
-                              {formatFullAddress(boothBaseAddr)}
-                            </div>
-                            <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>
-                              Delivery radius is computed from your stand&apos;s base address.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <label className={styles.label}>
-                                🏠 Home/Farm Address (Base Address) <span className={styles.required}>*</span>
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => handleGeolocate('delivery')}
-                                disabled={geolocatingDelivery}
-                                style={{
-                                  background: 'none', border: 'none', color: '#16a34a',
-                                  fontSize: 12, fontWeight: 600, cursor: geolocatingDelivery ? 'wait' : 'pointer',
-                                  padding: 0, display: 'flex', alignItems: 'center', gap: 4
-                                }}
-                              >
-                                {geolocatingDelivery ? '⏳ Locating...' : '📍 Use My Location'}
-                              </button>
-                            </div>
-                            <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
-                            <AddressInput
-                              value={boothBaseAddr}
-                              onChange={val => {
-                                setBoothBaseAddr(val)
-                                setErrors(p => ({ ...p, boothAddress: '' }))
+                        <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label className={styles.label}>
+                              🏠 {hasBooth ? 'Your Booth Address' : 'Home/Farm Address (Base Address)'} <span className={styles.required}>*</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleGeolocate('delivery')}
+                              disabled={geolocatingDelivery}
+                              style={{
+                                background: 'none', border: 'none', color: '#16a34a',
+                                fontSize: 12, fontWeight: 600, cursor: geolocatingDelivery ? 'wait' : 'pointer',
+                                padding: 0, display: 'flex', alignItems: 'center', gap: 4
                               }}
-                              showPrivacyNote={true}
-                              placeholderStreet="Street Address"
-                            />
-                            {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+                            >
+                              {geolocatingDelivery ? '⏳ Locating...' : '📍 Use My Location'}
+                            </button>
                           </div>
-                        )}
+                          <div className={styles.fieldHint}>This address is used as the base location for computing your delivery radius.</div>
+                          <AddressInput
+                            value={boothBaseAddr}
+                            onChange={val => {
+                              setBoothBaseAddr(val)
+                              setErrors(p => ({ ...p, boothAddress: '' }))
+                              // Sync pickup address if it hasn't been customized
+                              if (!productPickupAddr.street || formatFullAddress(productPickupAddr) === formatFullAddress(boothBaseAddr)) {
+                                setProductPickupAddr(val)
+                              }
+                            }}
+                            showPrivacyNote={true}
+                            placeholderStreet="Street Address"
+                          />
+                          {errors.boothAddress && <span className={styles.error} data-testid="booth-address-error">{errors.boothAddress}</span>}
+                        </div>
 
                         {/* Delivery Radius */}
                         <div className={styles.field} style={{ marginTop: 12, marginBottom: 12 }}>
