@@ -307,3 +307,128 @@ details[open] .detailsSummary { border-radius: var(--radius-xl) var(--radius-xl)
   .photoBtns { grid-template-columns: 1fr 1fr; }
   .modalActions { grid-template-columns: 1fr; }
 }
+
+/* Fulfillment Presets & Snap Grid */
+.presetGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.presetOption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-lg, 8px);
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.presetOption:hover {
+  border-color: var(--green-300);
+  background: var(--green-50);
+}
+
+.presetOptionActive {
+  border-color: var(--green-500);
+  background: var(--green-50);
+  box-shadow: 0 0 0 1px var(--green-200);
+}
+
+.presetRadio {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green-600);
+  cursor: pointer;
+}
+
+.presetText {
+  display: flex;
+  flex-direction: column;
+}
+
+.presetLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.presetDesc {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+/* Custom Weekly Calendar Grid */
+.gridContainer {
+  background: #fff;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  box-sizing: border-box;
+}
+
+.gridTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.gridTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 4px;
+  table-layout: fixed;
+}
+
+.gridTh {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-align: center;
+  padding-bottom: 8px;
+}
+
+.gridTimeCol {
+  width: 45px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-align: right;
+  padding-right: 8px;
+  vertical-align: middle;
+}
+
+.gridCell {
+  height: 24px;
+  background: var(--gray-100, #f3f4f6);
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.gridCell:hover {
+  background: var(--green-100, #dcfce7);
+  border-color: var(--green-300, #86efac);
+}
+
+.gridCellActive {
+  background: #22c55e !important;
+  border-color: #16a34a !important;
+}
+
+.gridCellPast {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--gray-50, #f9fafb);
+}
+

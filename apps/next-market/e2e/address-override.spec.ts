@@ -56,10 +56,12 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       await page.goto('/my-booth/products/new')
       await page.waitForLoadState('networkidle')
 
-      // 1. Verify that inherited base address card displays the correct address
-      const baseAddressCard = page.locator('[data-testid="inherited-base-address"]')
-      await expect(baseAddressCard).toBeVisible({ timeout: 10000 })
-      await expect(baseAddressCard).toContainText(/1247 Minnesota Ave, San Jose, CA 95125/i)
+      // 1. Verify that inherited base address is pre-filled in the editable inputs
+      const baseStreetInput = page.locator('input[placeholder="Street Address"]').first()
+      await expect(baseStreetInput).toHaveValue('1247 Minnesota Ave', { timeout: 10000 })
+      await expect(page.locator('input[placeholder="City"]').first()).toHaveValue('San Jose')
+      await expect(page.locator('input[placeholder="ST"]').first()).toHaveValue('CA')
+      await expect(page.locator('input[placeholder="ZIP"]').first()).toHaveValue('95125')
 
       // Ensure pickup is selected (this overrides the base address behavior in the UI)
       const pickupCard = page.getByTestId('pickup-box')

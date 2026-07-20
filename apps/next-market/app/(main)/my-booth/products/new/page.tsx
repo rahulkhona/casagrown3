@@ -314,6 +314,149 @@ function NewProductPageInner() {
   const [prodCustomStart, setProdCustomStart] = useState('17:00')
   const [prodCustomEnd, setProdCustomEnd] = useState('19:00')
 
+  // ── Fulfillment Window presets (Revised Per-Card layout) ──
+  type PresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom'
+  const [deliveryPreset, setDeliveryPreset] = useState<PresetType>('both')
+  const [pickupPreset, setPickupPreset] = useState<PresetType>('both')
+
+  // Map 1-hour rows to 2-hour database slots
+  const mapHourToSlotId = (hour: number): string | null => {
+    if (hour >= 8 && hour < 10) return '8-10'
+    if (hour >= 10 && hour < 12) return '10-12'
+    if (hour >= 12 && hour < 14) return '12-14'
+    if (hour >= 14 && hour < 16) return '14-16'
+    if (hour >= 16 && hour < 18) return '16-18'
+    if (hour >= 18 && hour <= 20) return '18-20'
+    return null
+  }
+
+  // Detect preset type based on loaded calendar windows
+  const detectPresetFromWindows = (windows: Record<string, string[]>, isOffersActive: boolean): PresetType => {
+    if (!isOffersActive) return 'both'
+    const dates = Object.keys(windows).filter(d => (windows[d] || []).length > 0)
+    if (dates.length === 0) return 'both'
+
+    let isWeekendMorningsMatch = true
+    let isWeekdayEveningsMatch = true
+    let isBothMatch = true
+
+    for (const d of dates) {
+      const slots = windows[d] || []
+      if (slots.length === 0) continue
+
+      const dateObj = new Date(d + 'T12:00:00')
+      const day = dateObj.getDay() // 0 = Sunday, 6 = Saturday
+      const isWeekend = day === 0 || day === 6
+
+      if (isWeekend) {
+        isWeekdayEveningsMatch = false
+        const matchesMorning = slots.includes('8-10') && slots.includes('10-12') && slots.length === 2
+        if (!matchesMorning) {
+          isWeekendMorningsMatch = false
+          isBothMatch = false
+        }
+      } else {
+        isWeekendMorningsMatch = false
+        const matchesEvening = slots.includes('16-18') && slots.includes('18-20') && slots.length === 2
+        if (!matchesEvening) {
+          isWeekdayEveningsMatch = false
+          isBothMatch = false
+        }
+      }
+    }
+
+    if (isBothMatch) return 'both'
+    if (isWeekendMorningsMatch) return 'weekend_mornings'
+    if (isWeekdayEveningsMatch) return 'weekday_evenings'
+    return 'custom'
+  }
+
+  // Generate calendar windows mapping for a specific preset
+  const getWindowsForPreset = (preset: PresetType): Record<string, string[]> => {
+    const result: Record<string, string[]> = {}
+    if (preset === 'custom') return result
+
+    const localToday = new Date()
+    for (let offset = 0; offset < 7; offset++) {
+      const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      const day = d.getDay()
+      const isWeekend = day === 0 || day === 6
+
+      if (preset === 'weekend_mornings') {
+        if (isWeekend) {
+          result[dateStr] = ['8-10', '10-12']
+        }
+      } else if (preset === 'weekday_evenings') {
+        if (!isWeekend) {
+          result[dateStr] = ['16-18', '18-20']
+        }
+      } else if (preset === 'both') {
+        if (isWeekend) {
+          result[dateStr] = ['8-10', '10-12']
+        } else {
+          result[dateStr] = ['16-18', '18-20']
+        }
+      }
+    }
+    return result
+  }
+
+  // Checks if a specific hour is covered by any active slots
+  const isHourSelected = (hour: number, activeSlots: string[]): boolean => {
+    return activeSlots.some(slotId => {
+      const parts = slotId.split('-').map(Number)
+      if (parts.length < 2) return false
+      const start = parts[0]
+      const end = parts[1]
+      return hour >= start && hour < end
+    })
+  }
+
+  // Toggles an hour slot inside state, breaking down or joining 1-hour slots
+  const toggleHourCell = (
+    dateStr: string,
+    hour: number,
+    windowsState: Record<string, string[]>,
+    setWindowsState: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  ) => {
+    setWindowsState(prev => {
+      const activeSlots = prev[dateStr] || []
+      const isSelected = isHourSelected(hour, activeSlots)
+
+      let nextSlots: string[] = []
+
+      if (isSelected) {
+        // Remove hour H from any slot that covers it
+        for (const slotId of activeSlots) {
+          const parts = slotId.split('-').map(Number)
+          if (parts.length < 2) continue
+          const start = parts[0]
+          const end = parts[1]
+
+          if (hour >= start && hour < end) {
+            if (start < hour) {
+              nextSlots.push(`${start}-${hour}`)
+            }
+            if (hour + 1 < end) {
+              nextSlots.push(`${hour + 1}-${end}`)
+            }
+          } else {
+            nextSlots.push(slotId)
+          }
+        }
+      } else {
+        // Add hour H as a 1-hour slot 'H-(H+1)'
+        nextSlots = [...activeSlots, `${hour}-${hour + 1}`]
+      }
+
+      return {
+        ...prev,
+        [dateStr]: nextSlots
+      }
+    })
+  }
+
   // Derive selectedDates from union of delivery + pickup window dates so save logic stays intact
   useEffect(() => {
     const deliveryDates = Object.keys(productDeliveryWindows).filter(d => (productDeliveryWindows[d] || []).length > 0)
@@ -635,9 +778,11 @@ function NewProductPageInner() {
           setSelectedDates(dates)
           setProductDeliveryWindows(dwMap)
           setProductPickupWindows(pwMap)
+          setDeliveryPreset(detectPresetFromWindows(dwMap, del))
+          setPickupPreset(detectPresetFromWindows(pwMap, pick))
         }
       } else if (!editId) {
-        // ── Booth has NO fulfillment defaults → sensible defaults (create mode only) ──
+        // ── Sensible defaults: Use 'Both' preset defaults (create mode only) ──
         setBoothOffersDelivery(true)
         setBoothOffersPickup(true)
         setProductOffersDelivery(true)
@@ -645,10 +790,12 @@ function NewProductPageInner() {
         if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
         if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
-        // Default to today + tomorrow with all time slots selected
-        setSelectedDates([todayStr, tomorrowStr])
-        setProductDeliveryWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
-        setProductPickupWindows({ [todayStr]: [...ALL_SLOT_IDS], [tomorrowStr]: [...ALL_SLOT_IDS] })
+        const defaultDw = getWindowsForPreset('both')
+        const defaultPw = getWindowsForPreset('both')
+        setProductDeliveryWindows(defaultDw)
+        setProductPickupWindows(defaultPw)
+        setDeliveryPreset('both')
+        setPickupPreset('both')
 
         // Use profile address as pickup address fallback
         const { data: profile } = await supabase
@@ -708,8 +855,12 @@ function NewProductPageInner() {
         setProductDeliveryWindows(dwMap)
         setProductPickupWindows(pwMap)
         // Restore fulfillment mode toggles from saved product data
-        setProductOffersDelivery(data.product_delivery_windows != null)
-        setProductOffersPickup(data.product_pickup_windows != null)
+        const del = data.product_delivery_windows != null
+        const pick = data.product_pickup_windows != null
+        setProductOffersDelivery(del)
+        setProductOffersPickup(pick)
+        setDeliveryPreset(detectPresetFromWindows(dwMap, del))
+        setPickupPreset(detectPresetFromWindows(pwMap, pick))
       } else {
         // Product has no saved fulfillment windows — fall back to booth defaults
         // This handles legacy products created before product-level windows were stored
@@ -1342,7 +1493,14 @@ function NewProductPageInner() {
             const obj: Record<string, any[]> = {}
             for (const d of selectedDates) {
               const ids = productDeliveryWindows[d] || []
-              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+              if (ids.length > 0) {
+                obj[d] = ids.map(id => {
+                  const parts = id.split('-')
+                  const start = parts[0]
+                  const end = parts[1] || String(parseInt(start) + 2)
+                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+                })
+              }
             }
             return Object.keys(obj).length > 0 ? obj : null
           })(),
@@ -1350,7 +1508,14 @@ function NewProductPageInner() {
             const obj: Record<string, any[]> = {}
             for (const d of selectedDates) {
               const ids = productPickupWindows[d] || []
-              if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+              if (ids.length > 0) {
+                obj[d] = ids.map(id => {
+                  const parts = id.split('-')
+                  const start = parts[0]
+                  const end = parts[1] || String(parseInt(start) + 2)
+                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+                })
+              }
             }
             return Object.keys(obj).length > 0 ? obj : null
           })(),
@@ -1480,7 +1645,14 @@ function NewProductPageInner() {
           const obj: Record<string, any[]> = {}
           for (const d of selectedDates) {
             const ids = productDeliveryWindows[d] || []
-            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
           }
           return Object.keys(obj).length > 0 ? obj : null
         })(),
@@ -1488,7 +1660,14 @@ function NewProductPageInner() {
           const obj: Record<string, any[]> = {}
           for (const d of selectedDates) {
             const ids = productPickupWindows[d] || []
-            if (ids.length > 0) obj[d] = ids.map(id => { const [s] = id.split('-'); return { id, start: `${s}:00`, end: `${parseInt(s)+2}:00` } })
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
           }
           return Object.keys(obj).length > 0 ? obj : null
         })(),
@@ -1588,8 +1767,9 @@ function NewProductPageInner() {
             if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
             for (const slotId of dwIds) {
               if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
-              const [startH] = slotId.split('-').map(Number)
-              const endH = startH + 2
+              const parts = slotId.split('-').map(Number)
+              const startH = parts[0]
+              const endH = parts[1] || (startH + 2)
               tableRows.push({
                 booth_id: boothId!,
                 day_of_week: dayKey,
@@ -1603,8 +1783,9 @@ function NewProductPageInner() {
             if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
             for (const slotId of pwIds) {
               if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
-              const [startH] = slotId.split('-').map(Number)
-              const endH = startH + 2
+              const parts = slotId.split('-').map(Number)
+              const startH = parts[0]
+              const endH = parts[1] || (startH + 2)
               tableRows.push({
                 booth_id: boothId!,
                 day_of_week: dayKey,
@@ -1660,8 +1841,9 @@ function NewProductPageInner() {
               if (!newWeeklyDw[dayKey]) newWeeklyDw[dayKey] = []
               for (const slotId of dwIds) {
                 if (!newWeeklyDw[dayKey].includes(slotId)) newWeeklyDw[dayKey].push(slotId)
-                const [startH] = slotId.split('-').map(Number)
-                const endH = startH + 2
+                const parts = slotId.split('-').map(Number)
+                const startH = parts[0]
+                const endH = parts[1] || (startH + 2)
                 tableRows.push({
                   booth_id: boothId!,
                   day_of_week: dayKey,
@@ -1675,8 +1857,9 @@ function NewProductPageInner() {
               if (!newWeeklyPw[dayKey]) newWeeklyPw[dayKey] = []
               for (const slotId of pwIds) {
                 if (!newWeeklyPw[dayKey].includes(slotId)) newWeeklyPw[dayKey].push(slotId)
-                const [startH] = slotId.split('-').map(Number)
-                const endH = startH + 2
+                const parts = slotId.split('-').map(Number)
+                const startH = parts[0]
+                const endH = parts[1] || (startH + 2)
                 tableRows.push({
                   booth_id: boothId!,
                   day_of_week: dayKey,
@@ -2802,106 +2985,95 @@ function NewProductPageInner() {
                           </div>
                         </div>
 
-                        {/* ── Delivery Day Pills & Time Windows ── */}
+                        {/* ── Delivery presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Delivery Days &amp; Times</label>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                            {dayOptions.map(opt => {
-                              const isActive = (productDeliveryWindows[opt.date] || []).length > 0
+                          <div className={styles.presetGroup}>
+                            <label className={styles.label}>Schedule:</label>
+                            {[
+                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                            ].map(p => {
+                              const isActive = deliveryPreset === p.id
                               return (
                                 <button
-                                  key={opt.date}
+                                  key={p.id}
                                   type="button"
-                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
                                   onClick={() => {
-                                    setProductDeliveryWindows(prev => {
-                                      const next = { ...prev }
-                                      if (next[opt.date] && next[opt.date].length > 0) {
-                                        delete next[opt.date]
-                                      } else {
-                                        next[opt.date] = ['10-12', '16-18']
-                                      }
-                                      return next
-                                    })
+                                    setDeliveryPreset(p.id)
+                                    if (p.id !== 'custom') {
+                                      setProductDeliveryWindows(getWindowsForPreset(p.id))
+                                    }
                                   }}
                                 >
-                                  {isActive ? '✅' : '📅'} {opt.label}
+                                  <input
+                                    type="radio"
+                                    checked={isActive}
+                                    onChange={() => {}}
+                                    className={styles.presetRadio}
+                                  />
+                                  <div className={styles.presetText}>
+                                    <span className={styles.presetLabel}>{p.label}</span>
+                                    <span className={styles.presetDesc}>{p.desc}</span>
+                                  </div>
                                 </button>
                               )
                             })}
                           </div>
 
-                          {deliverySelectedDays.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {deliverySelectedDays.map(dateStr => {
-                                const dateObj = new Date(dateStr + 'T12:00:00')
-                                const isToday = dateStr === todayStr
-                                const isTomorrow = dateStr === tomorrowStr
-                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
-                                const dwIds = productDeliveryWindows[dateStr] || []
-                                const now = new Date()
-                                const currentHour = now.getHours()
+                          {deliveryPreset === 'custom' && (
+                            <div className={styles.gridContainer}>
+                              <div className={styles.gridTitle}>Tap to select your available hours</div>
+                              <table className={styles.gridTable}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 45 }}></th>
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
+                                      <th key={name} className={styles.gridTh}>{name}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index // 8am to 8pm
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
 
-                                return (
-                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div className={styles.windowPills}>
-                                          {PRODUCT_TIME_WINDOWS.map(w => {
-                                            const [startH] = w.id.split('-').map(Number)
-                                            const isPast = isToday && startH < currentHour
-                                            const isSelected = dwIds.includes(w.id)
-                                            return (
-                                              <button
-                                                key={`d-${dateStr}-${w.id}`}
-                                                type="button"
-                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                                                onClick={() => {
-                                                  setProductDeliveryWindows(prev => ({
-                                                    ...prev,
-                                                    [dateStr]: isSelected
-                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                                      : [...(prev[dateStr] || []), w.id]
-                                                  }))
-                                                }}
-                                              >
-                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                                              </button>
-                                            )
-                                          })}
-                                        </div>
-                                        {/* Custom delivery slots */}
-                                        {(productCustomDelivery[dateStr] || []).map((s, i) => (
-                                          <div key={`cd-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                                              onClick={() => setProductCustomDelivery(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                                          </div>
-                                        ))}
-                                        {showProductCustomDel[dateStr] ? (
-                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <span style={{ fontSize: 13 }}>to</span>
-                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                                              setProductCustomDelivery(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                                              setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))
-                                            }}>Add</button>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                                              onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                                          </div>
-                                        ) : (
-                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                                            onClick={() => setShowProductCustomDel(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                                    const getDayIndex = (d: Date) => (d.getDay() === 0 ? 6 : d.getDay() - 1)
+                                    const sortedDayOptions = [...dayOptions].sort((a, b) => {
+                                      const dateA = new Date(a.date + 'T12:00:00')
+                                      const dateB = new Date(b.date + 'T12:00:00')
+                                      return getDayIndex(dateA) - getDayIndex(dateB)
+                                    })
+
+                                    return (
+                                      <tr key={hour}>
+                                        <td className={styles.gridTimeCol}>{hourLabel}</td>
+                                        {sortedDayOptions.map(opt => {
+                                          const isSelected = isHourSelected(hour, productDeliveryWindows[opt.date] || [])
+                                          const now = new Date()
+                                          const currentHour = now.getHours()
+                                          const isPast = opt.date === todayStr && hour < currentHour
+
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              className={`${styles.gridCell} ${isSelected ? styles.gridCellActive : ''} ${isPast ? styles.gridCellPast : ''}`}
+                                              onClick={() => {
+                                                if (isPast) return
+                                                toggleHourCell(opt.date, hour, productDeliveryWindows, setProductDeliveryWindows)
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>
@@ -2976,106 +3148,95 @@ function NewProductPageInner() {
                           {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
                         </div>
 
-                        {/* ── Pickup Day Pills & Time Windows ── */}
+                        {/* ── Pickup presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>📅 Pickup Days &amp; Times</label>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                            {dayOptions.map(opt => {
-                              const isActive = (productPickupWindows[opt.date] || []).length > 0
+                          <div className={styles.presetGroup}>
+                            <label className={styles.label}>Schedule:</label>
+                            {[
+                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                            ].map(p => {
+                              const isActive = pickupPreset === p.id
                               return (
                                 <button
-                                  key={opt.date}
+                                  key={p.id}
                                   type="button"
-                                  className={`${styles.windowPill} ${isActive ? styles.windowPillActive : ''}`}
-                                  style={{ padding: '6px 12px', fontSize: 13 }}
+                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
                                   onClick={() => {
-                                    setProductPickupWindows(prev => {
-                                      const next = { ...prev }
-                                      if (next[opt.date] && next[opt.date].length > 0) {
-                                        delete next[opt.date]
-                                      } else {
-                                        next[opt.date] = ['10-12', '16-18']
-                                      }
-                                      return next
-                                    })
+                                    setPickupPreset(p.id)
+                                    if (p.id !== 'custom') {
+                                      setProductPickupWindows(getWindowsForPreset(p.id))
+                                    }
                                   }}
                                 >
-                                  {isActive ? '✅' : '📅'} {opt.label}
+                                  <input
+                                    type="radio"
+                                    checked={isActive}
+                                    onChange={() => {}}
+                                    className={styles.presetRadio}
+                                  />
+                                  <div className={styles.presetText}>
+                                    <span className={styles.presetLabel}>{p.label}</span>
+                                    <span className={styles.presetDesc}>{p.desc}</span>
+                                  </div>
                                 </button>
                               )
                             })}
                           </div>
 
-                          {pickupSelectedDays.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {pickupSelectedDays.map(dateStr => {
-                                const dateObj = new Date(dateStr + 'T12:00:00')
-                                const isToday = dateStr === todayStr
-                                const isTomorrow = dateStr === tomorrowStr
-                                const dateLabel = isToday ? todayLabel : isTomorrow ? tomorrowLabel : `${DAY_SHORT[dateObj.getDay()]} ${dateObj.getMonth()+1}/${dateObj.getDate()}`
-                                const pwIds = productPickupWindows[dateStr] || []
-                                const now = new Date()
-                                const currentHour = now.getHours()
+                          {pickupPreset === 'custom' && (
+                            <div className={styles.gridContainer}>
+                              <div className={styles.gridTitle}>Tap to select your available hours</div>
+                              <table className={styles.gridTable}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 45 }}></th>
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
+                                      <th key={name} className={styles.gridTh}>{name}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index // 8am to 8pm
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
 
-                                return (
-                                  <div key={dateStr} style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, width: 85, paddingTop: 4, color: '#374151' }}>{dateLabel.split(' ')[0]}</span>
-                                      <div style={{ flex: 1 }}>
-                                        <div className={styles.windowPills}>
-                                          {PRODUCT_TIME_WINDOWS.map(w => {
-                                            const [startH] = w.id.split('-').map(Number)
-                                            const isPast = isToday && startH < currentHour
-                                            const isSelected = pwIds.includes(w.id)
-                                            return (
-                                              <button
-                                                key={`p-${dateStr}-${w.id}`}
-                                                type="button"
-                                                className={`${styles.windowPill} ${isSelected ? styles.windowPillActive : ''}`}
-                                                style={isPast ? { opacity: 0.5, fontStyle: 'italic' } : undefined}
-                                                onClick={() => {
-                                                  setProductPickupWindows(prev => ({
-                                                    ...prev,
-                                                    [dateStr]: isSelected
-                                                      ? (prev[dateStr] || []).filter(id => id !== w.id)
-                                                      : [...(prev[dateStr] || []), w.id]
-                                                  }))
-                                                }}
-                                              >
-                                                {isSelected ? '✅' : '⏰'} {w.label}{isPast ? ' ⌛' : ''}
-                                              </button>
-                                            )
-                                          })}
-                                        </div>
-                                        {/* Custom pickup slots */}
-                                        {(productCustomPickup[dateStr] || []).map((s, i) => (
-                                          <div key={`cp-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
-                                            <span style={{ color: 'var(--gray-600)' }}>{s.start} – {s.end}</span>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, padding: 0 }}
-                                              onClick={() => setProductCustomPickup(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((_, j) => j !== i) }))}>×</button>
-                                          </div>
-                                        ))}
-                                        {showProductCustomPick[dateStr] ? (
-                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                                            <input type="time" className="input" value={prodCustomStart} onChange={e => setProdCustomStart(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <span style={{ fontSize: 13 }}>to</span>
-                                            <input type="time" className="input" value={prodCustomEnd} onChange={e => setProdCustomEnd(e.target.value)} style={{ maxWidth: 100, fontSize: 14, padding: '6px 8px' }} />
-                                            <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: 13, padding: '4px 8px' }} onClick={() => {
-                                              setProductCustomPickup(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), { start: prodCustomStart, end: prodCustomEnd }] }))
-                                              setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))
-                                            }}>Add</button>
-                                            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer', fontSize: 14 }}
-                                              onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: false }))}>×</button>
-                                          </div>
-                                        ) : (
-                                          <button type="button" style={{ fontSize: 13, color: 'var(--green-600)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 }}
-                                            onClick={() => setShowProductCustomPick(prev => ({ ...prev, [dateStr]: true }))}>+ Custom slot</button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                                    const getDayIndex = (d: Date) => (d.getDay() === 0 ? 6 : d.getDay() - 1)
+                                    const sortedDayOptions = [...dayOptions].sort((a, b) => {
+                                      const dateA = new Date(a.date + 'T12:00:00')
+                                      const dateB = new Date(b.date + 'T12:00:00')
+                                      return getDayIndex(dateA) - getDayIndex(dateB)
+                                    })
+
+                                    return (
+                                      <tr key={hour}>
+                                        <td className={styles.gridTimeCol}>{hourLabel}</td>
+                                        {sortedDayOptions.map(opt => {
+                                          const isSelected = isHourSelected(hour, productPickupWindows[opt.date] || [])
+                                          const now = new Date()
+                                          const currentHour = now.getHours()
+                                          const isPast = opt.date === todayStr && hour < currentHour
+
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              className={`${styles.gridCell} ${isSelected ? styles.gridCellActive : ''} ${isPast ? styles.gridCellPast : ''}`}
+                                              onClick={() => {
+                                                if (isPast) return
+                                                toggleHourCell(opt.date, hour, productPickupWindows, setProductPickupWindows)
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>

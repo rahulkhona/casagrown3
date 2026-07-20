@@ -17,7 +17,7 @@ test.describe('Multi-Arm Bandit Router E2E', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify it renders the simple wizard free-form entry
-    await expect(page.locator('textarea[placeholder*="Describe what you\'d like to sell"]')).toBeVisible();
+    await expect(page.locator('textarea[placeholder*="Meyer lemons"]')).toBeVisible();
   });
 
   test('should retain query parameters on render', async ({ page }) => {

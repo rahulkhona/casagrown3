@@ -80,4 +80,23 @@ describe('AddProductListing', () => {
     
     expect(mockTrackEvent).toHaveBeenCalledWith('wizard_abandon', '/add-product')
   })
+
+  it('renders presets and handles custom schedule cell clicks correctly', async () => {
+    render(<AddProductListing />)
+    
+    // Check that 'Both' preset is pre-selected and grid is not visible
+    expect(screen.queryByText('Tap to select your available hours')).not.toBeInTheDocument()
+
+    // Click 'Custom schedule' in Delivery card to expand the grid
+    const customOptions = screen.getAllByText('📅 Custom schedule')
+    expect(customOptions.length).toBeGreaterThan(0)
+    
+    // Trigger custom preset click for Delivery card (the first one)
+    customOptions[0].click()
+
+    // Confirm that the grid expands
+    await waitFor(() => {
+      expect(screen.getByText('Tap to select your available hours')).toBeInTheDocument()
+    })
+  })
 })
