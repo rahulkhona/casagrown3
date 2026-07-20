@@ -50,6 +50,7 @@ const PARSER_VOCABULARY = [
   'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
   'weekday', 'weekdays', 'weekend', 'weekends',
   'morning', 'afternoon', 'evening', 'night',
+  'pickup', 'pick', 'up', 'deliver', 'delivery',
   'dozen', 'dz', 'doz', 'bag', 'bags', 'jar', 'jars', 'bunch', 'bunches',
   'lb', 'lbs', 'pound', 'pounds', 'box', 'boxes', 'packet', 'packets',
   'piece', 'pieces', 'bouquet', 'bouquets', 'set', 'sets',
@@ -79,7 +80,8 @@ const spellCorrectText = (text: string): string => {
     if (lower.endsWith('s')) {
       const w1 = lower.slice(0, -1)
       const w2 = lower.slice(0, -2)
-      if (PARSER_VOCABULARY.includes(w1) || PARSER_VOCABULARY.includes(w2)) {
+      const w3 = lower.endsWith('ies') ? lower.slice(0, -3) + 'y' : ''
+      if (PARSER_VOCABULARY.includes(w1) || PARSER_VOCABULARY.includes(w2) || (w3 && PARSER_VOCABULARY.includes(w3))) {
         return w
       }
     }

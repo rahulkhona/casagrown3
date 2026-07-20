@@ -650,6 +650,79 @@ const testCases: TestCase[] = [
       offers_pickup: true,
       offers_delivery: false
     }
+  },
+  {
+    input: "Deliver to Tasman Dr on Saturday",
+    expected: {
+      category: "produce",
+      offers_delivery: true,
+      delivery_days: ["saturday"]
+    }
+  },
+  {
+    input: "My address is 100 Monroe Rd. pickup daily",
+    expected: {
+      category: "produce",
+      offers_pickup: true,
+      pickup_days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    }
+  },
+  {
+    input: "I have fresh cherries for $5",
+    expected: {
+      name: "Cherries",
+      category: "produce",
+      price_usd: 5
+    }
+  },
+  {
+    input: "selling organic berries 2 bags for 10",
+    expected: {
+      name: "Berries",
+      category: "produce",
+      quantity: 2,
+      unit: "bag",
+      price_usd: 10
+    }
+  },
+  {
+    input: "Pikcup at 978 Wallace Dr",
+    expected: {
+      offers_pickup: true,
+      pickup_address: "978 Wallace Dr"
+    }
+  },
+  {
+    input: "123 Tasman Dr is the pickup location",
+    expected: {
+      pickup_address: "123 Tasman Dr",
+      category: "produce"
+    }
+  },
+  {
+    input: "5lbs apples for 10",
+    expected: {
+      quantity: 5,
+      unit: "lb",
+      name: "Apples",
+      price_usd: 10
+    }
+  },
+  {
+    input: "2jars honey for 15",
+    expected: {
+      quantity: 2,
+      unit: "jar",
+      name: "Honey",
+      price_usd: 15
+    }
+  },
+  {
+    input: "hello world, just testing the system",
+    expected: {
+      category: "produce",
+      price_usd: null
+    }
   }
 ]
 
