@@ -422,11 +422,11 @@ export const parseTextFallback = (text: string): ParsedListingData => {
 
   // 7. Days & Times extraction (Clause-based context routing)
   const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-  const clauses = normalized.split(/\s*(?:or|but|otherwise|;|[.,!?\r\n]|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s+/i).filter(Boolean)
+  const clauses = normalized.split(/\s*(?:\b(?:or|but|otherwise)\b|;|[.,!?\r\n]|\s+-\s+|\band\b(?=\s*(?:you\s+can\s+)?(?:deliver|pickup|pick\s+up|collect|drop|from)))\s*/i).filter(Boolean)
 
   clauses.forEach(clause => {
     // Identify clause context
-    let isDelivery = /(deliver|drop off|drop-off|ship|send|to)/i.test(clause)
+    let isDelivery = /(deliver|drop off|drop-off|ship|send)/i.test(clause)
     let isPickup = /(pickup|pick up|collect|from|at my house|my home)/i.test(clause)
     
     // If the clause doesn't explicitly mention either, check the global text context
@@ -504,19 +504,25 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       clauseExplicitSlots.push(`${actualHour}-${actualHour + 1}`)
     }
 
-    const rangeMatch = clause.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
+    const rangeMatch = clause.match(/\b(?:between|from\s+)?(\d{1,2})\s*(am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
     const clauseRangeSlots: string[] = []
     if (rangeMatch) {
-      const meridian = rangeMatch[3].toLowerCase()
       let h1 = parseInt(rangeMatch[1])
-      let h2 = parseInt(rangeMatch[2])
-      if (meridian === 'pm' || meridian === 'p') {
-        if (h1 < 12) h1 += 12
-        if (h2 < 12) h2 += 12
+      const meridian1 = rangeMatch[2] ? rangeMatch[2].toLowerCase() : null
+      let h2 = parseInt(rangeMatch[3])
+      const meridian2 = rangeMatch[4].toLowerCase()
+      
+      if (meridian1) {
+        if ((meridian1 === 'pm' || meridian1 === 'p') && h1 < 12) h1 += 12
+        if ((meridian1 === 'am' || meridian1 === 'a') && h1 === 12) h1 = 0
       } else {
-        if (h1 === 12) h1 = 0
-        if (h2 === 12) h2 = 0
+        if ((meridian2 === 'pm' || meridian2 === 'p') && h1 < 12) h1 += 12
+        if ((meridian2 === 'am' || meridian2 === 'a') && h1 === 12) h1 = 0
       }
+      
+      if ((meridian2 === 'pm' || meridian2 === 'p') && h2 < 12) h2 += 12
+      if ((meridian2 === 'am' || meridian2 === 'a') && h2 === 12) h2 = 0
+      
       const start = Math.min(h1, h2)
       const end = Math.max(h1, h2)
       for (let h = start; h < end; h++) {

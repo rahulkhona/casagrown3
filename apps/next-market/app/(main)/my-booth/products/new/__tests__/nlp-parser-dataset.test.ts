@@ -668,19 +668,498 @@ describe('100 NLP Parser Dataset Verification Tests', () => {
   })
 })
 
-describe('Clause-based Day and Time Parsing Tests', () => {
-  it('correctly segments delivery and pickup contexts with separate times and days', () => {
-    const input = "i will deliver between 3pm and 5pm on saturday or you can pickup between 4pm and 6pm on sunday"
-    const res = parseTextFallback(input)
-    
-    expect(res.offers_delivery).toBe(true)
-    expect(res.offers_pickup).toBe(true)
-    
-    expect(res.delivery_days).toEqual(['saturday'])
-    expect(res.pickup_days).toEqual(['sunday'])
-    
-    expect(res.delivery_time_slots).toEqual(['15-16', '16-17'])
-    expect(res.pickup_time_slots).toEqual(['16-17', '17-18'])
+describe('Clause-based Day and Time Parsing Tests (50 Compound Cases)', () => {
+  const compoundTestCases = [
+    {
+      input: "I will deliver on Saturday 1pm-3pm; pickup is Sunday 4pm-6pm",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["16-17", "17-18"]
+      }
+    },
+    {
+      input: "Pickup on weekends between 9am and 12pm, otherwise deliver weekdays 3pm to 5pm",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday", "sunday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["9-10", "10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Wednesday from 2 to 4 pm but pickup must be Tuesday at 10am",
+      expected: {
+        delivery_days: ["wednesday"],
+        pickup_days: ["tuesday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["10-11"]
+      }
+    },
+    {
+      input: "Pickup from 123 Main St on Sunday 3-5pm whereas delivery is within 5 miles on Saturday morning",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_of_day: ["morning"],
+        pickup_time_slots: ["15-16", "16-17"],
+        pickup_address: "123 Main St"
+      }
+    },
+    {
+      input: "While we deliver Saturdays 10am-12pm, pickup is only Sunday 1pm-3pm from 456 Elm St",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["10-11", "11-12"],
+        pickup_time_slots: ["13-14", "14-15"],
+        pickup_address: "456 Elm St"
+      }
+    },
+    {
+      input: "Deliver Monday at 3pm. No pickup on Monday, only Sunday 4-6pm",
+      expected: {
+        delivery_days: ["monday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["15-16"],
+        pickup_time_slots: ["16-17", "17-18"]
+      }
+    },
+    {
+      input: "We offer delivery on Friday evenings (5pm to 8pm) or pickup on Saturday afternoon",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["17-18", "18-19", "19-20"],
+        pickup_time_of_day: ["afternoon"]
+      }
+    },
+    {
+      input: "Pickup Thursday between 10 am and 12 pm - delivery only on Friday 1 pm to 3 pm",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["thursday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "I have 10 dz oranges at $5 per dozen. Deliver Saturday 8am-10am or pickup Sunday afternoon",
+      expected: {
+        quantity: 10,
+        unit: "dozen",
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["8-9", "9-10"],
+        pickup_time_of_day: ["afternoon"]
+      }
+    },
+    {
+      input: "For delivery: Friday 1pm-3pm. For pickup: Sunday 10am-12pm at 789 Pine Rd",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["10-11", "11-12"],
+        pickup_address: "789 Pine Rd"
+      }
+    },
+    {
+      input: "Deliver weekdays between 4pm and 6pm. Pickup weekends 9am to 11am",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday", "sunday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Delivery is daily from 12pm to 2pm, pickup Saturday 9am-11am only",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["12-13", "13-14"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Pickup Saturday between 8am and 10am; deliver weekdays between 5pm and 7pm",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["17-18", "18-19"],
+        pickup_time_slots: ["8-9", "9-10"]
+      }
+    },
+    {
+      input: "Deliver to 95125 on weekends; pickup from 500 Market St on weekdays",
+      expected: {
+        delivery_days: ["saturday", "sunday"],
+        pickup_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_address: "500 Market St"
+      }
+    },
+    {
+      input: "Deliver Saturday 9am-11am but do not deliver on Sunday (pickup only Sunday 1pm-3pm)",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["9-10", "10-11"],
+        pickup_time_slots: ["13-14", "14-15"]
+      }
+    },
+    {
+      input: "I deliver within 10 miles on Saturday from 2pm to 4pm, otherwise you can pickup Sunday 10a to 12p",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Pickup is Monday 10am-12pm. We deliver on Tuesday 2pm-4pm.",
+      expected: {
+        delivery_days: ["tuesday"],
+        pickup_days: ["monday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Delivery on Friday morning (8am to 11am) or pickup Saturday evening (6pm to 8pm)",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["8-9", "9-10", "10-11"],
+        pickup_time_slots: ["18-19", "19-20"]
+      }
+    },
+    {
+      input: "Deliver to San Jose on Saturday between 3pm and 5pm or pickup Sunday 4pm-6pm",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["16-17", "17-18"]
+      }
+    },
+    {
+      input: "Pickup Tuesday 9am-11am. Deliver Wednesday 1pm-3pm.",
+      expected: {
+        delivery_days: ["wednesday"],
+        pickup_days: ["tuesday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Delivery: daily 5pm to 7pm. Pickup: weekends 10am to 12pm.",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+        pickup_days: ["saturday", "sunday"],
+        delivery_time_slots: ["17-18", "18-19"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver to 95112 on Saturday morning, pickup from 100 Main St on Sunday afternoon",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_of_day: ["morning"],
+        pickup_time_of_day: ["afternoon"],
+        pickup_address: "100 Main St"
+      }
+    },
+    {
+      input: "Deliver Friday between 1pm and 3pm. Pickup Saturday between 10am and 12pm.",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Delivery weekdays 3p to 5p; pickup weekends 9a to 11a",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday", "sunday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Deliver on Saturday between 2 and 4 pm or pickup on Sunday between 1 and 3 pm",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["13-14", "14-15"]
+      }
+    },
+    {
+      input: "Pickup is Saturday 10am-12pm. No delivery on weekends, only weekdays 4pm-6pm.",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Friday afternoon; pickup Saturday morning",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_of_day: ["afternoon"],
+        pickup_time_of_day: ["morning"]
+      }
+    },
+    {
+      input: "Deliver Saturday 1pm-3pm. Pickup Sunday 2pm-4pm.",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["14-15", "15-16"]
+      }
+    },
+    {
+      input: "Delivery on Tuesday between 9am and 11am, and pickup on Thursday between 3pm and 5pm",
+      expected: {
+        delivery_days: ["tuesday"],
+        pickup_days: ["thursday"],
+        delivery_time_slots: ["9-10", "10-11"],
+        pickup_time_slots: ["15-16", "16-17"]
+      }
+    },
+    {
+      input: "Deliver Wednesday 4pm-6pm. Pickup Thursday 9am-11am at my home address.",
+      expected: {
+        delivery_days: ["wednesday"],
+        pickup_days: ["thursday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Delivery Monday afternoon (3pm to 5pm) but pickup Tuesday morning (10am to 12pm)",
+      expected: {
+        delivery_days: ["monday"],
+        pickup_days: ["tuesday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Pickup weekends 9am-11am; deliver weekdays 4pm-6pm",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday", "sunday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Deliver Saturday morning. Pickup Sunday evening.",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_of_day: ["morning"],
+        pickup_time_of_day: ["evening"]
+      }
+    },
+    {
+      input: "Delivery Friday 2pm-4pm. Pickup Saturday 10am-12pm.",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Tuesday 1pm-3pm or pickup Thursday 3pm-5pm",
+      expected: {
+        delivery_days: ["tuesday"],
+        pickup_days: ["thursday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["15-16", "16-17"]
+      }
+    },
+    {
+      input: "Deliver on Wednesday between 2pm and 4pm. Pickup Sunday between 10am and 12pm.",
+      expected: {
+        delivery_days: ["wednesday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["14-15", "15-16"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Delivery is weekdays 5pm to 7pm, pickup is Saturday 8am to 10am",
+      expected: {
+        delivery_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["17-18", "18-19"],
+        pickup_time_slots: ["8-9", "9-10"]
+      }
+    },
+    {
+      input: "Deliver Saturday 9am-12pm; pickup Sunday 1pm-4pm",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["9-10", "10-11", "11-12"],
+        pickup_time_slots: ["13-14", "14-15", "15-16"]
+      }
+    },
+    {
+      input: "Delivery on weekends between 10am and 1pm. Pickup on weekdays between 2pm and 5pm.",
+      expected: {
+        delivery_days: ["saturday", "sunday"],
+        pickup_days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        delivery_time_slots: ["10-11", "11-12", "12-13"],
+        pickup_time_slots: ["14-15", "15-16", "16-17"]
+      }
+    },
+    {
+      input: "Deliver Thursday morning (9am to 11am). Pickup Friday afternoon (2pm to 4pm).",
+      expected: {
+        delivery_days: ["thursday"],
+        pickup_days: ["friday"],
+        delivery_time_slots: ["9-10", "10-11"],
+        pickup_time_slots: ["14-15", "15-16"]
+      }
+    },
+    {
+      input: "Delivery Monday 4pm-6pm or pickup Wednesday 10am-12pm",
+      expected: {
+        delivery_days: ["monday"],
+        pickup_days: ["wednesday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Saturday 8am-10am, pickup Sunday 4pm-6pm",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["8-9", "9-10"],
+        pickup_time_slots: ["16-17", "17-18"]
+      }
+    },
+    {
+      input: "Delivery: Wednesday 1pm-3pm. Pickup: Thursday 10am-12pm.",
+      expected: {
+        delivery_days: ["wednesday"],
+        pickup_days: ["thursday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Monday 3pm-5pm. Pickup Tuesday 9am-11am.",
+      expected: {
+        delivery_days: ["monday"],
+        pickup_days: ["tuesday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Deliver Thursday 1pm to 3pm. Pickup Saturday 10am to 12pm.",
+      expected: {
+        delivery_days: ["thursday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Friday 4pm-6pm, pickup Saturday 9am-11am",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["16-17", "17-18"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Delivery on Tuesday between 3pm and 5pm. Pickup on Wednesday between 9am and 11am.",
+      expected: {
+        delivery_days: ["tuesday"],
+        pickup_days: ["wednesday"],
+        delivery_time_slots: ["15-16", "16-17"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    },
+    {
+      input: "Deliver Saturday 10am-12pm. Pickup Sunday 2pm-4pm.",
+      expected: {
+        delivery_days: ["saturday"],
+        pickup_days: ["sunday"],
+        delivery_time_slots: ["10-11", "11-12"],
+        pickup_time_slots: ["14-15", "15-16"]
+      }
+    },
+    {
+      input: "Delivery: Friday 5pm-7pm. Pickup: Saturday 10am-12pm.",
+      expected: {
+        delivery_days: ["friday"],
+        pickup_days: ["saturday"],
+        delivery_time_slots: ["17-18", "18-19"],
+        pickup_time_slots: ["10-11", "11-12"]
+      }
+    },
+    {
+      input: "Deliver Monday 1pm-3pm, pickup Wednesday 9am-11am",
+      expected: {
+        delivery_days: ["monday"],
+        pickup_days: ["wednesday"],
+        delivery_time_slots: ["13-14", "14-15"],
+        pickup_time_slots: ["9-10", "10-11"]
+      }
+    }
+  ]
+
+  compoundTestCases.forEach((tc, idx) => {
+    it(`Compound Case #${idx + 1}: "${tc.input}"`, () => {
+      const res = parseTextFallback(tc.input)
+
+      if (tc.expected.quantity !== undefined) {
+        expect(res.quantity).toBe(tc.expected.quantity)
+      }
+      if (tc.expected.unit !== undefined) {
+        expect(res.unit).toBe(tc.expected.unit)
+      }
+      if (tc.expected.delivery_days !== undefined) {
+        expect(res.delivery_days).toEqual(expect.arrayContaining(tc.expected.delivery_days))
+      }
+      if (tc.expected.pickup_days !== undefined) {
+        expect(res.pickup_days).toEqual(expect.arrayContaining(tc.expected.pickup_days))
+      }
+      if (tc.expected.delivery_time_of_day !== undefined) {
+        expect(res.delivery_time_of_day).toEqual(expect.arrayContaining(tc.expected.delivery_time_of_day))
+      }
+      if (tc.expected.pickup_time_of_day !== undefined) {
+        expect(res.pickup_time_of_day).toEqual(expect.arrayContaining(tc.expected.pickup_time_of_day))
+      }
+      if (tc.expected.delivery_time_slots !== undefined) {
+        expect(res.delivery_time_slots).toEqual(expect.arrayContaining(tc.expected.delivery_time_slots))
+      }
+      if (tc.expected.pickup_time_slots !== undefined) {
+        expect(res.pickup_time_slots).toEqual(expect.arrayContaining(tc.expected.pickup_time_slots))
+      }
+      if (tc.expected.pickup_address !== undefined) {
+        expect(res.pickup_address ? res.pickup_address.street : null).toBe(tc.expected.pickup_address)
+      }
+    })
   })
 })
+
 
