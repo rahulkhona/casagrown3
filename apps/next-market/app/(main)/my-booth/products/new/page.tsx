@@ -2092,31 +2092,103 @@ function NewProductPageInner() {
       }
     }
 
+    const resolveAndApplyAddress = async (parsedAddr: { street: string; city: string; state?: string; zip?: string }) => {
+      if (!parsedAddr.street || !parsedAddr.city) return
+      const assumedState = parsedAddr.state || boothBaseAddr.state || profileHomeAddr.state || 'CA'
+      const assumedZip = parsedAddr.zip || ''
+
+      try {
+        const { data: uspsResult } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            streetAddress: parsedAddr.street,
+            city: parsedAddr.city,
+            state: assumedState,
+            zipCode: assumedZip.substring(0, 5),
+          }
+        })
+
+        if (uspsResult?.address?.ZIPCode) {
+          setProductPickupAddr({
+            street: uspsResult.address.streetAddress || parsedAddr.street,
+            city: uspsResult.address.city || parsedAddr.city,
+            state: uspsResult.address.state || assumedState,
+            zip: uspsResult.address.ZIPPlus4 || uspsResult.address.ZIPCode,
+          })
+        }
+      } catch (err) {
+        console.warn('[AddProduct] Background address verification failed:', err)
+      }
+    }
+
+    const resolveAndApplyBaseAddress = async (parsedAddr: { street: string; city: string; state?: string; zip?: string }) => {
+      if (!parsedAddr.street || !parsedAddr.city) return
+      const assumedState = parsedAddr.state || profileHomeAddr.state || 'CA'
+      const assumedZip = parsedAddr.zip || ''
+
+      try {
+        const { data: uspsResult } = await supabase.functions.invoke('resolve-usps-address', {
+          body: {
+            streetAddress: parsedAddr.street,
+            city: parsedAddr.city,
+            state: assumedState,
+            zipCode: assumedZip.substring(0, 5),
+          }
+        })
+
+        if (uspsResult?.address?.ZIPCode) {
+          setBoothBaseAddr({
+            street: uspsResult.address.streetAddress || parsedAddr.street,
+            city: uspsResult.address.city || parsedAddr.city,
+            state: uspsResult.address.state || assumedState,
+            zip: uspsResult.address.ZIPPlus4 || uspsResult.address.ZIPCode,
+          })
+        }
+      } catch (err) {
+        console.warn('[AddProduct] Background base address verification failed:', err)
+      }
+    }
+
     // Apply pickup address override if returned with non-empty values (as object or string)
     if (data.pickup_address) {
+      let parsed: AddressFields | null = null
       if (typeof data.pickup_address === 'object') {
-        setProductPickupAddr({
+        parsed = {
           street: data.pickup_address.street || '',
           city: data.pickup_address.city || '',
           state: data.pickup_address.state || '',
           zip: data.pickup_address.zip || '',
-        })
+        }
       } else if (typeof data.pickup_address === 'string' && data.pickup_address.trim().length > 0) {
-        setProductPickupAddr(decomposeAddress(data.pickup_address))
+        parsed = decomposeAddress(data.pickup_address)
+      }
+
+      if (parsed && parsed.street && parsed.city) {
+        setProductPickupAddr(parsed)
+        if (!parsed.state || !parsed.zip) {
+          resolveAndApplyAddress(parsed)
+        }
       }
     }
 
     // Apply base address override if returned with non-empty values
     if (data.base_address) {
+      let parsed: AddressFields | null = null
       if (typeof data.base_address === 'object') {
-        setBoothBaseAddr({
+        parsed = {
           street: data.base_address.street || '',
           city: data.base_address.city || '',
           state: data.base_address.state || '',
           zip: data.base_address.zip || '',
-        })
+        }
       } else if (typeof data.base_address === 'string' && data.base_address.trim().length > 0) {
-        setBoothBaseAddr(decomposeAddress(data.base_address))
+        parsed = decomposeAddress(data.base_address)
+      }
+
+      if (parsed && parsed.street && parsed.city) {
+        setBoothBaseAddr(parsed)
+        if (!parsed.state || !parsed.zip) {
+          resolveAndApplyBaseAddress(parsed)
+        }
       }
     }
 
