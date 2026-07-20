@@ -59,7 +59,75 @@ const hasFuzzyMatch = (clause: string, target: string): boolean => {
     return dist <= limit
   })
 }
+const PARSER_VOCABULARY = [
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
+  'weekday', 'weekdays', 'weekend', 'weekends',
+  'morning', 'afternoon', 'evening', 'night',
+  'dozen', 'dz', 'doz', 'bag', 'bags', 'jar', 'jars', 'bunch', 'bunches',
+  'lb', 'lbs', 'pound', 'pounds', 'box', 'boxes', 'packet', 'packets',
+  'piece', 'pieces', 'bouquet', 'bouquets', 'set', 'sets',
+  'seed', 'seeds', 'pod', 'rose', 'marigold', 'tulip', 'lavender', 'sunflower', 'dahlia', 'orchid', 'geranium',
+  'bouquet', 'arrangement', 'vase', 'tool', 'tools', 'shovel', 'hose', 'shears', 'rake',
+  'soil', 'compost', 'mulch', 'dirt', 'pot', 'pots', 'planter', 'container',
+  'honey', 'comb', 'wildflower', 'honeycomb', 'egg', 'eggs', 'flower',
+  'lemon', 'tomato', 'orange', 'apple', 'lettuce', 'basil', 'mint', 'peach', 'chili', 'onion', 'garlic', 'plum', 'grape', 'fig', 'berry', 'cherry', 'squash', 'herb', 'kale', 'rosemary', 'strawberry', 'cucumber', 'cucumbers', 'carrot', 'carrots', 'spinach', 'potato', 'potatoes', 'plant', 'plants'
+]
 
+const spellCorrectText = (text: string): string => {
+  const words = text.split(/(\b[a-zA-Z]+\b)/)
+  let wordCount = 0
+  const corrected = words.map(w => {
+    if (!/^[a-zA-Z]+$/.test(w)) return w
+    
+    const isFirstWord = (wordCount === 0)
+    wordCount++
+    
+    const isCapitalized = (w.charAt(0) === w.charAt(0).toUpperCase())
+    const lower = w.toLowerCase()
+
+    if (lower === 'house' || lower === 'home') return w
+    if (PARSER_VOCABULARY.includes(lower)) return w
+    
+    // Correctly check if singular forms exist in vocabulary (handling -s and -es)
+    if (lower.endsWith('s')) {
+      const w1 = lower.slice(0, -1)
+      const w2 = lower.slice(0, -2)
+      if (PARSER_VOCABULARY.includes(w1) || PARSER_VOCABULARY.includes(w2)) {
+        return w
+      }
+    }
+    
+    if (isCapitalized && !isFirstWord) {
+      return w
+    }
+
+    let bestWord = w
+    let bestDist = Infinity
+    for (const vocabWord of PARSER_VOCABULARY) {
+      if (Math.abs(lower.length - vocabWord.length) > 2) continue
+      const dist = getLevenshteinDistance(lower, vocabWord)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestWord = vocabWord
+      }
+    }
+    const limit = w.length > 5 ? 2 : (w.length >= 4 ? 1 : 0)
+    if (bestDist <= limit) {
+      if (isCapitalized && isFirstWord) {
+        const allowedStart = new Set(['pickup', 'deliver', 'selling', 'have', 'we', 'you', 'please', 'i', 'saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'everyday', 'daily'])
+        if (!allowedStart.has(bestWord)) {
+          return w
+        }
+      }
+      return isCapitalized
+        ? bestWord.charAt(0).toUpperCase() + bestWord.slice(1)
+        : bestWord
+    }
+    return w
+  })
+  return corrected.join('')
+}
 
 export interface AddressFields {
   street: string
@@ -124,7 +192,8 @@ export const decomposeAddress = (addressStr: string): AddressFields => {
 
 // New compromise-based client-side NLP parser
 export const parseTextFallback = (text: string): ParsedListingData => {
-  const preprocessed = text
+  const spellCorrected = spellCorrectText(text)
+  const preprocessed = spellCorrected
     .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
     .replace(/\b(st|ave|rd|dr|ln|ct|pl|sq|blvd|hwy|apt|ste)\.(?!\s*(?:on|at|within|for|will|no|during|from|deliver|delivery|pickup|pick|collect|to|between|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|weekday|weekend|weekdays|weekends|i|we|you|they|he|she|it|please|our|your|the|a|an)\b)/gi, '$1')
   const nlpInstance = getNlp()
