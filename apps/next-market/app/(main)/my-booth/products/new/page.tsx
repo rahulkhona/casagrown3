@@ -722,10 +722,14 @@ function NewProductPageInner() {
         if (!hasAddress(pickAddr)) {
           pickAddr = baseAddr
         }
-        setProductPickupAddr(pickAddr)
+        if (!fromSimpleWizard) {
+          setProductPickupAddr(pickAddr)
+        }
       } else {
         setBoothBaseAddr(profileAddr)
-        setProductPickupAddr(profileAddr)
+        if (!fromSimpleWizard) {
+          setProductPickupAddr(profileAddr)
+        }
         if (fromSimpleWizard && profileAddr.street) {
           setInlinePickupAddress([profileAddr.street, profileAddr.city, profileAddr.state].filter(Boolean).join(', '))
         }
@@ -2091,28 +2095,40 @@ function NewProductPageInner() {
     // Apply pickup address override if returned with non-empty values (as object or string)
     if (data.pickup_address) {
       if (typeof data.pickup_address === 'object') {
-        setProductPickupAddr({
-          street: data.pickup_address.street || '',
-          city: data.pickup_address.city || '',
-          state: data.pickup_address.state || '',
-          zip: data.pickup_address.zip || '',
-        })
+        setProductPickupAddr(prev => ({
+          street: data.pickup_address.street || prev.street || '',
+          city: data.pickup_address.city || prev.city || '',
+          state: data.pickup_address.state || prev.state || boothBaseAddr.state || profileHomeAddr.state || '',
+          zip: data.pickup_address.zip || prev.zip || boothBaseAddr.zip || profileHomeAddr.zip || '',
+        }))
       } else if (typeof data.pickup_address === 'string' && data.pickup_address.trim().length > 0) {
-        setProductPickupAddr(decomposeAddress(data.pickup_address))
+        const parsed = decomposeAddress(data.pickup_address)
+        setProductPickupAddr(prev => ({
+          street: parsed.street || prev.street || '',
+          city: parsed.city || prev.city || '',
+          state: parsed.state || prev.state || boothBaseAddr.state || profileHomeAddr.state || '',
+          zip: parsed.zip || prev.zip || boothBaseAddr.zip || profileHomeAddr.zip || '',
+        }))
       }
     }
 
     // Apply base address override if returned with non-empty values
     if (data.base_address) {
       if (typeof data.base_address === 'object') {
-        setBoothBaseAddr({
-          street: data.base_address.street || '',
-          city: data.base_address.city || '',
-          state: data.base_address.state || '',
-          zip: data.base_address.zip || '',
-        })
+        setBoothBaseAddr(prev => ({
+          street: data.base_address.street || prev.street || '',
+          city: data.base_address.city || prev.city || '',
+          state: data.base_address.state || prev.state || profileHomeAddr.state || '',
+          zip: data.base_address.zip || prev.zip || profileHomeAddr.zip || '',
+        }))
       } else if (typeof data.base_address === 'string' && data.base_address.trim().length > 0) {
-        setBoothBaseAddr(decomposeAddress(data.base_address))
+        const parsed = decomposeAddress(data.base_address)
+        setBoothBaseAddr(prev => ({
+          street: parsed.street || prev.street || '',
+          city: parsed.city || prev.city || '',
+          state: parsed.state || prev.state || profileHomeAddr.state || '',
+          zip: parsed.zip || prev.zip || profileHomeAddr.zip || '',
+        }))
       }
     }
 
