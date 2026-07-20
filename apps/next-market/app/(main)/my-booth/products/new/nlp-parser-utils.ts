@@ -48,15 +48,18 @@ const getLevenshteinDistance = (a: string, b: string): number => {
 }
 
 const hasFuzzyMatch = (clause: string, target: string): boolean => {
+  const daysSet = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
   const words = clause.toLowerCase().split(/[^a-z]+/)
   return words.some(w => {
     if (w === target) return true
     if (w.replace(/s$/, '') === target) return true
+    if (daysSet.has(w) || daysSet.has(w.replace(/s$/, ''))) return false
     const dist = getLevenshteinDistance(w, target)
     const limit = target.length > 5 ? 2 : 1
     return dist <= limit
   })
 }
+
 
 export interface AddressFields {
   street: string
@@ -325,6 +328,35 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     produce: ['lemon', 'tomato', 'orange', 'apple', 'lettuce', 'basil', 'mint', 'peach', 'chili', 'onion', 'garlic', 'plum', 'grape', 'fig', 'berry', 'cherry', 'squash', 'herb', 'kale', 'rosemary', 'strawberry', 'cucumbers?', 'carrots?', 'spinach']
   }
 
+  const ALL_CATEGORY_KEYWORDS = new Set(Object.values(CATEGORY_TAGS).flat().map(k => k.replace(/[?*+()\[\]\\^$|{}]/g, '')))
+
+  const findFuzzyKeywordMatch = (text: string, keyword: string): { index: number; matchedWord: string } | null => {
+    const regex = /[a-zA-Z]+/g
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      const word = match[0].toLowerCase()
+      const wordIndex = match.index
+      if (word === 'house' || word === 'home') {
+        continue
+      }
+      if (word === keyword || word.replace(/s$/, '') === keyword) {
+        return { index: wordIndex, matchedWord: match[0] }
+      }
+      
+      // If the word matches another valid category keyword exactly, do not fuzzy match it to this one
+      if (ALL_CATEGORY_KEYWORDS.has(word) || ALL_CATEGORY_KEYWORDS.has(word.replace(/s$/, ''))) {
+        continue
+      }
+
+      const dist = getLevenshteinDistance(word, keyword)
+      const limit = keyword.length > 5 ? 2 : 1
+      if (dist <= limit) {
+        return { index: wordIndex, matchedWord: match[0] }
+      }
+    }
+    return null
+  }
+
   // Helper to clean up the product name
   const cleanProductName = (name: string, keyword: string): string => {
     let cleaned = name.trim()
@@ -352,17 +384,16 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     return cleaned.replace(/\b\w/g, c => c.toUpperCase())
   }
 
-  // Find all matches and their indices
+  // Find all matches and their indices (including fuzzy matches for typos)
   const matches: Array<{ category: string; keyword: string; index: number }> = []
   for (const [catName, keywords] of Object.entries(CATEGORY_TAGS)) {
     for (const keyword of keywords) {
-      const regex = new RegExp('\\b' + keyword + '(s|es)?\\b', 'i')
-      const matchInfo = normalized.match(regex)
-      if (matchInfo && matchInfo.index !== undefined) {
+      const fuzzyMatch = findFuzzyKeywordMatch(normalized, keyword)
+      if (fuzzyMatch) {
         matches.push({
           category: catName,
           keyword: keyword,
-          index: matchInfo.index
+          index: fuzzyMatch.index
         })
       }
     }
@@ -543,7 +574,7 @@ export const parseTextFallback = (text: string): ParsedListingData => {
       clauseDays.push(...daysOfWeek)
     } else {
       daysOfWeek.forEach(day => {
-        if (clause.includes(day)) {
+        if (hasFuzzyMatch(clause, day)) {
           clauseDays.push(day)
         }
       })
