@@ -461,8 +461,8 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     }
   }
 
-  // Scan for explicit hours to infer categories and specific hourly slots
-  const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm)\b/gi
+  // Scan for explicit hours to infer categories and specific hourly slots (allowing am/pm/a/p)
+  const timeRegex = /\b(\d{1,2})(?::\d{2})?\s*(am|pm|a|p)\b/gi
   const inferredTimes = new Set<string>()
   const explicitSlots: string[] = []
   
@@ -470,8 +470,8 @@ export const parseTextFallback = (text: string): ParsedListingData => {
   while ((timeMatch = timeRegex.exec(normalized)) !== null) {
     let hour = parseInt(timeMatch[1])
     const meridian = timeMatch[2].toLowerCase()
-    if (meridian === 'pm' && hour < 12) hour += 12
-    if (meridian === 'am' && hour === 12) hour = 0
+    if ((meridian === 'pm' || meridian === 'p') && hour < 12) hour += 12
+    if ((meridian === 'am' || meridian === 'a') && hour === 12) hour = 0
     if (hour >= 8 && hour < 12) inferredTimes.add('morning')
     else if (hour >= 12 && hour < 17) inferredTimes.add('afternoon')
     else if (hour >= 17 && hour < 21) inferredTimes.add('evening')
@@ -479,14 +479,14 @@ export const parseTextFallback = (text: string): ParsedListingData => {
     explicitSlots.push(`${hour}-${hour + 1}`)
   }
 
-  // Also handle range patterns like "between 1 and 3 pm" or "1pm to 3pm"
-  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm)\b/i)
+  // Also handle range patterns like "between 1 and 3 pm" or "1pm to 3pm" (allowing am/pm/a/p)
+  const rangeMatch = normalized.match(/\b(?:between|from)\s+(\d{1,2})\s*(?:am|pm|a|p)?\s*(?:and|to|-)\s*(\d{1,2})\s*(am|pm|a|p)\b/i)
   const rangeSlots: string[] = []
   if (rangeMatch) {
     const meridian = rangeMatch[3].toLowerCase()
     let h1 = parseInt(rangeMatch[1])
     let h2 = parseInt(rangeMatch[2])
-    if (meridian === 'pm') {
+    if (meridian === 'pm' || meridian === 'p') {
       if (h1 < 12) h1 += 12
       if (h2 < 12) h2 += 12
     } else {
