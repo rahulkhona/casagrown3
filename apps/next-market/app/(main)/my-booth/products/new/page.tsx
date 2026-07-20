@@ -340,6 +340,9 @@ function NewProductPageInner() {
     let isWeekendMorningsMatch = true
     let isWeekdayEveningsMatch = true
     let isBothMatch = true
+    
+    let hasWeekend = false
+    let hasWeekday = false
 
     for (const d of dates) {
       const slots = windows[d] || []
@@ -350,6 +353,7 @@ function NewProductPageInner() {
       const isWeekend = day === 0 || day === 6
 
       if (isWeekend) {
+        hasWeekend = true
         isWeekdayEveningsMatch = false
         const matchesMorning = slots.includes('8-10') && slots.includes('10-12') && slots.length === 2
         if (!matchesMorning) {
@@ -357,6 +361,7 @@ function NewProductPageInner() {
           isBothMatch = false
         }
       } else {
+        hasWeekday = true
         isWeekendMorningsMatch = false
         const matchesEvening = slots.includes('16-18') && slots.includes('18-20') && slots.length === 2
         if (!matchesEvening) {
@@ -366,9 +371,9 @@ function NewProductPageInner() {
       }
     }
 
-    if (isBothMatch) return 'both'
-    if (isWeekendMorningsMatch) return 'weekend_mornings'
-    if (isWeekdayEveningsMatch) return 'weekday_evenings'
+    if (isBothMatch && hasWeekend && hasWeekday) return 'both'
+    if (isWeekendMorningsMatch && hasWeekend && !hasWeekday) return 'weekend_mornings'
+    if (isWeekdayEveningsMatch && hasWeekday && !hasWeekend) return 'weekday_evenings'
     return 'custom'
   }
 
