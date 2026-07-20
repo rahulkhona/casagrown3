@@ -722,14 +722,10 @@ function NewProductPageInner() {
         if (!hasAddress(pickAddr)) {
           pickAddr = baseAddr
         }
-        if (!fromSimpleWizard) {
-          setProductPickupAddr(pickAddr)
-        }
+        setProductPickupAddr(pickAddr)
       } else {
         setBoothBaseAddr(profileAddr)
-        if (!fromSimpleWizard) {
-          setProductPickupAddr(profileAddr)
-        }
+        setProductPickupAddr(profileAddr)
         if (fromSimpleWizard && profileAddr.street) {
           setInlinePickupAddress([profileAddr.street, profileAddr.city, profileAddr.state].filter(Boolean).join(', '))
         }
@@ -952,8 +948,11 @@ function NewProductPageInner() {
   }, [prefillId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill from simple wizard (sessionStorage)
+  const isLoaded = boothId ? boothDefaultsLoaded : profileAddressLoaded
+  const [prefillApplied, setPrefillApplied] = useState(false)
+
   useEffect(() => {
-    if (editId) return
+    if (editId || !isLoaded || prefillApplied) return
     try {
       if (fromSimpleWizard) {
         const raw = sessionStorage.getItem('simple_listing_prefill')
@@ -973,9 +972,10 @@ function NewProductPageInner() {
           // Pre-fill photos
           if (data.photos?.length) setPhotos(data.photos)
 
-          // Run local NLP parser instantly and apply the fields
+          // Run local NLP parser instantly and apply the fields on top of loaded defaults!
           const fallbackData = parseTextFallback(data.originalText || '')
           applyParsedData(fallbackData)
+          setPrefillApplied(true)
         }
       } else {
         // Clear prefill to prevent leaks to subsequent listings
@@ -984,7 +984,7 @@ function NewProductPageInner() {
     } catch (err) {
       console.warn('Failed to read simple wizard prefill:', err)
     }
-  }, [fromSimpleWizard]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fromSimpleWizard, isLoaded, prefillApplied, editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and restrictions from Supabase
   useEffect(() => {
