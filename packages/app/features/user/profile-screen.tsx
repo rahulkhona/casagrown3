@@ -29,8 +29,9 @@ import {
   Tag, 
   Mail, 
   Bell, 
-
+  QrCode,
 } from '@tamagui/lucide-icons'
+import { ProfileQrModal } from './ProfileQrModal'
 import { Alert, Image, Platform, TextInput, Keyboard, KeyboardAvoidingView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
@@ -122,6 +123,7 @@ export function ProfileScreen() {
   // State
   const [isEditing, setIsEditing] = useState(false)
   const [isChangingCommunity, setIsChangingCommunity] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -705,19 +707,29 @@ export function ProfileScreen() {
             {t('profile.title')}
           </Text>
           
-          {!isEditing ? (
+          <XStack gap="$2" alignItems="center">
             <Button
               size="$3"
-              backgroundColor={colors.primary[600]}
-              icon={Settings}
-              onPress={() => setIsEditing(true)}
+              backgroundColor={colors.green[600]}
+              icon={QrCode}
+              onPress={() => setShowQrModal(true)}
+              testID="open-profile-qr-btn"
             >
-              <Text color="white">{t('profile.editProfile')}</Text>
+              <Text color="white" fontWeight="600">My QR Pass</Text>
             </Button>
-          ) : (
-            // Placeholder to maintain layout when editing
-            <XStack width={100} />
-          )}
+            {!isEditing ? (
+              <Button
+                size="$3"
+                backgroundColor={colors.neutral[800]}
+                icon={Settings}
+                onPress={() => setIsEditing(true)}
+              >
+                <Text color="white">{t('profile.editProfile')}</Text>
+              </Button>
+            ) : (
+              <YStack width={60} />
+            )}
+          </XStack>
         </XStack>
 
         {/* Profile Card */}
@@ -1812,6 +1824,17 @@ export function ProfileScreen() {
         </YStack>
 
       </YStack>
+
+      <ProfileQrModal
+        visible={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        user={{
+          id: user?.id || '',
+          full_name: profile.full_name,
+          username: null,
+          avatar_url: profile.avatar_url,
+        }}
+      />
     </ScrollView>
   )
 

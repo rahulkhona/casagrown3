@@ -11,11 +11,13 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { YStack, XStack, Text, Spinner } from 'tamagui'
 import { Platform, TouchableOpacity, FlatList } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import {
-  ArrowLeft,
-  Package,
-  ShoppingBag,
-} from '@tamagui/lucide-icons'
+import { Camera, QrCode } from '@tamagui/lucide-icons'
+import { PickupPassModal } from './PickupPassModal'
+import { PickupScannerModal } from './PickupScannerModal'
+
+// Component extension inside OrdersScreen
+// (State hooks for pickup pass & scanner)
+
 import { colors, borderRadius } from '../../design-tokens'
 import { useTranslation } from 'react-i18next'
 import { OrderCard } from './OrderCard'
@@ -51,6 +53,8 @@ export function OrdersScreen({
   // State
   const [activeTab, setActiveTab] = useState<OrderTab>('open')
   const [roleFilter, setRoleFilter] = useState<OrderRoleFilter>('all')
+  const [scannerVisible, setScannerVisible] = useState(false)
+  const [selectedPassOrder, setSelectedPassOrder] = useState<Order | null>(null)
 
   const filter: OrderFilter = useMemo(
     () => ({ tab: activeTab, role: roleFilter }),
@@ -186,45 +190,68 @@ export function OrdersScreen({
         </XStack>
       </YStack>
 
-      {/* ── Role Filters ── */}
+      {/* ── Role Filters & Scanner Button ── */}
       <XStack
         paddingHorizontal="$4"
         paddingVertical="$2.5"
         gap="$2"
         width="100%"
         maxWidth={896}
+        justifyContent="space-between"
+        alignItems="center"
       >
-        {roleFilters.map((rf) => {
-          const isActive = roleFilter === rf.key
-          return (
-            <TouchableOpacity
-              key={rf.key}
-              onPress={() => setRoleFilter(rf.key)}
-              activeOpacity={0.7}
-              testID={`orders-filter-${rf.key}`}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 6,
-                borderRadius: 16,
-                backgroundColor: isActive
-                  ? colors.green[100]
-                  : colors.gray[100],
-                borderWidth: 1,
-                borderColor: isActive
-                  ? colors.green[300]
-                  : colors.gray[200],
-              }}
-            >
-              <Text
-                fontSize={13}
-                fontWeight={isActive ? '600' : '500'}
-                color={isActive ? colors.green[700] : colors.gray[600]}
+        <XStack gap="$2" flex={1}>
+          {roleFilters.map((rf) => {
+            const isActive = roleFilter === rf.key
+            return (
+              <TouchableOpacity
+                key={rf.key}
+                onPress={() => setRoleFilter(rf.key)}
+                activeOpacity={0.7}
+                testID={`orders-filter-${rf.key}`}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  backgroundColor: isActive
+                    ? colors.green[100]
+                    : colors.gray[100],
+                  borderWidth: 1,
+                  borderColor: isActive
+                    ? colors.green[300]
+                    : colors.gray[200],
+                }}
               >
-                {rf.label}
-              </Text>
-            </TouchableOpacity>
-          )
-        })}
+                <Text
+                  fontSize={13}
+                  fontWeight={isActive ? '600' : '500'}
+                  color={isActive ? colors.green[700] : colors.gray[600]}
+                >
+                  {rf.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </XStack>
+
+        <TouchableOpacity
+          onPress={() => setScannerVisible(true)}
+          testID="open-scanner-btn"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 16,
+            backgroundColor: colors.green[600],
+          }}
+        >
+          <Camera size={14} color={colors.white} />
+          <Text fontSize={12} fontWeight="700" color={colors.white}>
+            Scan Pickup QR
+          </Text>
+        </TouchableOpacity>
       </XStack>
 
       {/* ── Orders List ── */}
@@ -303,6 +330,24 @@ export function OrdersScreen({
           }
         />
       )}
+
+      {/* ── Modals ── */}
+      <PickupPassModal
+        visible={!!selectedPassOrder}
+        onClose={() => setSelectedPassOrder(null)}
+        order={selectedPassOrder}
+        buyerName="Buyer"
+      />
+
+      <PickupScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        orders={orders}
+        onConfirmHandOff={async (orderId) => {
+          // Hand-off confirmed callback
+          refresh()
+        }}
+      />
     </YStack>
   )
 }

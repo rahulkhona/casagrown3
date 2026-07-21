@@ -16,21 +16,19 @@ import {
   Calendar,
   MapPin,
   MessageCircle,
+  QrCode,
 } from '@tamagui/lucide-icons'
 import { colors, borderRadius, shadows } from '../../design-tokens'
 import type { Order, UserRole } from './order-types'
 import { ORDER_STATUS_CONFIG } from './order-types'
 import { normalizeStorageUrl } from '../../utils/normalize-storage-url'
 
-// =============================================================================
-// Props
-// =============================================================================
-
 interface OrderCardProps {
   order: Order
   currentUserId: string
   onPress: (order: Order) => void
   t: (key: string, opts?: Record<string, unknown>) => string
+  onShowPickupPass?: (order: Order) => void
 }
 
 // =============================================================================
@@ -240,6 +238,32 @@ function OrderCardInner({
               Under community review
             </Text>
           </XStack>
+        )}
+        {isBuyer && onShowPickupPass && order.status !== 'completed' && order.status !== 'cancelled' && (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation()
+              onShowPickupPass(order)
+            }}
+            testID={`pickup-pass-btn-${order.id}`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              backgroundColor: colors.green[50],
+              borderColor: colors.green[300],
+              borderWidth: 1,
+              borderRadius: borderRadius.md,
+              paddingVertical: 8,
+              marginTop: 4,
+            }}
+          >
+            <QrCode size={14} color={colors.green[800]} />
+            <Text fontSize={12} fontWeight="700" color={colors.green[800]}>
+              Show Pickup Pass QR
+            </Text>
+          </TouchableOpacity>
         )}
       </YStack>
     </TouchableOpacity>
