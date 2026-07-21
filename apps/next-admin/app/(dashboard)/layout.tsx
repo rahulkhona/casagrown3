@@ -102,7 +102,8 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Promotions Builder', path: '/crm/promotions' },
       { label: 'Landing Pages', path: '/crm/landing-pages' },
-      { label: 'Bandit Experiments', path: '/crm/create-listing-bandits' },
+      { label: 'Listing Bandits', path: '/crm/create-listing-bandits' },
+      { label: 'Journey Experiments', path: '/crm/experiments' },
       { label: 'Tutorials Management', path: '/crm/tutorials' },
       { label: 'Link Generator', path: '/crm/link-generator' },
       { label: 'Data Sources', path: '/crm/data-sources' },
@@ -193,98 +194,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMenuOpen(false)
   }
 
-  const hasOnlyMarketing = roles && roles.includes('marketing') && !roles.includes('admin')
-
-  // Sidebar content component to reuse for both desktop AND mobile sheet
-  const SidebarContent = () => {
-
-
-    const visibleGroups = MENU_GROUPS.filter(group => {
-      if (hasOnlyMarketing) {
-        return group.title === 'CRM & MARKETING' || group.title === 'ACCOUNT'
-      }
-      return true
-    })
-
-    return (
-      <YStack flex={1} padding="$4" gap="$4">
-        <XStack alignItems="center" gap="$2" paddingBottom="$2">
-          <img 
-            src="/logo.png" 
-            alt="CasaGrown" 
-            style={{ width: 24, height: 24, objectFit: 'contain' }}
-          />
-          <Text fontSize="$6" fontWeight="bold" color={colors.green[800]}>
-            {hasOnlyMarketing ? 'CasaGrown CRM' : 'CasaGrown Admin'}
-          </Text>
-        </XStack>
-        
-        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-          <YStack gap="$6" paddingBottom="$8">
-            {visibleGroups.map((group) => (
-              <YStack key={group.title} gap="$2">
-                <XStack alignItems="center" gap="$2" paddingHorizontal="$2" paddingBottom="$1">
-                  <group.icon size={16} color={colors.gray[500]} />
-                  <Text fontSize="$2" fontWeight="700" color={colors.gray[500]} letterSpacing={0.5}>
-                    {group.title}
-                  </Text>
-                </XStack>
-                <YStack gap="$1">
-                  {group.items.map((item) => {
-                    if (item.action === 'logout') {
-                      return (
-                        <Button
-                          key="logout"
-                          chromeless
-                          justifyContent="space-between"
-                          paddingHorizontal="$3"
-                          height="$4"
-                          borderRadius="$2"
-                          backgroundColor="transparent"
-                          pressStyle={{ backgroundColor: colors.red[100] }}
-                          hoverStyle={{ backgroundColor: colors.red[50] }}
-                          onPress={handleLogout}
-                        >
-                          <Text color={colors.red[600]} fontWeight="600">
-                            {item.label}
-                          </Text>
-                        </Button>
-                      )
-                    }
-
-                    const isActive = pathname === item.path
-                    return (
-                      <Link key={item.path || item.label} href={item.path === '#' ? '' : (item.path || '')} passHref>
-                        <Button
-                          chromeless
-                          justifyContent="space-between"
-                          paddingHorizontal="$3"
-                          height="$4"
-                          borderRadius="$2"
-                          backgroundColor={isActive ? colors.green[100] : 'transparent'}
-                          pressStyle={{ backgroundColor: colors.green[200] }}
-                          hoverStyle={{ backgroundColor: colors.green[50] }}
-                          onPress={() => setMenuOpen(false)}
-                        >
-                          <Text 
-                            color={isActive ? colors.green[800] : colors.gray[700]} 
-                            fontWeight={isActive ? "600" : "400"}
-                          >
-                            {item.label}
-                          </Text>
-                          {isActive && <ChevronRight size={16} color={colors.green[600]} />}
-                        </Button>
-                      </Link>
-                    )
-                  })}
-                </YStack>
-              </YStack>
-            ))}
-          </YStack>
-        </ScrollView>
-      </YStack>
-    )
-  }
+  const hasOnlyMarketing = !!(roles && roles.includes('marketing') && !roles.includes('admin'))
 
   return (
     <XStack flex={1} backgroundColor={colors.white} minHeight="100vh" flexDirection={isDesktop ? 'row' : 'column'}>
@@ -297,7 +207,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           borderColor={colors.gray[200]} 
           backgroundColor={colors.gray[50]}
         >
-          <SidebarContent />
+          <SidebarContent 
+            hasOnlyMarketing={hasOnlyMarketing}
+            pathname={pathname}
+            handleLogout={handleLogout}
+            setMenuOpen={setMenuOpen}
+          />
         </YStack>
       )}
 
@@ -336,7 +251,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Sheet.Overlay />
         <Sheet.Frame backgroundColor={colors.white}>
           <Sheet.Handle />
-          <SidebarContent />
+          <SidebarContent 
+            hasOnlyMarketing={hasOnlyMarketing}
+            pathname={pathname}
+            handleLogout={handleLogout}
+            setMenuOpen={setMenuOpen}
+          />
         </Sheet.Frame>
       </Sheet>
 
@@ -351,5 +271,103 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </YStack>
 
     </XStack>
+  )
+}
+
+function SidebarContent({
+  hasOnlyMarketing,
+  pathname,
+  handleLogout,
+  setMenuOpen,
+}: {
+  hasOnlyMarketing: boolean;
+  pathname: string;
+  handleLogout: () => void;
+  setMenuOpen: (open: boolean) => void;
+}) {
+  const visibleGroups = MENU_GROUPS.filter(group => {
+    if (hasOnlyMarketing) {
+      return group.title === 'CRM & MARKETING' || group.title === 'ACCOUNT'
+    }
+    return true
+  })
+
+  return (
+    <YStack flex={1} padding="$4" gap="$4">
+      <XStack alignItems="center" gap="$2" paddingBottom="$2">
+        <img 
+          src="/logo.png" 
+          alt="CasaGrown" 
+          style={{ width: 24, height: 24, objectFit: 'contain' }}
+        />
+        <Text fontSize="$6" fontWeight="bold" color={colors.green[800]}>
+          {hasOnlyMarketing ? 'CasaGrown CRM' : 'CasaGrown Admin'}
+        </Text>
+      </XStack>
+      
+      <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+        <YStack gap="$6" paddingBottom="$8">
+          {visibleGroups.map((group) => (
+            <YStack key={group.title} gap="$2">
+              <XStack alignItems="center" gap="$2" paddingHorizontal="$2" paddingBottom="$1">
+                <group.icon size={16} color={colors.gray[500]} />
+                <Text fontSize="$2" fontWeight="700" color={colors.gray[500]} letterSpacing={0.5}>
+                  {group.title}
+                </Text>
+              </XStack>
+              <YStack gap="$1">
+                {group.items.map((item) => {
+                  if (item.action === 'logout') {
+                    return (
+                      <Button
+                        key="logout"
+                        chromeless
+                        justifyContent="space-between"
+                        paddingHorizontal="$3"
+                        height="$4"
+                        borderRadius="$2"
+                        backgroundColor="transparent"
+                        pressStyle={{ backgroundColor: colors.red[100] }}
+                        hoverStyle={{ backgroundColor: colors.red[50] }}
+                        onPress={handleLogout}
+                      >
+                        <Text color={colors.red[600]} fontWeight="600">
+                          {item.label}
+                        </Text>
+                      </Button>
+                    )
+                  }
+
+                  const isActive = pathname === item.path
+                  return (
+                    <Link key={item.path || item.label} href={item.path === '#' ? '' : (item.path || '')} passHref>
+                      <Button
+                        chromeless
+                        justifyContent="space-between"
+                        paddingHorizontal="$3"
+                        height="$4"
+                        borderRadius="$2"
+                        backgroundColor={isActive ? colors.green[100] : 'transparent'}
+                        pressStyle={{ backgroundColor: colors.green[200] }}
+                        hoverStyle={{ backgroundColor: colors.green[50] }}
+                        onPress={() => setMenuOpen(false)}
+                      >
+                        <Text 
+                          color={isActive ? colors.green[800] : colors.gray[700]} 
+                          fontWeight={isActive ? "600" : "400"}
+                        >
+                          {item.label}
+                        </Text>
+                        {isActive && <ChevronRight size={16} color={colors.green[600]} />}
+                      </Button>
+                    </Link>
+                  )
+                })}
+              </YStack>
+            </YStack>
+          ))}
+        </YStack>
+      </ScrollView>
+    </YStack>
   )
 }

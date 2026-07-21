@@ -1287,7 +1287,11 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
           prior_alpha: v.prior_alpha || 1,
           prior_beta: v.prior_beta || 9,
           sends_count: v.sends_count || 0,
-          conversions_count: v.conversions_count || 0
+          conversions_count: v.conversions_count || 0,
+          optimize_metric: v.optimize_metric || 'clicks',
+          listings_created_count: v.listings_created_count || 0,
+          accounts_created_count: v.accounts_created_count || 0,
+          profiles_completed_count: v.profiles_completed_count || 0
         }));
 
         const existingIds = rowsToSave.map(r => r.id).filter(Boolean);
@@ -2273,6 +2277,64 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                             + Add Variant
                           </button>
                         </div>
+                        {/* Dynamic Optimize Goal Selector */}
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>Optimize Thompson Sampling For</label>
+                          <select
+                            value={selectedNodeVariants[0]?.optimize_metric || 'clicks'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedNodeVariants(prev => prev.map(varRow => ({ ...varRow, optimize_metric: val })));
+                            }}
+                            style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db', width: '100%', fontSize: '0.8rem', background: 'white' }}
+                          >
+                            <option value="clicks">Link Clicks (CTR)</option>
+                            {selectedNode.data.type === 'action_email' && (
+                              <option value="opens">Email Opens</option>
+                            )}
+                            <option value="listings">Listings Created (Link Attributed)</option>
+                            <option value="accounts">Accounts Created (Link Attributed)</option>
+                            <option value="profiles">Profiles Completed (Link Attributed)</option>
+                          </select>
+                        </div>
+
+                        {/* Active Variant Statistics Drawer */}
+                        {activeVariantIndex >= 0 && selectedNodeVariants[activeVariantIndex] && (
+                          <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e5e7eb', marginBottom: 16, fontSize: '0.8rem' }}>
+                            <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>📊 {selectedNodeVariants[activeVariantIndex].variant_name} Performance</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: 10 }}>
+                              <div>
+                                <span style={{ color: '#6b7280' }}>Sends:</span> <strong>{selectedNodeVariants[activeVariantIndex].sends_count || 0}</strong>
+                              </div>
+                              {selectedNode.data.type === 'action_email' && (
+                                <div>
+                                  <span style={{ color: '#6b7280' }}>Opens:</span> <strong>{selectedNodeVariants[activeVariantIndex].opens_count || 0}</strong>
+                                </div>
+                              )}
+                              <div>
+                                <span style={{ color: '#6b7280' }}>Clicks:</span> <strong>{selectedNodeVariants[activeVariantIndex].clicks_count || 0}</strong>
+                              </div>
+                            </div>
+                            <div style={{ borderTop: '1px dashed #e5e7eb', paddingTop: 8 }}>
+                              <div style={{ fontWeight: 600, color: '#4b5563', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🛒 Attributed Funnel Conversions:</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: '#6b7280' }}>Listings Created:</span>
+                                  <strong>{selectedNodeVariants[activeVariantIndex].listings_created_count || 0}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: '#6b7280' }}>Accounts Created:</span>
+                                  <strong>{selectedNodeVariants[activeVariantIndex].accounts_created_count || 0}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: '#6b7280' }}>Profiles Completed:</span>
+                                  <strong>{selectedNodeVariants[activeVariantIndex].profiles_completed_count || 0}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {activeVariantIndex >= 0 && (
                           <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', marginBottom: 4 }}>Variant Name</label>
