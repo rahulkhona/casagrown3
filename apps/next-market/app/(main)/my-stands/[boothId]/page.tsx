@@ -15,6 +15,7 @@ import SocialShareModal from '../../../components/SocialShareModal'
 import { useProEnabled } from '../../../../lib/useProEnabled'
 import { HelperDMModal } from '../../my-booth/components/HelperDMModal'
 import { type AddressFields, EMPTY_ADDRESS, formatFullAddress, buildAddress, toGeocodingString, normalizeStateCode } from '../../../../lib/address'
+import QRCode from 'react-qr-code'
 
 import styles from './page.module.css'
 
@@ -1247,6 +1248,24 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
           <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
             Share this code with helpers so they can join your booth.
           </p>
+
+          {helperPasscode && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed var(--gray-200, #e5e7eb)', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-700)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+                HELPER INVITE QR CODE
+              </div>
+              <div style={{ background: '#ffffff', padding: 12, borderRadius: 12, display: 'inline-block', border: '1px solid var(--gray-200)' }}>
+                <QRCode
+                  value={`${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/join-booth/${helperPasscode}`}
+                  size={150}
+                  level="M"
+                />
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 8, marginBottom: 0 }}>
+                Helpers can scan this QR code with their camera to immediately join your booth stand!
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Helpers list */}

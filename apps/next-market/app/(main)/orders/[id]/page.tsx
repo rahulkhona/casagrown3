@@ -10,6 +10,7 @@ import { createClient } from '../../../../lib/supabase'
 import { useAuth } from '../../../../lib/useAuth'
 import CameraCapture, { CaptureResult } from '../../../../components/CameraCapture'
 import OrderChat from '../../../../components/OrderChat'
+import QRCode from 'react-qr-code'
 
 import { useNotificationPrompt } from '../../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../../components/NotificationPromptModal'
@@ -388,6 +389,43 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
         </div>
       </div>
+
+      {/* ===== BUYER PICKUP PASS QR CARD ===== */}
+      {isBuyer && order.fulfillment_type === 'pickup' && order.status !== 'completed' && order.status !== 'cancelled' && (
+        <div style={{
+          backgroundColor: 'var(--green-50, #f0fdf4)',
+          border: '2px dashed var(--green-300, #86efac)',
+          borderRadius: 16,
+          padding: '24px 16px',
+          margin: '20px 0',
+          textAlign: 'center',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--green-800, #166534)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>
+            CASAGROWN VERIFIED PICKUP PASS
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-900, #111827)', marginBottom: 14 }}>
+            #ORD-{order.id.substring(0, 6).toUpperCase()}
+          </div>
+          <div style={{
+            background: '#ffffff',
+            padding: 16,
+            borderRadius: 16,
+            display: 'inline-block',
+            border: '1px solid var(--gray-200, #e5e7eb)',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
+          }}>
+            <QRCode
+              value={`${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/orders/${order.id}/pickup?passcode=${order.buyer_passcode || 'PASS'}`}
+              size={180}
+              level="M"
+            />
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--gray-600, #4b5563)', marginTop: 14, marginBottom: 0, fontWeight: 500 }}>
+            Show this QR code to <strong>{order.seller_name}</strong> or booth helper for quick order identification and pickup.
+          </p>
+        </div>
+      )}
 
       {isBuyer && !isNativeApp && (
         <div className={styles.downloadCard}>

@@ -11,6 +11,7 @@ import { type AddressFields, normalizeStateCode, validateProfileFields } from '.
 import { useNotificationPrompt, isNotificationsEnabled } from '../../../lib/useNotificationPrompt'
 import { NotificationPromptModal } from '../../components/NotificationPromptModal'
 import { useErrorToast } from '../../components/ErrorToast'
+import QRCode from 'react-qr-code'
 import styles from './page.module.css'
 
 function ProfilePageInner() {
@@ -403,6 +404,54 @@ function ProfilePageInner() {
 
         <h1 className="page-title">My Profile</h1>
         <p className="page-subtitle">Manage your personal information</p>
+      </div>
+
+      {/* ===== PROFILE & FOLLOW QR PASS CARD ===== */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        border: '1px solid var(--gray-200, #e5e7eb)',
+        borderRadius: 16,
+        padding: '24px 16px',
+        marginBottom: 24,
+        textAlign: 'center',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--green-700, #15803d)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>
+          MY PROFILE & SELLER FOLLOW QR PASS
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900, #111827)', marginBottom: 12 }}>
+          {form.name || 'User Profile'}
+        </div>
+        <div style={{
+          background: '#ffffff',
+          padding: 16,
+          borderRadius: 16,
+          display: 'inline-block',
+          border: '1px solid var(--gray-200, #e5e7eb)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        }}>
+          <QRCode
+            value={`${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/u/${user?.id || ''}?ref=${user?.id || ''}&intent=follow`}
+            size={160}
+            level="M"
+          />
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--gray-600, #4b5563)', marginTop: 12, marginBottom: 12 }}>
+          Share or show this QR code to let neighbors follow your profile & install the CasaGrown app!
+        </p>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/u/${user?.id || ''}?ref=${user?.id || ''}&intent=follow`
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(url)
+              showToastSuccess('Profile QR link copied to clipboard!')
+            }
+          }}
+        >
+          📋 Copy Profile Referral Link
+        </button>
       </div>
 
       {/* Camera → sends to cropper */}
