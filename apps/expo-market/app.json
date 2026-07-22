@@ -160,6 +160,11 @@
             {
               "scheme": "https",
               "host": "casagrown.com",
+              "pathPrefix": "/u"
+            },
+            {
+              "scheme": "https",
+              "host": "casagrown.com",
               "pathPrefix": "/delete-account"
             },
             {
