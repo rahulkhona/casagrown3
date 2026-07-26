@@ -16,6 +16,7 @@ import { ErrorToastProvider } from '../../components/ErrorToast'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../../lib/address'
 import { EXHAUSTIVE_US_PRODUCE, type ProduceItem } from '../../../lib/produceCatalog'
+import { checkTextForViolations } from '../../../lib/moderation'
 
 type FilterCategory = 'all' | 'produce' | 'plants_seedlings' | 'seeds' | 'eggs'
 type InterestType = 'buy' | 'sell'
@@ -527,6 +528,7 @@ function InterestPageContent() {
             </Link>
           </div>
         </div>
+      </section>
       {/* Produce Search Sub-Bar */}
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
