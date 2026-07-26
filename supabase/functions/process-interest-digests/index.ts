@@ -74,6 +74,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       return '🌱'
     }
 
+    // Helper function to resolve dynamic demand label & badge styling
+    const getDemandBadge = (item: any) => {
+      const count = item.count || item.match_count || 1
+      if (count >= 3) {
+        return `<span style="background-color: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">🔥 High Local Demand (${count} Buyers)</span>`
+      }
+      if (count === 2) {
+        return `<span style="background-color: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">2 Local Requests</span>`
+      }
+      return `<span style="background-color: #f1f5f9; color: #475569; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">1 Local Request</span>`
+    }
+
     if (match_type === 'seller') {
       subject = '🌱 Local Neighbors Want Your Fresh Produce! | CasaGrown'
       
@@ -83,9 +95,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             <span style="font-size: 20px; margin-right: 8px;">${getProduceEmoji(item.produce_name)}</span>
             ${item.produce_name}
           </div>
-          <span style="background-color: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
-            High Local Demand
-          </span>
+          ${getDemandBadge(item)}
         </div>
       `).join('')
       
