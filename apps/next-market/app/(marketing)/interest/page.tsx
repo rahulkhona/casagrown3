@@ -17,6 +17,7 @@ import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../../lib/address'
 import { EXHAUSTIVE_US_PRODUCE, type ProduceItem } from '../../../lib/produceCatalog'
 import { checkTextForViolations } from '../../../lib/moderation'
+import SocialShareModal from '../../components/SocialShareModal'
 
 type FilterCategory = 'all' | 'produce' | 'plants_seedlings' | 'seeds' | 'eggs'
 type InterestType = 'buy' | 'sell'
@@ -40,6 +41,9 @@ function InterestPageContent() {
   
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [successBanner, setSuccessBanner] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [savedShareInterests, setSavedShareInterests] = useState<string[]>([])
+  const [savedShareScope, setSavedShareScope] = useState<'buy' | 'sell'>('buy')
 
   // Form State
   const [name, setName] = useState('')
@@ -462,6 +466,8 @@ function InterestPageContent() {
         }
       }
 
+      setSavedShareInterests(selectedInterests.map(i => i.item.name))
+      setSavedShareScope(selectedInterests[0]?.type || scope || 'buy')
       setIsModalOpen(false)
       setSuccessBanner(true)
       setSelectedInterests([])
@@ -513,10 +519,30 @@ function InterestPageContent() {
 
       {successBanner && (
         <div style={styles.successBanner}>
-          ✅ Interests saved!{' '}
-          <Link href="/my-interests" style={styles.successLink}>
-            View them in My Interests →
-          </Link>
+          <div>
+            ✅ Interests saved!{' '}
+            <Link href="/my-interests" style={styles.successLink}>
+              View them in My Interests →
+            </Link>
+          </div>
+          {savedShareInterests.length > 0 && (
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#15803d',
+                border: '1.5px solid #86efac',
+                padding: '6px 14px',
+                borderRadius: '9999px',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginLeft: '12px'
+              }}
+            >
+              📲 Share with Neighbors
+            </button>
+          )}
         </div>
       )}
 
@@ -1052,6 +1078,37 @@ function InterestPageContent() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Social Share Modal for Saved Interests (Buyer Wishlist or Seller Harvest) */}
+      {savedShareInterests.length > 0 && (
+        <SocialShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          title={savedShareScope === 'sell' ? 'Share Your Harvest with Neighbors' : 'Share Wishlist with Neighbors'}
+          subtitle={savedShareScope === 'sell' ? 'Let local neighbors know what produce you grow in your backyard!' : "Let local gardeners know what produce you're looking to buy!"}
+          entityName={savedShareInterests.join(', ')}
+          shareUrl={
+            savedShareScope === 'sell'
+              ? `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/interest?scope=buy&items=${encodeURIComponent(savedShareInterests.join(','))}${userId ? `&ref=${userId}` : ''}`
+              : `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/demand?items=${encodeURIComponent(savedShareInterests.join(','))}&name=${encodeURIComponent(name || 'A neighbor')}&location=${encodeURIComponent(zipcodes[0] || '')}${userId ? `&ref=${userId}` : ''}`
+          }
+          shareMessage={(platform) => {
+            const itemList = savedShareInterests.join(', ')
+            if (savedShareScope === 'sell') {
+              if (platform === 'whatsapp') {
+                return `*Backyard Harvest Announcement!* 🥦\n\nHey neighbors! I'm growing fresh *${itemList}* in my garden.\n\nSet your buy interest on CasaGrown so I can notify you when I harvest:\n`
+              }
+              return `Hey neighbors! I'm growing fresh ${itemList} in my garden! Set your buy interest on CasaGrown so I can notify you when I harvest!`
+            }
+            if (platform === 'whatsapp') {
+              return `*Produce Wishlist Alert!* 🥦\n\nHey neighbors! I'm looking to buy fresh backyard harvest: *${itemList}* on CasaGrown.\n\nIf you have extra growing in your garden, list your harvest here so I can buy from you:\n`
+            }
+            return `Hey neighbors! I'm searching for fresh local produce (${itemList}). If you have extra in your backyard, list it on CasaGrown so neighbors can buy local!`
+          }}
+          shareContext={savedShareScope === 'sell' ? 'community_invite' : 'buy_request'}
+          userId={userId || undefined}
+        />
       )}
 
       {/* Mobile Bottom Navigation Bar (renders when inside main app) */}
