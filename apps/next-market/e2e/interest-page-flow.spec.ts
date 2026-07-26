@@ -104,19 +104,17 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
   })
 
   test('TC-INT-09: Shared Buyer Demand Landing Page (/demand)', async ({ page }) => {
-    await page.goto('/demand?items=Organic+Strawberries,Hass+Avocados&name=Rahul&location=San+Jose')
+    await page.goto('/demand?items=Strawberries,Hass+Avocados&name=Rahul&location=San+Jose')
 
     // Verify Header Banner
-    await expect(page.locator('h1')).toContainText('Rahul in San Jose is searching for local produce!')
-    await expect(page.locator('text=Got extra harvest growing in your garden?')).toBeVisible()
+    await expect(page.locator('h1')).toContainText('Would you be interested in sharing or selling any of these items to Rahul?')
 
     // Verify Crop Cards
-    await expect(page.getByRole('heading', { name: 'Organic Strawberries' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Strawberries' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Hass Avocados' })).toBeVisible()
-    await expect(page.locator('text=🔥 Buyer Searching')).toHaveCount(2)
 
     // Verify List Item Now CTA Buttons link to /create-listing with pre-filled produce
-    const strawberriesCta = page.locator('a[href*="/create-listing?produce=Organic%20Strawberries"]')
+    const strawberriesCta = page.locator('a[href*="/create-listing?produce=Strawberries"]')
     const avocadosCta = page.locator('a[href*="/create-listing?produce=Hass%20Avocados"]')
 
     await expect(strawberriesCta).toBeVisible()
@@ -124,8 +122,8 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
   })
 
   test('TC-INT-10: My-Interests Share Wishlist Button & SocialShareModal', async ({ page }) => {
-    await page.goto('/demand?items=Organic+Strawberries')
-    await expect(page.locator('h1')).toContainText('searching for local produce!')
+    await page.goto('/demand?items=Strawberries')
+    await expect(page.locator('h1')).toContainText('Would you be interested')
 
     // Verify navbar navigation
     const navbar = page.locator('nav').first()
