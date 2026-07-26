@@ -59,31 +59,102 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     let subject = '';
     let htmlContent = '';
     
+    // Helper function to resolve produce emoji
+    const getProduceEmoji = (name: string) => {
+      const lower = (name || '').toLowerCase()
+      if (lower.includes('strawberry') || lower.includes('berries')) return '🍓'
+      if (lower.includes('avocado')) return '🥑'
+      if (lower.includes('lemon') || lower.includes('citrus')) return '🍋'
+      if (lower.includes('tomato')) return '🍅'
+      if (lower.includes('peach') || lower.includes('nectarine')) return '🍑'
+      if (lower.includes('fig')) return '🫒'
+      if (lower.includes('persimmon') || lower.includes('apple')) return '🍎'
+      if (lower.includes('egg') || lower.includes('honey')) return '🍯'
+      if (lower.includes('herb') || lower.includes('mint')) return '🌿'
+      return '🌱'
+    }
+
     if (match_type === 'seller') {
-      subject = 'Buyers are looking for your produce!';
+      subject = '🌱 Local Neighbors Want Your Fresh Produce! | CasaGrown'
       
-      const produceList = items.map((item: any) => `<li>${item.produce_name}</li>`).join('');
+      const produceCards = items.map((item: any) => `
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 16px; font-weight: 600; color: #1e293b;">
+            <span style="font-size: 20px; margin-right: 8px;">${getProduceEmoji(item.produce_name)}</span>
+            ${item.produce_name}
+          </div>
+          <span style="background-color: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
+            High Local Demand
+          </span>
+        </div>
+      `).join('')
       
-      const innerHtml = `
-        <h2>Hi ${recipient_name || 'Grower'},</h2>
-        <p>Buyers in your area are actively searching for produce you grow. We have active alerts for:</p>
-        <ul>${produceList}</ul>
-        ${actionButton(`${siteUrl}/create-listing`, 'Create a Listing')}
-      `;
-      htmlContent = wrapInBrandedTemplate(innerHtml, subject, siteUrl);
-      
+      const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 15px; color: #475569; line-height: 1.6;">
+          Great news! Buyers in your immediate neighborhood are actively looking to purchase fresh homegrown produce that you grow.
+        </p>
+
+        <div style="margin: 20px 0;">
+          ${produceCards}
+        </div>
+
+        <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 14px 16px; border-radius: 8px; margin-bottom: 24px;">
+          <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 500;">
+            💡 <strong>Grower Tip:</strong> Listings posted within 24 hours of buyer interest requests receive up to <strong>3x faster sales</strong>.
+          </p>
+        </div>
+
+        ${actionButton(`${siteUrl}/create-listing`, 'Create a Listing & Sell →')}
+      `
+
+      htmlContent = wrapInBrandedTemplate({
+        title: 'Local Demand Alert',
+        greeting: `Hi ${recipient_name || 'Grower'},`,
+        bodyHtml: bodyHtml,
+        headerEmoji: '🧺',
+        headerGradient: 'linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%)',
+      })
+
     } else {
-      subject = 'New produce available in your area!';
+      subject = '✨ Fresh Local Harvest Matches Near You! | CasaGrown'
       
-      const produceList = items.map((item: any) => `<li>${item.produce_name}</li>`).join('');
+      const produceCards = items.map((item: any) => `
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 16px; font-weight: 600; color: #1e293b;">
+            <span style="font-size: 20px; margin-right: 8px;">${getProduceEmoji(item.produce_name)}</span>
+            ${item.produce_name}
+          </div>
+          <span style="background-color: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
+            Fresh Harvest
+          </span>
+        </div>
+      `).join('')
       
-      const innerHtml = `
-        <h2>Hi ${recipient_name || 'Neighbor'},</h2>
-        <p>Sellers have just listed produce you're interested in:</p>
-        <ul>${produceList}</ul>
-        ${actionButton(`${siteUrl}/market?filter=my-interests`, 'View Market')}
-      `;
-      htmlContent = wrapInBrandedTemplate(innerHtml, subject, siteUrl);
+      const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 15px; color: #475569; line-height: 1.6;">
+          Local growers in your area just posted new produce listings that match your saved produce interest alerts!
+        </p>
+
+        <div style="margin: 20px 0;">
+          ${produceCards}
+        </div>
+
+        <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 14px 16px; border-radius: 8px; margin-bottom: 24px;">
+          <p style="margin: 0; font-size: 13px; color: #075985; font-weight: 500;">
+            🌿 <strong>100% Homegrown Guarantee:</strong> All produce on CasaGrown is harvested fresh by verified neighborhood stands.
+          </p>
+        </div>
+
+        ${actionButton(`${siteUrl}/market?filter=my-interests`, 'Explore Produce Stands →')}
+      `
+
+      htmlContent = wrapInBrandedTemplate({
+        title: 'Nearby Harvest Match',
+        greeting: `Hi ${recipient_name || 'Neighbor'},`,
+        bodyHtml: bodyHtml,
+        headerEmoji: '🌾',
+        headerGradient: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)',
+      })
     }
     
     // Send Email
