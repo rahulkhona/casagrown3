@@ -297,7 +297,7 @@ function InterestPageContent() {
 
         if (dbInterests) {
           setUserInterestCount(dbInterests.length)
-          const savedKeys = new Set(dbInterests.map((i: any) => `${i.produce_name.toLowerCase()}_${i.interest_type}`))
+          const savedKeys = new Set<string>(dbInterests.map((i: any) => `${i.produce_name.toLowerCase()}_${i.interest_type}`))
           setSavedInterestKeys(savedKeys)
 
           // Do not treat already-saved interests as pending draft selections

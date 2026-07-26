@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../../lib/useAuth'
@@ -16,7 +16,7 @@ interface ProduceInterest {
   status: 'active' | 'paused'
 }
 
-export default function MyInterestsPage() {
+function MyInterestsContent() {
   const { user, loading, isAuthenticated } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -403,5 +403,13 @@ function InterestCard({
         </button>
       </div>
     </div>
+  )
+}
+
+export default function MyInterestsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center' }}>Loading interests...</div>}>
+      <MyInterestsContent />
+    </Suspense>
   )
 }
