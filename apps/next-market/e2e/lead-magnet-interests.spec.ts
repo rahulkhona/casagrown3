@@ -33,10 +33,10 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
     await page.getByRole('button', { name: 'Calculate My Potential →' }).click()
 
     // 9. Step 8: Lead Capture Form
-    const nameInput = page.getByPlaceholder('Jane Doe')
+    const nameInput = page.getByPlaceholder('First and Last Name')
     await expect(nameInput).toBeVisible({ timeout: 5000 })
     await nameInput.fill('E2E Seller Lead')
-    await page.getByPlaceholder('hello@example.com').fill('e2e-seller-lead@casagrown.test')
+    await page.getByPlaceholder('you@example.com').fill('e2e-seller-lead@casagrown.test')
 
     // Intercept interest submission API call
     const interestApiPromise = page.waitForResponse(
