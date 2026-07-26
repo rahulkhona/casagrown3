@@ -114,11 +114,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         ? `🌱 Buyers want your ${itemText}! | CasaGrown` 
         : `🌱 Local neighbors are looking for your produce! | CasaGrown`
 
-      pushTitle = items.length === 1
-        ? `🌱 Buyers want your ${itemText}!`
-        : `🌱 Local demand for your produce!`
-
-      pushBody = `Neighbors in your area requested items you grow. Tap to list yours now!`
+      pushTitle = `🌱 Local demand for your produce!`
+      pushBody = `Buyers near you are searching for your produce. Tap to see active local demand!`
       
       const bodyHtml = `
         <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
@@ -133,7 +130,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           </p>
         </div>
 
-        ${actionButton(`${siteUrl}/create-listing`, 'Create a Listing & Sell →')}
+        ${actionButton(`${siteUrl}/my-interests?tab=demand`, 'View Active Buyer Demand →')}
       `
 
       htmlContent = wrapInBrandedTemplate({
@@ -193,7 +190,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         });
       }
       
-      // Send Push Notification with produce-specific text
+      // Send Push Notification with produce-specific text & destination URLs
       if (is_user && user_id) {
         await fetch(pushUrl, {
           method: 'POST',
@@ -205,7 +202,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             userId: user_id,
             title: pushTitle,
             body: pushBody,
-            data: { url: match_type === 'seller' ? '/create-listing' : '/market?filter=my-interests' }
+            data: { url: match_type === 'seller' ? '/my-interests?tab=demand' : '/market?filter=my-interests' }
           })
         }).catch(e => console.error('Push error:', e));
       }

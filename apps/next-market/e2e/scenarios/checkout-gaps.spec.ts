@@ -148,24 +148,12 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
     expect(await instructionsInput.inputValue()).toBe('Leave on the front porch table.')
 
     // 6.5 Fill in Stripe Elements card info (if card iframe is displayed)
-    const stripeFrame = page.frameLocator('iframe').first()
-    const cardInput = stripeFrame.locator('input[name="cardnumber"], input[placeholder="Card number"]')
-    const cardVisible = await cardInput.isVisible({ timeout: 5000 }).catch(() => false)
+    const cardIframe = page.frameLocator('#stripe-card-element iframe').first()
+    const cardInput = cardIframe.locator('input[name="cardnumber"], input[placeholder="Card number"]')
+    const cardVisible = await cardInput.isVisible({ timeout: 10000 }).catch(() => false)
     if (cardVisible) {
       await cardInput.click()
-      await cardInput.pressSequentially('4242424242424242', { delay: 20 })
-
-      const expInput = stripeFrame.locator('input[name="exp-date"], input[placeholder="MM / YY"]')
-      await expInput.click()
-      await expInput.pressSequentially('1228', { delay: 20 })
-
-      const cvcInput = stripeFrame.locator('input[name="cvc"], input[placeholder="CVC"]')
-      await cvcInput.click()
-      await cvcInput.pressSequentially('123', { delay: 20 })
-
-      const zipInput = stripeFrame.locator('input[name="postalcode"], input[placeholder="ZIP"]')
-      await zipInput.click()
-      await zipInput.pressSequentially('95125', { delay: 20 })
+      await cardInput.pressSequentially('4242424242424242122812395125', { delay: 40 })
       await page.waitForTimeout(1000)
     }
 

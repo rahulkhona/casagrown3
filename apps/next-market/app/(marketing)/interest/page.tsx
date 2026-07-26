@@ -15,7 +15,7 @@ import { QuickSetupProvider, useQuickSetup } from '../../../lib/useQuickSetup'
 import { ErrorToastProvider } from '../../components/ErrorToast'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../../lib/address'
-import { EXHAUSTIVE_US_PRODUCE, type ProduceItem } from '../../../lib/produceCatalog'
+import { EXHAUSTIVE_US_PRODUCE, getProduceImage, type ProduceItem } from '../../../lib/produceCatalog'
 import { checkTextForViolations } from '../../../lib/moderation'
 import SocialShareModal from '../../components/SocialShareModal'
 
@@ -44,6 +44,8 @@ function InterestPageContent() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [savedShareInterests, setSavedShareInterests] = useState<string[]>([])
   const [savedShareScope, setSavedShareScope] = useState<'buy' | 'sell'>('buy')
+  const [userInterestCount, setUserInterestCount] = useState<number | null>(null)
+  const [savedInterestKeys, setSavedInterestKeys] = useState<Set<string>>(new Set())
 
   // Form State
   const [name, setName] = useState('')
@@ -288,6 +290,22 @@ function InterestPageContent() {
         setUserId(user.id)
         setEmail(user.email || '')
         
+        const { data: dbInterests } = await supabase
+          .from('crm_produce_interests')
+          .select('produce_name, interest_type')
+          .eq('user_id', user.id)
+
+        if (dbInterests) {
+          setUserInterestCount(dbInterests.length)
+          const savedKeys = new Set(dbInterests.map((i: any) => `${i.produce_name.toLowerCase()}_${i.interest_type}`))
+          setSavedInterestKeys(savedKeys)
+
+          // Do not treat already-saved interests as pending draft selections
+          setSelectedInterests((prev) =>
+            prev.filter((si) => !savedKeys.has(`${si.item.name.toLowerCase()}_${si.type}`))
+          )
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name, zip_code, tos_accepted_at')
@@ -331,23 +349,41 @@ function InterestPageContent() {
     }
   }, [])
 
-  // Auto-select produce item from ?q= query param
+  // Auto-select produce item from ?produce= or ?q= query param
   const autoSelectedRef = React.useRef(false)
   useEffect(() => {
     if (autoSelectedRef.current) return
-    const q = searchParams.get('q')
-    if (!q) return
+    const produceParam = searchParams.get('produce') || searchParams.get('q')
+    if (!produceParam) return
 
-    const qLower = q.toLowerCase().trim()
-    const match = EXHAUSTIVE_US_PRODUCE.find(item =>
-      item.name.toLowerCase().includes(qLower) || qLower.includes(item.name.toLowerCase())
+    const itemNames = produceParam.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (itemNames.length === 0) return
+
+    const matches: SelectedInterest[] = []
+    for (const name of itemNames) {
+      const match = EXHAUSTIVE_US_PRODUCE.find(item =>
+        item.name.toLowerCase() === name ||
+        item.name.toLowerCase().includes(name) ||
+        name.includes(item.name.toLowerCase())
+      )
+      if (match && !matches.some(m => m.item.id === match.id)) {
+        matches.push({ item: match, type: scope || 'buy' })
+      }
+    }
+
+    const newMatches = matches.filter(
+      (m) => !savedInterestKeys.has(`${m.item.name.toLowerCase()}_${m.type}`)
     )
-    if (!match) return
 
-    autoSelectedRef.current = true
-    const interest: SelectedInterest = { item: match, type: scope || 'buy' }
-    setSelectedInterests([interest])
-  }, [searchParams, scope])
+    if (newMatches.length > 0) {
+      autoSelectedRef.current = true
+      setSelectedInterests(newMatches)
+      if (!userId) {
+        setIsModalOpen(true)
+        setGuestAuthStep('auth')
+      }
+    }
+  }, [searchParams, scope, savedInterestKeys, userId])
 
   // Filter produce items purely by search query (combining top 100 preset + community added items)
   const filteredItems = useMemo(() => {
@@ -439,6 +475,10 @@ function InterestPageContent() {
           user_id: userId,
           ...referralData,
         }
+      if (email) {
+        try { localStorage.setItem('guest_email', email) } catch {}
+      }
+
       const resp = await fetch('/api/interest/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -465,6 +505,11 @@ function InterestPageContent() {
           console.error('Failed to update profile:', profileErr)
         }
       }
+
+      const newlySavedKeys = new Set(savedInterestKeys)
+      selectedInterests.forEach(si => newlySavedKeys.add(`${si.item.name.toLowerCase()}_${si.type}`))
+      setSavedInterestKeys(newlySavedKeys)
+      setUserInterestCount(newlySavedKeys.size)
 
       setSavedShareInterests(selectedInterests.map(i => i.item.name))
       setSavedShareScope(selectedInterests[0]?.type || scope || 'buy')
@@ -517,42 +562,25 @@ function InterestPageContent() {
         </header>
       )}
 
-      {successBanner && (
-        <div style={styles.successBanner}>
-          <div>
-            ✅ Interests saved!{' '}
-            <Link href="/my-interests" style={styles.successLink}>
-              View them in My Interests →
-            </Link>
-          </div>
-          {savedShareInterests.length > 0 && (
-            <button
-              onClick={() => setIsShareModalOpen(true)}
-              style={{
-                backgroundColor: '#ffffff',
-                color: '#15803d',
-                border: '1.5px solid #86efac',
-                padding: '6px 14px',
-                borderRadius: '9999px',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                marginLeft: '12px'
-              }}
-            >
-              📲 Share with Neighbors
-            </button>
-          )}
-        </div>
-      )}
+
 
       {/* Header Section */}
       <section style={styles.headerSection}>
         <div style={styles.headerContent}>
           <h1 style={styles.headerTitle}>{headerTitle}</h1>
           <div style={{ marginTop: '12px' }}>
-            <Link href="/my-interests" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#ffffff', color: '#15803d', border: '1.5px solid #86efac', padding: '8px 16px', borderRadius: '9999px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              📋 Manage My Interests →
+            <Link href="/my-interests" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: '#ffffff', color: '#15803d', border: '1.5px solid #86efac', padding: '8px 16px', borderRadius: '9999px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <span>📋 Manage My Interests</span>
+              {userInterestCount !== null && userInterestCount > 0 ? (
+                <span style={{ backgroundColor: '#16a34a', color: '#ffffff', fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {userInterestCount}
+                </span>
+              ) : selectedInterests.length > 0 ? (
+                <span style={{ backgroundColor: '#86efac', color: '#14532d', fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {selectedInterests.length}
+                </span>
+              ) : null}
+              <span>→</span>
             </Link>
           </div>
         </div>
@@ -668,28 +696,38 @@ function InterestPageContent() {
                         </div>
 
                         <div style={styles.cardCheckboxes}>
-                          {showSell && (
-                            <label style={styles.checkboxLabel}>
-                              <input
-                                type="checkbox"
-                                checked={sellingSelected}
-                                onChange={() => handleSelectInterest(item, 'sell')}
-                                style={styles.checkboxInput}
-                              />
-                              I have this
-                            </label>
-                          )}
-                          {showBuy && (
-                            <label style={styles.checkboxLabel}>
-                              <input
-                                type="checkbox"
-                                checked={buyingSelected}
-                                onChange={() => handleSelectInterest(item, 'buy')}
-                                style={styles.checkboxInput}
-                              />
-                              I want this
-                            </label>
-                          )}
+                          {showSell && (() => {
+                            const isSellSaved = savedInterestKeys.has(`${item.name.toLowerCase()}_sell`)
+                            return (
+                              <label style={{ ...styles.checkboxLabel, opacity: isSellSaved ? 0.85 : 1 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSellSaved || sellingSelected}
+                                  onChange={() => {
+                                    if (!isSellSaved) handleSelectInterest(item, 'sell')
+                                  }}
+                                  style={styles.checkboxInput}
+                                />
+                                {isSellSaved ? '✓ Saved' : 'I have this'}
+                              </label>
+                            )
+                          })()}
+                          {showBuy && (() => {
+                            const isBuySaved = savedInterestKeys.has(`${item.name.toLowerCase()}_buy`)
+                            return (
+                              <label style={{ ...styles.checkboxLabel, opacity: isBuySaved ? 0.85 : 1 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isBuySaved || buyingSelected}
+                                  onChange={() => {
+                                    if (!isBuySaved) handleSelectInterest(item, 'buy')
+                                  }}
+                                  style={styles.checkboxInput}
+                                />
+                                {isBuySaved ? '✓ Saved' : 'I want this'}
+                              </label>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1091,7 +1129,7 @@ function InterestPageContent() {
           shareUrl={
             savedShareScope === 'sell'
               ? `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/interest?scope=buy&items=${encodeURIComponent(savedShareInterests.join(','))}${userId ? `&ref=${userId}` : ''}`
-              : `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/demand?items=${encodeURIComponent(savedShareInterests.join(','))}&name=${encodeURIComponent(name || 'A neighbor')}&location=${encodeURIComponent(zipcodes[0] || '')}${userId ? `&ref=${userId}` : ''}`
+              : `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/demand?ref=${userId || ''}`
           }
           shareMessage={(platform) => {
             const itemList = savedShareInterests.join(', ')
@@ -1108,6 +1146,7 @@ function InterestPageContent() {
           }}
           shareContext={savedShareScope === 'sell' ? 'community_invite' : 'buy_request'}
           userId={userId || undefined}
+          imageUrl={getProduceImage(savedShareInterests[0])}
         />
       )}
 

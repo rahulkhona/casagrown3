@@ -44,11 +44,11 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'asparagus', name: 'Asparagus', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1515471209610-e3f150774a35?w=600&auto=format&fit=crop&q=80', buyersCount: 22, sellersCount: 6, unit: 'bunch' },
 
   // ── TOP FRUITS & BERRIES ──
-  { id: 'avocados', name: 'Hass Avocados', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=600&auto=format&fit=crop&q=80', buyersCount: 55, sellersCount: 21, unit: 'bag' },
-  { id: 'figs', name: 'Figs', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1601379327928-1fed57e437c6?w=600&auto=format&fit=crop&q=80', buyersCount: 38, sellersCount: 14, unit: 'basket' },
-  { id: 'persimmons', name: 'Persimmons', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1604882737321-e693746f504d?w=600&auto=format&fit=crop&q=80', buyersCount: 34, sellersCount: 12, unit: 'bag' },
-  { id: 'pomegranates', name: 'Pomegranates', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80', buyersCount: 29, sellersCount: 9, unit: 'item' },
-  { id: 'peaches', name: 'Peaches & Nectarines', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1647413627916-24e680a133db?w=600&auto=format&fit=crop&q=80', buyersCount: 46, sellersCount: 17, unit: 'lb' },
+  { id: 'avocados', name: 'Hass Avocados', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/hass-avocado.jpg', buyersCount: 55, sellersCount: 21, unit: 'bag' },
+  { id: 'figs', name: 'Figs', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/fresh-figs.jpg', buyersCount: 38, sellersCount: 14, unit: 'basket' },
+  { id: 'persimmons', name: 'Persimmons', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/persimmons.jpg', buyersCount: 34, sellersCount: 12, unit: 'bag' },
+  { id: 'pomegranates', name: 'Pomegranates', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/pomegranates.jpg', buyersCount: 29, sellersCount: 9, unit: 'item' },
+  { id: 'peaches', name: 'Peaches & Nectarines', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/peaches.jpg', buyersCount: 46, sellersCount: 17, unit: 'lb' },
   { id: 'plums', name: 'Plums', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=600&auto=format&fit=crop&q=80', buyersCount: 31, sellersCount: 10, unit: 'lb' },
   { id: 'cherries', name: 'Cherries', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?w=600&auto=format&fit=crop&q=80', buyersCount: 49, sellersCount: 15, unit: 'lb' },
   { id: 'apples', name: 'Apples', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop&q=80', buyersCount: 51, sellersCount: 19, unit: 'bag' },
@@ -101,3 +101,99 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   // ── GARDEN EQUIPMENT & SUPPLIES (No Photo Available Stock Graphic) ──
   { id: 'gardening_supplies', name: 'Organic Gardening Supplies & Soil', category: 'garden_equipment', displayCategory: 'Gardening Supplies', image: '/images/produce_placeholder.jpg', buyersCount: 22, sellersCount: 5, unit: 'bag' },
 ]
+
+export function getProduceImage(name?: string): string {
+  if (!name) return '/images/produce_placeholder.jpg'
+  const normalized = name.toLowerCase().trim()
+  
+  if (normalized.includes('zucchini') || normalized.includes('squash')) return '/products/organic-zucchini.png'
+  if (normalized.includes('grapefruit')) return '/products/ruby-grapefruit.png'
+  if (normalized.includes('orange')) return '/products/valencia-oranges.png'
+  if (normalized.includes('lemon')) return '/products/meyer-lemons.png'
+  if (normalized.includes('lime')) return '/products/persian-limes.png'
+  if (normalized.includes('tomato')) return '/products/heritage-tomatoes.png'
+  if (normalized.includes('pepper')) return '/products/bell-peppers.png'
+  if (normalized.includes('basil') || normalized.includes('herb')) return '/products/fresh-basil.png'
+  if (normalized.includes('egg')) return '/products/fresh-eggs.png'
+  if (normalized.includes('strawberry') || normalized.includes('berry')) return '/products/strawberry-jam.png'
+  if (normalized.includes('fig')) return '/products/fresh-figs.jpg'
+  if (normalized.includes('avocado')) return '/products/hass-avocado.jpg'
+  if (normalized.includes('persimmon')) return '/products/persimmons.jpg'
+  if (normalized.includes('pomegranate')) return '/products/pomegranates.jpg'
+  if (normalized.includes('peach') || normalized.includes('nectarine')) return '/products/peaches.jpg'
+  if (normalized.includes('bread') || normalized.includes('sourdough')) return '/products/sourdough-loaf.png'
+
+  const exactMatch = EXHAUSTIVE_US_PRODUCE.find(
+    (item) => item.name.toLowerCase() === normalized || item.id === normalized
+  )
+  if (exactMatch?.image) return exactMatch.image
+
+  const partialMatch = EXHAUSTIVE_US_PRODUCE.find(
+    (item) => item.name.toLowerCase().includes(normalized) || normalized.includes(item.name.toLowerCase())
+  )
+  if (partialMatch?.image) return partialMatch.image
+
+  return '/images/produce_placeholder.jpg'
+}
+
+export function getProduceFamilies(name?: string): string[] {
+  if (!name) return []
+  const norm = name.toLowerCase().trim()
+  const families: string[] = []
+
+  // Citrus tree family (includes lemons, limes, oranges, grapefruit, tangerines, citrus)
+  if (norm.includes('citrus') || norm.includes('lemon') || norm.includes('lime') || norm.includes('orange') || norm.includes('grapefruit') || norm.includes('mandarin') || norm.includes('tangerine')) {
+    families.push('citrus', 'lemons', 'limes', 'oranges', 'grapefruit')
+  }
+
+  // Stone fruit family (includes peaches, nectarines, plums, cherries, apricots)
+  if (norm.includes('stone fruit') || norm.includes('peach') || norm.includes('nectarine') || norm.includes('plum') || norm.includes('cherry') || norm.includes('apricot')) {
+    families.push('stone_fruit', 'peaches', 'plums', 'cherries')
+  }
+
+  // Berries & Vines family (includes strawberries, blueberries, blackberries, raspberries, grapes)
+  if (norm.includes('berry') || norm.includes('berries') || norm.includes('vine') || norm.includes('strawberry') || norm.includes('blueberry') || norm.includes('blackberry') || norm.includes('grape')) {
+    families.push('berries', 'strawberries', 'blueberries', 'blackberries', 'grapes')
+  }
+
+  // Apples & Pears family
+  if (norm.includes('apple') || norm.includes('pear') || norm.includes('pome')) {
+    families.push('apples', 'pears')
+  }
+
+  // Tomatoes
+  if (norm.includes('tomato')) {
+    families.push('tomatoes')
+  }
+
+  // Peppers
+  if (norm.includes('pepper') || norm.includes('chili') || norm.includes('chile') || norm.includes('jalapeno')) {
+    families.push('peppers')
+  }
+
+  // Avocados
+  if (norm.includes('avocado')) {
+    families.push('avocados')
+  }
+
+  // Zucchini & Squash
+  if (norm.includes('zucchini') || norm.includes('squash')) {
+    families.push('zucchini')
+  }
+
+  // Figs
+  if (norm.includes('fig')) {
+    families.push('figs')
+  }
+
+  if (families.length === 0) {
+    families.push(norm)
+  }
+
+  return Array.from(new Set(families))
+}
+
+export function normalizeProduceFamily(name?: string): string {
+  const families = getProduceFamilies(name)
+  return families[0] || ''
+}

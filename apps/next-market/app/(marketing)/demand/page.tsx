@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import Image from 'next/image'
+import { createClient } from '@supabase/supabase-js'
 import { Navbar } from '../../components/Navbar'
 import { BottomNav } from '../../components/BottomNav'
 import { EXHAUSTIVE_US_PRODUCE, type ProduceItem } from '../../../lib/produceCatalog'
@@ -10,6 +10,7 @@ import { CartProvider } from '../../../lib/useCart'
 import { BootstrapProvider } from '../../../lib/useBootstrap'
 import { QuickSetupProvider } from '../../../lib/useQuickSetup'
 import { ErrorToastProvider } from '../../components/ErrorToast'
+import DemandClientView from './DemandClientView'
 
 interface DemandPageProps {
   searchParams: Promise<{
@@ -18,23 +19,193 @@ interface DemandPageProps {
     location?: string
     q?: string
     ref?: string
+    user_id?: string
+    email?: string
   }>
 }
 
+function getSupabaseServer() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+              process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+              process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  return createClient(url, key, {
+    auth: { persistSession: false }
+  })
+}
+
+interface ResolvedBuyerData {
+  buyerId: string
+  buyerName: string
+  firstName: string
+  buyerLocation: string
+  avatarUrl: string | null
+  itemNames: string[]
+  mode: 'buy' | 'sell'
+}
+
+async function resolveBuyerData(searchParamsResolved: Awaited<DemandPageProps['searchParams']>): Promise<ResolvedBuyerData> {
+  const { items, name, location, q, ref, user_id, email, type, mode: queryMode } = searchParamsResolved
+  const identifier = ref || user_id || email
+
+  let buyerId = identifier || ''
+  let buyerName = name?.trim() || ''
+  let buyerLocation = location?.trim() || ''
+  let avatarUrl: string | null = null
+  let rawItems = items || q || ''
+  let mode: 'buy' | 'sell' = (type as any) === 'sell' || (queryMode as any) === 'sell' ? 'sell' : 'buy'
+
+  if (identifier) {
+    try {
+      const supabase = getSupabaseServer()
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)
+
+      // 1. Query profiles table by UUID or Email
+      let profile: any = null
+      if (isUuid) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, name, zip_code, avatar_url, email')
+          .eq('id', identifier)
+          .maybeSingle()
+        profile = data
+      } else if (identifier.includes('@')) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, name, zip_code, avatar_url, email')
+          .eq('email', identifier)
+          .maybeSingle()
+        profile = data
+      } else {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, name, zip_code, avatar_url, email')
+          .or(`referral_code.eq.${identifier},dm_short_code.eq.${identifier}`)
+          .maybeSingle()
+        profile = data
+      }
+
+      if (profile) {
+        buyerId = profile.id
+        if (!buyerName) buyerName = profile.full_name || profile.name || (profile.email ? profile.email.split('@')[0] : '')
+        if (!buyerLocation && profile.zip_code) buyerLocation = profile.zip_code
+        if (profile.avatar_url) avatarUrl = profile.avatar_url
+      }
+
+      // 2. Query crm_leads if profile name/location still missing
+      if (!buyerName || !buyerLocation) {
+        let lead: any = null
+        if (isUuid) {
+          const { data } = await supabase
+            .from('crm_leads')
+            .select('name, zipcode, email, user_id')
+            .or(`id.eq.${identifier},user_id.eq.${identifier}`)
+            .maybeSingle()
+          lead = data
+        } else if (identifier.includes('@')) {
+          const { data } = await supabase
+            .from('crm_leads')
+            .select('name, zipcode, email, user_id')
+            .eq('email', identifier)
+            .maybeSingle()
+          lead = data
+        }
+
+        if (lead) {
+          if (!buyerName && lead.name) buyerName = lead.name
+          if (!buyerLocation && lead.zipcode) buyerLocation = lead.zipcode
+          if (!buyerId && lead.user_id) buyerId = lead.user_id
+        }
+      }
+
+      // 3. Query crm_produce_interests if produce items not specified in query params
+      if (!rawItems && (buyerId || email)) {
+        let interests: any[] = []
+        if (buyerId && isUuid) {
+          const { data } = await supabase
+            .from('crm_produce_interests')
+            .select('produce_name, interest_type')
+            .or(`user_id.eq.${buyerId},lead_id.eq.${buyerId}`)
+          if (data) interests = data
+        } else if (email && email.includes('@')) {
+          const { data: lead } = await supabase
+            .from('crm_leads')
+            .select('id')
+            .ilike('email', email)
+            .maybeSingle()
+          
+          if (lead?.id) {
+            const { data } = await supabase
+              .from('crm_produce_interests')
+              .select('produce_name, interest_type')
+              .or(`user_id.eq.${buyerId},lead_id.eq.${lead.id}`)
+            if (data) interests = data
+          }
+        }
+
+        if (interests && interests.length > 0) {
+          if (!type && !queryMode) {
+            const hasSell = interests.some((i: any) => i.interest_type === 'sell')
+            if (hasSell) mode = 'sell'
+          }
+          const filtered = interests.filter((i: any) => i.interest_type === mode)
+          if (filtered.length > 0) {
+            rawItems = Array.from(new Set(filtered.map((i: any) => i.produce_name))).join(',')
+          } else {
+            rawItems = Array.from(new Set(interests.map((i: any) => i.produce_name))).join(',')
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[DemandPage] DB resolution error:', err)
+    }
+  }
+
+  if (!rawItems) rawItems = 'Heirloom Tomatoes,Hass Avocados,Lemons,Sweet Bell Peppers,Figs'
+
+  const itemNames = rawItems.split(',').map((s) => s.trim()).filter(Boolean)
+  
+  let firstName = 'Jane'
+  if (buyerName && buyerName !== 'Local Neighbor' && buyerName !== 'A neighbor') {
+    const clean = buyerName.split('@')[0].replace(/[._-]/g, ' ').trim()
+    const firstWord = clean.split(/\s+/)[0]
+    if (firstWord) {
+      firstName = firstWord.charAt(0).toUpperCase() + firstWord.slice(1)
+    }
+  }
+
+  return {
+    buyerId,
+    buyerName,
+    firstName,
+    buyerLocation,
+    avatarUrl,
+    itemNames,
+    mode,
+  }
+}
+
 export async function generateMetadata({ searchParams }: DemandPageProps): Promise<Metadata> {
-  const { items, name, location, q } = await searchParams
+  const searchParamsResolved = await searchParams
   const headersList = await headers()
-  const host = headersList.get('host') || 'localhost:3002'
+  const host = headersList.get('host') || 'localhost:3001'
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const siteUrl = `${protocol}://${host}`
 
-  const rawItems = items || q || 'Fresh Produce'
-  const itemList = rawItems.split(',').map((s) => s.trim()).filter(Boolean)
-  const primaryItemName = itemList[0] || 'Fresh Produce'
+  const data = await resolveBuyerData(searchParamsResolved)
+  const primaryItemName = data.itemNames[0] || 'Fresh Produce'
+  const locStr = data.buyerLocation ? ` in ${data.buyerLocation}` : ''
 
-  // Match primary item in catalog for high-res photo URL (Option A — 0 server cost)
+  let itemsSummary = primaryItemName
+  if (data.itemNames.length === 2) {
+    itemsSummary = `${data.itemNames[0]} & ${data.itemNames[1]}`
+  } else if (data.itemNames.length > 2) {
+    itemsSummary = `${data.itemNames[0]}, ${data.itemNames[1]} + ${data.itemNames.length - 2} more`
+  }
+
   const catalogMatch = EXHAUSTIVE_US_PRODUCE.find(
-    (p) => p.name.toLowerCase() === primaryItemName.toLowerCase()
+    (p) => p.name.toLowerCase() === primaryItemName.toLowerCase() ||
+           p.name.toLowerCase().includes(primaryItemName.toLowerCase())
   )
   const photoUrl = catalogMatch?.image
     ? catalogMatch.image.startsWith('http')
@@ -42,18 +213,13 @@ export async function generateMetadata({ searchParams }: DemandPageProps): Promi
       : `${siteUrl}${catalogMatch.image}`
     : `${siteUrl}/og-share.jpg`
 
-  const buyerName = name?.trim() || 'A neighbor'
-  const locStr = location?.trim() ? ` in ${location.trim()}` : ''
-
-  let itemsSummary = primaryItemName
-  if (itemList.length === 2) {
-    itemsSummary = `${itemList[0]} & ${itemList[1]}`
-  } else if (itemList.length > 2) {
-    itemsSummary = `${itemList[0]}, ${itemList[1]} + ${itemList.length - 2} more`
-  }
-
-  const title = `${buyerName} is looking for ${itemsSummary}${locStr} | CasaGrown`
-  const description = `Do you have extra garden produce? Help ${buyerName} by listing your harvest on CasaGrown so your neighbors can buy local!`
+  const title = data.buyerName
+    ? `${data.buyerName} is looking for ${itemsSummary}${locStr} | CasaGrown`
+    : `Neighbors are searching for ${itemsSummary}${locStr} | CasaGrown`
+  
+  const description = data.buyerName
+    ? `Do you have extra garden harvest? Help ${data.buyerName} by listing your produce on CasaGrown so neighbors can connect!`
+    : `Do you have extra garden harvest? List your produce on CasaGrown in 30 seconds and connect with local buyers!`
 
   return {
     metadataBase: new URL(siteUrl),
@@ -64,8 +230,15 @@ export async function generateMetadata({ searchParams }: DemandPageProps): Promi
       description,
       siteName: 'CasaGrown Market',
       type: 'website',
-      url: `/demand?items=${encodeURIComponent(rawItems)}`,
-      images: [{ url: photoUrl, alt: itemsSummary }],
+      url: `${siteUrl}/demand?ref=${data.buyerId}`,
+      images: [
+        {
+          url: photoUrl,
+          width: 1200,
+          height: 630,
+          alt: `${itemsSummary} requested by ${data.buyerName || 'Local Neighbor'}`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
@@ -77,17 +250,14 @@ export async function generateMetadata({ searchParams }: DemandPageProps): Promi
 }
 
 export default async function DemandPage({ searchParams }: DemandPageProps) {
-  const { items, name, location, q } = await searchParams
+  const searchParamsResolved = await searchParams
+  const data = await resolveBuyerData(searchParamsResolved)
 
-  const rawItems = items || q || 'Fresh Produce'
-  const itemNames = rawItems.split(',').map((s) => s.trim()).filter(Boolean)
-  const buyerName = name?.trim() || 'A neighbor'
-  const locStr = location?.trim() ? ` in ${location.trim()}` : ''
-
-  // Hydrate items from catalog
-  const matchedItems: ProduceItem[] = itemNames.map((itemName, index) => {
+  const matchedItems: ProduceItem[] = data.itemNames.map((itemName, index) => {
     const catalogItem = EXHAUSTIVE_US_PRODUCE.find(
-      (p) => p.name.toLowerCase() === itemName.toLowerCase()
+      (p) => p.name.toLowerCase() === itemName.toLowerCase() ||
+             p.name.toLowerCase().includes(itemName.toLowerCase()) ||
+             itemName.toLowerCase().includes(p.name.toLowerCase())
     )
     if (catalogItem) return catalogItem
 
@@ -96,12 +266,19 @@ export default async function DemandPage({ searchParams }: DemandPageProps) {
       name: itemName,
       category: 'produce',
       displayCategory: 'Requested Item',
-      image: '/images/produce_placeholder.jpg',
+      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80',
       buyersCount: 1,
       sellersCount: 0,
       unit: 'item',
     }
   })
+
+  const displayName = data.buyerName || (data.firstName && data.firstName !== 'Buyer' && data.firstName !== 'Neighbor' ? data.firstName : 'Jane')
+  const firstName = data.firstName && data.firstName !== 'Buyer' && data.firstName !== 'Neighbor' 
+    ? data.firstName 
+    : (displayName ? displayName.split(' ')[0] : 'Jane')
+
+  const locStr = data.buyerLocation ? ` in ${data.buyerLocation}` : ''
 
   return (
     <ErrorToastProvider>
@@ -109,115 +286,19 @@ export default async function DemandPage({ searchParams }: DemandPageProps) {
         <MarketProvider>
           <CartProvider>
             <QuickSetupProvider>
-              <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', paddingTop: '64px', paddingBottom: '80px' }}>
-                <Navbar />
-
-                <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px 16px' }}>
-                  {/* Banner Header */}
-                  <div
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      border: '1px solid #e5e7eb',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-                      marginBottom: '28px',
-                      textAlign: 'center',
-                    }}
-                  >
-                    <span style={{ fontSize: '40px', display: 'block', marginBottom: '8px' }}>🥦 🧺 🍎</span>
-                    <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: '0 0 8px 0' }}>
-                      {buyerName}{locStr} is searching for local produce!
-                    </h1>
-                    <p style={{ fontSize: '15px', color: '#4b5563', margin: 0, maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto' }}>
-                      Got extra harvest growing in your garden? Click <strong style={{ color: '#15803d' }}>List Item Now</strong> next to any requested produce to post a listing in 30 seconds and connect with your neighbor!
-                    </p>
-                  </div>
-
-                  {/* Requested Items Grid */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                      gap: '20px',
-                    }}
-                  >
-                    {matchedItems.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          backgroundColor: '#ffffff',
-                          borderRadius: '16px',
-                          border: '1px solid #e5e7eb',
-                          overflow: 'hidden',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                        }}
-                      >
-                        <div style={{ position: 'relative', width: '100%', height: '180px', backgroundColor: '#f3f4f6' }}>
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            fill
-                            style={{ objectFit: 'cover' }}
-                            sizes="(max-width: 768px) 100vw, 33vw"
-                          />
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: '12px',
-                              left: '12px',
-                              backgroundColor: '#dcfce7',
-                              color: '#15803d',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              padding: '4px 10px',
-                              borderRadius: '9999px',
-                              border: '1px solid #86efac',
-                            }}
-                          >
-                            🔥 Buyer Searching
-                          </span>
-                        </div>
-
-                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#111827', margin: '0 0 6px 0' }}>
-                            {item.name}
-                          </h3>
-                          <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px 0' }}>
-                            Category: {item.displayCategory || 'Produce'}
-                          </p>
-
-                          <div style={{ marginTop: 'auto' }}>
-                            <Link
-                              href={`/create-listing?produce=${encodeURIComponent(item.name)}`}
-                              style={{
-                                display: 'block',
-                                width: '100%',
-                                textAlign: 'center',
-                                backgroundColor: '#16a34a',
-                                color: '#ffffff',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                padding: '10px 16px',
-                                borderRadius: '10px',
-                                textDecoration: 'none',
-                                boxSizing: 'border-box',
-                                boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
-                              }}
-                            >
-                              ➕ List {item.name} Now →
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </main>
-
-                <BottomNav />
-              </div>
+              <Navbar />
+              <DemandClientView
+                key={data.mode + data.buyerId}
+                displayName={displayName}
+                firstName={firstName}
+                locStr={locStr}
+                avatarUrl={data.avatarUrl}
+                buyerId={data.buyerId}
+                itemNames={data.itemNames}
+                mode={data.mode}
+                matchedItems={matchedItems}
+              />
+              <BottomNav />
             </QuickSetupProvider>
           </CartProvider>
         </MarketProvider>

@@ -1997,5 +1997,15 @@ BEGIN
     (sess_wizard, '/create-listing-wizard', 'wizard_step', '/create-listing-wizard', '{"step_index": 1, "step_name": "text_input"}'),
     (sess_wizard, '/create-listing-wizard', 'wizard_step_timing', '/create-listing-wizard', '{"step": 1, "step_name": "text_input", "duration_secs": 18}');
 
+  -- Seed Produce Interests for E2E Test Seller (u1) and Buyer (u2)
+  INSERT INTO crm_produce_interests (id, user_id, produce_name, interest_type, zipcodes, status, radius_miles)
+  VALUES 
+    ('e1111111-1111-1111-1111-111111111111', u1, 'Organic Strawberries', 'sell', ARRAY['95125'], 'active', 5),
+    ('e1111111-1111-1111-1111-222222222222', u1, 'Hass Avocados', 'sell', ARRAY['95125'], 'active', 5),
+    ('e1111111-1111-1111-1111-333333333333', u1, 'Meyer Lemons', 'sell', ARRAY['95125'], 'active', 5),
+    ('e2222222-2222-2222-2222-111111111111', u2, 'Organic Strawberries', 'buy', ARRAY['95125'], 'active', 5),
+    ('e2222222-2222-2222-2222-222222222222', u2, 'Heirloom Tomatoes', 'buy', ARRAY['95125'], 'active', 5)
+  ON CONFLICT (id) DO NOTHING;
+
 END;
 $$;

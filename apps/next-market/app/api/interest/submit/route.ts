@@ -52,7 +52,17 @@ export async function POST(req: Request) {
 
     // 2. Insert or update crm_leads entry with UTM attribution
     const primaryZipcode = zipcodes[0]
-    const userId = user?.id || body.user_id || null
+    let userId = user?.id || body.user_id || null
+
+    if (!userId && email) {
+      const { data: matchedProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', email.trim())
+        .maybeSingle()
+      if (matchedProfile?.id) userId = matchedProfile.id
+    }
+
     console.log('[Interest API] userId:', userId, 'interests count:', interests?.length, 'zipcodes:', zipcodes)
 
     const { data: leadData, error: leadError } = await supabase
@@ -97,8 +107,8 @@ export async function POST(req: Request) {
     // 3. Save produce interests in crm_produce_interests
     if (interests && Array.isArray(interests) && interests.length > 0) {
       const rowsToInsert = interests.map((item: { produce_name: string; interest_type: string; category?: string }) => ({
-        lead_id: userId ? null : (leadId || null),
-        user_id: userId,
+        lead_id: leadId || null,
+        user_id: userId || null,
         interest_type: item.interest_type,
         produce_name: item.produce_name,
         produce_category: item.category || 'produce',
@@ -112,6 +122,13 @@ export async function POST(req: Request) {
 
       const { error: interestError } = await supabase.from('crm_produce_interests').insert(rowsToInsert)
       console.log('[Interest API] Insert interests result:', interestError ? 'ERROR: ' + JSON.stringify(interestError) : 'OK, ' + rowsToInsert.length + ' rows')
+
+      if (userId && leadId) {
+        await supabase
+          .from('crm_produce_interests')
+          .update({ user_id: userId })
+          .eq('lead_id', leadId)
+      }
 
       // Upsert custom items into community_produce_catalog for fast O(1) community catalog hydration
       const customItems = interests.filter((item: { produce_name: string; is_custom?: boolean; image?: string; category?: string }) => item.is_custom)
