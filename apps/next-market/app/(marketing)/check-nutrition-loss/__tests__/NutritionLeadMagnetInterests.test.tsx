@@ -56,26 +56,52 @@ describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
     // Step 1: Click Check My Nutrition Loss →
     fireEvent.click(screen.getByText(/Check My Nutrition Loss →/i))
 
-    // Step 2: Select produce (Spinach)
+    // Step 2: Zipcode
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/e.g. 95125/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 3: Select produce (Spinach)
     await waitFor(() => {
       expect(screen.getByText(/Spinach/i)).toBeDefined()
     })
     fireEvent.click(screen.getByText(/Spinach/i))
-    fireEvent.click(screen.getByText(/Calculate Loss/i))
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
 
-    // Step 3: Lead Capture Form (1.5s calculation delay)
+    // Step 4: Store Types
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/Jane Doe/i)).toBeDefined()
+      expect(screen.getByText(/Traditional Supermarket/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 5: Grocery Methods
+    await waitFor(() => {
+      expect(screen.getByText(/In-Store Shopping/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 6: Buying Frequency
+    await waitFor(() => {
+      expect(screen.getByText(/Once a week/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 7: Neighbor Buying Openness
+    await waitFor(() => {
+      expect(screen.getByText(/Very open to trying it!/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByText(/Calculate My Nutrition Loss →/i))
+
+    // Step 8: Lead Capture Form (1.2s calculation delay)
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/First and Last Name/i)).toBeDefined()
     }, { timeout: 3000 })
 
-    fireEvent.change(screen.getByPlaceholderText(/Jane Doe/i), { target: { value: 'Test Buyer' } })
-    fireEvent.change(screen.getByPlaceholderText(/hello@example.com/i), { target: { value: 'buyer@test.local' } })
+    fireEvent.change(screen.getByPlaceholderText(/First and Last Name/i), { target: { value: 'Test Buyer' } })
+    fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), { target: { value: 'buyer@test.local' } })
 
-    // Check marketing consent box
-    const consentCheckbox = screen.getByRole('checkbox')
-    fireEvent.click(consentCheckbox)
-
-    fireEvent.click(screen.getByText(/Send My Report →/i))
+    fireEvent.click(screen.getByText(/Get My Free Nutrition Report →/i))
 
     // Verify /api/interest/submit fetch call with interest_type = 'buy'
     await waitFor(() => {
@@ -90,10 +116,9 @@ describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
 
     // Verify notification badge and browse market CTA button
     await waitFor(() => {
-      expect(screen.getByText(/We'll notify you at/i)).toBeDefined()
-      const marketCta = screen.getByText(/Browse Fresh Local Produce Nearby/i)
+      const marketCta = screen.getByText(/Notify me when local sellers have what I want/i)
       expect(marketCta).toBeDefined()
-      expect(marketCta.getAttribute('href')).toBe('/market')
+      expect(marketCta.getAttribute('href')).toBe('/interest?scope=buy')
     })
   })
 })

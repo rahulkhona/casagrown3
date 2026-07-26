@@ -55,11 +55,11 @@ describe('DemandPage (Shared Buyer Wishlist)', () => {
 
     render(pageJsx)
 
-    expect(screen.getByText(/Rahul in San Jose is searching for local produce!/i)).toBeInTheDocument()
+    expect(screen.getByText(/Would you be interested in sharing or selling any of these items to Rahul\?/i)).toBeInTheDocument()
     expect(screen.getByText('Organic Strawberries')).toBeInTheDocument()
     expect(screen.getByText('Hass Avocados')).toBeInTheDocument()
 
-    const listButtons = screen.getAllByText(/List .* Now →/)
+    const listButtons = screen.getAllByText(/List Item & Notify/i)
     expect(listButtons.length).toBe(2)
     expect(listButtons[0].closest('a')).toHaveAttribute(
       'href',

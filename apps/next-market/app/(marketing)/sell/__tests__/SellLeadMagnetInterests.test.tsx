@@ -44,17 +44,17 @@ describe('Sell Lead Magnet Interest Auto-Registration', () => {
     vi.clearAllMocks()
   })
 
-  it('renders landing page with Estimate My Potential prompt', () => {
+  it('renders landing page with Estimate Your Backyard Potential prompt', () => {
     render(<SellLandingPage />)
-    expect(screen.getByText(/Estimate My Potential/i)).toBeDefined()
-    expect(screen.getByText(/Get My Estimate →/i)).toBeDefined()
+    expect(screen.getByText(/Estimate Your Backyard Potential/i)).toBeDefined()
+    expect(screen.getByText(/Calculate My Backyard's Value →/i)).toBeDefined()
   })
 
   it('auto-registers sell interests when lead form is submitted', async () => {
     render(<SellLandingPage />)
 
-    // Step 1: Click Get My Estimate
-    fireEvent.click(screen.getByText(/Get My Estimate →/i))
+    // Step 1: Click Calculate My Backyard's Value →
+    fireEvent.click(screen.getByText(/Calculate My Backyard's Value →/i))
 
     // Step 2: Zipcode
     await waitFor(() => {
@@ -72,19 +72,32 @@ describe('Sell Lead Magnet Interest Auto-Registration', () => {
     fireEvent.click(option)
     fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
 
-    // Step 4: Fruit Trees Selection (Select Avocados)
+    // Step 4: Fruit Trees
     await waitFor(() => {
-      expect(screen.getByText(/Avocados/i)).toBeDefined()
+      expect(screen.getByText(/Any fruit trees\?/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByText(/Avocados/i))
     fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
 
     // Step 5: Plants Selection (Select Tomatoes)
     await waitFor(() => {
-      expect(screen.getByText(/Tomatoes/i)).toBeDefined()
+      expect(screen.getByText(/Heirloom Tomatoes/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByText(/Tomatoes/i))
-    fireEvent.click(screen.getByText(/Estimate My Potential/i))
+    fireEvent.click(screen.getByText(/Heirloom Tomatoes/i))
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 6: Habits
+    await waitFor(() => {
+      expect(screen.getByText(/Give it away to friends & neighbors/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByText(/Give it away to friends & neighbors/i))
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 7: Intent
+    await waitFor(() => {
+      expect(screen.getByText(/Very comfortable — I want to earn extra income!/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByText(/Very comfortable — I want to earn extra income!/i))
+    fireEvent.click(screen.getByText(/Calculate My Potential →/i))
 
     // Step 6: Lead Capture Form (1.5s calculation delay)
     await waitFor(() => {
