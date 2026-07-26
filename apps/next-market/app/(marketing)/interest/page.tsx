@@ -614,6 +614,7 @@ function InterestPageContent() {
                   return (
                     <div 
                       key={item.id} 
+                      data-testid="produce-card"
                       style={{
                         ...styles.produceCard,
                         borderColor: isCardSelected ? '#16a34a' : isCustom ? '#86efac' : '#e5e7eb',
