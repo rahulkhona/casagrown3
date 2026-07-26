@@ -349,23 +349,41 @@ function InterestPageContent() {
     }
   }, [])
 
-  // Auto-select produce item from ?produce= or ?q= query param
+  // Auto-select produce item from ?produce= or ?items= or ?q= query param
   const autoSelectedRef = React.useRef(false)
   useEffect(() => {
     if (autoSelectedRef.current) return
-    const produceParam = searchParams.get('produce') || searchParams.get('q')
-    if (!produceParam) return
+    const rawParam = searchParams.get('produce') || searchParams.get('items') || searchParams.get('q')
+    if (!rawParam) return
 
-    const itemNames = produceParam.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    // Clean quotes, lower-case, and split by comma
+    const cleanParam = rawParam.replace(/^["']|["']$/g, '').trim()
+    const itemNames = cleanParam.split(',').map(s => s.replace(/^["']|["']$/g, '').trim()).filter(Boolean)
     if (itemNames.length === 0) return
 
+    const fullCatalog = [...EXHAUSTIVE_US_PRODUCE, ...communityItems]
     const matches: SelectedInterest[] = []
-    for (const name of itemNames) {
-      const match = EXHAUSTIVE_US_PRODUCE.find(item =>
+
+    for (const rawName of itemNames) {
+      const name = rawName.toLowerCase()
+      let match = fullCatalog.find(item =>
         item.name.toLowerCase() === name ||
         item.name.toLowerCase().includes(name) ||
         name.includes(item.name.toLowerCase())
       )
+
+      if (!match) {
+        // Fallback custom produce item if not found in preset catalog
+        const titleCaseName = rawName.charAt(0).toUpperCase() + rawName.slice(1)
+        match = {
+          id: `custom_${name.replace(/[^a-z0-9]/g, '_')}`,
+          name: titleCaseName,
+          category: 'produce',
+          displayCategory: 'Fresh Produce',
+          image: getProduceImage(rawName, 'produce')
+        }
+      }
+
       if (match && !matches.some(m => m.item.id === match.id)) {
         matches.push({ item: match, type: scope || 'buy' })
       }
@@ -383,7 +401,7 @@ function InterestPageContent() {
         setGuestAuthStep('auth')
       }
     }
-  }, [searchParams, scope, savedInterestKeys, userId])
+  }, [searchParams, scope, communityItems, savedInterestKeys, userId])
 
   // Filter produce items purely by search query (combining top 100 preset + community added items)
   const filteredItems = useMemo(() => {
