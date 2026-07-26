@@ -160,7 +160,7 @@ export default function MyInterestsPage() {
                 </span>
               </div>
               <Link
-                href={`/my-booth/products/new?name=${encodeURIComponent(item.produce_name)}`}
+                href={`/create-listing?produce=${encodeURIComponent(item.produce_name)}`}
                 style={{
                   padding: '6px 14px',
                   fontSize: '13px',
@@ -269,7 +269,7 @@ function InterestCard({
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {interest.interest_type === 'sell' && (
           <Link
-            href={`/my-booth/products/new?name=${encodeURIComponent(interest.produce_name)}`}
+            href={`/create-listing?produce=${encodeURIComponent(interest.produce_name)}`}
             style={{
               padding: '6px 14px',
               fontSize: '13px',
