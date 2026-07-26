@@ -75,7 +75,7 @@ function InterestPageContent() {
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
-        // Stage 1 & 2: Direct title query (with keyword hint if applicable)
+        // Stage 1 & 2: Direct title query with category inspection
         const qLower = rawQ.toLowerCase()
         let primaryTitle = rawQ
         if (qLower.includes('egg') && !qLower.endsWith('egg') && !qLower.endsWith('eggs')) {
@@ -84,7 +84,9 @@ function InterestPageContent() {
           primaryTitle = `${rawQ} honey`
         }
 
-        let res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(primaryTitle)}&prop=pageimages&format=json&pithumbsize=600&origin=*`)
+        const nonProduceCatPatterns = [/film/i, /movie/i, /director/i, /actor/i, /birth/i, /people/i, /biography/i, /surname/i, /politician/i, /police/i, /scandal/i, /football/i, /sports/i, /stadium/i, /company/i, /album/i, /song/i, /band/i, /television/i, /series/i, /novel/i, /game/i, /district/i, /river/i]
+
+        let res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(primaryTitle)}&redirects=1&prop=categories|pageimages&format=json&pithumbsize=600&origin=*`)
         let data = await res.json()
         if (cancelled) return
 
@@ -92,31 +94,21 @@ function InterestPageContent() {
         if (pages) {
           const pageId = Object.keys(pages)[0]
           if (pageId && pageId !== '-1') {
-            const thumb = pages[pageId]?.thumbnail?.source
-            if (thumb) {
-              setFetchedCustomImage(thumb)
-              return
+            const page = pages[pageId]
+            const categories: any[] = page?.categories || []
+            const isNonFood = categories.some((c: any) => nonProduceCatPatterns.some(p => p.test(c.title || '')))
+            
+            if (!isNonFood) {
+              const thumb = page?.thumbnail?.source
+              if (thumb) {
+                setFetchedCustomImage(thumb)
+                return
+              }
             }
           }
         }
 
-        // Stage 3: Generator search for broader food/farm/plant keywords
-        res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(rawQ + ' produce OR food OR plant OR farm')}&prop=pageimages&pithumbsize=600&format=json&origin=*`)
-        data = await res.json()
-        if (cancelled) return
-
-        pages = data?.query?.pages
-        if (pages) {
-          for (const pid of Object.keys(pages)) {
-            const thumb = pages[pid]?.thumbnail?.source
-            if (thumb) {
-              setFetchedCustomImage(thumb)
-              return
-            }
-          }
-        }
-
-        // Stage 4: Default stock placeholder graphic
+        // Stage 3: Default stock placeholder graphic (reject non-food matches)
         setFetchedCustomImage('')
       } catch {
         if (!cancelled) setFetchedCustomImage('')
@@ -527,9 +519,9 @@ function InterestPageContent() {
                   handleSelectInterest(customItem, scope === 'sell' ? 'sell' : 'buy')
                 }
               }}
-              style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac', padding: '10px 18px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac', padding: '10px 20px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
-              + Add unlisted item
+              + Add
             </button>
           </div>
         </div>
