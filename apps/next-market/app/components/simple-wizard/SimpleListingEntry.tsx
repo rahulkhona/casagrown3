@@ -23,6 +23,7 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
   const supabase = createClient()
 
   // ── URL params from lead providers ──
+  const paramProduce = searchParams.get('produce') || searchParams.get('name') || searchParams.get('item') || ''
   const paramEmail = searchParams.get('email') || ''
   const paramName = searchParams.get('name') || ''
   const paramPhone = searchParams.get('phone') || ''
@@ -30,7 +31,7 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
   const paramAddress = searchParams.get('address') || ''
 
   // ── State ──
-  const [freeformText, setFreeformText] = useState('')
+  const [freeformText, setFreeformText] = useState(paramProduce ? `Fresh ${paramProduce} harvested from my backyard garden` : '')
   const [photos, setPhotos] = useState<string[]>([])
 
   // General

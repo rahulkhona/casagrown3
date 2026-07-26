@@ -129,10 +129,12 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
     const urlEmail = searchParams.get('email')
     const urlName = searchParams.get('name')
     const urlPhone = searchParams.get('phone')
+    const urlProduce = searchParams.get('produce') || searchParams.get('item')
     
-    if (urlEmail || urlName || urlPhone) {
+    if (urlEmail || urlName || urlPhone || urlProduce) {
       updateState(prev => ({
         ...prev,
+        title: urlProduce ? `Fresh ${urlProduce}` : prev.title,
         email: urlEmail || prev.email,
         fullName: urlName || prev.fullName,
         phoneNumber: urlPhone || prev.phoneNumber,
