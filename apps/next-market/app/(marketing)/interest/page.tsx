@@ -161,33 +161,29 @@ function InterestPageContent() {
 
   const [communityItems, setCommunityItems] = useState<ProduceItem[]>([])
 
-  // Dynamically hydrate community-added custom items (e.g. Chickoo) from database so all users see them
+  // Dynamically hydrate community-added items (e.g. Chickoo) from community_produce_catalog
   useEffect(() => {
     const fetchCommunityItems = async () => {
       try {
         const supabase = createClient()
         const { data } = await supabase
-          .from('crm_produce_interests')
-          .select('produce_name, produce_category')
-          .eq('status', 'active')
+          .from('community_produce_catalog')
+          .select('id, name, category, image')
           .limit(200)
 
         if (data && data.length > 0) {
-          const uniqueNames = new Set<string>()
           const newItems: ProduceItem[] = []
           const presetNames = new Set(EXHAUSTIVE_US_PRODUCE.map((p) => p.name.toLowerCase()))
 
           for (const row of data) {
-            const name = row.produce_name ? row.produce_name.trim() : ''
-            if (!name || presetNames.has(name.toLowerCase()) || uniqueNames.has(name.toLowerCase())) continue
-            uniqueNames.add(name.toLowerCase())
+            if (!row.name || presetNames.has(row.name.toLowerCase())) continue
 
             newItems.push({
-              id: `community_${name.toLowerCase().replace(/\s+/g, '_')}`,
-              name: name.charAt(0).toUpperCase() + name.slice(1),
-              category: (row.produce_category as any) || 'produce',
+              id: row.id || `community_${row.name.toLowerCase().replace(/\s+/g, '_')}`,
+              name: row.name,
+              category: (row.category as any) || 'produce',
               displayCategory: 'Community Item',
-              image: '/images/produce_placeholder.jpg',
+              image: row.image || '/images/produce_placeholder.jpg',
               buyersCount: 1,
               sellersCount: 0,
               unit: 'item',

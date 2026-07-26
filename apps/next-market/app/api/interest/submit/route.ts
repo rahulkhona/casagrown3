@@ -112,6 +112,19 @@ export async function POST(req: Request) {
 
       const { error: interestError } = await supabase.from('crm_produce_interests').insert(rowsToInsert)
       console.log('[Interest API] Insert interests result:', interestError ? 'ERROR: ' + JSON.stringify(interestError) : 'OK, ' + rowsToInsert.length + ' rows')
+
+      // Upsert custom items into community_produce_catalog for fast O(1) community catalog hydration
+      const customItems = interests.filter((item: { produce_name: string; is_custom?: boolean; image?: string; category?: string }) => item.is_custom)
+      if (customItems.length > 0) {
+        const catalogRows = customItems.map((ci: { produce_name: string; image?: string; category?: string }) => ({
+          id: ci.produce_name.toLowerCase().trim().replace(/\s+/g, '_'),
+          name: ci.produce_name.charAt(0).toUpperCase() + ci.produce_name.slice(1).trim(),
+          category: ci.category || 'produce',
+          image: ci.image || '/images/produce_placeholder.jpg',
+          use_count: 1,
+        }))
+        await supabase.from('community_produce_catalog').upsert(catalogRows, { onConflict: 'id' })
+      }
     }
 
     return NextResponse.json({
