@@ -134,7 +134,7 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
     if (urlEmail || urlName || urlPhone || urlProduce) {
       updateState(prev => ({
         ...prev,
-        title: urlProduce ? `Fresh ${urlProduce}` : prev.title,
+        name: urlProduce ? `Fresh ${urlProduce}` : prev.name,
         email: urlEmail || prev.email,
         fullName: urlName || prev.fullName,
         phoneNumber: urlPhone || prev.phoneNumber,
