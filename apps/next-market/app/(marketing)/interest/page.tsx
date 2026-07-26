@@ -159,6 +159,49 @@ function InterestPageContent() {
     )
   }
 
+  const [communityItems, setCommunityItems] = useState<ProduceItem[]>([])
+
+  // Dynamically hydrate community-added custom items (e.g. Chickoo) from database so all users see them
+  useEffect(() => {
+    const fetchCommunityItems = async () => {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('crm_produce_interests')
+          .select('produce_name, produce_category')
+          .eq('status', 'active')
+          .limit(200)
+
+        if (data && data.length > 0) {
+          const uniqueNames = new Set<string>()
+          const newItems: ProduceItem[] = []
+          const presetNames = new Set(EXHAUSTIVE_US_PRODUCE.map((p) => p.name.toLowerCase()))
+
+          for (const row of data) {
+            const name = row.produce_name ? row.produce_name.trim() : ''
+            if (!name || presetNames.has(name.toLowerCase()) || uniqueNames.has(name.toLowerCase())) continue
+            uniqueNames.add(name.toLowerCase())
+
+            newItems.push({
+              id: `community_${name.toLowerCase().replace(/\s+/g, '_')}`,
+              name: name.charAt(0).toUpperCase() + name.slice(1),
+              category: (row.produce_category as any) || 'produce',
+              displayCategory: 'Community Item',
+              image: '/images/produce_placeholder.jpg',
+              buyersCount: 1,
+              sellersCount: 0,
+              unit: 'item',
+            })
+          }
+          setCommunityItems(newItems)
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    }
+    fetchCommunityItems()
+  }, [])
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
 
@@ -305,12 +348,13 @@ function InterestPageContent() {
     setSelectedInterests([interest])
   }, [searchParams, scope])
 
-  // Filter produce items purely by search query (all categories mixed)
+  // Filter produce items purely by search query (combining top 100 preset + community added items)
   const filteredItems = useMemo(() => {
+    const fullCatalog = [...EXHAUSTIVE_US_PRODUCE, ...communityItems]
     const q = searchQuery.toLowerCase().trim()
-    if (!q) return EXHAUSTIVE_US_PRODUCE
-    return EXHAUSTIVE_US_PRODUCE.filter((item) => item.name.toLowerCase().includes(q))
-  }, [searchQuery])
+    if (!q) return fullCatalog
+    return fullCatalog.filter((item) => item.name.toLowerCase().includes(q))
+  }, [searchQuery, communityItems])
 
   // Zipcode validation
   const handleAddZipcode = () => {
