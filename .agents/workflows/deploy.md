@@ -49,29 +49,14 @@ npx supabase db push --include-all --linked
 
 > **Note**: Use `--include-all` if migrations were created out of order relative to what's already on remote.
 
-### 2. Push Auth Config (only when email templates or auth settings change)
+### 2. Prohibited Configuration Pushes (`config.toml`, `.env`, `.env.local`)
 
-This pushes `config.toml` auth settings (site_url, email templates, etc.) to the hosted project.
-
-```bash
-# 1. Back up config.toml
-// turbo
-cp supabase/config.toml supabase/config.toml.bak
-
-# 2. Update site_url and additional_redirect_urls in config.toml
-#    for the target environment (staging or production domains)
-
-# 3. Push
-npx supabase config push --project-ref <project-ref>
-
-# 4. Restore config.toml
-// turbo
-cp supabase/config.toml.bak supabase/config.toml && rm supabase/config.toml.bak
-```
+> [!CAUTION]
+> **NEVER run `npx supabase config push`** or upload `.env` / `config.toml` files to hosted Supabase or Vercel. Hosted Auth, SMTP, and site URL settings MUST be managed via Supabase Dashboard or version-controlled SQL migrations. Refer strictly to the [`deploy-safety`](file:///.agents/skills/deploy_safety/SKILL.md) skill.
 
 ### 3. Deploy Frontend (Vercel)
 
-Frontend deploys happen automatically on `git push`. No manual steps needed.
+Frontend deploys happen automatically on `git push origin main`. No manual steps needed.
 
 ---
 
