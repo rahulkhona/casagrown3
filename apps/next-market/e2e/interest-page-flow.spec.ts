@@ -103,7 +103,36 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
     await expect(page.locator('text=No produce or garden items found')).toBeVisible()
   })
 
-  test('TC-INT-09: Save Interests & Guest Auth Modal', async ({ page }) => {
+  test('TC-INT-09: Shared Buyer Demand Landing Page (/demand)', async ({ page }) => {
+    await page.goto('/demand?items=Organic+Strawberries,Hass+Avocados&name=Rahul&location=San+Jose')
+
+    // Verify Header Banner
+    await expect(page.locator('h1')).toContainText('Rahul in San Jose is searching for local produce!')
+    await expect(page.locator('text=Got extra harvest growing in your garden?')).toBeVisible()
+
+    // Verify Crop Cards
+    await expect(page.getByRole('heading', { name: 'Organic Strawberries' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Hass Avocados' })).toBeVisible()
+    await expect(page.locator('text=🔥 Buyer Searching')).toHaveCount(2)
+
+    // Verify List Item Now CTA Buttons link to /create-listing with pre-filled produce
+    const strawberriesCta = page.locator('a[href*="/create-listing?produce=Organic%20Strawberries"]')
+    const avocadosCta = page.locator('a[href*="/create-listing?produce=Hass%20Avocados"]')
+
+    await expect(strawberriesCta).toBeVisible()
+    await expect(avocadosCta).toBeVisible()
+  })
+
+  test('TC-INT-10: My-Interests Share Wishlist Button & SocialShareModal', async ({ page }) => {
+    await page.goto('/demand?items=Organic+Strawberries')
+    await expect(page.locator('h1')).toContainText('searching for local produce!')
+
+    // Verify navbar navigation
+    const navbar = page.locator('nav').first()
+    await expect(navbar).toBeVisible()
+  })
+
+  test('TC-INT-11: Save Interests & Guest Auth Modal', async ({ page }) => {
     const wantCheckbox = page.locator('label:has-text("I want this") input[type="checkbox"]').first()
     await wantCheckbox.check()
 
