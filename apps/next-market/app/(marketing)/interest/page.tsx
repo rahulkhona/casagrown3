@@ -609,84 +609,116 @@ function InterestPageContent() {
 
       {/* Main Grid Content */}
       <main style={styles.gridContainer}>
-        {filteredItems.length === 0 && (
-          <div style={styles.noResultsBox}>
-            🔍 No produce found matching "{searchQuery}". Try selecting from our category tabs above!
-          </div>
-        )}
+        {(() => {
+          const trimmedSearch = searchQuery.trim()
+          const exactMatchExists = trimmedSearch ? EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase() === trimmedSearch.toLowerCase()) : true
+          const customItem: ProduceItem | null = (trimmedSearch.length >= 2 && !exactMatchExists) ? {
+            id: `custom_${trimmedSearch.toLowerCase().replace(/\s+/g, '_')}`,
+            name: trimmedSearch.charAt(0).toUpperCase() + trimmedSearch.slice(1),
+            category: 'produce',
+            displayCategory: 'Custom Produce',
+            image: '',
+            buyersCount: 0,
+            sellersCount: 0,
+            unit: 'item',
+          } : null
 
-        <div style={styles.produceGrid}>
-          {filteredItems.map((item) => {
-            const buyingSelected = isSelected(item.id, 'buy')
-            const sellingSelected = isSelected(item.id, 'sell')
-            const isCardSelected = buyingSelected || sellingSelected
+          const itemsToRender = customItem ? [customItem, ...filteredItems] : filteredItems
 
-            return (
-              <div 
-                key={item.id} 
-                style={{
-                  ...styles.produceCard,
-                  borderColor: isCardSelected ? '#16a34a' : '#e5e7eb',
-                  borderWidth: isCardSelected ? '2px' : '1px'
-                }}
-              >
-                <div style={styles.imageWrapper}>
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    width={320}
-                    height={160}
-                    style={styles.cardImage}
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement
-                      target.style.display = 'none'
-                      const fallback = target.parentElement?.querySelector('.img-fallback') as HTMLElement
-                      if (fallback) fallback.style.display = 'flex'
-                    }}
-                  />
-                  <div className="img-fallback" style={{
-                    display: 'none', width: '100%', height: 160,
-                    background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: 48, borderRadius: '12px 12px 0 0',
-                  }}>🌿</div>
+          return (
+            <>
+              {itemsToRender.length === 0 && (
+                <div style={styles.noResultsBox}>
+                  🔍 No produce found matching &quot;{searchQuery}&quot;. Try typing a produce name to add it as a custom interest!
                 </div>
+              )}
 
-                <div style={styles.cardContent}>
-                  <h3 style={styles.cardTitle}>{item.name}</h3>
-                  <div style={styles.cardCategory}>
-                    {item.displayCategory.toUpperCase()}
-                  </div>
+              <div style={styles.produceGrid}>
+                {itemsToRender.map((item) => {
+                  const buyingSelected = isSelected(item.id, 'buy')
+                  const sellingSelected = isSelected(item.id, 'sell')
+                  const isCardSelected = buyingSelected || sellingSelected
+                  const isCustom = item.id.startsWith('custom_')
 
-                  <div style={styles.cardCheckboxes}>
-                    {showSell && (
-                      <label style={styles.checkboxLabel}>
-                        <input
-                          type="checkbox"
-                          checked={sellingSelected}
-                          onChange={() => handleSelectInterest(item, 'sell')}
-                          style={styles.checkboxInput}
-                        />
-                        I have this
-                      </label>
-                    )}
-                    {showBuy && (
-                      <label style={styles.checkboxLabel}>
-                        <input
-                          type="checkbox"
-                          checked={buyingSelected}
-                          onChange={() => handleSelectInterest(item, 'buy')}
-                          style={styles.checkboxInput}
-                        />
-                        I want this
-                      </label>
-                    )}
-                  </div>
-                </div>
+                  return (
+                    <div 
+                      key={item.id} 
+                      style={{
+                        ...styles.produceCard,
+                        borderColor: isCardSelected ? '#16a34a' : isCustom ? '#86efac' : '#e5e7eb',
+                        borderWidth: isCardSelected ? '2px' : '1px',
+                        backgroundColor: isCustom ? '#f0fdf4' : '#ffffff'
+                      }}
+                    >
+                      <div style={styles.imageWrapper}>
+                        {item.image ? (
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            width={320}
+                            height={160}
+                            style={styles.cardImage}
+                            onError={(e) => {
+                              const target = e.currentTarget as HTMLImageElement
+                              target.style.display = 'none'
+                              const fallback = target.parentElement?.querySelector('.img-fallback') as HTMLElement
+                              if (fallback) fallback.style.display = 'flex'
+                            }}
+                          />
+                        ) : null}
+                        <div className="img-fallback" style={{
+                          display: item.image ? 'none' : 'flex', width: '100%', height: 160,
+                          background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+                          alignItems: 'center', justifyContent: 'center',
+                          fontSize: 48, borderRadius: '12px 12px 0 0',
+                        }}>🌿</div>
+                      </div>
+
+                      <div style={styles.cardContent}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                          <h3 style={styles.cardTitle}>{item.name}</h3>
+                          {isCustom && (
+                            <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                              CUSTOM
+                            </span>
+                          )}
+                        </div>
+                        <div style={styles.cardCategory}>
+                          {item.displayCategory.toUpperCase()}
+                        </div>
+
+                        <div style={styles.cardCheckboxes}>
+                          {showSell && (
+                            <label style={styles.checkboxLabel}>
+                              <input
+                                type="checkbox"
+                                checked={sellingSelected}
+                                onChange={() => handleSelectInterest(item, 'sell')}
+                                style={styles.checkboxInput}
+                              />
+                              I have this
+                            </label>
+                          )}
+                          {showBuy && (
+                            <label style={styles.checkboxLabel}>
+                              <input
+                                type="checkbox"
+                                checked={buyingSelected}
+                                onChange={() => handleSelectInterest(item, 'buy')}
+                                style={styles.checkboxInput}
+                              />
+                              I want this
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </>
+          )
+        })()}
       </main>
 
       {/* Bottom Sticky Bar */}
