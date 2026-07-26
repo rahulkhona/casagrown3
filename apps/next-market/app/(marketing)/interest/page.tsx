@@ -551,12 +551,13 @@ function InterestPageContent() {
         {(() => {
           const trimmedSearch = searchQuery.trim()
           const exactMatchExists = trimmedSearch ? EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase() === trimmedSearch.toLowerCase()) : true
-          const customItem: ProduceItem | null = (trimmedSearch.length >= 2 && !exactMatchExists) ? {
+          // Only auto-create custom search card if Wikimedia confirmed it's a recognized food/plant item (fetchedCustomImage is present)
+          const customItem: ProduceItem | null = (trimmedSearch.length >= 2 && !exactMatchExists && !!fetchedCustomImage) ? {
             id: `custom_${trimmedSearch.toLowerCase().replace(/\s+/g, '_')}`,
             name: trimmedSearch.charAt(0).toUpperCase() + trimmedSearch.slice(1),
             category: 'produce',
             displayCategory: 'Custom Produce',
-            image: fetchedCustomImage || '/images/produce_placeholder.jpg',
+            image: fetchedCustomImage,
             buyersCount: 0,
             sellersCount: 0,
             unit: 'item',
@@ -568,7 +569,7 @@ function InterestPageContent() {
             <>
               {itemsToRender.length === 0 && (
                 <div style={styles.noResultsBox}>
-                  🔍 No produce found matching &quot;{searchQuery}&quot;. Try typing a produce name to add it as a custom interest!
+                  🔍 No produce found matching &quot;{searchQuery}&quot;. Click <strong>+ Add</strong> above to add an unlisted crop to your interests!
                 </div>
               )}
 
