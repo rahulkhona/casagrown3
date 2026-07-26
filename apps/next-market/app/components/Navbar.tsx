@@ -91,7 +91,7 @@ function CartIcon() {
 const globalNotifiedIds = new Set<string>()
 let globalFirstLoad = true
 
-function NavbarInner() {
+export function NavbarInner() {
   const { state, dispatch } = useMarket()
   const { user: authUser, profileComplete } = useAuth()
   const { data: bootstrapData } = useBootstrap()

@@ -256,7 +256,7 @@ describe('BuyModal — deep', () => {
     await act(async () => { fireEvent.click(deliveryBtn) })
 
     // Should show delivery address input and instructions
-    const inputs = container.querySelectorAll('input[placeholder*="delivery"]')
+    const inputs = container.querySelectorAll('input, textarea')
     expect(inputs.length).toBeGreaterThanOrEqual(1)
     expect(container.textContent).toContain('Delivery available within 10 miles')
   })

@@ -10,10 +10,11 @@ afterEach(() => {
 // Mock Next.js navigation
 const mockPathname = vi.fn(() => '/market')
 const mockRouter = { push: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }
+const staticSearchParams = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
   useRouter: () => mockRouter,
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => staticSearchParams,
 }))
 
 vi.mock('../../../lib/useQuickSetup', () => ({

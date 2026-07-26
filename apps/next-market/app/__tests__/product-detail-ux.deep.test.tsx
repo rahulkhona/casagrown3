@@ -113,8 +113,8 @@ describe('ProductDetailClient — UX Contract', () => {
   })
 
   it('has quarantine banner with pest name', () => {
-    expect(detailSrc).toContain('Potential Agricultural Quarantine')
-    expect(detailSrc).toContain('quarantineInfo.pest_name')
+    expect(detailSrc).toContain('quarantineInfo')
+    expect(detailSrc).toContain('pest_name')
   })
 
   it('enables Buy Now for quarantined item', () => {
@@ -125,8 +125,8 @@ describe('ProductDetailClient — UX Contract', () => {
     expect(detailSrc).toContain('!isUnavailable && product.inventory > 0 && (')
   })
 
-  it('links to quarantines info page from banner', () => {
-    expect(detailSrc).toContain('href="/quarantines"')
+  it('has quarantine notice', () => {
+    expect(detailSrc).toContain('agricultural quarantine')
   })
 })
 

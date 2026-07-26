@@ -102,7 +102,7 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(3000)
 
-    const banner = page.getByText('Potential Agricultural Quarantine')
+    const banner = page.getByText(/agricultural quarantine/i)
     expect(await banner.isVisible({ timeout: 10000 }).catch(() => false)).toBe(true)
 
     const pestText = page.getByText('E2E Test Fruit Fly')

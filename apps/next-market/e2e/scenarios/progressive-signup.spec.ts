@@ -117,7 +117,7 @@ test.describe('Progressive Profile Signup', () => {
     await expect(step1.locator('input[name="street"]')).not.toBeVisible()
 
     await step1.locator('input[name="email"]').fill(testEmail)
-    await step1.locator('button:has-text("Continue")').click()
+    await step1.locator('button:has-text("Continue →")').first().click()
 
     // Handle OTP
     const step2 = page.locator('[data-testid="quick-setup-step-2"]')
