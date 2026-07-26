@@ -511,7 +511,7 @@ function InterestPageContent() {
             <button
               type="button"
               onClick={() => {
-                const input = prompt('Enter custom item name (e.g. Passionfruit, Guava, Microgreens):')
+                const input = prompt('Enter the name of an item not in our list (e.g. Chickoo, Dragon Fruit, Guava):')
                 if (input && input.trim()) {
                   const trimmed = input.trim()
                   const customItem: ProduceItem = {
@@ -529,7 +529,7 @@ function InterestPageContent() {
               }}
               style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac', padding: '10px 18px', borderRadius: '12px', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
-              + Add Custom Interest
+              + Add unlisted item
             </button>
           </div>
         </div>
@@ -616,7 +616,7 @@ function InterestPageContent() {
                           <h3 style={styles.cardTitle}>{item.name}</h3>
                           {isCustom && (
                             <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                              CUSTOM
+                              ✨ UNLISTED ITEM
                             </span>
                           )}
                         </div>
