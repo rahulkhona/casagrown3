@@ -503,14 +503,19 @@ function InterestPageContent() {
             <button
               type="button"
               onClick={() => {
-                const input = prompt('Enter the name of an item not in our list (e.g. Chickoo, Dragon Fruit, Guava):')
+                const input = prompt('Enter item name (e.g. Chickoo, Microgreens, Dahlias, Raised Bed Kit):')
                 if (input && input.trim()) {
                   const trimmed = input.trim()
+                  const modCheck = checkTextForViolations(trimmed)
+                  if (!modCheck.isClean) {
+                    alert(modCheck.error || 'Please enter a valid item name.')
+                    return
+                  }
                   const customItem: ProduceItem = {
                     id: `custom_${trimmed.toLowerCase().replace(/\s+/g, '_')}`,
                     name: trimmed.charAt(0).toUpperCase() + trimmed.slice(1),
                     category: 'produce',
-                    displayCategory: 'Custom Produce',
+                    displayCategory: 'Custom Item',
                     image: '/images/produce_placeholder.jpg',
                     buyersCount: 0,
                     sellersCount: 0,
@@ -607,11 +612,6 @@ function InterestPageContent() {
                       <div style={styles.cardContent}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '8px' }}>
                           <h3 style={styles.cardTitle}>{item.name}</h3>
-                          {isCustom && (
-                            <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                              ✨ UNLISTED ITEM
-                            </span>
-                          )}
                         </div>
 
                         <div style={styles.cardCheckboxes}>

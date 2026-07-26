@@ -70,6 +70,18 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'chives', name: 'Chives & Dill', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1588879460618-9249e7d947d1?w=600&auto=format&fit=crop&q=80', buyersCount: 20, sellersCount: 6, unit: 'bunch' },
   { id: 'lavender', name: 'Lavender', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1528183429752-a97d0bf99b5a?w=600&auto=format&fit=crop&q=80', buyersCount: 33, sellersCount: 10, unit: 'bundle' },
 
+  // ── FLOWERS ──
+  { id: 'cut_flowers', name: 'Fresh Cut Garden Flowers', category: 'flowers', displayCategory: 'Flowers', image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80', buyersCount: 39, sellersCount: 12, unit: 'bunch' },
+  { id: 'sunflowers', name: 'Sunflowers', category: 'flowers', displayCategory: 'Flowers', image: 'https://images.unsplash.com/photo-1597848212624-a19eb35e2651?w=600&auto=format&fit=crop&q=80', buyersCount: 48, sellersCount: 18, unit: 'bunch' },
+  { id: 'dahlias', name: 'Fresh Dahlias & Zinnias', category: 'flowers', displayCategory: 'Flowers', image: 'https://images.unsplash.com/photo-1508610048659-a06b669e3321?w=600&auto=format&fit=crop&q=80', buyersCount: 31, sellersCount: 9, unit: 'bunch' },
+
+  // ── FLOWER ARRANGEMENTS (No Photo Available Stock Graphic) ──
+  { id: 'flower_arrangements', name: 'Artisanal Flower Arrangements', category: 'flower_arrangements', displayCategory: 'Flower Arrangements', image: '/images/produce_placeholder.jpg', buyersCount: 29, sellersCount: 8, unit: 'arrangement' },
+
+  // ── HONEY ──
+  { id: 'raw_honey', name: 'Raw Wildflower Honey', category: 'honey', displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&auto=format&fit=crop&q=80', buyersCount: 65, sellersCount: 22, unit: 'jar' },
+  { id: 'honeycomb', name: 'Fresh Honeycomb', category: 'honey', displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=600&auto=format&fit=crop&q=80', buyersCount: 28, sellersCount: 7, unit: 'item' },
+
   // ── PLANTS & SEEDLINGS ──
   { id: 'veg_seedlings', name: 'Vegetable & Tomato Seedlings', category: 'seedlings', displayCategory: 'Plants & Seedlings', image: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&auto=format&fit=crop&q=80', buyersCount: 44, sellersCount: 16, unit: 'tray' },
   { id: 'herb_plants', name: 'Potted Herb Starter Plants', category: 'plants', displayCategory: 'Plants & Seedlings', image: 'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=600&auto=format&fit=crop&q=80', buyersCount: 37, sellersCount: 14, unit: 'pot' },
@@ -85,6 +97,7 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'chicken_eggs', name: 'Pastured Chicken Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=600&auto=format&fit=crop&q=80', buyersCount: 74, sellersCount: 26, unit: 'dozen' },
   { id: 'duck_eggs', name: 'Duck Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?w=600&auto=format&fit=crop&q=80', buyersCount: 41, sellersCount: 15, unit: 'dozen' },
   { id: 'quail_eggs', name: 'Fresh Quail Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 33, sellersCount: 11, unit: 'carton' },
-  { id: 'goose_eggs', name: 'Farm Goose Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=600&auto=format&fit=crop&q=80', buyersCount: 19, sellersCount: 6, unit: 'item' },
-  { id: 'turkey_eggs', name: 'Heritage Turkey Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 16, sellersCount: 4, unit: 'half-dozen' },
+
+  // ── GARDEN EQUIPMENT & SUPPLIES (No Photo Available Stock Graphic) ──
+  { id: 'gardening_supplies', name: 'Organic Gardening Supplies & Soil', category: 'garden_equipment', displayCategory: 'Gardening Supplies', image: '/images/produce_placeholder.jpg', buyersCount: 22, sellersCount: 5, unit: 'bag' },
 ]
