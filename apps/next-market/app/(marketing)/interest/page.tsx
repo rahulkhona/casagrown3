@@ -487,67 +487,16 @@ function InterestPageContent() {
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* Produce Search Sub-Bar & Custom Add Action */}
+      {/* Produce Search Sub-Bar */}
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Search produce (e.g. Avocado, Figs, Tomatoes)..."
-              style={{ ...styles.searchInput, flex: 1, minWidth: '240px', boxSizing: 'border-box' }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const initialText = searchQuery.trim() ? searchQuery.trim() : ''
-                const input = prompt('Enter item name (e.g. Chickoo, Microgreens, Dahlias, Raised Bed Kit):', initialText)
-                if (input && input.trim()) {
-                  const trimmed = input.trim()
-                  const modCheck = checkTextForViolations(trimmed)
-                  if (!modCheck.isClean) {
-                    alert(modCheck.error || 'Please enter a valid item name.')
-                    return
-                  }
-
-                  const qLower = trimmed.toLowerCase()
-                  const isCategoryItem = [
-                    /fruit/i, /veg/i, /berry/i, /berries/i, /melon/i, /citrus/i, /green/i, /root/i, /squash/i, /pepper/i, /tomato/i, /apple/i, /pear/i, /peach/i, /plum/i, /cherry/i, /grape/i, /mango/i, /guava/i, /fig/i, /persimmon/i, /pomegranate/i, /avocado/i, /lemon/i, /lime/i, /orange/i, /tangerine/i, /mandarin/i, /kumquat/i, /cucumber/i, /zucchini/i, /eggplant/i, /bean/i, /pea/i, /kale/i, /lettuce/i, /spinach/i, /chard/i, /carrot/i, /beet/i, /radish/i, /potato/i, /onion/i, /scallion/i, /garlic/i, /corn/i, /okra/i, /pumpkin/i, /broccoli/i, /cauliflower/i, /asparagus/i, /chickoo/i, /sapodilla/i, /jackfruit/i, /lychee/i, /longan/i, /durian/i, /rambutan/i, /passionfruit/i, /dragon/i, /microgreen/i, /sprout/i,
-                    /herb/i, /basil/i, /mint/i, /rosemary/i, /thyme/i, /cilantro/i, /parsley/i, /oregano/i, /sage/i, /chive/i, /dill/i, /lavender/i, /tarragon/i, /marjoram/i,
-                    /flower/i, /rose/i, /sunflower/i, /dahlia/i, /zinnia/i, /bouquet/i, /floral/i, /arrangement/i, /peony/i, /tulip/i, /orchid/i, /marigold/i,
-                    /plant/i, /seedling/i, /starter/i, /sapling/i, /tree/i, /bush/i, /cutting/i, /pot/i, /potted/i, /nursery/i,
-                    /seed/i, /bulb/i, /pod/i,
-                    /egg/i, /poultry/i, /chicken/i, /duck/i, /quail/i, /goose/i, /turkey/i,
-                    /honey/i, /honeycomb/i, /wax/i, /beeswax/i, /apiary/i,
-                    /soil/i, /compost/i, /fertilizer/i, /mulch/i, /planter/i, /raised/i, /garden/i, /supplies/i, /equipment/i
-                  ].some((pattern) => pattern.test(qLower)) || EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase().includes(qLower))
-
-                  if (!isCategoryItem) {
-                    alert(`"${trimmed}" is not a recognized produce, plant, or garden item.\n\nCasaGrown is exclusively for fresh produce, plants, seeds, flowers, eggs, honey, and garden supplies.`)
-                    return
-                  }
-
-                  const customItem: ProduceItem = {
-                    id: `custom_${trimmed.toLowerCase().replace(/\s+/g, '_')}`,
-                    name: trimmed.charAt(0).toUpperCase() + trimmed.slice(1),
-                    category: 'produce',
-                    displayCategory: 'Custom Item',
-                    image: '/images/produce_placeholder.jpg',
-                    buyersCount: 0,
-                    sellersCount: 0,
-                    unit: 'item',
-                  }
-                  handleSelectInterest(customItem, scope === 'sell' ? 'sell' : 'buy')
-                }
-              }}
-              style={{ backgroundColor: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac', padding: '10px 20px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              + Add
-            </button>
-          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="🔍 Search produce, plants, seeds, flowers, eggs, honey, supplies..."
+            style={{ ...styles.searchInput, width: '100%', boxSizing: 'border-box' }}
+          />
         </div>
 
         <style>{`
@@ -575,13 +524,27 @@ function InterestPageContent() {
         {(() => {
           const trimmedSearch = searchQuery.trim()
           const exactMatchExists = trimmedSearch ? EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase() === trimmedSearch.toLowerCase()) : true
-          // Only auto-create custom search card if Wikimedia confirmed it's a recognized food/plant item (fetchedCustomImage is present)
-          const customItem: ProduceItem | null = (trimmedSearch.length >= 2 && !exactMatchExists && !!fetchedCustomImage) ? {
+          const qLower = trimmedSearch.toLowerCase()
+          
+          const isCategoryMatch = [
+            /fruit/i, /veg/i, /berry/i, /berries/i, /melon/i, /citrus/i, /green/i, /root/i, /squash/i, /pepper/i, /tomato/i, /apple/i, /pear/i, /peach/i, /plum/i, /cherry/i, /grape/i, /mango/i, /guava/i, /fig/i, /persimmon/i, /pomegranate/i, /avocado/i, /lemon/i, /lime/i, /orange/i, /tangerine/i, /mandarin/i, /kumquat/i, /cucumber/i, /zucchini/i, /eggplant/i, /bean/i, /pea/i, /kale/i, /lettuce/i, /spinach/i, /chard/i, /carrot/i, /beet/i, /radish/i, /potato/i, /onion/i, /scallion/i, /garlic/i, /corn/i, /okra/i, /pumpkin/i, /broccoli/i, /cauliflower/i, /asparagus/i, /chickoo/i, /sapodilla/i, /jackfruit/i, /lychee/i, /longan/i, /durian/i, /rambutan/i, /passionfruit/i, /dragon/i, /microgreen/i, /sprout/i,
+            /herb/i, /basil/i, /mint/i, /rosemary/i, /thyme/i, /cilantro/i, /parsley/i, /oregano/i, /sage/i, /chive/i, /dill/i, /lavender/i, /tarragon/i, /marjoram/i,
+            /flower/i, /rose/i, /sunflower/i, /dahlia/i, /zinnia/i, /bouquet/i, /floral/i, /arrangement/i, /peony/i, /tulip/i, /orchid/i, /marigold/i,
+            /plant/i, /seedling/i, /starter/i, /sapling/i, /tree/i, /bush/i, /cutting/i, /pot/i, /potted/i, /nursery/i,
+            /seed/i, /bulb/i, /pod/i,
+            /egg/i, /poultry/i, /chicken/i, /duck/i, /quail/i, /goose/i, /turkey/i,
+            /honey/i, /honeycomb/i, /wax/i, /beeswax/i, /apiary/i,
+            /soil/i, /compost/i, /fertilizer/i, /mulch/i, /planter/i, /raised/i, /garden/i, /supplies/i, /equipment/i
+          ].some((pattern) => pattern.test(qLower)) || !!fetchedCustomImage
+
+          const isValidCustomItem = trimmedSearch.length >= 2 && !exactMatchExists && checkTextForViolations(trimmedSearch).isClean && isCategoryMatch
+
+          const customItem: ProduceItem | null = isValidCustomItem ? {
             id: `custom_${trimmedSearch.toLowerCase().replace(/\s+/g, '_')}`,
             name: trimmedSearch.charAt(0).toUpperCase() + trimmedSearch.slice(1),
             category: 'produce',
-            displayCategory: 'Custom Produce',
-            image: fetchedCustomImage,
+            displayCategory: 'Custom Item',
+            image: fetchedCustomImage || '/images/produce_placeholder.jpg',
             buyersCount: 0,
             sellersCount: 0,
             unit: 'item',
@@ -593,7 +556,7 @@ function InterestPageContent() {
             <>
               {itemsToRender.length === 0 && (
                 <div style={styles.noResultsBox}>
-                  🔍 No produce found matching &quot;{searchQuery}&quot;. Click <strong>+ Add</strong> above to add an unlisted crop to your interests!
+                  🔍 No produce or garden items found matching &quot;{searchQuery}&quot;.
                 </div>
               )}
 
