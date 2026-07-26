@@ -380,7 +380,10 @@ function InterestPageContent() {
           name: titleCaseName,
           category: 'produce',
           displayCategory: 'Fresh Produce',
-          image: getProduceImage(rawName, 'produce')
+          image: getProduceImage(rawName),
+          buyersCount: 0,
+          sellersCount: 0,
+          unit: 'item'
         }
       }
 
