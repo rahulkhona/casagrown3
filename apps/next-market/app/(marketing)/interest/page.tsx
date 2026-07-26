@@ -503,7 +503,8 @@ function InterestPageContent() {
             <button
               type="button"
               onClick={() => {
-                const input = prompt('Enter item name (e.g. Chickoo, Microgreens, Dahlias, Raised Bed Kit):')
+                const initialText = searchQuery.trim() ? searchQuery.trim() : ''
+                const input = prompt('Enter item name (e.g. Chickoo, Microgreens, Dahlias, Raised Bed Kit):', initialText)
                 if (input && input.trim()) {
                   const trimmed = input.trim()
                   const modCheck = checkTextForViolations(trimmed)
@@ -511,6 +512,24 @@ function InterestPageContent() {
                     alert(modCheck.error || 'Please enter a valid item name.')
                     return
                   }
+
+                  const qLower = trimmed.toLowerCase()
+                  const isCategoryItem = [
+                    /fruit/i, /veg/i, /berry/i, /berries/i, /melon/i, /citrus/i, /green/i, /root/i, /squash/i, /pepper/i, /tomato/i, /apple/i, /pear/i, /peach/i, /plum/i, /cherry/i, /grape/i, /mango/i, /guava/i, /fig/i, /persimmon/i, /pomegranate/i, /avocado/i, /lemon/i, /lime/i, /orange/i, /tangerine/i, /mandarin/i, /kumquat/i, /cucumber/i, /zucchini/i, /eggplant/i, /bean/i, /pea/i, /kale/i, /lettuce/i, /spinach/i, /chard/i, /carrot/i, /beet/i, /radish/i, /potato/i, /onion/i, /scallion/i, /garlic/i, /corn/i, /okra/i, /pumpkin/i, /broccoli/i, /cauliflower/i, /asparagus/i, /chickoo/i, /sapodilla/i, /jackfruit/i, /lychee/i, /longan/i, /durian/i, /rambutan/i, /passionfruit/i, /dragon/i, /microgreen/i, /sprout/i,
+                    /herb/i, /basil/i, /mint/i, /rosemary/i, /thyme/i, /cilantro/i, /parsley/i, /oregano/i, /sage/i, /chive/i, /dill/i, /lavender/i, /tarragon/i, /marjoram/i,
+                    /flower/i, /rose/i, /sunflower/i, /dahlia/i, /zinnia/i, /bouquet/i, /floral/i, /arrangement/i, /peony/i, /tulip/i, /orchid/i, /marigold/i,
+                    /plant/i, /seedling/i, /starter/i, /sapling/i, /tree/i, /bush/i, /cutting/i, /pot/i, /potted/i, /nursery/i,
+                    /seed/i, /bulb/i, /pod/i,
+                    /egg/i, /poultry/i, /chicken/i, /duck/i, /quail/i, /goose/i, /turkey/i,
+                    /honey/i, /honeycomb/i, /wax/i, /beeswax/i, /apiary/i,
+                    /soil/i, /compost/i, /fertilizer/i, /mulch/i, /planter/i, /raised/i, /garden/i, /supplies/i, /equipment/i
+                  ].some((pattern) => pattern.test(qLower)) || EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase().includes(qLower))
+
+                  if (!isCategoryItem) {
+                    alert(`"${trimmed}" is not a recognized produce, plant, or garden item.\n\nCasaGrown is exclusively for fresh produce, plants, seeds, flowers, eggs, honey, and garden supplies.`)
+                    return
+                  }
+
                   const customItem: ProduceItem = {
                     id: `custom_${trimmed.toLowerCase().replace(/\s+/g, '_')}`,
                     name: trimmed.charAt(0).toUpperCase() + trimmed.slice(1),
