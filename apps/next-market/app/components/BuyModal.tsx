@@ -9,6 +9,8 @@ import { useNotificationPrompt } from '../../lib/useNotificationPrompt'
 import { useMarketStatus } from '../../lib/useMarketStatus'
 import { hasValidWindows } from '../../lib/windowUtils'
 import { NotificationPromptModal } from './NotificationPromptModal'
+import AddressInput from './AddressInput'
+import { type AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../lib/address'
 import styles from './BuyModal.module.css'
 
 interface BuyModalProps {
@@ -45,6 +47,17 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const [available, setAvailable] = useState(product.inventory)
   const [currentPrice, setCurrentPrice] = useState(product.price_usd)
 
+  const [buyerZipState, setBuyerZipState] = useState(buyerZip || '')
+  const [deliveryAddressFields, setDeliveryAddressFields] = useState<AddressFields>(() => {
+    if (buyerAddress) {
+      const parts = buyerAddress.split(',').map(s => s.trim())
+      if (parts.length >= 3) {
+        const stateZip = parts[parts.length - 1].split(/\s+/)
+        return { street: parts.slice(0, -2).join(', '), city: parts[parts.length - 2], state: stateZip[0] || '', zip: stateZip.slice(1).join(' ') || buyerZip || '' }
+      }
+    }
+    return { street: buyerAddress || '', city: '', state: '', zip: buyerZip || '' }
+  })
   const [deliveryAddress, setDeliveryAddress] = useState(buyerAddress || '')
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [loading, setLoading] = useState(false)
@@ -52,12 +65,46 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const [taxInfo, setTaxInfo] = useState<{ rate: number; amount: number } | null>(null)
   const [stripeReady, setStripeReady] = useState(false)
   const cardElementRef = useRef<any>(null)
+  const addressElementRef = useRef<any>(null)
   const stripeRef = useRef<any>(null)
   const orderBusyRef = useRef(false) // BUG-3: Prevent double-click race
   const [availableBalance, setAvailableBalance] = useState(0) // buyer's available USD balance
 
   // Push notification prompt
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
+
+  // Pre-fill address from user's profile if available
+  useEffect(() => {
+    if (!user?.id) return
+    const fetchProfileAddress = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('street_address, city, state, zip_code')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        setDeliveryAddressFields(prev => ({
+          street: prev.street || data.street_address || '',
+          city: prev.city || data.city || '',
+          state: prev.state || data.state || '',
+          zip: prev.zip || data.zip_code || buyerZip || ''
+        }))
+        if (data.street_address || data.city) {
+          const full = formatFullAddress({
+            street: data.street_address || '',
+            city: data.city || '',
+            state: data.state || '',
+            zip: data.zip_code || buyerZip || ''
+          })
+          setDeliveryAddress(prev => prev || full)
+        }
+        if (data.zip_code) {
+          setBuyerZipState(prev => prev || data.zip_code)
+        }
+      }
+    }
+    fetchProfileAddress()
+  }, [user?.id, buyerZip])
 
   // Market hours + product expiry
   const { isOpen: marketIsOpen, todaySchedule, productsNeverExpire, loading: marketLoading } = useMarketStatus()
@@ -102,7 +149,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const cardCents = Math.round(cardAmount * 100)
   const needsCard = !isFreeProduct && cardCents > 0
 
-  // Fetch fresh price + inventory when buy form opens
+  // Fetch product data fresh on mount (or when product.id changes)
   useEffect(() => {
     const fetchFresh = async () => {
       const { data } = await supabase
@@ -148,17 +195,23 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     fetchBalance()
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize Stripe Elements (skip for free products)
+  // Initialize Stripe Elements (skip for free products or when no card needed)
   useEffect(() => {
-    if (isFreeProduct) return
+    if (!needsCard) return
+    let active = true
+    let addressElem: any = null
+
     const initStripe = async () => {
       try {
+        const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+
         const { loadStripe } = await import('@stripe/stripe-js')
-        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
-        if (!stripe) return
+        const stripe = await loadStripe(key)
+        if (!stripe || !active) return
 
         stripeRef.current = stripe
         const elements = stripe.elements()
+
         const cardElement = elements.create('card', {
           style: {
             base: {
@@ -171,40 +224,90 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           },
         })
 
-        // BUG-9: Use MutationObserver instead of setTimeout to mount card element
-        const mountCard = () => {
-          const container = document.getElementById('stripe-card-element')
-          if (container) {
-            cardElement.mount('#stripe-card-element')
-            cardElementRef.current = cardElement
+        try {
+          addressElem = elements.create('address', {
+            mode: 'billing',
+            allowedCountries: ['US'],
+            autocomplete: { mode: 'disabled' },
+            defaultValues: {
+              name: (user as any)?.user_metadata?.full_name || '',
+              address: {
+                line1: deliveryAddressFields.street || '',
+                city: deliveryAddressFields.city || '',
+                state: deliveryAddressFields.state || '',
+                postal_code: deliveryAddressFields.zip || buyerZipState || '',
+                country: 'US',
+              },
+            },
+          })
+        } catch (addrErr) {
+          console.warn('[BuyModal] Address Element create warning:', addrErr)
+        }
+
+        const mountElements = () => {
+          const cardContainer = document.getElementById('stripe-card-element')
+          const addressContainer = document.getElementById('stripe-address-element')
+          if (!cardContainer || !active) return false
+
+          let cardMounted = !!cardElementRef.current
+          if (!cardMounted) {
+            cardContainer.innerHTML = ''
+            try {
+              cardElement.mount('#stripe-card-element')
+              cardElementRef.current = cardElement
+              cardMounted = true
+            } catch (mountErr) {
+              console.warn('[BuyModal] CardElement mount warning:', mountErr)
+            }
+          }
+
+          if (addressContainer && addressElem && !addressElementRef.current) {
+            addressContainer.innerHTML = ''
+            try {
+              addressElem.mount('#stripe-address-element')
+              addressElementRef.current = addressElem
+            } catch (e) {
+              console.warn('[BuyModal] Address Element mount warning:', e)
+            }
+          }
+
+          if (cardMounted) {
             setStripeReady(true)
             return true
           }
           return false
         }
 
-        // Try immediately first
-        if (!mountCard()) {
-          // If container not ready, observe DOM for it
+        if (!mountElements()) {
           const observer = new MutationObserver(() => {
-            if (mountCard()) observer.disconnect()
+            if (mountElements()) observer.disconnect()
           })
           observer.observe(document.body, { childList: true, subtree: true })
-          // Safety timeout: give up after 5 seconds
           setTimeout(() => observer.disconnect(), 5000)
         }
       } catch (err) {
         console.warn('Failed to load Stripe Elements:', err)
       }
     }
+
     initStripe()
 
     return () => {
+      active = false
+      setStripeReady(false)
       if (cardElementRef.current) {
-        try { cardElementRef.current.unmount() } catch {}
+        try { cardElementRef.current.destroy() } catch {}
+        cardElementRef.current = null
+      }
+      if (addressElementRef.current) {
+        try { addressElementRef.current.destroy() } catch {}
+        addressElementRef.current = null
+      }
+      if (addressElem) {
+        try { addressElem.destroy() } catch {}
       }
     }
-  }, [isFreeProduct])
+  }, [needsCard])
 
   // Fetch tax rate (skip for free products)
   useEffect(() => {
@@ -212,7 +315,7 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     const fetchTax = async () => {
       const activeZip = fulfillment === 'pickup'
         ? (booth.pickup_zip || booth.booth_zip || (booth.pickup_address ? booth.pickup_address.match(/\b\d{5}\b/)?.[0] : null))
-        : buyerZip;
+        : buyerZipState;
 
       if (!activeZip || !product.category) { setTaxInfo({ rate: 0, amount: 0 }); return }
 
@@ -343,10 +446,47 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
       // Step 2: Confirm with Stripe Elements (only if card entry is needed)
       if (holdResult.requiresCardEntry && stripeRef.current && cardElementRef.current) {
         console.log('[BuyModal] Confirming card payment with client_secret prefix:', holdResult.clientSecret?.substring(0, 20))
+
+        // Extract billing address from Stripe Address Element
+        let billingName = (user as any)?.user_metadata?.full_name || (user as any)?.full_name || undefined
+        let billingAddress: any = {
+          line1: deliveryAddressFields.street || undefined,
+          city: deliveryAddressFields.city || undefined,
+          state: deliveryAddressFields.state || undefined,
+          postal_code: deliveryAddressFields.zip || buyerZipState || undefined,
+          country: 'US',
+        }
+
+        if (addressElementRef.current) {
+          try {
+            const addrResult = await addressElementRef.current.getValue()
+            if (addrResult?.complete && addrResult?.value) {
+              billingName = addrResult.value.name || billingName
+              billingAddress = {
+                line1: addrResult.value.address?.line1 || billingAddress.line1,
+                line2: addrResult.value.address?.line2 || undefined,
+                city: addrResult.value.address?.city || billingAddress.city,
+                state: addrResult.value.address?.state || billingAddress.state,
+                postal_code: addrResult.value.address?.postal_code || billingAddress.postal_code,
+                country: addrResult.value.address?.country || 'US',
+              }
+            }
+          } catch (e) {
+            console.warn('[BuyModal] Address Element getValue warning:', e)
+          }
+        }
+
         const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
           holdResult.clientSecret,
           {
-            payment_method: { card: cardElementRef.current },
+            payment_method: {
+              card: cardElementRef.current,
+              billing_details: {
+                name: billingName,
+                email: user?.email || undefined,
+                address: billingAddress,
+              },
+            },
             return_url: `${window.location.origin}/orders`,
           },
         )
@@ -357,6 +497,28 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
           return
         }
         console.log('[BuyModal] confirmCardPayment succeeded')
+      }
+
+      // Contextual Data Capture: If buyer has missing zip/address on profile, save it
+      if (user) {
+        try {
+          const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('zip_code, street_address')
+            .eq('id', user.id)
+            .single()
+
+          const profileUpdates: Record<string, any> = {}
+          if (!currentProfile?.zip_code && buyerZip) {
+            profileUpdates.zip_code = buyerZip
+          }
+          if (Object.keys(profileUpdates).length > 0) {
+            profileUpdates.updated_at = new Date().toISOString()
+            await supabase.from('profiles').update(profileUpdates).eq('id', user.id)
+          }
+        } catch (profileErr) {
+          console.warn('[BuyModal] Contextual profile update warning:', profileErr)
+        }
       }
 
       // Step 3: Place order ONLY after payment is secured
@@ -556,13 +718,19 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
             {/* Delivery address */}
             {fulfillment === 'delivery' && (
               <>
-                <input
-                  className={styles.cardInput}
-                  placeholder="Your delivery address"
-                  value={deliveryAddress}
-                  onChange={e => setDeliveryAddress(e.target.value)}
-                  style={{ marginTop: 10 }}
-                />
+                <div style={{ marginTop: 10 }}>
+                  <div className={styles.sectionLabel} style={{ marginBottom: 6 }}>Delivery Address</div>
+                  <AddressInput
+                    value={deliveryAddressFields}
+                    onChange={(fields) => {
+                      setDeliveryAddressFields(fields)
+                      const full = formatFullAddress(fields)
+                      setDeliveryAddress(full)
+                      if (fields.zip) setBuyerZipState(fields.zip)
+                    }}
+                    showPrivacyNote={false}
+                  />
+                </div>
                 <input
                   className={styles.cardInput}
                   placeholder="Delivery instructions (e.g. gate code, leave at door)"
@@ -624,10 +792,13 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
 
 
 
-          {/* Stripe Card Element — only when card is needed */}
+          {/* Stripe Address + Card Elements — only when card is needed */}
           {needsCard && (
             <div className={styles.section}>
-              <div className={styles.sectionLabel}>Payment</div>
+              <div className={styles.sectionLabel}>Payment & Billing</div>
+              <div style={{ marginBottom: 12 }}>
+                <div id="stripe-address-element" />
+              </div>
               <div className={styles.stripeCard}>
                 <div id="stripe-card-element" />
               </div>

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { useQuickSetup } from '../../../lib/useQuickSetup'
 import { geocodeAddress, GeocodeRateLimitError } from '../../../lib/geocode'
 import { formatUsd } from '../../../lib/store'
 import { useMarketStatus } from '../../../lib/useMarketStatus'
@@ -211,7 +212,8 @@ const getSearchEmoji = (query: string) => {
 function BrowseMarketPageInner() {
 
   const supabase = createClient()
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
+  const { requireAuth } = useQuickSetup()
   const keyboardOpen = useKeyboardVisible()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -336,6 +338,11 @@ function BrowseMarketPageInner() {
   const [maxPrice, setMaxPrice] = useState(searchParams.get('pmax') || saved?.get('pmax') || '')
   const [category, setCategory] = useState(searchParams.get('cat') || saved?.get('cat') || '')
 
+  // Interest-based filter: /market?filter=my-interests
+  const [interestFilter, setInterestFilter] = useState(searchParams.get('filter') === 'my-interests')
+  const [interestProduceNames, setInterestProduceNames] = useState<string[]>([])
+  const [interestFilterLoading, setInterestFilterLoading] = useState(false)
+
   const [allowedCategories, setAllowedCategories] = useState<{ name: string }[]>([])
   const [booths, setBooths] = useState<BoothResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -442,6 +449,28 @@ function BrowseMarketPageInner() {
         setProfileLoading(false)
       })
   }, [user, addressResolved]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Interest filter: fetch user's buy interests when ?filter=my-interests is active
+  useEffect(() => {
+    if (!interestFilter || !user) {
+      setInterestProduceNames([])
+      return
+    }
+    setInterestFilterLoading(true)
+    supabase.from('crm_produce_interests')
+      .select('produce_name')
+      .eq('user_id', user.id)
+      .eq('interest_type', 'buy')
+      .eq('status', 'active')
+      .then(({ data }: { data: any }) => {
+        if (data && data.length > 0) {
+          setInterestProduceNames(data.map((r: any) => r.produce_name.toLowerCase()))
+        } else {
+          setInterestProduceNames([])
+        }
+        setInterestFilterLoading(false)
+      })
+  }, [interestFilter, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch allowed categories from DB when address resolves
   useEffect(() => {
@@ -1238,14 +1267,14 @@ function BrowseMarketPageInner() {
               </button>
             </div>
           ) : isSearching ? null : (
-            /* ── Genuine empty state: no booths found, invite neighbors ── */
+            /* ── Genuine empty state: no booths found, express interest + invite neighbors ── */
             <div style={{
               position: 'relative', overflow: 'hidden', padding: '32px 24px', borderRadius: 24,
               background: 'linear-gradient(145deg, #ffffff, #f0fdf4)',
               border: '1px solid rgba(34, 197, 94, 0.2)',
               boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
               width: '100%', maxWidth: 500,
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
             }}>
               <div style={{
                 position: 'absolute', top: -40, right: -30, opacity: 0.05,
@@ -1256,40 +1285,65 @@ function BrowseMarketPageInner() {
                 width: 64, height: 64, borderRadius: '50%',
                 background: '#dcfce7', color: '#16a34a',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)'
-              }}>🌱</div>
+                fontSize: 28, marginBottom: 16, boxShadow: '0 4px 12px rgba(22,163,74,0.15)',
+                position: 'relative', zIndex: 1
+              }}>🔔</div>
 
               <h3 style={{ margin: '0 0 8px', fontSize: 19, color: '#1f2937', fontWeight: 800, letterSpacing: '-0.4px', position: 'relative', zIndex: 1 }}>
-                Everything is better with friends
+                {search.trim() ? `No local listings for "${search.trim()}" yet` : "Don't see what you're looking for?"}
               </h3>
 
-              <p style={{ margin: '0 0 24px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 360 }}>
-                More neighbors mean more fresh food. Invite your neighbors to start building your local community!
+              <p style={{ margin: '0 0 20px', fontSize: 15, color: '#4b5563', lineHeight: 1.5, position: 'relative', zIndex: 1, maxWidth: 380 }}>
+                {search.trim()
+                  ? `Tell us you're looking for ${search.trim()} — we'll automatically notify you when local growers list it in your neighborhood!`
+                  : "Tell us what you're looking for so local backyard growers can reach out!"}
               </p>
 
-              <button
-                onClick={() => setShowGlobalShareModal(true)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  padding: '12px 28px', borderRadius: 999,
-                  background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                  fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer',
-                  boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
-                  position: 'relative', zIndex: 1
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-              >
-                🚀 Invite Neighbors
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
+                <Link
+                  href={`/interest?scope=buy${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '12px 24px', borderRadius: 999,
+                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                    fontSize: 15, fontWeight: 700, textDecoration: 'none',
+                    boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
+                  }}
+                >
+                  🔔 Notify me when sellers list{search.trim() ? ` "${search.trim()}"` : ''} →
+                </Link>
+
+                <button
+                  onClick={() => setShowGlobalShareModal(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '12px 20px', borderRadius: 999,
+                    backgroundColor: '#ffffff', color: '#15803d', border: '1.5px solid #86efac',
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  🚀 Invite Neighbors
+                </button>
+              </div>
             </div>
           )}
         </div>
       ) : (() => {
-        const realBooths = booths.filter(b => !b.is_demo)
+        let realBooths = booths.filter(b => !b.is_demo)
         const demoBoothsOnly = booths.filter(b => b.is_demo)
         // Demos now shown exclusively after USDA results (in the <3 real booth fallback section below)
         const showDemos = false
+
+        // Apply interest-based filter if active
+        if (interestFilter && interestProduceNames.length > 0) {
+          realBooths = realBooths.filter(b =>
+            (b.matched_products || []).some((p: any) =>
+              interestProduceNames.some(interest =>
+                p.name?.toLowerCase().includes(interest) || interest.includes(p.name?.toLowerCase() || '')
+              )
+            )
+          )
+        }
 
         const renderBoothCard = (booth: BoothResult) => {
           const theme = themeColors[booth.decorative_theme] || themeColors.minimal
@@ -1394,6 +1448,45 @@ function BrowseMarketPageInner() {
 
         return (
           <>
+            {/* Interest filter banner */}
+            {interestFilter && (
+              <div id="interest-filter-banner" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
+                borderRadius: 'var(--radius-md, 12px)', padding: '12px 16px', marginBottom: 16, gap: 12,
+              }}>
+                {!user ? (
+                  <span style={{ fontSize: 14, color: 'var(--gray-700)' }}>
+                    🔐 <a href="/join" style={{ fontWeight: 600, color: 'var(--green-600)', textDecoration: 'underline' }}>Sign in</a> to see listings matching your interests
+                  </span>
+                ) : interestProduceNames.length === 0 && !interestFilterLoading ? (
+                  <span style={{ fontSize: 14, color: 'var(--gray-700)' }}>
+                    🍋 You haven't set any interests yet. <a href="/interest" style={{ fontWeight: 600, color: 'var(--green-600)', textDecoration: 'underline' }}>Set your interests</a> to filter the market.
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 14, color: 'var(--gray-700)' }}>
+                    🍋 Showing listings matching your interests ({interestProduceNames.join(', ')})
+                  </span>
+                )}
+                <button
+                  id="clear-interest-filter"
+                  onClick={() => {
+                    setInterestFilter(false)
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('filter')
+                    window.history.replaceState({}, '', url.pathname + url.search)
+                  }}
+                  style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ✕ Clear filter
+                </button>
+              </div>
+            )}
+
             {/* ── 1. Real booths ── */}
             {realBooths.length > 0 && (
               <div className={styles.boothGrid}>
@@ -1670,18 +1763,18 @@ function BrowseMarketPageInner() {
         </>
       )}
 
-      {/* After USDA fallback: invite CTA for search-miss case */}
+      {/* After USDA fallback: express interest CTA for search-miss case */}
       {!loading && booths.filter(b => !b.is_demo).length < 3 && isSearching && (
         <div style={{ textAlign: 'center', padding: '32px 20px 16px' }}>
           <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 12 }}>
-            Don&apos;t see what you&apos;re looking for? Help grow your local market.
+            Don&apos;t see what you&apos;re looking for? Let growers know what you want.
           </p>
-          <button
-            onClick={() => setShowGlobalShareModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 24px', borderRadius: 999, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(22,163,74,0.3)' }}
+          <a
+            href={`/interest?scope=buy${search ? `&q=${encodeURIComponent(search)}` : ''}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 24px', borderRadius: 999, background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(22,163,74,0.3)', textDecoration: 'none' }}
           >
-            🚀 Invite Neighbors to Sell
-          </button>
+            🔔 Notify me when sellers list{search ? ` "${search}"` : ''}
+          </a>
         </div>
       )}
 

@@ -3328,38 +3328,10 @@ function NewProductPageInner() {
 
           {/* Inline booth setup removed — fulfillment is unified in "Available For" section above */}
 
-          {/* ===== Quarantine Warning Banner ===== */}
-          {quarantineWarning && showQuarantineWarning && (
-            <div style={{
-              backgroundColor: '#fffbeb', border: '2px solid #f59e0b', borderRadius: 12,
-              padding: '16px 20px', marginBottom: 16,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }}>⚠️</span>
-                <div>
-                  <strong style={{ color: '#b45309', fontSize: 15, display: 'block', marginBottom: 4 }}>
-                    Potential Agricultural Quarantine
-                  </strong>
-                  <p style={{ color: '#92400e', fontSize: 13, margin: '0 0 8px 0', lineHeight: 1.5 }}>
-                    <strong>{category}</strong> may be quarantined in <strong>{quarantineWarning.county_name}</strong> due
-                    to <strong>{quarantineWarning.pest_name}</strong>.
-                    Please double check local regulations. You may proceed if you are certain this item complies.
-                  </p>
-                  {quarantineWarning.reason && (
-                    <p style={{ color: '#7f1d1d', fontSize: 12, margin: '0 0 4px 0', fontStyle: 'italic' }}>
-                      {quarantineWarning.reason}
-                    </p>
-                  )}
-                  {quarantineWarning.source_url && (
-                    <a href={quarantineWarning.source_url} target="_blank" rel="noopener noreferrer"
-                       style={{ color: '#1d4ed8', fontSize: 12, textDecoration: 'underline' }}>
-                      View CDFA Notice →
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* ===== Quarantine Disclaimer ===== */}
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 16px 0', lineHeight: 1.4 }}>
+            🌱 Please check with your local USDA or Department of Agriculture for any agricultural quarantine restrictions in your area.
+          </p>
 
           {/* ===== Submit ===== */}
           <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16, lineHeight: 1.4, textAlign: 'center' }}>

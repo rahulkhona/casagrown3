@@ -157,31 +157,9 @@ export default function Step5Publish() {
         </div>
       </div>
 
-      {quarantineInfo && showQuarantineWarning && (
-        <div style={{
-          background: 'var(--amber-50, #fffbeb)', border: '1px solid var(--amber-300, #fcd34d)',
-          borderRadius: 24, padding: '16px 20px', marginBottom: 24, fontSize: 14,
-          color: 'var(--amber-800, #92400e)', display: 'flex', gap: 12, alignItems: 'flex-start',
-        }}>
-          <div style={{ fontSize: 24, lineHeight: 1 }}>⚠️</div>
-          <div style={{ flex: 1 }}>
-            <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#b45309' }}>Potential Agricultural Quarantine</h4>
-            <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>
-              Based on your location, selling <strong>{state.category}</strong> may be quarantined in <strong>{quarantineInfo.county_name}</strong> due
-              to <strong>{quarantineInfo.pest_name}</strong>.
-            </p>
-            {quarantineInfo.reason && (
-              <p style={{ margin: '0 0 8px', lineHeight: 1.5 }}>{quarantineInfo.reason}</p>
-            )}
-            {quarantineInfo.source_url && (
-              <a href={quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" 
-                 style={{ color: '#b45309', fontWeight: 600, textDecoration: 'underline' }}>
-                Learn more at local Dept of Agriculture →
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 24px 0', lineHeight: 1.4 }}>
+        🌱 Please check with your local USDA or Department of Agriculture for any agricultural quarantine restrictions in your area.
+      </p>
 
       {(!pushEnabled || !smsVerified) && (
       <div className={styles.formGroup}>

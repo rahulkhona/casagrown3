@@ -800,28 +800,10 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Quarantine Banner */}
-          {quarantineInfo && (
-            <div style={{
-              marginTop: 16, padding: '14px 18px', background: '#fffbeb',
-              border: '1px solid #fcd34d', borderRadius: 12,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 20 }}>⚠️</span>
-                <strong style={{ color: '#b45309', fontSize: 14 }}>Potential Agricultural Quarantine</strong>
-              </div>
-              <p style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>
-                This product may be restricted due to an active <strong>{quarantineInfo.pest_name}</strong> quarantine in {quarantineInfo.county_name} County.
-                Please double check local regulations before purchasing.
-              </p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Link href="/quarantines" style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>View quarantine details →</Link>
-                {quarantineInfo.source_url && (
-                  <a href={quarantineInfo.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>Official circular ↗</a>
-                )}
-              </div>
-            </div>
-          )}
+          {/* General Quarantine Disclaimer */}
+          <p style={{ marginTop: 16, fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>
+            🌱 Please check with your local USDA or Department of Agriculture for any agricultural quarantine restrictions in your area.
+          </p>
 
           {/* Buy Now + Add to Cart (blocked for demo or quarantine) */}
           <div style={{ marginTop: 16 }}>

@@ -3,11 +3,9 @@
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from 'react'
 import { createClient } from '../../lib/supabase'
 import { useBootstrap } from '../../lib/useBootstrap'
-import { geocodeAddress, toPostgisPoint } from '../../lib/geocode'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../(main)/terms/page'
 import { ENABLE_SOCIAL_LOGIN } from '../../lib/featureFlags'
 import styles from './QuickSetupModal.module.css'
-import { normalizeStateCode, validateProfileFields } from '../../lib/address'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../lib/crm-analytics'
 
 // ── US State Codes ──
@@ -52,17 +50,9 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
   // ── Step State ──
   const [step, setStep] = useState<Step>('profile')
   const [legalView, setLegalView] = useState<LegalView>(null)
-  const [isReturningUser, setIsReturningUser] = useState(false)
-
   // ── Step 1: Profile Fields ──
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [street, setStreet] = useState('')
-  const [city, setCity] = useState('')
-  const [state, setState] = useState('')
-  const [zip, setZip] = useState('')
-  const [geolocating, setGeolocating] = useState(false)
-
   // ── USPS Correction ──
   const [uspsCorrection, setUspsCorrection] = useState<{
     original: string; corrected: string; correctedFields: { street: string; city: string; state: string; zip: string }
@@ -92,8 +82,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
 
   // Reset state and check for existing auth session when modal opens
   
-  const currentStepIndex = step === 'profile' && isReturningUser ? 1 : step === 'otp' ? 2 : step === 'profile' ? 3 : 4
-  const currentStepName = currentStepIndex === 1 ? 'auth' : currentStepIndex === 2 ? 'otp' : currentStepIndex === 3 ? 'profile' : 'final'
+  const currentStepIndex = step === 'profile' ? 1 : step === 'otp' ? 2 : 3
+  const currentStepName = currentStepIndex === 1 ? 'auth' : currentStepIndex === 2 ? 'otp' : 'final'
 
   useEffect(() => {
     if (isOpen) {
@@ -142,7 +132,6 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
       setLoading(false)
       setError('')
       setVerifiedUserId(null)
-      setIsReturningUser(!!defaultSignIn)
 
       // Restore draft profile if saved before social login redirect
       const draftStr = typeof window !== 'undefined' ? sessionStorage.getItem('quick_setup_draft_profile') : null
@@ -162,7 +151,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
           if (draft?.fullName) {
             setFullName(draft.fullName)
           } else if (!fullName) {
-            setFullName(user.user_metadata?.full_name || '')
+            setFullName(user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.custom_claims?.name || '')
           }
 
           let profile: any = null
@@ -188,43 +177,29 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
             return
           }
 
-          if (profile?.profile_completed_at) {
-            if (typeof window !== 'undefined') {
-              sessionStorage.removeItem('quick_setup_draft_profile')
-            }
-            setStep('final')
-            setVerifiedUserId(user.id)
+          if (defaultSignIn) {
+            setVerifiedUserId(null)
+            setStep('profile')
+            setEmail(user.email || prefill?.email || '')
+            setFullName(user.user_metadata?.full_name || prefill?.name || '')
             return
           }
 
-          setStreet(draft?.street || profile?.street_address || prefill?.street || '')
-          setCity(draft?.city || profile?.city || prefill?.city || '')
-          setState(draft?.state || profile?.state_code || prefill?.state || '')
-          setZip(draft?.zip || profile?.zip_code || prefill?.zip || '')
-
+          // User is authenticated (newly verified or returning incomplete) -> go directly to final step (Name + TOS)
           setVerifiedUserId(user.id)
-          setIsReturningUser(false)
-          setStep('profile')
+          setStep('final')
         } else {
-          if (verifiedUserId) return
+          setVerifiedUserId(null)
           setStep('profile')
           setFullName(prefill?.name || '')
           setEmail(prefill?.email || '')
-          setStreet(prefill?.street || '')
-          setCity(prefill?.city || '')
-          setState(prefill?.state || '')
-          setZip(prefill?.zip || '')
         }
       }).catch((e: any) => {
         console.error('Error fetching user', e)
-        if (verifiedUserId) return
+        setVerifiedUserId(null)
         setStep('profile')
         setFullName(prefill?.name || '')
         setEmail(prefill?.email || '')
-        setStreet(prefill?.street || '')
-        setCity(prefill?.city || '')
-        setState(prefill?.state || '')
-        setZip(prefill?.zip || '')
       })
     }
   }, [isOpen, user, supabase, onComplete, defaultSignIn])
@@ -253,121 +228,27 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
     return () => window.removeEventListener('keydown', handleKey)
   }, [isOpen, legalView, onClose])
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // Geolocation: Use My Location
-  // ══════════════════════════════════════════════════════════════════════════
-  const useCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) { setError('Geolocation is not supported by your browser'); return }
-    setGeolocating(true); setError('')
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1`
-          )
-          if (!res.ok) {
-            setError('Could not look up address — please enter it manually')
-            setGeolocating(false)
-            return
-          }
-          const data = await res.json()
-          const addr = data.address || {}
-          const houseNumber = addr.house_number || ''
-          const road = addr.road || ''
-          setStreet([houseNumber, road].filter(Boolean).join(' '))
-          setCity(addr.city || addr.town || addr.village || addr.hamlet || '')
-          setState(addr.state ? (addr['ISO3166-2-lvl4']?.split('-')[1] || addr.state.slice(0, 2)).toUpperCase() : '')
-          setZip(addr.postcode?.split('-')[0] || '')
-        } catch {
-          setError('Could not look up address — please enter it manually')
-        }
-        setGeolocating(false)
-      },
-      () => { setError('Location access denied'); setGeolocating(false) },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }, [])
-
   const handleSaveProfileOnly = async () => {
     setError('')
-    // ── Required field validation ──
-    const profileError = validateProfileFields({
-      fullName: fullName,
-      street: street,
-      city: city,
-      state: state,
-      zip: zip,
-    })
-    if (profileError) {
-      setError(profileError)
+    if (!fullName.trim()) {
+      setError('Please enter your full name')
+      return
+    }
+    if (!tosChecked) {
+      setError('Please accept the Terms of Service to continue')
       return
     }
     setLoading(true)
     try {
-      let finalStreet = street.trim()
-      let finalCity = city.trim()
-      let finalState = normalizeStateCode(state)
-      let finalZip = zip.trim()
-      let county = null
-
-      try {
-        const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
-          body: { streetAddress: street.trim(), city: city.trim(), state: state.trim().toUpperCase(), zipCode: zip.trim().split('-')[0] },
-        })
-        if (!uspsError && uspsResult?.address) {
-          finalStreet = uspsResult.address.streetAddress || finalStreet
-          finalCity = uspsResult.address.city || finalCity
-          finalState = normalizeStateCode(uspsResult.address.state || finalState)
-          finalZip = uspsResult.address.ZIPPlus4 || finalZip
-          county = uspsResult.jurisdiction?.county || null
-        }
-      } catch { /* fallback */ }
-
-      let h3Index: string | null = null
-      let geoLat: number | null = null
-      let geoLng: number | null = null
-      try {
-        const geo = await geocodeAddress(`${finalStreet}, ${finalCity}, ${finalState} ${finalZip.split('-')[0]}`)
-        if (geo) {
-          geoLat = geo.lat
-          geoLng = geo.lng
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        }
-      } catch {
-        if (process.env.NODE_ENV === 'development' || finalStreet.toLowerCase().includes('123 main')) {
-          geoLat = 37.3382
-          geoLng = -121.8863
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        } else {
-          setError('Could not determine your community location. Please check your address.')
-          setLoading(false)
-          return
-        }
-      }
-
       const profileUpdate: Record<string, any> = {
         full_name: fullName.trim(),
-        street_address: finalStreet,
-        city: finalCity,
-        state_code: finalState,
-        zip_code: finalZip.split('-')[0],
-        zip_plus4: finalZip,
         profile_completed_at: new Date().toISOString(),
+        tos_accepted_at: new Date().toISOString(),
       }
-      if (geoLat !== null && geoLng !== null) {
-        profileUpdate.home_location = toPostgisPoint(geoLat, geoLng)
-      }
-      if (h3Index) {
-        profileUpdate.home_community_h3_index = h3Index
-      }
-      if (tosChecked) {
-        profileUpdate.tos_accepted_at = new Date().toISOString()
-      }
+      
       if (wantsSms && phoneVerified) {
         profileUpdate.sms_enabled = true
-        profileUpdate.phone = phone.trim()
+        profileUpdate.phone_number = phone.trim()
       }
 
       const { error: updateErr } = await supabase
@@ -381,29 +262,18 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
         return
       }
 
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('tos_accepted_at')
-        .eq('id', verifiedUserId)
-        .single()
-
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('quick_setup_draft_profile')
       }
 
-      if (existingProfile?.tos_accepted_at || tosChecked) {
-        await refresh()
-        setLoading(false)
-        isCompleted.current = true
-        onComplete()
-        return
-      }
-
-      setStep('final')
+      await refresh()
+      setLoading(false)
+      isCompleted.current = true
+      onComplete()
     } catch (err: any) {
       setError(err?.message || 'Failed to save profile')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleSocialLogin = async (provider: 'google' | 'apple') => {
@@ -438,19 +308,9 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
   }
 
   const handleSocialSignUpClick = (provider: 'google' | 'apple') => {
-    if (!fullName.trim()) { setError('Please enter your name'); return }
-    if (!street.trim()) { setError('Please enter your street address'); return }
-    if (!city.trim()) { setError('Please enter your city'); return }
-    if (!state.trim()) { setError('Please enter your state'); return }
-    if (!zip.trim()) { setError('Please enter your zip code'); return }
-
-    if (typeof window !== 'undefined') {
-      const draft = { fullName, street, city, state, zip }
-      sessionStorage.setItem('quick_setup_draft_profile', JSON.stringify(draft))
-    }
-
     handleSocialLogin(provider)
   }
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // Step 1: Profile → Send OTP
@@ -461,49 +321,11 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
       handleSaveProfileOnly()
       return
     }
-    if (!isReturningUser && !fullName.trim()) { setError('Please enter your name'); return }
     if (!email.trim()) { setError('Please enter your email'); return }
-
-    // For new users, validate address
-    if (!isReturningUser) {
-      if (!street.trim()) { setError('Please enter your street address'); return }
-      if (!city.trim()) { setError('Please enter your city'); return }
-      if (!state.trim()) { setError('Please enter your state'); return }
-      if (!zip.trim()) { setError('Please enter your zip code'); return }
-    }
 
     setLoading(true)
 
     try {
-      // Check if user exists (returning user detection)
-      // We do this by attempting signInWithOtp — Supabase will create the user if new
-      // We can detect returning users after OTP verification by checking profile_completed_at
-
-      // USPS Address Validation (for new users)
-      if (!isReturningUser) {
-        try {
-          const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
-            body: { streetAddress: street.trim(), city: city.trim(), state: state.trim().toUpperCase(), zipCode: zip.trim().split('-')[0] },
-          })
-          if (!uspsError && uspsResult?.address) {
-            const correctedStreet = uspsResult.address.streetAddress || street.trim()
-            const correctedCity = uspsResult.address.city || city.trim()
-            const correctedState = uspsResult.address.state || state.trim().toUpperCase()
-            const correctedZip = uspsResult.address.ZIPPlus4 || zip.trim()
-            const originalAddr = `${street.trim()}, ${city.trim()}, ${state.trim()} ${zip.trim()}`
-            const correctedAddr = `${correctedStreet}, ${correctedCity}, ${correctedState} ${correctedZip}`
-
-            if (originalAddr.toLowerCase() !== correctedAddr.toLowerCase()) {
-              setUspsCorrection({
-                original: originalAddr,
-                corrected: correctedAddr,
-                correctedFields: { street: correctedStreet, city: correctedCity, state: correctedState, zip: correctedZip },
-              })
-            }
-          }
-        } catch { /* Use user-entered address if USPS fails */ }
-      }
-
       // Bypass OTP email sending for Store/Platform Reviewers
       const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
       if (REVIEW_EMAILS.includes(email.trim().toLowerCase())) {
@@ -531,7 +353,6 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
 
       setStep('otp')
       setResendCooldown(60)
-      // Focus first OTP input after render
       setTimeout(() => otpRefs.current[0]?.focus(), 100)
     } catch (err: any) {
       setError(err?.message || 'Failed to send verification code')
@@ -549,7 +370,6 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
     setLoading(true)
 
     try {
-      // Intercept review login and sign in via email/password
       const REVIEW_EMAILS = ['apple@casagrown.com', 'google@casagrown.com', 'facebook@casagrown.com']
       let data, verifyError
       if (REVIEW_EMAILS.includes(email.trim().toLowerCase()) && code === '123456') {
@@ -574,113 +394,65 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
       const userId = data.user.id
       setVerifiedUserId(userId)
 
-      // Check if this is a returning user (already has profile)
+      try {
+        const { data: leadData } = await supabase
+          .from('crm_leads')
+          .select('id, utm_source, utm_medium, utm_campaign')
+          .eq('email', email.trim())
+          .single()
+
+        if (leadData?.id) {
+          // 1. Mark lead converted in crm_leads
+          await supabase
+            .from('crm_leads')
+            .update({
+              converted_user_id: userId,
+              converted_at: new Date().toISOString(),
+              status: 'converted',
+            })
+            .eq('id', leadData.id)
+
+          // 2. Link unlinked lead produce interests to userId
+          await supabase
+            .from('crm_produce_interests')
+            .update({ user_id: userId })
+            .eq('lead_id', leadData.id)
+            .is('user_id', null)
+
+          // 3. Carry lead UTM attribution forward to user profile if profile lacks UTM info
+          if (leadData.utm_source || leadData.utm_campaign) {
+            await supabase
+              .from('profiles')
+              .update({
+                utm_source: leadData.utm_source || undefined,
+                utm_medium: leadData.utm_medium || undefined,
+                utm_campaign: leadData.utm_campaign || undefined,
+              })
+              .eq('id', userId)
+              .is('utm_source', null)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to link lead interests and carry forward attribution', err)
+      }
+
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('full_name, profile_completed_at, tos_accepted_at')
         .eq('id', userId)
         .single()
 
-      if (existingProfile?.profile_completed_at && existingProfile?.tos_accepted_at) {
-        // Returning user — all done! Refresh bootstrap and complete
-        await refresh()
-        setLoading(false)
-        isCompleted.current = true
-        onComplete()
-        return
-      }
-
-      // New user who used Sign In tab — they never entered name/address.
-      // Redirect them to the profile form to collect that info.
-      if (!existingProfile?.profile_completed_at && isReturningUser) {
-        setVerifiedUserId(userId)
-        setIsReturningUser(false)  // Switch to Sign Up view to show name + address fields
-        setStep('profile')
-        setError('Welcome! Please complete your profile to create your account.')
-        setLoading(false)
-        return
-      }
-
-      // Defense-in-depth: never save empty name or address
-      const profileValidationError = validateProfileFields({
-        fullName: fullName,
-        street: street,
-        city: city,
-        state: state,
-        zip: zip,
-      })
-      if (profileValidationError) {
-        // Missing required fields — redirect to profile form
-        setVerifiedUserId(userId)
-        setIsReturningUser(false)
-        setStep('profile')
-        setError(profileValidationError)
-        setLoading(false)
-        return
-      }
-
-      // New user or incomplete profile — save profile data
-      const finalStreet = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.street : street.trim()
-      const finalCity = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.city : city.trim()
-      const finalState = normalizeStateCode(uspsCorrection && useCorrected ? uspsCorrection.correctedFields.state : state)
-      const finalZip = uspsCorrection && useCorrected ? uspsCorrection.correctedFields.zip : zip.trim()
-
-      // Geocode & H3
-      let geoLat: number | null = null
-      let geoLng: number | null = null
-      let h3Index: string | null = null
-
-      try {
-        const geo = await geocodeAddress(`${finalStreet}, ${finalCity}, ${finalState} ${finalZip.split('-')[0]}`)
-        if (geo) {
-          geoLat = geo.lat
-          geoLng = geo.lng
-        }
-        if (geoLat && geoLng) {
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        }
-      } catch { /* ignore */ }
-
-      // Fallback for dev/test environments
-      if (!h3Index) {
-        if (process.env.NODE_ENV === 'development' || finalStreet.toLowerCase().includes('123 main')) {
-          geoLat = 37.3382; geoLng = -121.8863
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        }
-      }
-
-      // Save profile
-      const profileUpdate: Record<string, any> = {
-        full_name: fullName.trim(),
-        street_address: finalStreet,
-        city: finalCity,
-        state_code: finalState,
-        zip_code: finalZip.split('-')[0],
-        zip_plus4: finalZip,
-        profile_completed_at: new Date().toISOString(),
-      }
-      if (geoLat !== null && geoLng !== null) {
-        profileUpdate.home_location = toPostgisPoint(geoLat, geoLng)
-      }
-      if (h3Index) {
-        profileUpdate.home_community_h3_index = h3Index
-      }
-
-      const { error: updateErr } = await supabase
-        .from('profiles')
-        .update(profileUpdate)
-        .eq('id', userId)
-
-      if (updateErr) { setError(updateErr.message); setLoading(false); return }
-
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('quick_setup_draft_profile')
       }
 
-      // If TOS already accepted, we're done
-      if (existingProfile?.tos_accepted_at) {
+      if (existingProfile?.full_name) {
+        setFullName(existingProfile.full_name)
+      }
+
+      if (existingProfile?.full_name && existingProfile?.tos_accepted_at) {
+        // Returning user — all done! Refresh bootstrap and complete
+        await supabase.from('profiles').update({ profile_completed_at: new Date().toISOString() }).eq('id', userId)
         await refresh()
         setLoading(false)
         isCompleted.current = true
@@ -688,7 +460,7 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
         return
       }
 
-      // Move to Step 3 for TOS + optional SMS
+      // Missing name or ToS, go to final step to collect them
       setStep('final')
     } catch (err: any) {
       setError(err?.message || 'Verification failed')
@@ -916,398 +688,61 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
         {/* ══════════════════════════════════════════════════════════════════ */}
         {step === 'profile' && !legalView && (
           <div data-testid="quick-setup-step-1">
-            {/* Mode Switcher Tabs */}
-            {!verifiedUserId && (
-              <div className={styles.tabsContainer}>
+            <h2 className={styles.stepTitle}>👋 Welcome</h2>
+            <p className={styles.stepSubtitle}>
+              Sign in or create an account to continue.
+            </p>
+
+            {ENABLE_SOCIAL_LOGIN && !verifiedUserId && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                 <button
                   type="button"
-                  onClick={() => { setIsReturningUser(false); setError('') }}
-                  className={`${styles.tabBtn} ${!isReturningUser ? styles.tabBtnActive : ''}`}
+                  className={styles.socialButton}
+                  onClick={() => handleSocialLogin('google')}
+                  disabled={loading}
                 >
-                  Sign Up
+                  <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
                 </button>
+                {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
                 <button
                   type="button"
-                  data-testid="returning-user-toggle"
-                  onClick={() => { setIsReturningUser(true); setError('') }}
-                  className={`${styles.tabBtn} ${isReturningUser ? styles.tabBtnActive : ''}`}
+                  className={styles.socialButton}
+                  onClick={() => handleSocialLogin('apple')}
+                  disabled={loading}
                 >
-                  Sign In
+                  <span style={{ fontSize: '15px' }}></span> Continue with Apple
                 </button>
+                )}
+                <div className={styles.divider}>
+                  <span>or</span>
+                </div>
               </div>
             )}
 
-            {isReturningUser ? (
-              <>
-                <h2 className={styles.stepTitle}>👋 Welcome Back</h2>
-                <p className={styles.stepSubtitle}>
-                  Sign in instantly with Google/Apple, or enter your email to get a code.
-                </p>
+            <div className={styles.field}>
+              <label className={styles.label}>Email Address</label>
+              <input
+                className={`${styles.input} ${error && !email.trim() ? styles.inputError : ''}`}
+                name="email"
+                type="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError('') }}
+                onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'email', !!email)}
+                placeholder="you@example.com"
+                autoFocus
+              />
+            </div>
 
-                {ENABLE_SOCIAL_LOGIN && !verifiedUserId && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                    <button
-                      type="button"
-                      className={styles.socialButton}
-                      onClick={() => handleSocialLogin('google')}
-                      disabled={loading}
-                    >
-                      <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
-                    </button>
-                    {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
-                    <button
-                      type="button"
-                      className={styles.socialButton}
-                      onClick={() => handleSocialLogin('apple')}
-                      disabled={loading}
-                    >
-                      <span style={{ fontSize: '15px' }}></span> Continue with Apple
-                    </button>
-                    )}
-                    <div className={styles.divider}>
-                      <span>or</span>
-                    </div>
-                  </div>
-                )}
+            {error && <div className={styles.errorMsg}>{error}</div>}
 
-                {/* Email only for returning users */}
-                <div className={styles.field}>
-                  <label className={styles.label}>Email</label>
-                  <input
-                    className={`${styles.input} ${error && !email.trim() ? styles.inputError : ''}`}
-                    name="email"
-                    type="email"
-                    value={email}
-                    onChange={e => { setEmail(e.target.value); setError('') }}
-                    onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'email', !!email)}
-                    placeholder="you@example.com"
-                    autoFocus
-                  />
-                </div>
-
-                {error && <div className={styles.errorMsg}>{error}</div>}
-
-                <button
-                  className={styles.primaryBtn}
-                  onClick={handleContinue}
-                  disabled={loading || !email.trim()}
-                >
-                  {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Send Code →'}
-                </button>
-
-
-              </>
-            ) : (
-              <>
-                <h2 className={styles.stepTitle}>🌱 Quick Setup</h2>
-                <p className={styles.stepSubtitle}>
-                  {trigger?.includes('listing') || trigger?.includes('simple_listing')
-                    ? 'Set up your account so we can create your listing. This only takes a minute!'
-                    : 'Enter your details below to create your account.'}
-                </p>
-
-                {/* Name */}
-                {(!verifiedUserId || !fullName.trim()) && (
-                  <div className={styles.field}>
-                    <label className={styles.label}>Full Name</label>
-                    <input
-                      className={`${styles.input} ${error && !fullName.trim() ? styles.inputError : ''}`}
-                      name="fullName"
-                      value={fullName}
-                      onChange={e => { setFullName(e.target.value); setError('') }}
-                      onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'fullName', !!fullName)}
-                      placeholder="Jane Smith"
-                      autoFocus
-                    />
-                  </div>
-                )}
-
-                {/* Email (readonly after social login) */}
-                {verifiedUserId && (
-                  <div className={styles.field}>
-                    <label className={styles.label}>Email Address</label>
-                    <input
-                      className={styles.input}
-                      name="email"
-                      type="email"
-                      value={email}
-                      disabled={true}
-                      style={{ opacity: 0.7, cursor: 'not-allowed' }}
-                    />
-                  </div>
-                )}
-
-                {/* Address Section */}
-                {!isReturningUser && (!verifiedUserId || !street.trim() || !city.trim() || !state.trim() || !zip.trim()) && (
-                  <>
-                    <div className={styles.infoCard}>
-                      <span className={styles.infoIcon}>🔒</span>
-                      <span className={styles.infoText}>
-                        {addressNote || 'Your address is stored securely and never shared publicly. We use it to assign you to your local community market, calculate delivery options, and determine sales tax when applicable.'}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={useCurrentLocation}
-                      disabled={geolocating}
-                      style={{
-                        width: '100%', padding: '8px 12px', marginBottom: 8,
-                        background: 'var(--green-50, #f0fdf4)', border: '1px solid var(--green-200, #bbf7d0)',
-                        borderRadius: 8, color: 'var(--green-700, #15803d)',
-                        fontSize: 13, fontWeight: 600, cursor: geolocating ? 'wait' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      }}
-                    >
-                      {geolocating ? '⏳ Locating...' : '📍 Use My Location'}
-                    </button>
-
-                    <div className={styles.field}>
-                      <label className={styles.label}>Street Address</label>
-                      <input
-                        className={`${styles.input} ${error && !street.trim() ? styles.inputError : ''}`}
-                        name="street"
-                        value={street}
-                        onChange={e => { setStreet(e.target.value); setError('') }}
-                        onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'street', !!street)}
-                        placeholder="123 Main St"
-                      />
-                    </div>
-
-                    <div className={styles.addressRow}>
-                      <div className={styles.field}>
-                        <label className={styles.label}>City</label>
-                        <input
-                          className={`${styles.input} ${error && !city.trim() ? styles.inputError : ''}`}
-                          name="city"
-                          value={city}
-                          onChange={e => { setCity(e.target.value); setError('') }}
-                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'city', !!city)}
-                          placeholder="San Jose"
-                        />
-                      </div>
-                      <div className={styles.field}>
-                        <label className={styles.label}>State</label>
-                        <input
-                          className={`${styles.input} ${error && !state.trim() ? styles.inputError : ''}`}
-                          name="state"
-                          value={state}
-                          onChange={e => { setState(e.target.value.toUpperCase().slice(0, 2)); setError('') }}
-                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'state', !!state)}
-                          placeholder="CA"
-                          maxLength={2}
-                        />
-                      </div>
-                      <div className={styles.field}>
-                        <label className={styles.label}>Zip</label>
-                        <input
-                          className={`${styles.input} ${error && !zip.trim() ? styles.inputError : ''}`}
-                          name="zip"
-                          value={zip}
-                          onChange={e => { setZip(e.target.value); setError('') }}
-                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'zip', !!zip)}
-                          placeholder="95120"
-                          maxLength={10}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* USPS Address Correction */}
-                {uspsCorrection && (
-                  <div className={styles.addressCorrection}>
-                    <div className={styles.addressCorrectionTitle}>📬 Did you mean?</div>
-                    <label className={`${styles.addressOption} ${useCorrected ? styles.addressOptionSelected : ''}`} onClick={() => setUseCorrected(true)}>
-                      <input type="radio" className={styles.addressRadio} checked={useCorrected} onChange={() => setUseCorrected(true)} />
-                      <div>
-                        <div className={styles.addressLabel}>Suggested</div>
-                        <div className={styles.addressText}>{uspsCorrection.corrected}</div>
-                      </div>
-                    </label>
-                    <label className={`${styles.addressOption} ${!useCorrected ? styles.addressOptionSelected : ''}`} onClick={() => setUseCorrected(false)}>
-                      <input type="radio" className={styles.addressRadio} checked={!useCorrected} onChange={() => setUseCorrected(false)} />
-                      <div>
-                        <div className={styles.addressLabel}>As entered</div>
-                        <div className={styles.addressText}>{uspsCorrection.original}</div>
-                      </div>
-                    </label>
-                  </div>
-                )}
-
-                {verifiedUserId && (
-                  <>
-                    <div className={styles.checkboxRow} style={{ marginTop: '12px' }}>
-                      <input
-                        type="checkbox"
-                        className={styles.checkbox}
-                        checked={wantsSms}
-                        onChange={e => { setWantsSms(e.target.checked); if (!e.target.checked) { setPhoneSent(false); setPhoneOtp(''); setPhoneVerified(false) } }}
-                      />
-                      <label className={styles.checkboxLabel}>
-                        Keep me updated via SMS notifications for order updates and seller messages.
-                      </label>
-                    </div>
-
-                    {wantsSms && !phoneVerified && (
-                      <div className={styles.smsPhoneRow} style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                        <input
-                          className={`${styles.input} ${styles.smsPhoneInput}`}
-                          type="tel"
-                          value={phone}
-                          onChange={e => { setPhone(e.target.value); setPhoneSent(false); setPhoneOtp('') }}
-                          onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'phone', !!phone)}
-                          placeholder="(555) 000-0000"
-                        />
-                        <button
-                          type="button"
-                          className={styles.smsSendBtn}
-                          onClick={handleSendPhoneOtp}
-                          disabled={loading || phoneResendCooldown > 0 || phone.replace(/\D/g, '').length < 10}
-                        >
-                          {phoneResendCooldown > 0 ? `${phoneResendCooldown}s` : 'Send Code'}
-                        </button>
-                      </div>
-                    )}
-
-                    {wantsSms && phoneSent && !phoneVerified && (
-                      <div className={styles.smsOtpRow} style={{ marginTop: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {[0, 1, 2, 3].map(i => (
-                          <input
-                            key={i}
-                            className={styles.smsOtpInput}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={1}
-                            value={phoneOtp[i] || ''}
-                            onChange={e => {
-                              const val = e.target.value.replace(/\D/g, '').slice(-1)
-                              const newOtp = phoneOtp.split('')
-                              newOtp[i] = val
-                              setPhoneOtp(newOtp.join(''))
-                              if (val && i < 3) {
-                                const next = e.target.nextElementSibling as HTMLInputElement
-                                next?.focus()
-                              }
-                            }}
-                          />
-                        ))}
-                        <button type="button" className={styles.smsSendBtn} onClick={handleVerifyPhone} disabled={loading || phoneOtp.replace(/\D/g, '').length < 4}>
-                          Verify
-                        </button>
-                      </div>
-                    )}
-
-                    {phoneVerified && (
-                      <div className={styles.verifiedBadge} style={{ marginTop: '8px', color: 'var(--green-600, #16a34a)', fontSize: '0.85rem', fontWeight: 500 }}>
-                        ✅ Phone verified — you'll get SMS updates
-                      </div>
-                    )}
-
-                    <div className={styles.checkboxRow} style={{ marginTop: '8px' }}>
-                      <input
-                        type="checkbox"
-                        className={styles.checkbox}
-                        checked={tosChecked}
-                        onChange={e => setTosChecked(e.target.checked)}
-                      />
-                      <label className={styles.checkboxLabel}>
-                        I agree to the{' '}
-                        <button type="button" className={styles.legalLink} onClick={() => setLegalView('terms')}>
-                          Terms of Service
-                        </button>{' '}
-                        and{' '}
-                        <button type="button" className={styles.legalLink} onClick={() => setLegalView('privacy')}>
-                          Privacy Policy
-                        </button>
-                        .
-                      </label>
-                    </div>
-                  </>
-                )}
-
-                {/* Identity Verification Section (only shown for guests) */}
-                {!verifiedUserId && (
-                  <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
-                    <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', marginBottom: '12px', textAlign: 'center' }}>
-                      🔑 Verify your identity to sign up:
-                    </h3>
-
-                    {ENABLE_SOCIAL_LOGIN && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                        <button
-                          type="button"
-                          className={styles.socialButton}
-                          onClick={() => handleSocialSignUpClick('google')}
-                          disabled={loading}
-                        >
-                          <span style={{ fontSize: '15px' }}>🌐</span> Continue with Google
-                        </button>
-                        {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
-                          <button
-                            type="button"
-                            className={styles.socialButton}
-                            onClick={() => handleSocialSignUpClick('apple')}
-                            disabled={loading}
-                          >
-                            <span style={{ fontSize: '15px' }}></span> Continue with Apple
-                          </button>
-                        )}
-                        <div className={styles.divider}>
-                          <span>or verify with email</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className={styles.field}>
-                      <label className={styles.label}>Email Address</label>
-                      <input
-                        className={`${styles.input} ${error && !email.trim() ? styles.inputError : ''}`}
-                        name="email"
-                        type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'email', !!email)}
-                        placeholder="you@example.com"
-                      />
-                    </div>
-
-                    {error && <div className={styles.errorMsg}>{error}</div>}
-
-                    <button
-                      className={styles.primaryBtn}
-                      onClick={handleContinue}
-                      disabled={loading || !email.trim() || (!isReturningUser && (!fullName.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim()))}
-                      style={{ marginTop: '12px' }}
-                    >
-                      {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Continue →'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Submit button only shown for verified users */}
-                {verifiedUserId && (
-                  <>
-                    {error && <div className={styles.errorMsg}>{error}</div>}
-                    <button
-                      className={styles.primaryBtn}
-                      onClick={handleContinue}
-                      disabled={loading || !fullName.trim() || !email.trim() || !street.trim() || !city.trim() || !state.trim() || !zip.trim() || !tosChecked}
-                      style={{ marginTop: '16px' }}
-                    >
-                      {loading ? (
-                        <><span className={styles.spinner} /> Saving...</>
-                      ) : (
-                        'Complete Setup →'
-                      )}
-                    </button>
-                  </>
-                )}
-
-
-              </>
-            )}
-          </div>
+            <button
+              className={styles.primaryBtn}
+              onClick={handleContinue}
+              disabled={loading || !email.trim()}
+              style={{ marginTop: '12px' }}
+            >
+              {loading ? <><span className={styles.spinner} /> Sending code...</> : 'Continue →'}
+            </button>          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════ */}
@@ -1382,6 +817,19 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
             <p className={styles.stepSubtitle}>
               Just one more thing before you continue.
             </p>
+            
+            <div className={styles.field} style={{ marginBottom: '20px' }}>
+              <label className={styles.label}>Full Name</label>
+              <input
+                className={`${styles.input} ${error && !fullName.trim() ? styles.inputError : ''}`}
+                name="fullName"
+                value={fullName}
+                onChange={e => { setFullName(e.target.value); setError('') }}
+                onBlur={() => trackFieldInteract(PAGE_SLUG, currentStepIndex, 'fullName', !!fullName)}
+                placeholder="Jane Smith"
+                autoFocus
+              />
+            </div>
 
             {/* SMS Section */}
             <div className={styles.smsSection}>
@@ -1482,8 +930,8 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
 
             <button
               className={styles.primaryBtn}
-              onClick={handleCompleteSetup}
-              disabled={loading || !tosChecked}
+              onClick={handleSaveProfileOnly}
+              disabled={loading || !tosChecked || !fullName.trim()}
               data-testid="quick-setup-complete-btn"
             >
               {loading ? <><span className={styles.spinner} /> Completing...</> : 'Complete Setup →'}

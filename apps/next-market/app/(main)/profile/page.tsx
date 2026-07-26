@@ -159,7 +159,7 @@ function ProfilePageInner() {
       city: form.city,
       state: form.state,
       zip: form.zip,
-    })
+    }, { requireFullAddress: true })
     if (profileError) {
       setError(profileError)
       return

@@ -9,6 +9,7 @@
  */
 import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
 import { getStripeApiBase } from '../_shared/stripe.ts'
+import { backfillProfileFromStripeDetails } from '../_shared/profile-backfill.ts'
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   const WEBHOOK_SECRET = env('STRIPE_SUBSCRIPTION_WEBHOOK_SECRET')
@@ -98,6 +99,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
       // Activate Pro flag on profile
       await supabase.from('profiles').update({ is_pro: true }).eq('id', targetUserId)
+
+      // Contextual Data Capture: Backfill profile address/phone from Stripe checkout details
+      try {
+        const customerDetails = session.customer_details
+        const shippingDetails = session.shipping_details
+        const addr = customerDetails?.address || shippingDetails?.address
+        const phone = customerDetails?.phone || shippingDetails?.phone
+        if (targetUserId && (addr || phone)) {
+          await backfillProfileFromStripeDetails(supabase, targetUserId, { address: addr, phone })
+        }
+      } catch (backfillErr) {
+        console.warn('[SUB-WEBHOOK] Contextual profile backfill warning:', backfillErr)
+      }
 
       // Notify user (in-app)
       await supabase.from('notifications').insert({

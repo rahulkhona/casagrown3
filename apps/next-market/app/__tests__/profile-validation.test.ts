@@ -24,91 +24,104 @@ describe('validateProfileFields', () => {
   }
 
   it('returns null when all fields are valid', () => {
-    expect(validateProfileFields(validFields)).toBeNull()
+    expect(validateProfileFields(validFields, { requireFullAddress: true })).toBeNull()
+  })
+
+
+  // ── Minimal mode (Progressive Profile) ───────────────────────────────
+
+  it('minimal mode: only name required, missing name returns error', () => {
+    expect(validateProfileFields({ fullName: '' })).toBe('Please enter your name')
+    expect(validateProfileFields({ fullName: null })).toBe('Please enter your name')
+  })
+
+  it('minimal mode: name provided, no address -> returns null (valid)', () => {
+    expect(validateProfileFields({ fullName: 'Jane' })).toBeNull()
+    expect(validateProfileFields({ fullName: 'Jane', street: '' })).toBeNull()
   })
 
   // ── Name validation ──────────────────────────────────────────────────
 
   it('returns error when fullName is null', () => {
-    expect(validateProfileFields({ ...validFields, fullName: null }))
+    expect(validateProfileFields({ ...validFields, fullName: null }, { requireFullAddress: true }))
       .toBe('Please enter your name')
   })
 
   it('returns error when fullName is empty string', () => {
-    expect(validateProfileFields({ ...validFields, fullName: '' }))
+    expect(validateProfileFields({ ...validFields, fullName: '' }, { requireFullAddress: true }))
       .toBe('Please enter your name')
   })
 
   it('returns error when fullName is whitespace-only', () => {
-    expect(validateProfileFields({ ...validFields, fullName: '   ' }))
+    expect(validateProfileFields({ ...validFields, fullName: '   ' }, { requireFullAddress: true }))
       .toBe('Please enter your name')
   })
 
   // ── Street validation ────────────────────────────────────────────────
 
   it('returns error when street is null', () => {
-    expect(validateProfileFields({ ...validFields, street: null }))
+    expect(validateProfileFields({ ...validFields, street: null }, { requireFullAddress: true }))
       .toBe('Please enter your street address')
   })
 
   it('returns error when street is empty string', () => {
-    expect(validateProfileFields({ ...validFields, street: '' }))
+    expect(validateProfileFields({ ...validFields, street: '' }, { requireFullAddress: true }))
       .toBe('Please enter your street address')
   })
 
   it('returns error when street is whitespace-only', () => {
-    expect(validateProfileFields({ ...validFields, street: '   ' }))
+    expect(validateProfileFields({ ...validFields, street: '   ' }, { requireFullAddress: true }))
       .toBe('Please enter your street address')
   })
 
   // ── City validation ──────────────────────────────────────────────────
 
   it('returns error when city is null', () => {
-    expect(validateProfileFields({ ...validFields, city: null }))
+    expect(validateProfileFields({ ...validFields, city: null }, { requireFullAddress: true }))
       .toBe('Please enter your city')
   })
 
   it('returns error when city is empty string', () => {
-    expect(validateProfileFields({ ...validFields, city: '' }))
+    expect(validateProfileFields({ ...validFields, city: '' }, { requireFullAddress: true }))
       .toBe('Please enter your city')
   })
 
   it('returns error when city is whitespace-only', () => {
-    expect(validateProfileFields({ ...validFields, city: '   ' }))
+    expect(validateProfileFields({ ...validFields, city: '   ' }, { requireFullAddress: true }))
       .toBe('Please enter your city')
   })
 
   // ── State validation ─────────────────────────────────────────────────
 
   it('returns error when state is null', () => {
-    expect(validateProfileFields({ ...validFields, state: null }))
+    expect(validateProfileFields({ ...validFields, state: null }, { requireFullAddress: true }))
       .toBe('Please enter your state')
   })
 
   it('returns error when state is empty string', () => {
-    expect(validateProfileFields({ ...validFields, state: '' }))
+    expect(validateProfileFields({ ...validFields, state: '' }, { requireFullAddress: true }))
       .toBe('Please enter your state')
   })
 
   it('returns error when state is whitespace-only', () => {
-    expect(validateProfileFields({ ...validFields, state: '  ' }))
+    expect(validateProfileFields({ ...validFields, state: '  ' }, { requireFullAddress: true }))
       .toBe('Please enter your state')
   })
 
   // ── Zip validation ───────────────────────────────────────────────────
 
   it('returns error when zip is null', () => {
-    expect(validateProfileFields({ ...validFields, zip: null }))
+    expect(validateProfileFields({ ...validFields, zip: null }, { requireFullAddress: true }))
       .toBe('Please enter your zip code')
   })
 
   it('returns error when zip is empty string', () => {
-    expect(validateProfileFields({ ...validFields, zip: '' }))
+    expect(validateProfileFields({ ...validFields, zip: '' }, { requireFullAddress: true }))
       .toBe('Please enter your zip code')
   })
 
   it('returns error when zip is whitespace-only', () => {
-    expect(validateProfileFields({ ...validFields, zip: '  ' }))
+    expect(validateProfileFields({ ...validFields, zip: '  ' }, { requireFullAddress: true }))
       .toBe('Please enter your zip code')
   })
 
@@ -121,7 +134,7 @@ describe('validateProfileFields', () => {
       city: '',
       state: '',
       zip: '',
-    })).toBe('Please enter your name')
+    }, { requireFullAddress: true })).toBe('Please enter your name')
   })
 
   it('returns street error when name is valid but rest missing', () => {
@@ -131,7 +144,7 @@ describe('validateProfileFields', () => {
       city: '',
       state: '',
       zip: '',
-    })).toBe('Please enter your street address')
+    }, { requireFullAddress: true })).toBe('Please enter your street address')
   })
 
   it('returns city error when name and street valid but rest missing', () => {
@@ -141,7 +154,7 @@ describe('validateProfileFields', () => {
       city: '',
       state: '',
       zip: '',
-    })).toBe('Please enter your city')
+    }, { requireFullAddress: true })).toBe('Please enter your city')
   })
 
   it('returns state error when only state and zip missing', () => {
@@ -151,7 +164,7 @@ describe('validateProfileFields', () => {
       city: 'San Jose',
       state: '',
       zip: '',
-    })).toBe('Please enter your state')
+    }, { requireFullAddress: true })).toBe('Please enter your state')
   })
 
   it('returns zip error when only zip missing', () => {
@@ -161,7 +174,7 @@ describe('validateProfileFields', () => {
       city: 'San Jose',
       state: 'CA',
       zip: '',
-    })).toBe('Please enter your zip code')
+    }, { requireFullAddress: true })).toBe('Please enter your zip code')
   })
 
   // ── Edge cases ───────────────────────────────────────────────────────
@@ -173,11 +186,11 @@ describe('validateProfileFields', () => {
       city: '  San Jose  ',
       state: ' CA ',
       zip: ' 95125 ',
-    })).toBeNull()
+    }, { requireFullAddress: true })).toBeNull()
   })
 
   it('returns error when fields are undefined (not provided)', () => {
-    expect(validateProfileFields({})).toBe('Please enter your name')
+    expect(validateProfileFields({}, { requireFullAddress: true })).toBe('Please enter your name')
   })
 })
 

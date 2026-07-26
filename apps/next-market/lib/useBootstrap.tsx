@@ -112,6 +112,16 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     if (user) {
       await fetchBootstrap(user.id)
+    } else {
+      // If user is null, auth may have happened outside bootstrap (e.g. interest page OTP).
+      // Check for a live session and sync if found.
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const u = { id: authUser.id, email: authUser.email ?? undefined }
+        setUser(u)
+        await fetchBootstrap(u.id)
+      }
     }
   }, [user, fetchBootstrap])
 
@@ -152,6 +162,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes (login/logout/token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      console.log('[BOOTSTRAP] onAuthStateChange:', _event, session?.user?.id, session?.user?.email)
       if (session?.user) {
         const u = { id: session.user.id, email: session.user.email ?? undefined }
         setUser(u)

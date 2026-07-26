@@ -206,10 +206,6 @@ function ProfileSetupPageInner() {
       return
     }
     if (!fullName.trim()) { setError('Please enter your name'); return }
-    if (!streetAddress.trim()) { setError('Please enter your address'); return }
-    if (!city.trim()) { setError('Please enter your city'); return }
-    if (!stateCode.trim()) { setError('Please enter your state'); return }
-    if (!zip.trim()) { setError('Please enter your zip code'); return }
     if (showPhoneOptIn && phone.trim() && !phoneVerified) {
       setError('Please verify your phone number by clicking "Send Code", or clear the field before saving.')
       return
@@ -226,66 +222,69 @@ function ProfileSetupPageInner() {
       let validatedCity = city.trim()
       let validatedState = normalizeStateCode(stateCode)
 
-      try {
-        const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
-          body: {
-            streetAddress: streetAddress.trim(),
-            city: city.trim(),
-            state: stateCode.trim(),
-            zipCode: zip.trim().split('-')[0],
-          },
-        })
-
-        if (!uspsError && uspsResult?.address) {
-          validatedStreet = uspsResult.address.streetAddress || validatedStreet
-          validatedCity = uspsResult.address.city || validatedCity
-          validatedState = normalizeStateCode(uspsResult.address.state || validatedState)
-          validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
-          county = uspsResult.jurisdiction?.county || null
-          setStreetAddress(validatedStreet)
-          setCity(validatedCity)
-          setStateCode(validatedState)
-          setZip(validatedZipPlus4.split('-')[0])
-        } else {
-          console.warn('USPS validation failed, using user-entered address:', uspsError)
-        }
-      } catch (err) {
-        console.warn('USPS edge function unavailable, using user-entered address:', err)
-      }
-
-      // ── 2. Compute h3 index from geocoded coordinates ──
       let h3Index: string | null = null
       let geoLat: number | null = cachedLat
       let geoLng: number | null = cachedLng
-      try {
-        // Use cached GPS coords if available, otherwise geocode the address
-        if (!geoLat || !geoLng) {
-          const { geocodeAddress } = await import('../../../lib/geocode')
-          const geo = await geocodeAddress(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)
-          if (geo) {
-            geoLat = geo.lat
-            geoLng = geo.lng
-          }
-        }
-        if (geoLat && geoLng) {
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        }
-      } catch (err) {
-        console.warn('H3 computation failed:', err)
-      }
+      
+      if (validatedStreet) {
+        try {
+          const { data: uspsResult, error: uspsError } = await supabase.functions.invoke('resolve-usps-address', {
+            body: {
+              streetAddress: streetAddress.trim(),
+              city: city.trim(),
+              state: stateCode.trim(),
+              zipCode: zip.trim().split('-')[0],
+            },
+          })
 
-      if (!h3Index) {
-        if (process.env.NODE_ENV === 'development' || validatedStreet.toLowerCase().includes('123 main')) {
-          console.warn('Geocoding failed; injecting fallback San Jose development coordinates for testing.')
-          geoLat = 37.3382
-          geoLng = -121.8863
-          const { latLngToCell } = await import('h3-js')
-          h3Index = latLngToCell(geoLat, geoLng, 7)
-        } else {
-          setError('Could not determine your neighborhood. Please check your address and try again.')
-          setSaving(false)
-          return
+          if (!uspsError && uspsResult?.address) {
+            validatedStreet = uspsResult.address.streetAddress || validatedStreet
+            validatedCity = uspsResult.address.city || validatedCity
+            validatedState = normalizeStateCode(uspsResult.address.state || validatedState)
+            validatedZipPlus4 = uspsResult.address.ZIPPlus4 || validatedZipPlus4
+            county = uspsResult.jurisdiction?.county || null
+            setStreetAddress(validatedStreet)
+            setCity(validatedCity)
+            setStateCode(validatedState)
+            setZip(validatedZipPlus4.split('-')[0])
+          } else {
+            console.warn('USPS validation failed, using user-entered address:', uspsError)
+          }
+        } catch (err) {
+          console.warn('USPS edge function unavailable, using user-entered address:', err)
+        }
+
+        // ── 2. Compute h3 index from geocoded coordinates ──
+        try {
+          // Use cached GPS coords if available, otherwise geocode the address
+          if (!geoLat || !geoLng) {
+            const { geocodeAddress } = await import('../../../lib/geocode')
+            const geo = await geocodeAddress(`${validatedStreet}, ${validatedCity}, ${validatedState} ${validatedZipPlus4.split('-')[0]}`)
+            if (geo) {
+              geoLat = geo.lat
+              geoLng = geo.lng
+            }
+          }
+          if (geoLat && geoLng) {
+            const { latLngToCell } = await import('h3-js')
+            h3Index = latLngToCell(geoLat, geoLng, 7)
+          }
+        } catch (err) {
+          console.warn('H3 computation failed:', err)
+        }
+
+        if (!h3Index) {
+          if (process.env.NODE_ENV === 'development' || validatedStreet.toLowerCase().includes('123 main')) {
+            console.warn('Geocoding failed; injecting fallback San Jose development coordinates for testing.')
+            geoLat = 37.3382
+            geoLng = -121.8863
+            const { latLngToCell } = await import('h3-js')
+            h3Index = latLngToCell(geoLat, geoLng, 7)
+          } else {
+            setError('Could not determine your neighborhood. Please check your address and try again.')
+            setSaving(false)
+            return
+          }
         }
       }
 
@@ -327,6 +326,25 @@ function ProfileSetupPageInner() {
         .eq('id', userId!)
 
       if (updateErr) { setError(updateErr.message); setSaving(false); return }
+
+      // 4. Link lead interests
+      try {
+        const { data: leadData } = await supabase
+          .from('crm_leads')
+          .select('id')
+          .eq('email', userEmail.trim())
+          .single()
+
+        if (leadData?.id) {
+          await supabase
+            .from('crm_produce_interests')
+            .update({ user_id: userId })
+            .eq('lead_id', leadData.id)
+            .is('user_id', null)
+        }
+      } catch (err) {
+        console.error('Failed to link lead interests', err)
+      }
 
       // Fire-and-forget: send Pro interest email if checkbox is checked
       if (proInterest) {
@@ -551,9 +569,14 @@ function ProfileSetupPageInner() {
           </div>
 
           {/* Location Auto-fill + Street Address */}
+          <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #bfdbfe' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ℹ️ <strong>Complete your address for better local matching</strong>
+            </p>
+          </div>
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="label" htmlFor="street">Street Address *</label>
+              <label className="label" htmlFor="street">Street Address</label>
               <button
                 type="button"
                 className={styles.locationBtn}
@@ -589,25 +612,25 @@ function ProfileSetupPageInner() {
               </p>
             )}
             <input id="street" type="text" className="input" placeholder="123 Main St"
-              value={streetAddress} onChange={e => setStreetAddress(e.target.value)} required />
+              value={streetAddress} onChange={e => setStreetAddress(e.target.value)} />
           </div>
 
           {/* City / State / Zip */}
           <div className={styles.addressRow}>
             <div className="form-group" style={{ flex: 2 }}>
-              <label className="label" htmlFor="city">City *</label>
+              <label className="label" htmlFor="city">City</label>
               <input id="city" type="text" className="input" placeholder="San Jose"
-                value={city} onChange={e => setCity(e.target.value)} required />
+                value={city} onChange={e => setCity(e.target.value)} />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="label" htmlFor="state">State *</label>
+              <label className="label" htmlFor="state">State</label>
               <input id="state" type="text" className="input" placeholder="CA"
-                value={stateCode} onChange={e => setStateCode(e.target.value.slice(0, 2))} maxLength={2} required />
+                value={stateCode} onChange={e => setStateCode(e.target.value.slice(0, 2))} maxLength={2} />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="label" htmlFor="zip">Zip *</label>
+              <label className="label" htmlFor="zip">Zip</label>
               <input id="zip" type="text" className="input" placeholder="95112"
-                value={zip} onChange={e => setZip(e.target.value)} required />
+                value={zip} onChange={e => setZip(e.target.value)} />
             </div>
           </div>
 

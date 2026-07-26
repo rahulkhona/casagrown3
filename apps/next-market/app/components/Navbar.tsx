@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMarket, isMarketOpen } from '../../lib/store'
 import { useAuth } from '../../lib/useAuth'
 import { useBootstrap } from '../../lib/useBootstrap'
@@ -97,6 +97,7 @@ export function Navbar() {
   const { data: bootstrapData } = useBootstrap()
   const { requireAuth } = useQuickSetup()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [hasTutorials, setHasTutorials] = useState(false)
@@ -195,6 +196,22 @@ export function Navbar() {
         if (profile?.avatar_url) setProfileAvatar(profile.avatar_url)
       })
   }, [pathname, authUser]) // runs on navigation AND auth state changes
+
+  // Sync profile name/avatar from bootstrap data (updates after refresh() calls)
+  useEffect(() => {
+    if (bootstrapData?.profile?.full_name) setProfileName(bootstrapData.profile.full_name)
+    if (bootstrapData?.profile?.avatar_url) setProfileAvatar(bootstrapData.profile.avatar_url)
+  }, [bootstrapData])
+
+  // Listen for profile-updated events (e.g. from interest page inline signup)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.fullName) setProfileName(detail.fullName)
+    }
+    window.addEventListener('profile-updated', handler)
+    return () => window.removeEventListener('profile-updated', handler)
+  }, [])
 
   // Re-fetch profile when tab regains focus (catches cross-device edits)
   useEffect(() => {
@@ -383,12 +400,14 @@ export function Navbar() {
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
+    { href: '/interest?scope=sell', label: 'Notify me when buyers want what I have', icon: '📢', section: 'main', locked: false },
+    { href: '/interest?scope=buy', label: 'Notify me when sellers list what I need', icon: '🔔', section: 'main', locked: false },
+    { href: '/my-interests', label: 'My Interests', icon: '📋', section: 'main', locked: true },
     { href: '/my-stands', label: 'My Produce Stands', icon: '🏪', section: 'main' },
     { href: '/earnings', label: 'Earnings & Activity', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Wallet', icon: '💸', section: 'main' },
     { href: '/helping', label: 'Helping', icon: '🤝', section: 'main' },
     { href: '/following', label: 'Following', icon: '❤️', section: 'main' },
-    { href: '/quarantines', label: 'Quarantine Info', icon: '⚠️', section: 'main' },
     { href: '/profile', label: 'Profile', icon: '👤', section: 'account' },
     { href: '/delete-account', label: 'Delete Account', icon: '🗑️', section: 'account' },
   ]
@@ -404,7 +423,7 @@ export function Navbar() {
   }, [menuOpen])
 
   // Close menu on navigation
-  useEffect(() => { setMenuOpen(false) }, [pathname])
+  useEffect(() => { setMenuOpen(false) }, [pathname, searchParams])
 
   const mainItems = menuItems.filter(i => i.section === 'main')
   const accountItems = menuItems.filter(i => i.section === 'account')
@@ -653,12 +672,34 @@ export function Navbar() {
               <div className={styles.slideMenu}>
                 {/* Auth - Sign In at top when logged out */}
                 {!hasSession && (
-                  <div className={styles.menuSection}>
-                    <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in', defaultSignIn: true }) }}>
-                      <span className={styles.menuItemIcon}>🔑</span>
-                      <span>Sign In</span>
-                    </button>
-                  </div>
+                  <>
+                    <div className={styles.menuSection}>
+                      <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in', defaultSignIn: true }) }}>
+                        <span className={styles.menuItemIcon}>🔑</span>
+                        <span>Sign In</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.menuSection}>
+                      <div className={styles.menuSectionLabel}>Explore</div>
+                      <Link
+                        href="/interest?scope=sell"
+                        className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <span className={styles.menuItemIcon}>📢</span>
+                        <span>Notify me when buyers want what I have</span>
+                      </Link>
+                      <Link
+                        href="/interest?scope=buy"
+                        className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <span className={styles.menuItemIcon}>🔔</span>
+                        <span>Notify me when sellers list what I need</span>
+                      </Link>
+                    </div>
+                  </>
                 )}
 
                 {/* User info - only when logged in */}
@@ -683,7 +724,7 @@ export function Navbar() {
                     {mainItems.map(item => (
                       isProfileLocked ? (
                         <button
-                          key={item.href}
+                          key={item.label}
                           className={`${styles.menuItem} ${styles.menuItemLocked}`}
                           onClick={() => { setMenuOpen(false); handleLockedClick() }}
                         >
@@ -694,7 +735,7 @@ export function Navbar() {
                           <span className={styles.lockIcon}>🔒</span>
                         </button>
                       ) : (
-                        <Link key={item.href} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`}>
+                        <Link key={item.label} href={item.href} className={`${styles.menuItem} ${pathname === item.href ? styles.menuItemActive : ''}`} onClick={() => setMenuOpen(false)}>
                           <span className={styles.menuItemIcon}>
                             {item.href === '/my-stands' ? <StandIcon size={18} /> : item.icon}
                           </span>
@@ -798,9 +839,13 @@ export function Navbar() {
                     <button className={styles.menuItem} onClick={async () => {
                       try {
                         const supabase = createClient()
-                        await supabase.auth.signOut({ scope: 'local' })
+                        await supabase.auth.signOut()
                       } catch (err) {
                         console.error('Sign out error (continuing):', err)
+                      }
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.clear()
+                        localStorage.clear()
                       }
                       try { dispatch({ type: 'LOGOUT' }) } catch {}
                       setMenuOpen(false)

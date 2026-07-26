@@ -139,12 +139,7 @@ async function fillProfileAndVerifyOtp(
   const step1 = page.locator('[data-testid="quick-setup-step-1"]')
   await expect(step1).toBeVisible({ timeout: 5000 })
 
-  await step1.locator('input[name="fullName"]').fill('E2E QS Test User')
   await step1.locator('input[name="email"]').fill(testEmail)
-  await step1.locator('input[name="street"]').fill('449 Meridian Ave')
-  await step1.locator('input[name="city"]').fill('San Jose')
-  await step1.locator('input[name="state"]').fill('CA')
-  await step1.locator('input[name="zip"]').fill('95120')
 
   await step1.locator('button:has-text("Continue →")').click()
   await page.waitForTimeout(2000)
@@ -236,18 +231,12 @@ test.describe('Quick Setup Modal', () => {
     const modal = page.locator('[data-testid="quick-setup-modal"]')
     await expect(modal).toBeVisible({ timeout: 5000 })
 
-    // Assert: Step 1 is visible with name, email fields
+    // Assert: Step 1 is visible with email field
     const step1 = page.locator('[data-testid="quick-setup-step-1"]')
     await expect(step1).toBeVisible({ timeout: 3000 })
 
-    // Check for name field
-    await expect(step1.locator('input[name="fullName"]')).toBeVisible({ timeout: 3000 })
-
     // Check for email field
     await expect(step1.locator('input[name="email"]')).toBeVisible({ timeout: 3000 })
-
-    // Assert: Helper text about why address is needed
-    await expect(page.locator('text=Your address is stored securely')).toBeVisible({ timeout: 3000 })
 
     // Assert: User did NOT navigate away from the product page
     expect(page.url()).toBe(urlBeforeBuy)
@@ -358,7 +347,10 @@ test.describe('Quick Setup Modal', () => {
       return
     }
 
-    // ── Step 3: Final Setup (TOS) ──
+    // ── Step 3: Final Setup (Name + TOS) ──
+    const nameInput = page.locator('[data-testid="quick-setup-step-3"] input[name="fullName"]')
+    await expect(nameInput).toBeVisible({ timeout: 5000 })
+    await nameInput.fill('Test User')
     // Check TOS checkbox
     await page.locator('[data-testid="quick-setup-tos-checkbox"]').check()
     await page.waitForTimeout(300)
@@ -454,7 +446,10 @@ test.describe('Quick Setup Modal', () => {
     const completeBtn = page.locator('[data-testid="quick-setup-complete-btn"]')
     await expect(completeBtn).toBeDisabled({ timeout: 3000 })
 
-    // Check TOS checkbox
+    // Fill full name and check TOS checkbox
+    const nameInput = page.locator('[data-testid="quick-setup-step-3"] input[name="fullName"]')
+    await expect(nameInput).toBeVisible({ timeout: 5000 })
+    await nameInput.fill('Test User')
     await page.locator('[data-testid="quick-setup-tos-checkbox"]').check()
     await page.waitForTimeout(300)
 

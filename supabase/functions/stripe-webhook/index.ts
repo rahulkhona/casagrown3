@@ -16,12 +16,9 @@
  *   3. Subscribe to event: payment_intent.succeeded
  */
 
-import {
-    jsonError,
-    jsonOk,
-    serveWithCors,
-} from "../_shared/serve-with-cors.ts";
+import { jsonError, jsonOk, serveWithCors } from "../_shared/serve-with-cors.ts";
 import { getStripeApiBase } from "../_shared/stripe.ts";
+import { backfillProfileFromStripeDetails } from "../_shared/profile-backfill.ts";
 
 // ── Main handler ────────────────────────────────────────────────────────────
 
@@ -242,6 +239,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 throw new Error(
                     `Failed to confirm payment: ${confirmError.message}`,
                 );
+            }
+
+            // Contextual Data Capture: Backfill profile address/phone if missing
+            try {
+                const shipping = paymentIntent.shipping;
+                const charges = paymentIntent.charges?.data || [];
+                const billing = charges[0]?.billing_details || paymentIntent.payment_method?.billing_details;
+                const addr = shipping?.address || billing?.address;
+                const phone = shipping?.phone || billing?.phone;
+
+                const { data: fullTxn } = await supabase
+                    .from("payment_transactions")
+                    .select("user_id, buyer_id")
+                    .eq("id", txn.id)
+                    .single();
+
+                const targetUserId = fullTxn?.user_id || fullTxn?.buyer_id;
+                if (targetUserId && (addr || phone)) {
+                    await backfillProfileFromStripeDetails(supabase, targetUserId, { address: addr, phone });
+                }
+            } catch (backfillErr) {
+                console.warn("[STRIPE-WEBHOOK] Contextual profile backfill warning:", backfillErr);
             }
 
             console.log(

@@ -10,6 +10,8 @@ import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { useQuickSetup } from '../../../lib/useQuickSetup'
 import { hasValidWindows } from '../../../lib/windowUtils'
+import AddressInput from '../../components/AddressInput'
+import { type AddressFields, formatFullAddress } from '../../../lib/address'
 import styles from './page.module.css'
 
 export default function CartPage() {
@@ -29,6 +31,9 @@ export default function CartPage() {
   const [stripeReady, setStripeReady] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
   const [balanceLoaded, setBalanceLoaded] = useState(false)
+  const [deliveryAddressFields, setDeliveryAddressFields] = useState<AddressFields>({ street: '', city: '', state: '', zip: '' })
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryInstructions, setDeliveryInstructions] = useState('')
   const [stripeLoaded, setStripeLoaded] = useState(false)
   const stripeRef = useRef<any>(null)
   const cardElementRef = useRef<any>(null)
@@ -127,6 +132,22 @@ export default function CartPage() {
       setBalanceLoaded(true)
     }
     fetchBalance()
+    // Pre-fill delivery address from profile
+    supabase.from('profiles')
+      .select('street_address, city, state_code, zip_code')
+      .eq('id', user.id).single()
+      .then(({ data }: { data: any }) => {
+        if (data && (data.street_address || data.city || data.zip_code)) {
+          const fields: AddressFields = {
+            street: data.street_address || '',
+            city: data.city || '',
+            state: data.state_code || '',
+            zip: data.zip_code || '',
+          }
+          setDeliveryAddressFields(fields)
+          setDeliveryAddress(formatFullAddress(fields))
+        }
+      })
     // Get existing hold
     supabase.from('market_holds').select('hold_amount_cents, spent_amount_cents')
       .eq('buyer_id', user.id).eq('status', 'active').single()
@@ -148,8 +169,9 @@ export default function CartPage() {
   useEffect(() => {
     const initStripe = async () => {
       try {
+        const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
         const { loadStripe } = await import('@stripe/stripe-js')
-        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
+        const stripe = await loadStripe(key)
         if (!stripe) return
         stripeRef.current = stripe
         setStripeLoaded(true) // Trigger card mount effect
@@ -160,11 +182,11 @@ export default function CartPage() {
     initStripe()
   }, [])
 
-  // Mount card element when Stripe is loaded and the div exists
+  // Mount card + address elements when Stripe is loaded and the div exists
   useEffect(() => {
     if (!stripeRef.current || cardMountedRef.current || !needsCard) return
-    const container = document.getElementById('cart-stripe-card-element')
-    if (!container) return
+    const cardContainer = document.getElementById('cart-stripe-card-element')
+    if (!cardContainer) return
     const elements = stripeRef.current.elements()
     const cardElement = elements.create('card', {
       style: {
@@ -181,6 +203,7 @@ export default function CartPage() {
     cardElementRef.current = cardElement
     cardMountedRef.current = true
     setStripeReady(true)
+
     return () => {
       try { cardElement.unmount() } catch {}
       cardMountedRef.current = false
@@ -280,10 +303,26 @@ export default function CartPage() {
             setCheckingOut(false)
             return
           }
+
+          // Build billing address from our AddressInput fields
+          const billingDetails: any = {}
+          if (deliveryAddressFields.street || deliveryAddressFields.city) {
+            billingDetails.address = {
+              line1: deliveryAddressFields.street || undefined,
+              city: deliveryAddressFields.city || undefined,
+              state: deliveryAddressFields.state || undefined,
+              postal_code: deliveryAddressFields.zip || undefined,
+              country: 'US',
+            }
+          }
+
           const { error: stripeErr } = await stripeRef.current.confirmCardPayment(
             holdResult.clientSecret,
             {
-              payment_method: { card: cardElementRef.current },
+              payment_method: {
+                card: cardElementRef.current,
+                ...(billingDetails.name || billingDetails.address ? { billing_details: billingDetails } : {}),
+              },
               return_url: `${window.location.origin}/orders`,
             },
           )
@@ -574,6 +613,21 @@ export default function CartPage() {
                       )}
                     </div>
 
+                    {/* Pickup location display */}
+                    {item.fulfillmentMode === 'pickup' && item.booth.pickup_address && (
+                      <div style={{ fontSize: 12, color: '#374151', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>📍</span>
+                        <span>Pickup near: <strong>{item.booth.pickup_address}</strong></span>
+                      </div>
+                    )}
+
+                    {/* Delivery radius note */}
+                    {item.fulfillmentMode === 'delivery' && item.booth.delivery_radius_miles && (
+                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                        🚗 Delivery within {item.booth.delivery_radius_miles} miles of seller
+                      </div>
+                    )}
+
                     {/* Qty controls (only for available items) */}
                     {!item.unavailable && (
                       <div className={styles.qtyRow}>
@@ -647,11 +701,50 @@ export default function CartPage() {
               </p>
             )}
 
-            {/* Stripe Card Element — only shown when card is needed */}
+            {/* Delivery address — shown when any item is set to delivery */}
+            {allAvailable.some(i => i.fulfillmentMode === 'delivery') && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+                  🚗 Delivery Address
+                </div>
+                <AddressInput
+                  value={deliveryAddressFields}
+                  onChange={(fields) => {
+                    setDeliveryAddressFields(fields)
+                    setDeliveryAddress(formatFullAddress(fields))
+                  }}
+                  showPrivacyNote={false}
+                />
+                <input
+                  type="text"
+                  placeholder="Delivery instructions (e.g. gate code, leave at door)"
+                  value={deliveryInstructions}
+                  onChange={e => setDeliveryInstructions(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid #d1d5db', fontSize: 14, marginTop: 8,
+                    background: '#fff', color: '#374151',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Stripe Card Element + Billing Address — only shown when card is needed */}
             {needsCard && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
-                  💳 Payment
+                  💳 Payment & Billing
+                </div>
+                {/* Billing address — always shows all fields */}
+                <div style={{ marginBottom: 12 }}>
+                  <AddressInput
+                    value={deliveryAddressFields}
+                    onChange={(fields) => {
+                      setDeliveryAddressFields(fields)
+                      setDeliveryAddress(formatFullAddress(fields))
+                    }}
+                    showPrivacyNote={false}
+                  />
                 </div>
                 <div style={{
                   border: '1px solid #d1d5db', borderRadius: 8, padding: '12px 14px',

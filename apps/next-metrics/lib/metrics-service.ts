@@ -940,7 +940,8 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray((data as any).campaigns)) {
+  const campaignsList = Array.isArray(data) ? data : (Array.isArray((data as any)?.campaigns) ? (data as any).campaigns : null)
+  if (error || !campaignsList) {
     markDemo()
     return [
       { campaign_id: 'c1', campaign_name: 'Spring Launch Email', channel: 'email', sent: 1200, opened: 348, clicked: 96, bounced: 12, unsubscribed: 4, open_rate: 29.0, click_rate: 8.0 },
@@ -948,7 +949,7 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
       { campaign_id: 'c3', campaign_name: 'May Produce Promo', channel: 'email', sent: 980, opened: 294, clicked: 68, bounced: 8, unsubscribed: 2, open_rate: 30.0, click_rate: 6.9 },
     ]
   }
-  return (data as any).campaigns as CrmCampaignStatsRow[]
+  return campaignsList as CrmCampaignStatsRow[]
 }
 
 export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResult[]> {
@@ -956,7 +957,8 @@ export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResu
     p_start: dateRange.start,
     p_end: dateRange.end,
   })
-  if (error || !data || !Array.isArray((data as any).variants)) {
+  const variantsList = Array.isArray(data) ? data : (Array.isArray((data as any)?.variants) ? (data as any).variants : null)
+  if (error || !variantsList) {
     markDemo()
     return [
       { landing_page_id: 'lp1', page_slug: '/join', variant: 'A', visits: 540, conversions: 32, conversion_rate: 5.9 },
@@ -965,7 +967,7 @@ export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResu
       { landing_page_id: 'lp2', page_slug: '/sellers', variant: 'B', visits: 260, conversions: 22, conversion_rate: 8.5 },
     ]
   }
-  return (data as any).variants as CrmAbResult[]
+  return variantsList as CrmAbResult[]
 }
 
 export async function fetchCrmTrafficSources(dateRange: DateRange): Promise<{ source: string; visits: number; pct: number }[]> {
@@ -1902,4 +1904,43 @@ export async function fetchCrmTrafficAnalysis(
     signupPathGrid
   };
 }
+
+export interface InterestAnalyticsData {
+  produceDemand: { produce_name: string; count: number; buyers: number; sellers: number }[]
+  topZipcodes: { zip_code: string; count: number }[]
+  conversionRates: { step: string; count: number; percentage: number }[]
+  notificationStats: { totalSent: number; opens: number; clicks: number }
+}
+
+export async function getInterestAnalytics(geoFilter?: GeoFilter, dateRange?: DateRange): Promise<InterestAnalyticsData> {
+  try {
+    const { data, error } = await supabase.rpc('get_interest_analytics', {
+      p_geo: geoFilter || null,
+      p_start: dateRange?.start || null,
+      p_end: dateRange?.end || null,
+    })
+    if (error || !data || !Array.isArray((data as any).produceDemand)) throw error || new Error('Invalid data schema')
+    return data
+  } catch {
+    markDemo()
+    return {
+      produceDemand: [
+        { produce_name: 'Avocado', count: 42, buyers: 30, sellers: 12 },
+        { produce_name: 'Meyer Lemon', count: 35, buyers: 20, sellers: 15 },
+        { produce_name: 'Fig', count: 28, buyers: 18, sellers: 10 },
+      ],
+      topZipcodes: [
+        { zip_code: '95125', count: 45 },
+        { zip_code: '94025', count: 32 },
+      ],
+      conversionRates: [
+        { step: 'Page Visits', count: 1200, percentage: 100 },
+        { step: 'Interests Selected', count: 450, percentage: 37.5 },
+        { step: 'Contact Info Saved', count: 210, percentage: 17.5 },
+      ],
+      notificationStats: { totalSent: 150, opens: 98, clicks: 42 },
+    }
+  }
+}
+
 

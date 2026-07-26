@@ -52,12 +52,16 @@ export function validateProfileFields(fields: {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
-}): string | null {
+}, options?: { requireFullAddress?: boolean }): string | null {
   if (!fields.fullName?.trim()) return 'Please enter your name'
-  if (!fields.street?.trim()) return 'Please enter your street address'
-  if (!fields.city?.trim()) return 'Please enter your city'
-  if (!fields.state?.trim()) return 'Please enter your state'
-  if (!fields.zip?.trim()) return 'Please enter your zip code'
+  
+  if (options?.requireFullAddress) {
+    if (!fields.street?.trim()) return 'Please enter your street address'
+    if (!fields.city?.trim()) return 'Please enter your city'
+    if (!fields.state?.trim()) return 'Please enter your state'
+    if (!fields.zip?.trim()) return 'Please enter your zip code'
+  }
+  
   return null
 }
 

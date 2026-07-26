@@ -309,7 +309,7 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
   })
 })
 
-test.describe('QuickSetupModal Tab Switcher (Guest)', () => {
+test.describe('QuickSetupModal Onboarding (Guest)', () => {
   // Clear authenticated state to trigger onboarding modal
   test.use({ storageState: { cookies: [], origins: [] } })
 
@@ -317,34 +317,16 @@ test.describe('QuickSetupModal Tab Switcher (Guest)', () => {
     await page.setViewportSize({ width: 375, height: 812 })
   })
 
-  test('onboarding gate triggers QuickSetupModal with tabbed switcher', async ({ page }) => {
+  test('onboarding gate triggers QuickSetupModal with email entry', async ({ page }) => {
     // Navigate to a protected route to trigger the onboarding modal
     await page.goto('/orders')
 
-    // QuickSetupModal should open
+    // QuickSetupModal should open on step 1
     const modal = page.locator('[data-testid="quick-setup-step-1"]')
     await expect(modal).toBeVisible({ timeout: 10000 })
 
-    // Tab switcher should be visible
-    const signUpTab = page.getByRole('button', { name: 'Sign Up' })
-    const signInTab = page.getByRole('button', { name: 'Sign In' })
-    await expect(signUpTab).toBeVisible()
-    await expect(signInTab).toBeVisible()
-
-    // Verify Sign Up fields are displayed by default (Full Name, Street Address, etc.)
-    await expect(page.locator('input[name="fullName"]')).toBeVisible()
-    await expect(page.locator('input[name="street"]')).toBeVisible()
-
-    // Click Sign In tab
-    await signInTab.click()
-
-    // Verify Name and Address fields are hidden, leaving only Email
-    await expect(page.locator('input[name="fullName"]')).not.toBeVisible()
-    await expect(page.locator('input[name="street"]')).not.toBeVisible()
+    // Step 1 title and email field should be visible
+    await expect(page.getByText('👋 Welcome')).toBeVisible()
     await expect(page.locator('input[name="email"]')).toBeVisible()
-
-    // Click Sign Up tab back
-    await signUpTab.click()
-    await expect(page.locator('input[name="fullName"]')).toBeVisible()
   })
 })

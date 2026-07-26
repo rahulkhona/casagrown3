@@ -29,13 +29,51 @@ cd "$ROOT_DIR"
 SKIP_E2E=false
 SKIP_STRESS=false
 QUICK=false
-for arg in "$@"; do
-  case $arg in
-    --skip-e2e)   SKIP_E2E=true ;;
+START_FROM=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skip-e2e)    SKIP_E2E=true ;;
     --skip-stress) SKIP_STRESS=true ;;
-    --quick)      SKIP_E2E=true; SKIP_STRESS=true ;;
+    --quick)       SKIP_E2E=true; SKIP_STRESS=true ;;
+    --start-from=*) START_FROM="${1#*=}" ;;
+    --start-from)   shift; START_FROM="${1:-}" ;;
   esac
+  shift 2>/dev/null || break
 done
+
+phase_weight() {
+  case "$1" in
+    1) echo 10 ;;
+    2) echo 20 ;;
+    3) echo 30 ;;
+    4) echo 40 ;;
+    4b) echo 45 ;;
+    5) echo 50 ;;
+    6) echo 60 ;;
+    7|7a) echo 70 ;;
+    7b) echo 72 ;;
+    7c) echo 74 ;;
+    7d) echo 76 ;;
+    7e) echo 78 ;;
+    8) echo 80 ;;
+    *) echo 0 ;;
+  esac
+}
+
+should_run_phase() {
+  local p="$1"
+  if [ -z "$START_FROM" ]; then
+    return 0
+  fi
+  local req_w=$(phase_weight "$START_FROM")
+  local cur_w=$(phase_weight "$p")
+  if [ "$cur_w" -ge "$req_w" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
 
 # ── Colors ─────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -122,12 +160,16 @@ else
   echo "  ✅ Supabase already running"
 fi
 
-echo "  Resetting database & applying migrations + seed..."
-if npx supabase db reset 2>&1 | tail -3; then
-  echo -e "  ${GREEN}✅ Database reset complete${NC}"
+if should_run_phase "1"; then
+  echo "  Resetting database & applying migrations + seed..."
+  if npx supabase db reset 2>&1 | tail -3; then
+    echo -e "  ${GREEN}✅ Database reset complete${NC}"
+  else
+    echo -e "  ${RED}❌ Database reset failed${NC}"
+    exit 1
+  fi
 else
-  echo -e "  ${RED}❌ Database reset failed${NC}"
-  exit 1
+  echo -e "  ${GREEN}⏩ Skipping database reset (--start-from $START_FROM)${NC}"
 fi
 
 # ── Get service role key ──
@@ -188,26 +230,30 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 3: Database Tests (pgTAP)
 # ─────────────────────────────────────────────────────────────────────────
-section "Phase 3: pgTAP Database Tests"
-npx supabase test db > /tmp/pgtap_output.log 2>&1
-PGTAP_EXIT=$?
-PGTAP_OUTPUT=$(cat /tmp/pgtap_output.log)
+if should_run_phase "3"; then
+  section "Phase 3: pgTAP Database Tests"
+  npx supabase test db > /tmp/pgtap_output.log 2>&1
+  PGTAP_EXIT=$?
+  PGTAP_OUTPUT=$(cat /tmp/pgtap_output.log)
 
-# Always extract test count from the summary line: "Files=63, Tests=842, ..."
-PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "0")
-PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Files=\([0-9]*\).*/\1/' || echo "0")
-PGTAP_TESTS=${PGTAP_TESTS:-0}
-PGTAP_FILES=${PGTAP_FILES:-0}
+  # Always extract test count from the summary line: "Files=63, Tests=842, ..."
+  PGTAP_TESTS=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Tests=\([0-9]*\).*/\1/' || echo "0")
+  PGTAP_FILES=$(echo "$PGTAP_OUTPUT" | grep "Files=" | sed 's/.*Files=\([0-9]*\).*/\1/' || echo "0")
+  PGTAP_TESTS=${PGTAP_TESTS:-0}
+  PGTAP_FILES=${PGTAP_FILES:-0}
 
-if echo "$PGTAP_OUTPUT" | grep -q "All tests successful"; then
-  echo -e "  ${GREEN}✅ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ALL PASS${NC}"
-  log_suite "pgTAP Database" "${PGTAP_TESTS}"
+  if echo "$PGTAP_OUTPUT" | grep -q "All tests successful"; then
+    echo -e "  ${GREEN}✅ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ALL PASS${NC}"
+    log_suite "pgTAP Database" "${PGTAP_TESTS}"
+  else
+    # Count file-level failures (bad plans, crashes — NOT individual test assertions)
+    PGTAP_BAD_FILES=$(echo "$PGTAP_OUTPUT" | grep -c "Non-zero exit status\|Parse errors" || echo "0")
+    echo -e "  ${RED}❌ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ${PGTAP_BAD_FILES} file(s) had issues${NC}"
+    echo "$PGTAP_OUTPUT" | grep -E "Non-zero exit|Parse errors|Bad plan" | head -10 | sed 's/^/    /'
+    log_suite "pgTAP Database" "$PGTAP_TESTS" "$PGTAP_BAD_FILES"
+  fi
 else
-  # Count file-level failures (bad plans, crashes — NOT individual test assertions)
-  PGTAP_BAD_FILES=$(echo "$PGTAP_OUTPUT" | grep -c "Non-zero exit status\|Parse errors" || echo "0")
-  echo -e "  ${RED}❌ pgTAP: ${PGTAP_FILES} files, ${PGTAP_TESTS} tests — ${PGTAP_BAD_FILES} file(s) had issues${NC}"
-  echo "$PGTAP_OUTPUT" | grep -E "Non-zero exit|Parse errors|Bad plan" | head -10 | sed 's/^/    /'
-  log_suite "pgTAP Database" "$PGTAP_TESTS" "$PGTAP_BAD_FILES"
+  section "Phase 3: pgTAP Database Tests — SKIPPED (--start-from $START_FROM)"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -302,12 +348,13 @@ fi
 
 # 5c: Provider & compliance tests
 echo "  Running provider & compliance tests..."
-PROVIDER_OUTPUT=$(cd supabase && deno test --allow-env --allow-net --allow-run --no-check \
+PROVIDER_OUTPUT=$(cd supabase && SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" deno test --allow-env --allow-net --allow-run --no-check \
   functions/_shared/tremendous.test.ts \
   functions/_shared/reloadly.test.ts \
   functions/_provider-tests/giftcard-cache.test.ts \
   functions/_provider-tests/toggles.test.ts \
-  functions/_compliance-tests/compliance.test.ts 2>&1)
+  functions/_compliance-tests/compliance.test.ts \
+  functions/_tests/profile-backfill.test.ts 2>&1)
 PROVIDER_PASSED=$(echo "$PROVIDER_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
 PROVIDER_FAILED=$(echo "$PROVIDER_OUTPUT" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
@@ -691,9 +738,10 @@ else
     local use_port_env="$4"
     local test_pattern="${5:-}"  # Optional: glob pattern to pass to playwright test
 
+    local safe_name=$(echo "$app_name" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_')
     echo "  Building and starting $app_name server..."
     local pid=""
-    local build_log="scripts/output/build_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"
+    local build_log="scripts/output/build_${safe_name}.log"
     mkdir -p scripts/output
 
     # Always evict any stale server on this port before starting fresh.
@@ -739,7 +787,7 @@ else
       exit 1
     fi
 
-    local logfile="scripts/output/playwright_$(echo "$app_name" | tr '[:upper:]' '[:lower:]').log"
+    local logfile="scripts/output/playwright_${safe_name}.log"
 
     echo "  Running $app_name Playwright E2E..."
     mkdir -p scripts/output
@@ -774,16 +822,13 @@ else
     sleep 10
   }
 
-  # ── Market E2E is split into 2 batches to prevent dev server OOM crash ──
-  # The server crashes under sustained parallel load from 77+ heavy E2E tests.
-  # Splitting into mocked (fast) + scenario (heavy) batches, each getting a
-  # fresh server, keeps max parallelism within each batch while avoiding OOM.
-  run_playwright_sequential "Market (mocked)" "apps/next-market" "3001" "true" "e2e/*.spec.ts"
-  run_playwright_sequential "Market (scenarios)" "apps/next-market" "3001" "true" "e2e/scenarios/"
+  # ── Market E2E is split into mocked and scenario/seeded batches ──
+  if should_run_phase "7a"; then run_playwright_sequential "Phase 7a: Market (Mocked)" "apps/next-market" "3001" "true" "e2e/*.spec.ts"; fi
+  if should_run_phase "7b"; then run_playwright_sequential "Phase 7b: Market (Scenarios/Seeded)" "apps/next-market" "3001" "true" "e2e/scenarios/"; fi
 
-  run_playwright_sequential "Admin" "apps/next-admin" "3003" "true"
-  run_playwright_sequential "Voice" "apps/next-community-voice" "3002" "true"
-  run_playwright_sequential "Metrics" "apps/next-metrics" "3004" "true"
+  if should_run_phase "7c"; then run_playwright_sequential "Phase 7c: Admin" "apps/next-admin" "3003" "true"; fi
+  if should_run_phase "7d"; then run_playwright_sequential "Phase 7d: Voice" "apps/next-community-voice" "3002" "true"; fi
+  if should_run_phase "7e"; then run_playwright_sequential "Phase 7e: Metrics" "apps/next-metrics" "3004" "true"; fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

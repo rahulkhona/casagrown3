@@ -27,6 +27,10 @@ module.exports = {
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com', // for google provider avatars
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       }
     ],
   },
