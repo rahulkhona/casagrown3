@@ -148,27 +148,25 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
     expect(await instructionsInput.inputValue()).toBe('Leave on the front porch table.')
 
     // 6.5 Fill in Stripe Elements card info (if card iframe is displayed)
-    const hasFrame = await page.locator('iframe').first().isVisible().catch(() => false)
-    if (hasFrame) {
-      const stripeFrame = page.frameLocator('iframe').first()
-      const cardInput = stripeFrame.locator('input[name="cardnumber"], input[placeholder="Card number"]')
-      if (await cardInput.isVisible().catch(() => false)) {
-        await cardInput.click()
-        await cardInput.pressSequentially('4242424242424242', { delay: 20 })
+    const stripeFrame = page.frameLocator('iframe').first()
+    const cardInput = stripeFrame.locator('input[name="cardnumber"], input[placeholder="Card number"]')
+    const cardVisible = await cardInput.isVisible({ timeout: 5000 }).catch(() => false)
+    if (cardVisible) {
+      await cardInput.click()
+      await cardInput.pressSequentially('4242424242424242', { delay: 20 })
 
-        const expInput = stripeFrame.locator('input[name="exp-date"], input[placeholder="MM / YY"]')
-        await expInput.click()
-        await expInput.pressSequentially('1228', { delay: 20 })
+      const expInput = stripeFrame.locator('input[name="exp-date"], input[placeholder="MM / YY"]')
+      await expInput.click()
+      await expInput.pressSequentially('1228', { delay: 20 })
 
-        const cvcInput = stripeFrame.locator('input[name="cvc"], input[placeholder="CVC"]')
-        await cvcInput.click()
-        await cvcInput.pressSequentially('123', { delay: 20 })
+      const cvcInput = stripeFrame.locator('input[name="cvc"], input[placeholder="CVC"]')
+      await cvcInput.click()
+      await cvcInput.pressSequentially('123', { delay: 20 })
 
-        const zipInput = stripeFrame.locator('input[name="postalcode"], input[placeholder="ZIP"]')
-        await zipInput.click()
-        await zipInput.pressSequentially('95125', { delay: 20 })
-        await page.waitForTimeout(1000)
-      }
+      const zipInput = stripeFrame.locator('input[name="postalcode"], input[placeholder="ZIP"]')
+      await zipInput.click()
+      await zipInput.pressSequentially('95125', { delay: 20 })
+      await page.waitForTimeout(1000)
     }
 
     // Take screenshot of BuyModal with instructions filled
