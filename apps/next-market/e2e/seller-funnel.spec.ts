@@ -91,7 +91,7 @@ test.describe('Sell Funnel — public earnings estimator', () => {
   test('advances through all questionnaire steps', async ({ page }) => {
     await walkToLeadCapture(page)
     // Should now be on lead-capture step — name/email fields visible
-    const nameOrEmail = page.locator('input[placeholder*="Jane Doe" i], input[type="email"]').first()
+    const nameOrEmail = page.locator('input[placeholder*="First and Last Name" i], input[placeholder*="Jane Doe" i], input[type="email"]').first()
     await expect(nameOrEmail).toBeVisible({ timeout: 10_000 })
   })
 
