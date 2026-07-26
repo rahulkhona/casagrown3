@@ -80,9 +80,9 @@ describe('Sell Lead Magnet Interest Auto-Registration', () => {
 
     // Step 5: Plants Selection (Select Tomatoes)
     await waitFor(() => {
-      expect(screen.getByText(/Heirloom Tomatoes/i)).toBeDefined()
+      expect(screen.getByText(/Tomatoes/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByText(/Heirloom Tomatoes/i))
+    fireEvent.click(screen.getByText(/Tomatoes/i))
     fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
 
     // Step 6: Habits
