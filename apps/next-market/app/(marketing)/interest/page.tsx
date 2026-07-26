@@ -152,6 +152,40 @@ function InterestPageContent() {
   const [isLocating, setIsLocating] = useState(false)
   const [showOptionalAddress, setShowOptionalAddress] = useState(false)
   const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null)
+  const [fetchedCustomImage, setFetchedCustomImage] = useState<string>('')
+
+  // Auto-fetch precise stock image from Wikimedia for custom queries
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (q.length < 2) {
+      setFetchedCustomImage('')
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(q)}&prop=pageimages&format=json&pithumbsize=600&origin=*`)
+        const data = await res.json()
+        if (cancelled) return
+        const pages = data?.query?.pages
+        if (pages) {
+          const pageId = Object.keys(pages)[0]
+          const thumb = pages[pageId]?.thumbnail?.source
+          if (thumb) {
+            setFetchedCustomImage(thumb)
+            return
+          }
+        }
+        setFetchedCustomImage('')
+      } catch {
+        if (!cancelled) setFetchedCustomImage('')
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [searchQuery])
 
   const handleUseCurrentLocation = async () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
@@ -617,7 +651,7 @@ function InterestPageContent() {
             name: trimmedSearch.charAt(0).toUpperCase() + trimmedSearch.slice(1),
             category: 'produce',
             displayCategory: 'Custom Produce',
-            image: '',
+            image: fetchedCustomImage || '/images/produce_placeholder.jpg',
             buyersCount: 0,
             sellersCount: 0,
             unit: 'item',
@@ -651,27 +685,17 @@ function InterestPageContent() {
                       }}
                     >
                       <div style={styles.imageWrapper}>
-                        {item.image ? (
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={320}
-                            height={160}
-                            style={styles.cardImage}
-                            onError={(e) => {
-                              const target = e.currentTarget as HTMLImageElement
-                              target.style.display = 'none'
-                              const fallback = target.parentElement?.querySelector('.img-fallback') as HTMLElement
-                              if (fallback) fallback.style.display = 'flex'
-                            }}
-                          />
-                        ) : null}
-                        <div className="img-fallback" style={{
-                          display: item.image ? 'none' : 'flex', width: '100%', height: 160,
-                          background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
-                          alignItems: 'center', justifyContent: 'center',
-                          fontSize: 48, borderRadius: '12px 12px 0 0',
-                        }}>🌿</div>
+                        <img
+                          src={item.image || '/images/produce_placeholder.jpg'}
+                          alt={item.name}
+                          width={320}
+                          height={160}
+                          style={styles.cardImage}
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement
+                            target.src = '/images/produce_placeholder.jpg'
+                          }}
+                        />
                       </div>
 
                       <div style={styles.cardContent}>
