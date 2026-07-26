@@ -100,11 +100,11 @@ const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'wildflower_seeds', name: 'Wildflower & Pollinator Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=600&auto=format&fit=crop&q=80', buyersCount: 31, sellersCount: 10, unit: 'pack' },
 
   // ── HOMESTEAD BIRD EGGS ──
-  { id: 'chicken_eggs', name: 'Pastured Chicken Eggs', category: 'eggs', displayCategory: 'Homestead Eggs', image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=600&auto=format&fit=crop&q=80', buyersCount: 74, sellersCount: 26, unit: 'dozen' },
-  { id: 'duck_eggs', name: 'Homestead Duck Eggs', category: 'eggs', displayCategory: 'Homestead Eggs', image: 'https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?w=600&auto=format&fit=crop&q=80', buyersCount: 41, sellersCount: 15, unit: 'dozen' },
-  { id: 'quail_eggs', name: 'Fresh Quail Eggs', category: 'eggs', displayCategory: 'Homestead Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 33, sellersCount: 11, unit: 'carton' },
-  { id: 'goose_eggs', name: 'Farm Goose Eggs', category: 'eggs', displayCategory: 'Homestead Eggs', image: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=600&auto=format&fit=crop&q=80', buyersCount: 19, sellersCount: 6, unit: 'item' },
-  { id: 'turkey_eggs', name: 'Heritage Turkey Eggs', category: 'eggs', displayCategory: 'Homestead Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 16, sellersCount: 4, unit: 'half-dozen' },
+  { id: 'chicken_eggs', name: 'Pastured Chicken Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=600&auto=format&fit=crop&q=80', buyersCount: 74, sellersCount: 26, unit: 'dozen' },
+  { id: 'duck_eggs', name: 'Duck Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?w=600&auto=format&fit=crop&q=80', buyersCount: 41, sellersCount: 15, unit: 'dozen' },
+  { id: 'quail_eggs', name: 'Fresh Quail Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 33, sellersCount: 11, unit: 'carton' },
+  { id: 'goose_eggs', name: 'Farm Goose Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=600&auto=format&fit=crop&q=80', buyersCount: 19, sellersCount: 6, unit: 'item' },
+  { id: 'turkey_eggs', name: 'Heritage Turkey Eggs', category: 'eggs', displayCategory: 'Eggs', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&auto=format&fit=crop&q=80', buyersCount: 16, sellersCount: 4, unit: 'half-dozen' },
 ]
 
 type FilterCategory = 'all' | 'produce' | 'plants_seedlings' | 'seeds' | 'eggs'
@@ -154,33 +154,65 @@ function InterestPageContent() {
   const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null)
   const [fetchedCustomImage, setFetchedCustomImage] = useState<string>('')
 
-  // Auto-fetch precise stock image from Wikimedia for custom queries
+  // Multi-stage stock image resolution for raw user keywords
   useEffect(() => {
-    const q = searchQuery.trim()
-    if (q.length < 2) {
+    const rawQ = searchQuery.trim()
+    if (rawQ.length < 2) {
       setFetchedCustomImage('')
       return
     }
+
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(q)}&prop=pageimages&format=json&pithumbsize=600&origin=*`)
-        const data = await res.json()
+        // Stage 1 & 2: Direct title query (with keyword hint if applicable)
+        const qLower = rawQ.toLowerCase()
+        let primaryTitle = rawQ
+        if (qLower.includes('egg') && !qLower.endsWith('egg') && !qLower.endsWith('eggs')) {
+          primaryTitle = `${rawQ} egg`
+        } else if (qLower.includes('honey') && !qLower.includes('honey')) {
+          primaryTitle = `${rawQ} honey`
+        }
+
+        let res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(primaryTitle)}&prop=pageimages&format=json&pithumbsize=600&origin=*`)
+        let data = await res.json()
         if (cancelled) return
-        const pages = data?.query?.pages
+
+        let pages = data?.query?.pages
         if (pages) {
           const pageId = Object.keys(pages)[0]
-          const thumb = pages[pageId]?.thumbnail?.source
-          if (thumb) {
-            setFetchedCustomImage(thumb)
-            return
+          if (pageId && pageId !== '-1') {
+            const thumb = pages[pageId]?.thumbnail?.source
+            if (thumb) {
+              setFetchedCustomImage(thumb)
+              return
+            }
           }
         }
+
+        // Stage 3: Generator search for broader food/farm/plant keywords
+        res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(rawQ + ' produce OR food OR plant OR farm')}&prop=pageimages&pithumbsize=600&format=json&origin=*`)
+        data = await res.json()
+        if (cancelled) return
+
+        pages = data?.query?.pages
+        if (pages) {
+          for (const pid of Object.keys(pages)) {
+            const thumb = pages[pid]?.thumbnail?.source
+            if (thumb) {
+              setFetchedCustomImage(thumb)
+              return
+            }
+          }
+        }
+
+        // Stage 4: Default stock placeholder graphic
         setFetchedCustomImage('')
       } catch {
         if (!cancelled) setFetchedCustomImage('')
       }
     }, 300)
+
     return () => {
       cancelled = true
       clearTimeout(timer)
@@ -371,20 +403,12 @@ function InterestPageContent() {
     setSelectedInterests([interest])
   }, [searchParams, scope])
 
-  // Filter produce items
+  // Filter produce items purely by search query (all categories mixed)
   const filteredItems = useMemo(() => {
-    return EXHAUSTIVE_US_PRODUCE.filter((item) => {
-      let matchesCategory = false
-      if (activeCategory === 'all') matchesCategory = true
-      else if (activeCategory === 'produce') matchesCategory = item.category === 'produce'
-      else if (activeCategory === 'plants_seedlings') matchesCategory = item.category === 'plants' || item.category === 'seedlings'
-      else if (activeCategory === 'seeds') matchesCategory = item.category === 'seeds'
-      else if (activeCategory === 'eggs') matchesCategory = item.category === 'eggs'
-
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
-      return matchesCategory && matchesSearch
-    })
-  }, [activeCategory, searchQuery])
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return EXHAUSTIVE_US_PRODUCE
+    return EXHAUSTIVE_US_PRODUCE.filter((item) => item.name.toLowerCase().includes(q))
+  }, [searchQuery])
 
   // Zipcode validation
   const handleAddZipcode = () => {
@@ -563,9 +587,9 @@ function InterestPageContent() {
         </div>
       </section>
 
-      {/* Produce Search & Category Filter Sub-Bar */}
-      <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb', padding: '12px 16px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto 10px' }}>
+      {/* Produce Search Sub-Bar */}
+      <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <input
             type="text"
             value={searchQuery}
@@ -576,28 +600,6 @@ function InterestPageContent() {
         </div>
 
         <style>{`
-          .hide-scrollbar::-webkit-scrollbar {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          .hide-scrollbar {
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
-          }
-          .category-scroll-wrapper {
-            position: relative;
-          }
-          .category-scroll-wrapper::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            width: 28px;
-            background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.95));
-            pointer-events: none;
-          }
           .bottom-sticky-bar {
             position: fixed;
             bottom: 0;
@@ -615,30 +617,6 @@ function InterestPageContent() {
             }
           }
         `}</style>
-
-        <div className="category-scroll-wrapper" style={styles.categoryBarContainer}>
-          <div style={styles.categoryBar} className="hide-scrollbar">
-            {[
-              { key: 'all', label: 'All Categories' },
-              { key: 'produce', label: 'Fresh Produce' },
-              { key: 'plants_seedlings', label: 'Plants & Seedlings' },
-              { key: 'seeds', label: 'Seeds' },
-              { key: 'eggs', label: 'Homestead Eggs' },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveCategory(tab.key as FilterCategory)}
-                style={{
-                  ...styles.categoryTab,
-                  ...(activeCategory === tab.key ? styles.categoryTabActive : {}),
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Main Grid Content */}
@@ -699,16 +677,13 @@ function InterestPageContent() {
                       </div>
 
                       <div style={styles.cardContent}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '8px' }}>
                           <h3 style={styles.cardTitle}>{item.name}</h3>
                           {isCustom && (
                             <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                               CUSTOM
                             </span>
                           )}
-                        </div>
-                        <div style={styles.cardCategory}>
-                          {item.displayCategory.toUpperCase()}
                         </div>
 
                         <div style={styles.cardCheckboxes}>

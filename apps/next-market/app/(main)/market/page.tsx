@@ -19,6 +19,7 @@ import { useErrorToast } from '../../components/ErrorToast'
 import SocialShareModal from '../../components/SocialShareModal'
 import { getGlobalMarketShareMessage } from '../../../lib/shareMessages'
 import { useCommunityDigest } from '../../../lib/useCommunityDigest'
+import { checkTextForViolations } from '../../../lib/moderation'
 
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress, normalizeStateCode } from '../../../lib/address'
@@ -1300,18 +1301,20 @@ function BrowseMarketPageInner() {
               </p>
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
-                <Link
-                  href={`/interest?scope=buy${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''}`}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '12px 24px', borderRadius: 999,
-                    background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
-                    fontSize: 15, fontWeight: 700, textDecoration: 'none',
-                    boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
-                  }}
-                >
-                  🔔 Notify me when sellers list{search.trim() ? ` "${search.trim()}"` : ''} →
-                </Link>
+                {checkTextForViolations(search.trim()).isClean && (
+                  <Link
+                    href={`/interest?scope=buy${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      padding: '12px 24px', borderRadius: 999,
+                      background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff',
+                      fontSize: 15, fontWeight: 700, textDecoration: 'none',
+                      boxShadow: '0 6px 20px rgba(22,163,74,0.3)', transition: 'transform 0.2s ease',
+                    }}
+                  >
+                    🔔 Notify me when sellers list{search.trim() ? ` "${search.trim()}"` : ''} →
+                  </Link>
+                )}
 
                 <button
                   onClick={() => setShowGlobalShareModal(true)}
@@ -1764,7 +1767,7 @@ function BrowseMarketPageInner() {
       )}
 
       {/* After USDA fallback: express interest CTA for search-miss case */}
-      {!loading && booths.filter(b => !b.is_demo).length < 3 && isSearching && (
+      {!loading && booths.filter(b => !b.is_demo).length < 3 && isSearching && checkTextForViolations(search.trim()).isClean && (
         <div style={{ textAlign: 'center', padding: '32px 20px 16px' }}>
           <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 12 }}>
             Don&apos;t see what you&apos;re looking for? Let growers know what you want.
