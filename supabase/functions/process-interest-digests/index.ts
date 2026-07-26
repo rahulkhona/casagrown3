@@ -97,24 +97,28 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       `
     }
 
-    // Helper function to build human-readable produce list summary (e.g. "Strawberries & Avocados")
-    const getProduceSummary = (itemsList: any[]) => {
+    // Helper function to build character-safe produce string (1 item name vs concise collective term)
+    const getProduceText = (itemsList: any[]) => {
       const names = itemsList.map((i: any) => i.produce_name).filter(Boolean)
-      if (names.length === 0) return 'produce'
       if (names.length === 1) return names[0]
-      if (names.length === 2) return `${names[0]} & ${names[1]}`
-      return `${names[0]}, ${names[1]} & more`
+      return 'produce'
     }
 
-    const produceSummary = getProduceSummary(items)
+    const itemText = getProduceText(items)
 
     let pushTitle = ''
     let pushBody = ''
 
     if (match_type === 'seller') {
-      subject = `🌱 Buyers are looking for your ${produceSummary}! | CasaGrown`
-      pushTitle = `🌱 Buyers want your ${produceSummary}!`
-      pushBody = `Neighbors in your area requested ${produceSummary}. Tap to list yours now!`
+      subject = items.length === 1 
+        ? `🌱 Buyers want your ${itemText}! | CasaGrown` 
+        : `🌱 Local neighbors are looking for your produce! | CasaGrown`
+
+      pushTitle = items.length === 1
+        ? `🌱 Buyers want your ${itemText}!`
+        : `🌱 Local demand for your produce!`
+
+      pushBody = `Neighbors in your area requested items you grow. Tap to list yours now!`
       
       const bodyHtml = `
         <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
@@ -142,8 +146,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
 
     } else {
       subject = `Your neighbors have listed produce that you want | CasaGrown`
-      pushTitle = `✨ Fresh ${produceSummary} listed nearby!`
-      pushBody = `Your neighbors just listed fresh ${produceSummary}. Tap to browse!`
+
+      pushTitle = items.length === 1
+        ? `✨ Fresh ${itemText} listed nearby!`
+        : `✨ Fresh produce listed nearby!`
+
+      pushBody = `Your neighbors just listed items on your wishlist. Tap to browse!`
       
       const bodyHtml = `
         <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
