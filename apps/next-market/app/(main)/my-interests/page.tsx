@@ -187,7 +187,26 @@ function InterestCard({
         </span>
       </div>
       
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {interest.interest_type === 'sell' && (
+          <Link
+            href={`/my-booth/products/new?name=${encodeURIComponent(interest.produce_name)}`}
+            style={{
+              padding: '6px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              backgroundColor: '#16a34a',
+              color: 'white',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            List Item Now →
+          </Link>
+        )}
         {interest.status === 'active' ? (
           <button 
             onClick={() => onStatusChange('paused')}
