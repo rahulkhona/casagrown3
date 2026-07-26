@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
+import SocialShareModal from '../../components/SocialShareModal'
 
 interface ProduceInterest {
   id: string
@@ -22,6 +23,7 @@ export default function MyInterestsPage() {
   const [interests, setInterests] = useState<ProduceInterest[]>([])
   const [demandItems, setDemandItems] = useState<{ produce_name: string; count: number }[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -191,7 +193,27 @@ export default function MyInterestsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           {buyInterests.length > 0 && (
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1f2937' }}>🛒 Buying Interests</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>🛒 Buying Interests</h2>
+                <button
+                  onClick={() => setIsShareModalOpen(true)}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: '#2563eb',
+                    border: '1.5px solid #93c5fd',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  📲 Share Wishlist with Neighbors
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {buyInterests.map(interest => (
                   <InterestCard 
@@ -221,6 +243,30 @@ export default function MyInterestsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Social Share Modal for Buyer Produce Wishlist */}
+      {buyInterests.length > 0 && (
+        <SocialShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          title="Share Wishlist with Neighbors"
+          subtitle="Let local gardeners know what produce you're looking to buy!"
+          entityName={buyInterests.map(i => i.produce_name).join(', ')}
+          shareUrl={`${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/demand?items=${buyInterests.map(i => encodeURIComponent(i.produce_name)).join(',')}`}
+          shareMessage={(platform) => {
+            const itemList = buyInterests.map(i => i.produce_name).join(', ')
+            if (platform === 'whatsapp') {
+              return `*Produce Wishlist Alert!* 🥦\n\nHey neighbors! I'm looking to buy fresh backyard harvest: *${itemList}* on CasaGrown.\n\nIf you have extra growing in your garden, list your harvest here so I can buy from you:\n`
+            }
+            if (platform === 'nextdoor' || platform === 'facebook') {
+              return `Hey neighbors! I'm looking for fresh local garden produce (${itemList}). If you have extra in your backyard, list it on CasaGrown so neighbors can buy local!`
+            }
+            return `I'm searching for fresh local produce: ${itemList} on CasaGrown!`
+          }}
+          shareContext="buy_request"
+          userId={user?.id}
+        />
       )}
     </div>
   )
