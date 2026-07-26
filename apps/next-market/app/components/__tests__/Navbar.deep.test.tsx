@@ -18,6 +18,17 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(),
 }))
+vi.mock('../../../lib/useQuickSetup', () => ({
+  QuickSetupProvider: ({ children }: any) => React.createElement('div', null, children),
+  useQuickSetup: () => ({
+    openQuickSetup: vi.fn(),
+    closeQuickSetup: vi.fn(),
+    isQuickSetupOpen: false,
+    requireAuth: vi.fn(),
+    quickSetupStep: 1,
+    testEmail: null,
+  }),
+}))
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => React.createElement('a', { href, ...props }, children),
 }))

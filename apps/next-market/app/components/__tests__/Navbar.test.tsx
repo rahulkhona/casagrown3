@@ -13,6 +13,19 @@ const mockRouter = { push: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
   useRouter: () => mockRouter,
+  useSearchParams: () => new URLSearchParams(),
+}))
+
+vi.mock('../../../lib/useQuickSetup', () => ({
+  QuickSetupProvider: ({ children }: any) => React.createElement('div', null, children),
+  useQuickSetup: () => ({
+    openQuickSetup: vi.fn(),
+    closeQuickSetup: vi.fn(),
+    isQuickSetupOpen: false,
+    requireAuth: vi.fn(),
+    quickSetupStep: 1,
+    testEmail: null,
+  }),
 }))
 
 // Mock useCart — CartIcon always calls useCart now (cart is always on)

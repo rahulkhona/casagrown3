@@ -11,6 +11,18 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/market',
 }))
 
+vi.mock('../../lib/useQuickSetup', () => ({
+  QuickSetupProvider: ({ children }: any) => React.createElement('div', null, children),
+  useQuickSetup: () => ({
+    openQuickSetup: vi.fn(),
+    closeQuickSetup: vi.fn(),
+    isQuickSetupOpen: false,
+    requireAuth: vi.fn(),
+    quickSetupStep: 1,
+    testEmail: null,
+  }),
+}))
+
 vi.mock('next/link', () => ({
   default: ({ children, href, onClick, ...rest }: any) =>
     React.createElement('a', { href, onClick, ...rest }, children),
