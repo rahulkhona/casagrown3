@@ -21,6 +21,8 @@ interface DemandPageProps {
     ref?: string
     user_id?: string
     email?: string
+    type?: string
+    mode?: string
   }>
 }
 
