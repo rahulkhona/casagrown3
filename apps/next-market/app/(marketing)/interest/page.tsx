@@ -421,6 +421,8 @@ function InterestPageContent() {
             produce_name: si.item.name,
             interest_type: si.type,
             category: si.item.category,
+            image: si.item.image,
+            is_custom: si.item.id.startsWith('custom_') || si.item.id.startsWith('community_'),
           })),
           preference_pickup: true,
           preference_delivery: true,
