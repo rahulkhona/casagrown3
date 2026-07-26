@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -91,7 +91,7 @@ function CartIcon() {
 const globalNotifiedIds = new Set<string>()
 let globalFirstLoad = true
 
-export function Navbar() {
+function NavbarInner() {
   const { state, dispatch } = useMarket()
   const { user: authUser, profileComplete } = useAuth()
   const { data: bootstrapData } = useBootstrap()
@@ -1030,3 +1030,13 @@ export function Navbar() {
     </>
   )
 }
+
+export function Navbar() {
+  return (
+    <Suspense fallback={null}>
+      <NavbarInner />
+    </Suspense>
+  )
+}
+
+export default Navbar
