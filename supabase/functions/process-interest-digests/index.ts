@@ -97,8 +97,24 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       `
     }
 
+    // Helper function to build human-readable produce list summary (e.g. "Strawberries & Avocados")
+    const getProduceSummary = (itemsList: any[]) => {
+      const names = itemsList.map((i: any) => i.produce_name).filter(Boolean)
+      if (names.length === 0) return 'produce'
+      if (names.length === 1) return names[0]
+      if (names.length === 2) return `${names[0]} & ${names[1]}`
+      return `${names[0]}, ${names[1]} & more`
+    }
+
+    const produceSummary = getProduceSummary(items)
+
+    let pushTitle = ''
+    let pushBody = ''
+
     if (match_type === 'seller') {
-      subject = '🌱 Local Neighbors Want Your Fresh Produce! | CasaGrown'
+      subject = `🌱 Buyers are looking for your ${produceSummary}! | CasaGrown`
+      pushTitle = `🌱 Buyers want your ${produceSummary}!`
+      pushBody = `Neighbors in your area requested ${produceSummary}. Tap to list yours now!`
       
       const bodyHtml = `
         <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
@@ -125,7 +141,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
       })
 
     } else {
-      subject = '✨ Fresh Local Harvest Matches Near You! | CasaGrown'
+      subject = `Your neighbors have listed produce that you want | CasaGrown`
+      pushTitle = `✨ Fresh ${produceSummary} listed nearby!`
+      pushBody = `Your neighbors just listed fresh ${produceSummary}. Tap to browse!`
       
       const bodyHtml = `
         <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
@@ -167,18 +185,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         });
       }
       
-      // Send Push
+      // Send Push Notification with produce-specific text
       if (is_user && user_id) {
         await fetch(pushUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${env('SUPABASE_SERVICE_ROLE_KEY')}\`
+            'Authorization': `Bearer ${env('SUPABASE_SERVICE_ROLE_KEY')}`
           },
           body: JSON.stringify({
             userId: user_id,
-            title: subject,
-            body: match_type === 'seller' ? 'List your produce now.' : 'Check the market for new produce.',
+            title: pushTitle,
+            body: pushBody,
             data: { url: match_type === 'seller' ? '/create-listing' : '/market?filter=my-interests' }
           })
         }).catch(e => console.error('Push error:', e));
