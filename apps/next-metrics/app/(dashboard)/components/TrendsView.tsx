@@ -55,7 +55,7 @@ export function TrendsView() {
           </div>
 
           <div className="card">
-            <div className="chart-title">Account Abandons Trend (Unregistered Leads)</div>
+            <div className="chart-title">Unconverted Leads Trend</div>
             <BarChart
               data={data.userTrend.map(d => ({ date: d.date, value: d.abandons }))}
               color="var(--accent-red)"

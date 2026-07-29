@@ -53,7 +53,7 @@ export function StateOfBusinessView() {
         </div>
 
         <div className="kpi-card red" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <span className="kpi-label">Account Abandons</span>
+          <span className="kpi-label">Unconverted Leads</span>
           <span className="kpi-value">{formatNumber(data.accountAbandons)}</span>
           <span className="kpi-sub">Leads without active account</span>
         </div>
