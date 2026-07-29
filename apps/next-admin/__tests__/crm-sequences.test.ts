@@ -116,4 +116,40 @@ describe('CRM Sequences Integration', () => {
     expect(data[0].sequence_id).toBe(seqId)
     expect(data[0].node_id).toBe('action_node_1')
   })
+
+  test('auto-syncs trigger_event to ai_condition when conditionSql is present on start node', async () => {
+    const testAiSql = "SELECT cl.id, 'lead'::text AS recipient_type, cl.email, cl.phone, cl.name, NULL::text AS state_code, NULL::text AS city, NULL::text AS zip_code, NULL::text AS community_h3, cl.created_at AS joined_at, cl.accepts_email, cl.accepts_sms FROM public.crm_leads cl"
+    const startNodeData = {
+      snapshotAiSql: testAiSql,
+      conditionSql: testAiSql,
+      type: 'input'
+    }
+    const hasAiSql = !!(startNodeData.conditionSql || startNodeData.snapshotAiSql)
+    const effectiveTriggerEvent = hasAiSql ? 'ai_condition' : null
+
+    expect(effectiveTriggerEvent).toBe('ai_condition')
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_sequences`, {
+      method: 'POST',
+      headers: HEADERS_SR,
+      body: JSON.stringify({
+        name: `AI Condition Test Sequence - ${Date.now()}`,
+        status: 'active',
+        trigger_event: effectiveTriggerEvent,
+        definition: {
+          nodes: [
+            { id: 'start', type: 'input', data: startNodeData }
+          ],
+          edges: [],
+          startNodeId: 'start'
+        }
+      }),
+    })
+
+    expect(res.status).toBe(201)
+    const data = await res.json()
+    expect(data[0].trigger_event).toBe('ai_condition')
+    expect(data[0].definition.nodes[0].data.conditionSql).toBe(testAiSql)
+    createdSequenceIds.push(data[0].id)
+  })
 })

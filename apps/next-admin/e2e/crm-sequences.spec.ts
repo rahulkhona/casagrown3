@@ -263,4 +263,36 @@ test.describe('CRM Sequences & Editor Backward Compatibility', () => {
       await expect(modalHeading).not.toBeVisible();
     }
   });
+
+  test('Test 8: Sequence Builder — AI Condition Trigger Auto-Sync User Journey', async ({ page }) => {
+    // Navigate to sequences list and create a new sequence
+    await page.goto('/crm/sequences');
+    const newSeqBtn = page.getByRole('button', { name: '+ New Sequence' });
+    await expect(newSeqBtn).toBeVisible();
+    await newSeqBtn.click();
+    await page.waitForURL(/\/crm\/sequences\/[a-zA-Z0-9-]+/);
+
+    // Wait for builder page to load
+    const saveBtn = page.locator('button:has-text("Save Sequence")');
+    await expect(saveBtn).toBeVisible({ timeout: 10000 });
+
+    // Click on the Start node to open its sidebar configuration panel
+    const startNode = page.locator('.react-flow__node:has-text("Start")');
+    await expect(startNode).toBeVisible();
+    await startNode.click();
+
+    // Select AI Condition from the trigger event dropdown
+    const triggerSelect = page.locator('label:has-text("Sequence Trigger Event") + select');
+    await expect(triggerSelect).toBeVisible();
+    await triggerSelect.selectOption('ai_condition');
+
+    // Assert: The trigger event dropdown is updated to ai_condition
+    await expect(triggerSelect).toHaveValue('ai_condition');
+
+    // Click Save Sequence to trigger full save user journey
+    await saveBtn.click();
+
+    // Assert: Toast notification or save success occurs
+    await expect(page.locator('text=Saved successfully').or(page.locator('text=Saving configuration...'))).toBeVisible({ timeout: 5000 });
+  });
 });

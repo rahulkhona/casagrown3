@@ -1251,8 +1251,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       const { style, ...rest } = n
       const cleanData = { ...rest.data }
       delete cleanData.label
+      if (n.id === 'start' && cleanData.snapshotAiSql && !cleanData.conditionSql) {
+        cleanData.conditionSql = cleanData.snapshotAiSql
+      }
       return { ...rest, data: cleanData }
     })
+
+    const startNode = dbNodes.find(n => n.id === 'start')
+    const hasAiSql = !!(startNode?.data?.conditionSql || startNode?.data?.snapshotAiSql)
+    const effectiveTriggerEvent = (triggerEvent || (hasAiSql ? 'ai_condition' : null))
 
     const definition = {
       nodes: dbNodes,
@@ -1265,7 +1272,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
     await adminApi.update('crm_sequences', { 
       definition, 
-      trigger_event: triggerEvent || null,
+      trigger_event: effectiveTriggerEvent,
       test_emails: parsedEmails,
       test_phones: parsedPhones,
       backfill_on_activate: backfillOnActivate
@@ -1344,8 +1351,15 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       const { style, ...rest } = n
       const cleanData = { ...rest.data }
       delete cleanData.label
+      if (n.id === 'start' && cleanData.snapshotAiSql && !cleanData.conditionSql) {
+        cleanData.conditionSql = cleanData.snapshotAiSql
+      }
       return { ...rest, data: cleanData }
     })
+
+    const startNode = dbNodes.find(n => n.id === 'start')
+    const hasAiSql = !!(startNode?.data?.conditionSql || startNode?.data?.snapshotAiSql)
+    const effectiveTriggerEvent = (triggerEvent || (hasAiSql ? 'ai_condition' : null))
 
     const definition = {
       nodes: dbNodes,
@@ -1359,7 +1373,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     const { error } = await adminApi.update('crm_sequences', { 
       name: sequence.name, 
       definition, 
-      trigger_event: triggerEvent || null,
+      trigger_event: effectiveTriggerEvent,
       test_emails: parsedEmails,
       test_phones: parsedPhones,
       backfill_on_activate: backfillOnActivate
