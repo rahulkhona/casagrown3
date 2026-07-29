@@ -935,10 +935,10 @@ export async function fetchCrmLeadFunnel(dateRange: DateRange): Promise<CrmLeadF
   })
 }
 
-export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCampaignStatsRow[]> {
+export async function fetchCrmCampaignStats(dateRange?: DateRange): Promise<CrmCampaignStatsRow[]> {
   const { data, error } = await supabase.rpc('metrics_crm_campaigns', {
-    p_start: dateRange.start,
-    p_end: dateRange.end,
+    p_start: dateRange?.start || null,
+    p_end: dateRange?.end || null,
   })
   const campaignsList = Array.isArray(data) ? data : (Array.isArray((data as any)?.campaigns) ? (data as any).campaigns : null)
   if (error || !campaignsList) {
@@ -952,10 +952,10 @@ export async function fetchCrmCampaignStats(dateRange: DateRange): Promise<CrmCa
   return campaignsList as CrmCampaignStatsRow[]
 }
 
-export async function fetchCrmAbResults(dateRange: DateRange): Promise<CrmAbResult[]> {
+export async function fetchCrmAbResults(dateRange?: DateRange): Promise<CrmAbResult[]> {
   const { data, error } = await supabase.rpc('metrics_crm_ab_results', {
-    p_start: dateRange.start,
-    p_end: dateRange.end,
+    p_start: dateRange?.start || null,
+    p_end: dateRange?.end || null,
   })
   const variantsList = Array.isArray(data) ? data : (Array.isArray((data as any)?.variants) ? (data as any).variants : null)
   if (error || !variantsList) {

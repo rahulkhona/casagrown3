@@ -23,7 +23,7 @@ async function walkToLeadCapture(page: any) {
   await page.goto(`${BASE}/sell`)
   await page.waitForLoadState('domcontentloaded')
 
-  // Intro CTA — current text is "Get My Estimate →"
+  // Intro CTA
   const introCta = page.getByRole('button', { name: /Get My Estimate|Get My Free Estimate|Start|Calculate|Estimate/i }).first()
   await introCta.waitFor({ state: 'visible', timeout: 10_000 })
   await introCta.click()
@@ -32,40 +32,24 @@ async function walkToLeadCapture(page: any) {
   const zipcodeInput = page.locator('input[placeholder*="zip" i], input[placeholder*="90210" i]').first()
   await zipcodeInput.waitFor({ state: 'visible', timeout: 8_000 })
   await zipcodeInput.fill('94105')
-  // Next button (enabled after 5 digits)
-  await page.getByRole('button', { name: /Next/i }).first().click()
 
-  // Size step — uses radio inputs inside labels; click first label
-  const sizeLabel = page.locator('label.checkbox-wrap').first()
-  if (await sizeLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await sizeLabel.click()
-    await page.getByRole('button', { name: /Next/i }).first().click()
-  }
+  // Loop through questionnaire steps dynamically until lead capture inputs appear
+  for (let i = 0; i < 10; i++) {
+    const emailField = page.locator('input[type="email"], input[placeholder*="Jane Doe" i]').first()
+    if (await emailField.isVisible().catch(() => false)) break
 
-  // Trees step (comes before plants) — click None or just Next
-  const noneLabel = page.getByText(/None/i).first()
-  if (await noneLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await noneLabel.click()
-  }
-  const treesNext = page.getByRole('button', { name: /Next/i }).first()
-  if (await treesNext.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await treesNext.click()
+    const nextBtn = page.getByRole('button', { name: /Next|Calculate|Estimate|Send|Continue/i }).first()
+    if (await nextBtn.isVisible().catch(() => false)) {
+      const option = page.locator('label.checkbox-wrap, button[class*="option"], [class*="chip"]').first()
+      if (await option.isVisible().catch(() => false)) {
+        await option.click().catch(() => {})
+      }
+      await nextBtn.click().catch(() => {})
+      await page.waitForTimeout(300)
+    }
   }
 
-  // Plants step — pick Tomatoes, then click "Estimate My Potential"
-  const tomatoLabel = page.locator('label.checkbox-wrap').filter({ hasText: /Tomato/i }).first()
-  if (await tomatoLabel.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await tomatoLabel.click()
-  }
-  const estimateBtn = page.getByRole('button', { name: /Estimate My Potential/i }).first()
-  if (await estimateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await estimateBtn.click()
-  }
-
-  // Wait through calculating → lead-capture
-  await page.waitForSelector('input[placeholder*="Jane Doe" i], input[type="email"]', {
-    timeout: 10_000,
-  }).catch(() => {})
+  await page.locator('input[type="email"], input[placeholder*="Jane Doe" i]').first().waitFor({ state: 'visible', timeout: 15_000 })
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────

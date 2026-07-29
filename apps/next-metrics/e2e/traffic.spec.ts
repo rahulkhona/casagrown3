@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test'
 test.describe('Metrics — Traffic Analysis Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate directly to the traffic dashboard (pre-authenticated by setup)
-    await page.goto('/marketing/traffic', { waitUntil: 'domcontentloaded' })
+    await page.goto('/legacy/marketing/traffic', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2000)
   })
 

@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Analytics & Chatbot Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/activity');
+    await page.goto('/legacy/activity');
   });
 
   test('should render UTM filters and apply them', async ({ page }) => {
-    await expect(page.getByText('Page Analytics & Drop-offs')).toBeVisible();
+    await page.waitForSelector('h1', { timeout: 10000 });
+    await expect(page.locator('h1')).toContainText('Page Analytics');
     
     const sourceInput = page.getByPlaceholder('utm_source');
     await expect(sourceInput).toBeVisible();
@@ -22,8 +23,8 @@ test.describe('Analytics & Chatbot Dashboard', () => {
   });
 
   test('should render Wizard Drop-off funnels', async ({ page }) => {
-    await expect(page.getByText('/join Wizard Drop-offs')).toBeVisible();
-    await expect(page.getByText('/sell Wizard Drop-offs')).toBeVisible();
+    await page.goto('/legacy/marketing/wizard');
+    await page.waitForSelector('h1', { timeout: 10000 });
+    await expect(page.locator('h1')).toContainText('Wizard Analytics');
   });
-
 });

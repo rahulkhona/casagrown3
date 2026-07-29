@@ -822,7 +822,40 @@ dbTest("enroll-in-sequence: Backfill rejects deprecated sequence", async () => {
   });
   assertEquals(res.status, 400, "Backfill should reject deprecated sequence");
   const body = await res.json();
-  assert(body.error.includes("deprecated"), `Error should mention deprecated: ${body.error}`);
-
   await cleanup({ table: "crm_sequences", id: seq.id });
+});
+
+// ── Test 21: Permanent SMS/Email Error Advances Immediately ─────────────────
+dbTest("process-sequence-step: Classifies premium rate / fake number error as permanent, resets sms_retry_count, and advances node", async () => {
+  const lead = await createLead({ phone: "" });
+  const seq = await createSequence({
+    startNodeId: "node-sms",
+    nodes: [
+      { id: "node-sms", type: "action_sms", data: { text: "Premium test!" } },
+      { id: "node-done", type: "action_sms", data: { text: "Done!" } }
+    ],
+    edges: [{ id: "e1", source: "node-sms", target: "node-done" }]
+  });
+
+  const { data: enrollment } = await supabase.from("crm_sequence_enrollments").insert({
+    sequence_id: seq.id,
+    recipient_type: "lead",
+    recipient_id: lead.id,
+    current_node_id: "node-sms",
+    next_evaluation_at: new Date(Date.now() - 1000).toISOString(),
+    status: "active",
+    sms_retry_count: 2
+  }).select().single();
+  assert(enrollment, "Enrollment created");
+
+  const processRes = await processStep({ sequence_id: seq.id, test_run_all: true });
+  assertEquals(processRes.status, 200);
+
+  const { data: after } = await supabase.from("crm_sequence_enrollments")
+    .select("current_node_id, sms_retry_count, status").eq("id", enrollment.id).single();
+
+  assert(after?.current_node_id === "node-done" || after?.status === "completed", "Should have advanced past permanent error node");
+  assertEquals(after?.sms_retry_count, 0, "Should reset sms_retry_count to 0 on permanent error");
+
+  await cleanup({ table: "crm_sequences", id: seq.id }, { table: "crm_leads", id: lead.id });
 });

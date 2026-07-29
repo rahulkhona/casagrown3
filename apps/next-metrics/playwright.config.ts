@@ -30,8 +30,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'yarn dev',
-    url: 'http://localhost:3004',
-    reuseExistingServer: !process.env.CI,
+    command: 'npx next dev -p 3004',
+    url: 'http://localhost:3004/login',
+    reuseExistingServer: true,
+    timeout: 120_000,
   },
 })

@@ -128,15 +128,16 @@ test.describe('/sell funnel — UTM tracking UX', () => {
   test('UTM-UX-06: /sell page shows zip code step with UTM params present', async ({ page }) => {
     await page.goto(`${BASE_URL}/sell?utm_source=facebook&utm_medium=social`, { waitUntil: 'networkidle' })
 
-    // The /sell page may show zip code directly OR a "Get My Estimate" CTA first
-    const ctaBtn = page.locator('button:has-text("Get My Estimate")')
-    if (await ctaBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    // The /sell page may show zip code directly OR a CTA first
+    const ctaBtn = page.getByRole('button', { name: /Get My Estimate|Get My Free Estimate|Start|Calculate|Estimate/i }).first()
+    if (await ctaBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
       await ctaBtn.click()
       await page.waitForTimeout(500)
     }
 
-    // Zip code step: look for the placeholder "e.g. 90210"
-    await expect(page.getByPlaceholder('e.g. 90210')).toBeVisible({ timeout: 6000 })
+    // Zip code step: look for the placeholder "e.g. 90210" or zip input
+    const zipInput = page.locator('input[placeholder*="90210" i], input[placeholder*="zip" i]').first()
+    await expect(zipInput).toBeVisible({ timeout: 10000 })
   })
 
   test('UTM-UX-07: useMarketingAnalytics beacon fires — crm_page_visits row created with UTM params', async ({ page }) => {

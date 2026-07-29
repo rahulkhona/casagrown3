@@ -524,11 +524,18 @@ serve(async (req) => {
           'not a mobile number',
           'permission to send',
           'number is not eligible',
+          'premium rate',           // Fixes 517555XXXX / fake test numbers
+          'information service',
+          'not allowed',
+          'unsubscribed',          // Fixes opted-out leads
+          'missing_phone',
+          'missing_email',
+          'opted_out',
         ];
 
-        if (errorMsg && errorMsg !== 'missing_phone' && errorMsg !== 'opted_out') {
+        if (errorMsg) {
           const lowerErr = (errorMsg || '').toLowerCase();
-          const isPermanent = PERMANENT_ERROR_PATTERNS.some(p => lowerErr.includes(p));
+          const isPermanent = PERMANENT_ERROR_PATTERNS.some(p => lowerErr.includes(p.toLowerCase()));
           const currentRetries = (enrollment.sms_retry_count || 0) + 1;
 
           if (isPermanent || currentRetries >= MAX_SMS_RETRIES) {

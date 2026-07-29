@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, createContext, useContext } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AuthGuard } from '../auth-guard'
 import type { GeoFilter, DateRange, Granularity } from '../../lib/metrics-service'
@@ -112,32 +112,48 @@ export function useFilters() {
 
 // ─── Navigation Items ───────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Overview', icon: '📊' },
-  { href: '/users', label: 'User Growth', icon: '👥' },
-  { href: '/sales', label: 'Sales & Revenue', icon: '💰' },
-  { href: '/payouts', label: 'Payouts', icon: '💵' },
-  { href: '/activity', label: 'Page Analytics', icon: '📱' },
-  { href: '/health', label: 'Marketplace Health', icon: '🏪' },
-  { href: '/settlements', label: 'Settlements', icon: '🏦' },
-  { href: '/community', label: 'Community Chat', icon: '💬' },
-  { href: '/attribution', label: 'Attribution', icon: '🎯' },
-  { href: '/logs', label: 'Log Search', icon: '🔍' },
+const PORTAL_NAV_ITEMS = [
+  { href: '/?tab=business', tab: 'business', label: 'State of Business', icon: '📊' },
+  { href: '/?tab=trends', tab: 'trends', label: 'Trends', icon: '📈' },
+  { href: '/?tab=attributions', tab: 'attributions', label: 'Attributions', icon: '🎯' },
+  { href: '/?tab=attribution-trends', tab: 'attribution-trends', label: 'Attribution Trends', icon: '📊' },
+  { href: '/?tab=traffic', tab: 'traffic', label: 'Traffic Trends', icon: '🌐' },
+  { href: '/?tab=wizard', tab: 'wizard', label: 'Wizard Drop-offs', icon: '🧙' },
+  { href: '/?tab=mab', tab: 'mab', label: 'Multi-Arm Bandit Stats', icon: '🎰' },
+  { href: '/?tab=drip', tab: 'drip', label: 'Drip Campaign Stats', icon: '📧' },
+  { href: '/?tab=logs', tab: 'logs', label: 'Log Search', icon: '🔍' },
 ]
 
-const MARKETING_NAV_ITEMS = [
-  { href: '/marketing', label: 'Traffic Overview', icon: '📈' },
-  { href: '/marketing/funnel', label: 'Lead Funnel', icon: '🔽' },
-  { href: '/marketing/traffic', label: 'Traffic Analysis', icon: '📊' },
-  { href: '/marketing/campaigns', label: 'Campaign Stats', icon: '📧' },
-  { href: '/marketing/ab', label: 'Landing Page A/B Tests', icon: '🔬' },
-  { href: '/marketing/wizard', label: 'Wizard Analytics', icon: '🧙' },
+const LEGACY_NAV_ITEMS = [
+  { href: '/legacy', label: 'Overview', icon: '📊' },
+  { href: '/legacy/users', label: 'User Growth', icon: '👥' },
+  { href: '/legacy/sales', label: 'Sales & Revenue', icon: '💰' },
+  { href: '/legacy/payouts', label: 'Payouts', icon: '💵' },
+  { href: '/legacy/activity', label: 'Page Analytics', icon: '📱' },
+  { href: '/legacy/health', label: 'Marketplace Health', icon: '🏪' },
+  { href: '/legacy/settlements', label: 'Settlements', icon: '🏦' },
+  { href: '/legacy/community', label: 'Community Chat', icon: '💬' },
+  { href: '/legacy/attribution', label: 'Attribution', icon: '🎯' },
+  { href: '/legacy/interests', label: 'Produce Interests', icon: '🥑' },
 ]
 
-// ─── Layout Component ───────────────────────────────────────────────────────
+const LEGACY_MARKETING_ITEMS = [
+  { href: '/legacy/marketing', label: 'Traffic Overview', icon: '📈' },
+  { href: '/legacy/marketing/funnel', label: 'Lead Funnel', icon: '🔽' },
+  { href: '/legacy/marketing/traffic', label: 'Traffic Analysis', icon: '📊' },
+  { href: '/legacy/marketing/campaigns', label: 'Campaign Stats', icon: '📧' },
+  { href: '/legacy/marketing/ab', label: 'Landing Page A/B Tests', icon: '🔬' },
+  { href: '/legacy/marketing/wizard', label: 'Wizard Analytics', icon: '🧙' },
+]
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+import { Suspense } from 'react'
+
+export const dynamic = 'force-dynamic'
+
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentTab = searchParams.get('tab') || 'business'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
   const [granularity, setGranularity] = useState<Granularity>('daily')
@@ -168,8 +184,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="sidebar-nav">
-            <div className="sidebar-section-label">Dashboards</div>
-            {NAV_ITEMS.map(item => (
+            <div className="sidebar-section-label">New Metrics Portal</div>
+            {PORTAL_NAV_ITEMS.map(item => {
+              const isActive = pathname === '/' && currentTab === item.tab
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`sidebar-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <span className="sidebar-link-icon">{item.icon}</span>
+                  {item.label}
+                </Link>
+              )
+            })}
+
+            <div className="sidebar-section-label" style={{ marginTop: 16 }}>Legacy Dashboards</div>
+            {LEGACY_NAV_ITEMS.map(item => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -180,8 +212,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {item.label}
               </Link>
             ))}
-            <div className="sidebar-section-label" style={{ marginTop: 16 }}>Marketing</div>
-            {MARKETING_NAV_ITEMS.map(item => (
+
+            <div className="sidebar-section-label" style={{ marginTop: 16 }}>Legacy Marketing</div>
+            {LEGACY_MARKETING_ITEMS.map(item => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -226,26 +259,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <DemoBanner />
           {/* Filter Bar */}
           <div className="filter-bar" style={{ flexWrap: 'wrap' }}>
-            <div className="filter-group">
-              <label>From</label>
-              <input
-                type="date"
-                className="input"
-                value={dateRange.start}
-                onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
-                style={{ width: 140 }}
-              />
-            </div>
-            <div className="filter-group">
-              <label>To</label>
-              <input
-                type="date"
-                className="input"
-                value={dateRange.end}
-                onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
-                style={{ width: 140 }}
-              />
-            </div>
             <div className="granularity-toggle">
               {(['daily', 'weekly', 'monthly'] as Granularity[]).map(g => (
                 <button
@@ -327,5 +340,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </FilterContext.Provider>
     </AuthGuard>
+  )
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="loading-container">
+        <div className="spinner" />
+        <span>Initializing Analytics Portal...</span>
+      </div>
+    }>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
   )
 }

@@ -194,6 +194,8 @@ section "Phase 2: Edge Functions"
 
 # Kill any existing edge functions server
 pkill -f "npx supabase functions serve" 2>/dev/null || true
+pkill -f "supabase functions serve" 2>/dev/null || true
+pkill -f "deno run.*functions" 2>/dev/null || true
 sleep 1
 
 # ── Force AI mock mode during test runs (prevents real Gemini API calls) ──
