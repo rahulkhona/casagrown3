@@ -44,13 +44,13 @@ describe('DemandPage (Shared Buyer Wishlist)', () => {
     expect(meta.openGraph?.url).toContain('/demand?')
   })
 
-  it('renders mode=sell with checkboxes (I want this) for buyers wanting to get items', async () => {
+  it('renders mode=buy with checkboxes (I want this) for buyers wanting to get items', async () => {
     const pageJsx = await DemandPage({
       searchParams: Promise.resolve({
         items: 'Oranges, Lemons',
         name: 'Local Neighbors',
         location: '95120',
-        mode: 'sell',
+        mode: 'buy',
       }),
     })
 
@@ -64,13 +64,13 @@ describe('DemandPage (Shared Buyer Wishlist)', () => {
     expect(checkboxes.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('renders mode=buy with List Item Now CTA buttons for sellers wanting to list harvest', async () => {
+  it('renders mode=sell with List Item Now CTA buttons for sellers wanting to list harvest', async () => {
     const pageJsx = await DemandPage({
       searchParams: Promise.resolve({
         items: 'Strawberries, Hass Avocados',
         name: 'Rahul',
         location: 'San Jose',
-        mode: 'buy',
+        mode: 'sell',
       }),
     })
 

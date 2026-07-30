@@ -39,7 +39,7 @@ export default function DemandClientView({
     .map((i) => i.name)
     .join(', ')
 
-  const checkboxText = mode === 'sell' ? 'I want this' : 'I have this'
+  const checkboxText = 'I want this'
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', paddingTop: '64px', paddingBottom: '90px' }}>
@@ -95,12 +95,12 @@ export default function DemandClientView({
           )}
 
           <h1 suppressHydrationWarning style={{ fontSize: '26px', fontWeight: 800, color: '#14532d', margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>
-            {mode === 'sell'
+            {mode === 'buy'
               ? `Would you be interested in getting these items from ${firstName}?`
               : `Would you be interested in sharing or selling any of these items to ${firstName}?`}
           </h1>
           <p style={{ fontSize: '16px', color: '#4b5563', margin: '0 auto', maxWidth: '640px', lineHeight: 1.6, fontWeight: 500 }}>
-            {mode === 'sell'
+            {mode === 'buy'
               ? `Let ${firstName} know by selecting items you are interested in`
               : `Have extra in your garden? Click "List Item & Notify" below to list your harvest for ${firstName}!`}
           </p>
@@ -170,7 +170,7 @@ export default function DemandClientView({
                   </p>
 
                   <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-                    {mode === 'buy' ? (
+                    {mode === 'sell' ? (
                       <Link
                         href={`/create-listing?produce=${encodeURIComponent(item.name)}${buyerId ? `&ref=${encodeURIComponent(buyerId)}` : ''}`}
                         onClick={() => {
