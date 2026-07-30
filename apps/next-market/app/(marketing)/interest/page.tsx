@@ -1149,8 +1149,8 @@ function InterestPageContent() {
           entityName={savedShareInterests.join(', ')}
           shareUrl={
             savedShareScope === 'sell'
-              ? `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/interest?scope=buy&items=${encodeURIComponent(savedShareInterests.join(','))}${userId ? `&ref=${userId}` : ''}`
-              : `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/demand?ref=${userId || ''}`
+              ? `${process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com')}/demand?items=${encodeURIComponent(savedShareInterests.join(','))}&mode=buy${userId ? `&ref=${userId}` : ''}`
+              : `${process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com')}/demand?items=${encodeURIComponent(savedShareInterests.join(','))}&mode=sell${userId ? `&ref=${userId}` : ''}`
           }
           shareMessage={(platform) => {
             const itemList = savedShareInterests.join(', ')
