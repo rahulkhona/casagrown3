@@ -1,23 +1,30 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { fetchDripCampaignStats, type DripCampaignData } from '../../../lib/portal-service'
+import { fetchDripCampaignStats, fetchDripSequencesList, type DripCampaignData, type DripSequenceOption } from '../../../lib/portal-service'
 import { formatNumber } from '../../../lib/charts'
 
-const SEQUENCES = [
-  { id: 'welcome_sequence', name: '👋 Welcome & Onboarding Drip Sequence' },
-  { id: 'promo_builder_campaign', name: '📣 Spring Promotion Builder Campaign' },
-  { id: 'broadcast_email_sms', name: '📱 Weekly Harvest Email & SMS Broadcast' },
-  { id: 'seasonal_garden_sequence', name: '🥑 Seasonal Produce & Garden Reminders' },
-  { id: 'cart_recovery_sequence', name: '🛒 Abandoned Cart / Listing Recovery' },
-]
-
 export function DripCampaignStatsView() {
-  const [selectedSeq, setSelectedSeq] = useState('welcome_sequence')
+  const [sequenceOptions, setSequenceOptions] = useState<DripSequenceOption[]>([])
+  const [selectedSeq, setSelectedSeq] = useState('')
   const [data, setData] = useState<DripCampaignData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let active = true
+    fetchDripSequencesList().then(opts => {
+      if (active && opts.length > 0) {
+        setSequenceOptions(opts)
+        if (!selectedSeq) {
+          setSelectedSeq(opts[0].id)
+        }
+      }
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedSeq) return
     let active = true
     setLoading(true)
     fetchDripCampaignStats(selectedSeq).then(res => {
@@ -63,7 +70,7 @@ export function DripCampaignStatsView() {
             minWidth: 320,
           }}
         >
-          {SEQUENCES.map(s => (
+          {sequenceOptions.map(s => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
@@ -100,6 +107,59 @@ export function DripCampaignStatsView() {
         </div>
       </div>
 
+      {/* A/B Variant Journey-Level & Step-Level Performance Breakdown */}
+      {data.journeyAbVariants && data.journeyAbVariants.length > 0 && (
+        <div className="card glass shadow-sm" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
+              ⚡ A/B Variant Journey-Level & Step Split Performance
+            </h2>
+            <span className="badge badge-purple" style={{ fontSize: '0.75rem' }}>Active A/B Test</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {data.journeyAbVariants.map((varStat, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: 16,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-main)',
+                  border: varStat.isWinner ? '1px solid var(--accent-green)' : '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{varStat.variantName}</span>
+                  {varStat.isWinner && (
+                    <span className="badge badge-green" style={{ fontSize: '0.7rem' }}>🏆 Winner</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 4 }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>SENT / OPENED</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{formatNumber(varStat.sentCount)} / {formatNumber(varStat.openedCount)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>OPEN / CLICK %</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{varStat.openRatePct}% / {varStat.clickRatePct}%</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>JOURNEY CONV %</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: varStat.isWinner ? 'var(--accent-green)' : 'var(--text-main)' }}>
+                      {varStat.journeyConversionRatePct}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Steps Table */}
       <div className="card glass">
         <div className="chart-title" style={{ marginBottom: 16 }}>Sequence Step Breakdown</div>
@@ -117,18 +177,43 @@ export function DripCampaignStatsView() {
             </thead>
             <tbody>
               {data.steps.map(st => (
-                <tr key={st.nodeId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{st.stepName}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span className={`badge ${st.channel === 'email' ? 'badge-blue' : 'badge-green'}`}>
-                      {st.channel.toUpperCase()}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{formatNumber(st.sentCount)}</td>
-                  <td style={{ padding: '12px 16px' }}>{formatNumber(st.openedCount)}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--accent-green)' }}>{formatNumber(st.clickedCount)}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{st.clickRatePct}%</td>
-                </tr>
+                <React.Fragment key={st.nodeId}>
+                  <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{st.stepName}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className={`badge ${st.channel === 'email' ? 'badge-blue' : 'badge-green'}`}>
+                        {st.channel.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>{formatNumber(st.sentCount)}</td>
+                    <td style={{ padding: '12px 16px' }}>{formatNumber(st.openedCount)}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--accent-green)' }}>{formatNumber(st.clickedCount)}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{st.clickRatePct}%</td>
+                  </tr>
+                  {st.abVariants && st.abVariants.length > 0 && (
+                    <tr style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
+                      <td colSpan={6} style={{ padding: '8px 24px' }}>
+                        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            Step A/B Variants:
+                          </span>
+                          {st.abVariants.map((v, vIdx) => (
+                            <div key={vIdx} style={{ fontSize: '0.8rem', display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <span style={{ fontWeight: 600 }}>{v.variantName}:</span>
+                              <span>{formatNumber(v.sentCount)} sent</span>
+                              <span style={{ color: 'var(--text-muted)' }}>|</span>
+                              <span>{v.openRatePct}% open</span>
+                              <span style={{ color: 'var(--text-muted)' }}>|</span>
+                              <span style={{ color: v.isWinner ? 'var(--accent-green)' : 'var(--text-main)', fontWeight: v.isWinner ? 700 : 500 }}>
+                                {v.clickRatePct}% click {v.isWinner ? '🏆' : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

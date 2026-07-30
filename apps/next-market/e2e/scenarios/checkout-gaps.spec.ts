@@ -156,8 +156,7 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
       await page.waitForTimeout(1000)
     }
 
-    // Take screenshot of BuyModal with instructions filled
-    await page.screenshot({ path: '/Users/rkhona/.gemini/antigravity/brain/d223b8c5-3327-440c-862e-5ff983b1fbf3/buy_modal_instructions.png' })
+
 
     // 7. Place the order
     const placeBtn = page.locator('button:has-text("Place Order")').first()

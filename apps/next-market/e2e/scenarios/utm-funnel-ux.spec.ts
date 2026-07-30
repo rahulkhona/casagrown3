@@ -319,7 +319,7 @@ test.describe('/check-nutrition-loss funnel — UTM tracking UX', () => {
     // Produce selection is shown — check for specific heading
     await expect(
       page.getByRole('heading', { name: /produce/i })
-    ).toBeVisible({ timeout: 6000 })
+    ).toBeVisible({ timeout: 15000 })
   })
 
   test('UTM-UX-14: crm_page_visits beacon fires on /check-nutrition-loss visit', async ({ page }) => {

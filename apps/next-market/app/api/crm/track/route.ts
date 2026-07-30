@@ -97,11 +97,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (type === 'event') {
+    const ed = (body.event_data as Record<string, any>) || {}
     const { error } = await supabase.from('crm_page_events').insert({
       session_id: body.session_id,
       page_slug: body.page_slug,
       event_type: body.event_type,
-      event_data: body.event_data ?? {},
+      event_data: ed,
+      target_element: (ed.field || ed.button || ed.button_name || ed.target_element || ed.step_name || null) as string | null,
+      value_text: ed.has_value !== undefined ? (ed.has_value ? 'filled' : 'empty') : (ed.value || ed.action || null) as string | null,
+      value_int: typeof ed.step === 'number' ? ed.step : (typeof ed.step_index === 'number' ? ed.step_index : null),
     })
 
     if (error) {

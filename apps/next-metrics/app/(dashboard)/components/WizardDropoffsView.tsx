@@ -11,6 +11,8 @@ const WIZARDS = [
   { slug: '/create-listing-wizard', label: 'Standard Listing Wizard (/create-listing-wizard)' },
   { slug: '/add-product', label: 'Add Product Wizard (/add-product)' },
   { slug: '/quicksetup', label: 'Quick Setup Wizard (/quicksetup)' },
+  { slug: '/interest', label: 'Produce Interest Wizard (/interest)' },
+  { slug: '/interests', label: 'Produce Interests Wizard (/interests)' },
   { slug: '/join', label: 'Buyer Join Wizard (/join)' },
   { slug: '/sell', label: 'Seller Setup Wizard (/sell)' },
   { slug: '/profile-setup', label: 'Profile Setup Wizard (/profile-setup)' },

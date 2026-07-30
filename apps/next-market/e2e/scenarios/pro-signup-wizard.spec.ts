@@ -309,6 +309,7 @@ test.describe('Group 1: /pro Page — Initial Load & UI', () => {
         !e.includes('404') &&
         !e.includes('401') &&
         !e.includes('406') &&
+        !e.includes('406') &&
         !e.includes('500') &&
         !e.includes('net::ERR') &&
         !e.includes('CORS') &&

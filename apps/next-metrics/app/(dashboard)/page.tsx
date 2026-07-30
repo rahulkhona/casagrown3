@@ -11,10 +11,14 @@ import { WizardDropoffsView } from './components/WizardDropoffsView'
 import { MabStatsView } from './components/MabStatsView'
 import { DripCampaignStatsView } from './components/DripCampaignStatsView'
 import { LogSearchView } from './components/LogSearchView'
+import { InterestsAnalysisView } from './components/InterestsAnalysisView'
+import { ActiveListingsAnalysisView } from './components/ActiveListingsAnalysisView'
 
 type PortalTab =
   | 'business'
   | 'trends'
+  | 'interests'
+  | 'active-listings'
   | 'attributions'
   | 'attribution-trends'
   | 'traffic'
@@ -26,6 +30,8 @@ type PortalTab =
 const TABS: { id: PortalTab; label: string; icon: string }[] = [
   { id: 'business', label: 'State of Business', icon: '📊' },
   { id: 'trends', label: 'Trends', icon: '📈' },
+  { id: 'interests', label: 'Interests & FB Ad Targets', icon: '🥑' },
+  { id: 'active-listings', label: 'Active Listings & FB Ads', icon: '🛍️' },
   { id: 'attributions', label: 'Attributions', icon: '🎯' },
   { id: 'attribution-trends', label: 'Attribution Trends', icon: '📊' },
   { id: 'traffic', label: 'Traffic Trends', icon: '🌐' },
@@ -89,6 +95,8 @@ function MetricsPortalContent() {
       {/* Tab Content Views */}
       {activeTab === 'business' && <StateOfBusinessView />}
       {activeTab === 'trends' && <TrendsView />}
+      {activeTab === 'interests' && <InterestsAnalysisView />}
+      {activeTab === 'active-listings' && <ActiveListingsAnalysisView />}
       {activeTab === 'attributions' && <AttributionsView />}
       {activeTab === 'attribution-trends' && <AttributionTrendsView />}
       {activeTab === 'traffic' && <TrafficTrendsView />}

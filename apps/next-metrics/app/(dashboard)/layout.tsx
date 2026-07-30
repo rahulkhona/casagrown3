@@ -115,6 +115,8 @@ export function useFilters() {
 const PORTAL_NAV_ITEMS = [
   { href: '/?tab=business', tab: 'business', label: 'State of Business', icon: '📊' },
   { href: '/?tab=trends', tab: 'trends', label: 'Trends', icon: '📈' },
+  { href: '/?tab=interests', tab: 'interests', label: 'Interests & FB Ad Targets', icon: '🥑' },
+  { href: '/?tab=active-listings', tab: 'active-listings', label: 'Active Listings & FB Ads', icon: '🛍️' },
   { href: '/?tab=attributions', tab: 'attributions', label: 'Attributions', icon: '🎯' },
   { href: '/?tab=attribution-trends', tab: 'attribution-trends', label: 'Attribution Trends', icon: '📊' },
   { href: '/?tab=traffic', tab: 'traffic', label: 'Traffic Trends', icon: '🌐' },
