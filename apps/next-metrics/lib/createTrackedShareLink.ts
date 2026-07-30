@@ -25,8 +25,8 @@ function buildUtmUrl(
   userId?: string,
 ): string {
   try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'
-    const url = new URL(baseUrl, origin)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'https://casagrown.com'
+    const url = new URL(baseUrl, siteUrl)
 
     url.searchParams.set('utm_source', platform)
     url.searchParams.set('utm_medium', 'social_share')

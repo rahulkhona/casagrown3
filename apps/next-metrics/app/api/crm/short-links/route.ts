@@ -55,11 +55,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const origin = req.nextUrl.origin || 'https://casagrown.com'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'https://casagrown.com'
 
   return NextResponse.json({
     token,
-    short_url: `${origin}/r/${token}`,
+    short_url: `${siteUrl.replace(/\/$/, '')}/r/${token}`,
   })
 }
 

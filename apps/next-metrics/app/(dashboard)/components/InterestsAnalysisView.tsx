@@ -93,10 +93,12 @@ export function InterestsAnalysisView() {
   const highSupplyCount = data.rows.filter(r => r.marketSignal === 'HIGH_SUPPLY').length
 
   const getBaseOrigin = () => {
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
     if (typeof window !== 'undefined' && window.location && window.location.origin) {
-      return window.location.origin
+      const origin = window.location.origin
+      if (!origin.includes('metrics')) return origin
     }
-    return process.env.NEXT_PUBLIC_SITE_URL || 'https://casagrown.com'
+    return 'https://casagrown.com'
   }
 
   const handleCopyAdStrategy = (row: ZipcodeInterestRow, index: number) => {

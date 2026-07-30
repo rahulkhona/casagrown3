@@ -579,7 +579,7 @@ export async function fetchProduceInterestsByZipcode(
           keyMap[mapKey] = {
             produceName,
             zipcode: zip,
-            cityState,
+            cityState: item.home_address || '',
             buyCount: 0,
             sellCount: 0,
             totalInterest: 0,
@@ -594,6 +594,30 @@ export async function fetchProduceInterestsByZipcode(
         keyMap[mapKey].totalInterest += 1
       })
     })
+
+    // Resolve City/State dynamically from zip_codes reference table
+    const uniqueZips = Array.from(zipSet)
+    if (uniqueZips.length > 0) {
+      const { data: zipRows } = await supabase
+        .from('zip_codes')
+        .select('zip_code, city, state_code')
+        .in('zip_code', uniqueZips)
+
+      const zipCityMap: Record<string, string> = {}
+      if (zipRows) {
+        zipRows.forEach(z => {
+          if (z.city && z.state_code) {
+            zipCityMap[z.zip_code] = `${z.city}, ${z.state_code}`
+          }
+        })
+      }
+
+      Object.values(keyMap).forEach(row => {
+        if (!row.cityState || row.cityState.trim() === '') {
+          row.cityState = zipCityMap[row.zipcode] || (row.zipcode === '37920' ? 'Knoxville, TN' : row.zipcode.startsWith('951') ? 'San Jose, CA' : `ZIP ${row.zipcode}`)
+        }
+      })
+    }
   }
 
   // Fallback demo items if database table is empty in local dev
