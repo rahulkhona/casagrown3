@@ -111,10 +111,9 @@ export function InterestsAnalysisView() {
   // Single Row Social Post Helper
   const openSingleSocialModal = (row: ZipcodeInterestRow) => {
     const baseOrigin = getBaseOrigin()
-    const isSellerSupply = row.marketSignal === 'HIGH_SUPPLY'
-    const isBuyerDemand = row.marketSignal === 'HIGH_DEMAND'
-    const modeParam = isSellerSupply ? 'buy' : 'sell'
-    const targetAudienceRole = isSellerSupply ? 'BUYERS (Neighbors wanting fresh produce)' : isBuyerDemand ? 'SELLERS & GARDENERS (Neighbors with trees/harvest)' : 'LOCAL NEIGHBORS'
+    const isSellerSupply = row.sellCount >= row.buyCount
+    const isBuyerDemand = row.buyCount > row.sellCount
+    const targetAudienceRole = isSellerSupply ? 'BUYERS (Neighbors wanting fresh produce)' : 'SELLERS & GARDENERS (Neighbors with trees/harvest)'
     
     // Landing URL Logic:
     // 1. BUYER DEMAND posts target SELLERS/GARDENERS -> Point sellers to /create-listing or /demand?mode=buy ("Would you be interested in sharing or selling?")
