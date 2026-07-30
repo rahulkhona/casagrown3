@@ -524,7 +524,11 @@ export default function SocialShareModal({
               paddingBottom: 10
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>🥑</span>
+                <img 
+                  src="/logo.png" 
+                  alt="CasaGrown" 
+                  style={{ width: 24, height: 24, borderRadius: 5 }}
+                />
                 <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>CasaGrown Share</span>
               </div>
               <button 

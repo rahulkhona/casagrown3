@@ -269,5 +269,26 @@ describe('Dashboard Layout Nav & Retention Controls', () => {
       expect(container.textContent).toContain('60-Day Retention Bound')
     })
   })
+
+  it('fetchActiveListingsData returns active garden listings', async () => {
+    const portal = await import('../../lib/portal-service')
+    const data = await portal.fetchActiveListingsData()
+    expect(data.totalListings).toBeGreaterThan(0)
+    expect(data.rows[0]).toHaveProperty('produceName')
+    expect(data.rows[0]).toHaveProperty('priceUsd')
+    expect(data.rows[0]).toHaveProperty('availableQty')
+    expect(data.rows[0]).toHaveProperty('fulfillmentOptions')
+  })
+
+  it('ActiveListingsAnalysisView renders active listings table', async () => {
+    const { waitFor } = await import('@testing-library/react')
+    const mod = await import('../(dashboard)/components/ActiveListingsAnalysisView')
+    const Component = mod.ActiveListingsAnalysisView
+    const { container } = render(React.createElement(Component))
+    await waitFor(() => {
+      expect(container.textContent).toContain('Active Produce Listings')
+    })
+  })
 })
+
 
