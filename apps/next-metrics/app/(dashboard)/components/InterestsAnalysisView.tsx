@@ -116,10 +116,12 @@ export function InterestsAnalysisView() {
     const modeParam = isSellerSupply ? 'buy' : 'sell'
     const targetAudienceRole = isSellerSupply ? 'BUYERS (Neighbors wanting fresh produce)' : isBuyerDemand ? 'SELLERS & GARDENERS (Neighbors with trees/harvest)' : 'LOCAL NEIGHBORS'
     
-    // Direct sellers to /create-listing, buyers to /demand
+    // Landing URL Logic:
+    // 1. BUYER DEMAND posts target SELLERS/GARDENERS -> Point sellers to /create-listing or /demand?mode=buy ("Would you be interested in sharing or selling?")
+    // 2. SELLER SUPPLY posts target BUYERS -> Point buyers to /demand?mode=sell ("Would you be interested in getting these items?")
     const landingUrl = isBuyerDemand
       ? `${baseOrigin}/create-listing?produce=${encodeURIComponent(row.produceName)}&zipcode=${encodeURIComponent(row.zipcode)}`
-      : `${baseOrigin}/demand?items=${encodeURIComponent(row.produceName)}&location=${encodeURIComponent(row.zipcode)}&mode=${modeParam}&name=${encodeURIComponent('Local Neighbors')}`
+      : `${baseOrigin}/demand?items=${encodeURIComponent(row.produceName)}&location=${encodeURIComponent(row.zipcode)}&mode=sell&name=${encodeURIComponent('Local Neighbors')}`
 
     let headline = ''
     let bodyText = ''
@@ -164,10 +166,10 @@ export function InterestsAnalysisView() {
 
     const isSellerSupplyBatch = totalSell >= totalBuy
     
-    // Direct sellers to /create-listing when sharing buyer demand batch, buyers to /demand
+    // Direct sellers to /create-listing when sharing buyer demand batch, buyers to /demand?mode=sell (to request/get produce)
     const landingUrl = !isSellerSupplyBatch
       ? `${baseOrigin}/create-listing?produce=${encodeURIComponent(itemsParam)}&zipcode=${encodeURIComponent(primaryZip)}`
-      : `${baseOrigin}/demand?items=${encodeURIComponent(itemsParam)}&location=${encodeURIComponent(primaryZip)}&mode=buy&name=${encodeURIComponent('Local Neighbors')}`
+      : `${baseOrigin}/demand?items=${encodeURIComponent(itemsParam)}&location=${encodeURIComponent(primaryZip)}&mode=sell&name=${encodeURIComponent('Local Neighbors')}`
 
     const itemsFormatted = itemNames.length > 1
       ? `${itemNames.slice(0, -1).join(', ')} and ${itemNames[itemNames.length - 1]}`
