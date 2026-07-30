@@ -827,7 +827,7 @@ dbTest("enroll-in-sequence: Backfill rejects deprecated sequence", async () => {
 
 // ── Test 21: Permanent SMS/Email Error Advances Immediately ─────────────────
 dbTest("process-sequence-step: Classifies premium rate / fake number error as permanent, resets sms_retry_count, and advances node", async () => {
-  const lead = await createLead({ phone: "" });
+  const lead = await createLead({ phone: "+15550000000" });
   const seq = await createSequence({
     startNodeId: "node-sms",
     nodes: [
@@ -850,6 +850,7 @@ dbTest("process-sequence-step: Classifies premium rate / fake number error as pe
 
   const processRes = await processStep({ sequence_id: seq.id, test_run_all: true });
   assertEquals(processRes.status, 200);
+  await processRes.text();
 
   const { data: after } = await supabase.from("crm_sequence_enrollments")
     .select("current_node_id, sms_retry_count, status").eq("id", enrollment.id).single();
