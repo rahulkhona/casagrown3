@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { Navbar } from '../../components/Navbar'
 import { BottomNav } from '../../components/BottomNav'
-import { EXHAUSTIVE_US_PRODUCE, type ProduceItem } from '../../../lib/produceCatalog'
+import { EXHAUSTIVE_US_PRODUCE, getProduceImage, type ProduceItem } from '../../../lib/produceCatalog'
 import { MarketProvider } from '../../../lib/store'
 import { CartProvider } from '../../../lib/useCart'
 import { BootstrapProvider } from '../../../lib/useBootstrap'
@@ -205,15 +205,10 @@ export async function generateMetadata({ searchParams }: DemandPageProps): Promi
     itemsSummary = `${data.itemNames[0]}, ${data.itemNames[1]} + ${data.itemNames.length - 2} more`
   }
 
-  const catalogMatch = EXHAUSTIVE_US_PRODUCE.find(
-    (p) => p.name.toLowerCase() === primaryItemName.toLowerCase() ||
-           p.name.toLowerCase().includes(primaryItemName.toLowerCase())
-  )
-  const photoUrl = catalogMatch?.image
-    ? catalogMatch.image.startsWith('http')
-      ? catalogMatch.image
-      : `${siteUrl}${catalogMatch.image}`
-    : `${siteUrl}/og-share.jpg`
+  const imagePath = getProduceImage(primaryItemName)
+  const photoUrl = imagePath.startsWith('http')
+    ? imagePath
+    : `${siteUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`
 
   const title = data.buyerName
     ? `${data.buyerName} is looking for ${itemsSummary}${locStr} | CasaGrown`
