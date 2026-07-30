@@ -27,6 +27,7 @@ const createMockQuery = () => {
   const query: any = {
     select: vi.fn().mockImplementation(() => query),
     eq: vi.fn().mockImplementation(() => query),
+    or: vi.fn().mockImplementation(() => query),
     gte: vi.fn().mockImplementation(() => query),
     lte: vi.fn().mockImplementation(() => query),
     is: vi.fn().mockImplementation(() => query),
@@ -172,6 +173,28 @@ describe('Portal Service', () => {
     expect(data).toHaveProperty('routes')
     expect(data).toHaveProperty('timeSeries')
     expect(data).toHaveProperty('totalVisits')
+  })
+
+  it('fetchDripSequencesList returns dynamic sequence options from DB', async () => {
+    const { fetchDripSequencesList } = await import('../../lib/portal-service')
+    const list = await fetchDripSequencesList()
+    expect(Array.isArray(list)).toBe(true)
+    expect(list.length).toBeGreaterThan(0)
+    expect(list[0]).toHaveProperty('id')
+    expect(list[0]).toHaveProperty('name')
+  })
+
+  it('fetchProduceInterestsByZipcode returns rows with zipcode demand/supply and FB ad strategies', async () => {
+    const { fetchProduceInterestsByZipcode } = await import('../../lib/portal-service')
+    const data = await fetchProduceInterestsByZipcode({})
+    expect(data).toHaveProperty('rows')
+    expect(data).toHaveProperty('totalZipcodes')
+    expect(data).toHaveProperty('totalItems')
+    expect(Array.isArray(data.rows)).toBe(true)
+    expect(data.rows.length).toBeGreaterThan(0)
+    expect(data.rows[0]).toHaveProperty('produceName')
+    expect(data.rows[0]).toHaveProperty('zipcode')
+    expect(data.rows[0]).toHaveProperty('recommendedAdStrategy')
   })
 })
 
