@@ -309,14 +309,22 @@ test.describe('/check-nutrition-loss funnel — UTM tracking UX', () => {
   test('UTM-UX-13: /check-nutrition-loss page advances to produce selection step', async ({ page }) => {
     await page.goto(`${BASE_URL}/check-nutrition-loss?utm_source=facebook`, { waitUntil: 'networkidle' })
 
-    // The page may show produce selection directly OR a CTA first
-    const ctaBtn = page.locator('button:has-text("Check My Nutrition Loss")')
+    // Step 1: Intro CTA
+    const ctaBtn = page.locator('button:has-text("Check My"), button:has-text("Analyze My")').first()
     if (await ctaBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await ctaBtn.click()
       await page.waitForTimeout(500)
     }
 
-    // Produce selection is shown — check for specific heading
+    // Step 2: Zipcode
+    const zipInput = page.locator('input[placeholder*="95125"], input[placeholder*="90210"]').first()
+    if (await zipInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await zipInput.fill('95125')
+      await page.getByRole('button', { name: 'Next →' }).click()
+      await page.waitForTimeout(500)
+    }
+
+    // Step 3: Produce selection
     await expect(
       page.getByRole('heading', { name: /produce/i })
     ).toBeVisible({ timeout: 15000 })

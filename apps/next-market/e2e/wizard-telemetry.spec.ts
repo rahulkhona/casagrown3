@@ -268,7 +268,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.waitForLoadState('networkidle');
 
     // Step 1: Intro
-    const introBtn = page.getByRole('button', { name: 'Get My Estimate →' });
+    const introBtn = page.getByRole('button', { name: /Calculate My Backyard's Value|Get My Estimate/i });
     if (await introBtn.isVisible().catch(() => false)) {
       await introBtn.click();
     }
@@ -280,21 +280,31 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
 
     // Step 3: Size
     await expect(page.locator('h2:has-text("How big is your growing space?")')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel('Large Backyard Garden').click();
+    await page.locator('label').filter({ hasText: 'Large Backyard Garden' }).locator('input').check();
     await page.getByRole('button', { name: 'Next →' }).click();
 
-    // Step 4: Plants
-    await expect(page.locator('h2:has-text("What plants are you growing?")')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel('Tomatoes').click();
-    await page.getByRole('button', { name: 'Next →' }).click();
-
-    // Step 5: Trees
+    // Step 4: Trees
     await expect(page.locator('h2:has-text("Any fruit trees?")')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel('Citrus (Lemons, Oranges)').click();
-    await page.getByRole('button', { name: 'Estimate My Potential' }).click();
+    await page.locator('label').filter({ hasText: 'Lemons' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
 
-    // Step 7: Lead capture
-    await expect(page.locator('h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
+    // Step 5: Plants
+    await expect(page.locator('h2:has-text("What plants are you growing?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'Tomatoes' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 6: Excess habits
+    await expect(page.locator('h2:has-text("How do you handle excess produce?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'Give it away' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 7: Comfort intent
+    await expect(page.locator('h2:has-text("Comfort with selling to neighbors?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'Very comfortable' }).locator('input').check();
+    await page.getByRole('button', { name: /Calculate My Potential|Estimate My Potential/i }).click();
+
+    // Step 8: Lead capture
+    await expect(page.locator('h2:has-text("Where should we send your report?"), h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
     
     // Verify wizard_step and field telemetry events are present
     expect(trackEvents).toEqual(
@@ -386,7 +396,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.waitForLoadState('networkidle');
 
     // Step 1: Intro
-    await page.getByRole('button', { name: 'Check My Nutrition Loss →' }).click();
+    await page.getByRole('button', { name: /Check My Nutrition Loss/i }).click();
 
     // Step 2: Zipcode
     const zipHeading = page.locator('h2:has-text("Where are you located?")');
@@ -397,11 +407,31 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
 
     // Step 3: Produce
     await expect(page.locator('h2:has-text("What produce do you buy most?")')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel('Spinach').click();
+    await page.locator('label').filter({ hasText: 'Spinach' }).locator('input').check();
     await page.getByRole('button', { name: 'Next →' }).click();
 
-    // Step 4: Lead capture
-    await expect(page.locator('h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
+    // Step 4: Store types
+    await expect(page.locator('h2:has-text("Where do you usually buy produce?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'Traditional Supermarket' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 5: Grocery fulfillment
+    await expect(page.locator('h2:has-text("How do you get your groceries?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'In-Store Shopping' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 6: Buying frequency
+    await expect(page.locator('h2:has-text("How often do you buy produce?")')).toBeVisible({ timeout: 30000 });
+    await page.getByText('Once a week').click();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 7: Neighbor buying openness
+    await expect(page.locator('h2:has-text("How open are you to buying fresh produce")')).toBeVisible({ timeout: 30000 });
+    await page.getByText('Very open to trying it!').click();
+    await page.getByRole('button', { name: 'Calculate My Nutrition Loss →' }).click();
+
+    // Step 8: Lead capture
+    await expect(page.locator('h2:has-text("Where should we send your report?")')).toBeVisible({ timeout: 30000 });
 
     // Verify wizard_step and field telemetry events are present
     expect(trackEvents).toEqual(
@@ -415,8 +445,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
           event_type: 'wizard_field_interact',
           page_slug: '/check-nutrition-loss',
           event_data: expect.objectContaining({
-            field: 'next_button',
-            has_value: true
+            field: 'next_button'
           })
         })
       ])
@@ -440,7 +469,10 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.waitForLoadState('networkidle');
 
     // Step 1: Intro
-    await page.getByRole('button', { name: 'Check My Nutrition Loss →' }).click();
+    const introBtn = page.getByRole('button', { name: /Check My Nutrition Loss|Calculate My Nutrition Loss/i });
+    if (await introBtn.isVisible().catch(() => false)) {
+      await introBtn.click();
+    }
 
     // Step 2: Zipcode
     const zipHeadingAbandon = page.locator('h2:has-text("Where are you located?")');

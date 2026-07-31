@@ -27,6 +27,7 @@ const createMockQuery = () => {
   const query: any = {
     select: vi.fn().mockImplementation(() => query),
     eq: vi.fn().mockImplementation(() => query),
+    neq: vi.fn().mockImplementation(() => query),
     or: vi.fn().mockImplementation(() => query),
     gte: vi.fn().mockImplementation(() => query),
     lte: vi.fn().mockImplementation(() => query),

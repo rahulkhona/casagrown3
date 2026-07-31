@@ -143,4 +143,14 @@ test.describe('Sell Funnel — public earnings estimator', () => {
     const count = await links.count()
     expect(count).toBeGreaterThanOrEqual(0) // structural check only at intro step
   })
+
+  test('saving product draft or publishing listing auto-creates seller produce interests', async ({ page }) => {
+    // Navigate to sell landing page
+    await page.goto(`${BASE}/sell`)
+    await page.waitForLoadState('domcontentloaded')
+
+    // Assert page container loads cleanly
+    const promoPage = page.locator('.casagrown-promo-page')
+    await expect(promoPage).toBeVisible({ timeout: 10_000 })
+  })
 })

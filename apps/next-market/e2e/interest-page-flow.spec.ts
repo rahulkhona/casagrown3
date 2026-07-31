@@ -104,7 +104,7 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
   })
 
   test('TC-INT-09: Shared Buyer Demand Landing Page (/demand)', async ({ page }) => {
-    await page.goto('/demand?items=Strawberries,Hass+Avocados&name=Rahul&location=San+Jose')
+    await page.goto('/demand?items=Strawberries,Hass+Avocados&name=Rahul&location=San+Jose&mode=sell')
 
     // Verify Header Banner
     await expect(page.locator('h1')).toContainText('Would you be interested in sharing or selling any of these items to Rahul?')

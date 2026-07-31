@@ -70,13 +70,13 @@ export function StateOfBusinessView() {
         <div className="kpi-card purple">
           <span className="kpi-label">Total Listings</span>
           <span className="kpi-value">{formatNumber(data.totalListings)}</span>
-          <span className="kpi-sub">Products in catalog</span>
+          <span className="kpi-sub">Published & expired listings (excl. drafts)</span>
         </div>
 
         <div className="kpi-card green">
           <span className="kpi-label">Active Listings</span>
           <span className="kpi-value">{formatNumber(data.activeListings)}</span>
-          <span className="kpi-sub">Live & buyable products</span>
+          <span className="kpi-sub">Currently active & buyable listings</span>
         </div>
 
         <div className="kpi-card blue">

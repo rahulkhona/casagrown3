@@ -329,17 +329,19 @@ export async function fetchStateOfBusiness(
     }
   }
 
-  // Listings
+  // Listings (published & expired, excluding drafts)
   const { count: totalListings } = await supabase
-    .from('products')
+    .from('market_products')
     .select('id', { count: 'exact' })
-    .or('is_deleted.is.null,is_deleted.eq.false')
+    .neq('is_deleted', true)
+    .neq('is_draft', true)
 
   const { count: activeListings } = await supabase
-    .from('products')
+    .from('market_products')
     .select('id', { count: 'exact' })
-    .or('is_deleted.is.null,is_deleted.eq.false')
     .eq('is_active', true)
+    .neq('is_deleted', true)
+    .neq('is_draft', true)
 
   // Orders
   const { data: orders, count: totalOrders } = await supabase
@@ -753,8 +755,12 @@ export async function fetchBusinessTrends(
     }
   })
 
-  // Listings trend
-  const { data: productsData } = await supabase.from('products').select('created_at, status, is_active, is_deleted')
+  // Listings trend (published & expired, excluding drafts)
+  const { data: productsData } = await supabase
+    .from('market_products')
+    .select('created_at, status, is_active, is_deleted, is_draft')
+    .neq('is_deleted', true)
+    .neq('is_draft', true)
   const listingTrendMap: Record<string, { total: number; active: number }> = {}
   for (const d of dates) {
     listingTrendMap[d] = { total: 0, active: 0 }
