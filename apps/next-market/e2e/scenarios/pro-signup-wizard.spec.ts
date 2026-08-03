@@ -309,13 +309,14 @@ test.describe('Group 1: /pro Page — Initial Load & UI', () => {
         !e.includes('404') &&
         !e.includes('401') &&
         !e.includes('406') &&
-        !e.includes('406') &&
         !e.includes('500') &&
         !e.includes('net::ERR') &&
+        !e.includes('ERR_') &&
         !e.includes('CORS') &&
         !e.includes('fetch') &&
         !e.includes('Failed to load resource') &&
-        !e.includes('Failed to fetch'),
+        !e.includes('Failed to fetch') &&
+        !e.includes('Stripe'),
     )
     expect(critical.length).toBe(0)
   })

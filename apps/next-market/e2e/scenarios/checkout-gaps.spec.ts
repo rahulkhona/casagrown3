@@ -160,6 +160,7 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
 
     // 7. Place the order
     const placeBtn = page.locator('button:has-text("Place Order")').first()
+    await expect(placeBtn).toBeEnabled({ timeout: 10000 })
     await placeBtn.click()
 
     // Wait for success screen or redirect

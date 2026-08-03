@@ -23,9 +23,9 @@ Deno.serve(async (req: Request) => {
     hasBackyard: true,
     resultKey: 'ai_estimate_result',
     extractInterests: (payload) => {
-      const plants = payload.plants || [];
-      const trees = payload.trees || [];
-      return [...plants, ...trees].join(', ');
+      const plants = (payload.plants || []).map((p: string) => p.replace(/\s*\([xX]?\d+\)/g, '').trim());
+      const trees = (payload.trees || []).map((t: string) => t.replace(/\s*\([xX]?\d+\)/g, '').trim());
+      return [...new Set([...plants, ...trees])].filter(Boolean).join(', ');
     },
     buildMetadata: (payload) => ({
       garden_size: payload.size,
