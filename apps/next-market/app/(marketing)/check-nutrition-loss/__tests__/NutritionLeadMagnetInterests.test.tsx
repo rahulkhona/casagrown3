@@ -47,50 +47,55 @@ describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
   it('renders landing page headline', () => {
     render(<NutritionLossLandingPage />)
     expect(screen.getByText(/The Post-Harvest Nutrient Gap/i)).toBeDefined()
-    expect(screen.getByText(/Check My Nutrition Loss →/i)).toBeDefined()
+    expect(screen.getAllByText(/Check My Nutrition Loss →/i)[0]).toBeDefined()
   })
 
   it('auto-registers buy interests when lead form is submitted and displays market CTA', async () => {
     render(<NutritionLossLandingPage />)
 
     // Step 1: Click Check My Nutrition Loss →
-    fireEvent.click(screen.getByText(/Check My Nutrition Loss →/i))
+    fireEvent.click(screen.getAllByText(/Check My Nutrition Loss →/i)[0])
 
     // Step 2: Zipcode
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/e.g. 95125/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+    fireEvent.change(screen.getByPlaceholderText(/e.g. 95125/i), { target: { value: '95125' } })
+    fireEvent.click(screen.getAllByText(/Next →/i)[0])
 
-    // Step 3: Select produce (Spinach)
+    // Step 3: Select produce (Heirloom Tomatoes)
     await waitFor(() => {
-      expect(screen.getByText(/Spinach/i)).toBeDefined()
+      expect(screen.getByText(/Heirloom Tomatoes/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByText(/Spinach/i))
-    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+    fireEvent.click(screen.getByText(/Heirloom Tomatoes/i))
+    fireEvent.click(screen.getAllByText(/Next →/i)[0])
 
     // Step 4: Store Types
     await waitFor(() => {
       expect(screen.getByText(/Traditional Supermarket/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+    fireEvent.click(screen.getByText(/Traditional Supermarket/i))
+    fireEvent.click(screen.getAllByText(/Next →/i)[0])
 
     // Step 5: Grocery Methods
     await waitFor(() => {
       expect(screen.getByText(/In-Store Shopping/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+    fireEvent.click(screen.getByText(/In-Store Shopping/i))
+    fireEvent.click(screen.getAllByText(/Next →/i)[0])
 
     // Step 6: Buying Frequency
     await waitFor(() => {
       expect(screen.getByText(/Once a week/i)).toBeDefined()
     })
-    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+    fireEvent.click(screen.getByText(/Once a week/i))
+    fireEvent.click(screen.getAllByText(/Next →/i)[0])
 
     // Step 7: Neighbor Buying Openness
     await waitFor(() => {
       expect(screen.getByText(/Very open to trying it!/i)).toBeDefined()
     })
+    fireEvent.click(screen.getByText(/Very open to trying it!/i))
     fireEvent.click(screen.getByText(/Calculate My Nutrition Loss →/i))
 
     // Step 8: Lead Capture Form (1.2s calculation delay)
