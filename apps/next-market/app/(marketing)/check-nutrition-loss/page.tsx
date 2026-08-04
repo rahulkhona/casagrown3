@@ -18,17 +18,17 @@ export default function NutritionLossLandingPage() {
   const stepRef = React.useRef(step)
 
   // Questionnaire State
-  const [zipcode, setZipcode] = useState('95125')
+  const [zipcode, setZipcode] = useState('')
   const [selectedProduce, setSelectedProduce] = useState<string[]>([])
   
   type CustomItem = { id: string, name: string }
   const [customProduceList, setCustomProduceList] = useState<CustomItem[]>([])
   
   // Buyer Qualification State (1 Question Per Page, Multi-Select Support)
-  const [selectedStoreTypes, setSelectedStoreTypes] = useState<string[]>(['Specialty & Organic Grocer', 'Traditional Supermarket'])
-  const [selectedFulfillmentModes, setSelectedFulfillmentModes] = useState<string[]>(['In-Store Shopping'])
-  const [buyingFrequency, setBuyingFrequency] = useState('1week')
-  const [neighborBuyingComfort, setNeighborBuyingComfort] = useState('very_open')
+  const [selectedStoreTypes, setSelectedStoreTypes] = useState<string[]>([])
+  const [selectedFulfillmentModes, setSelectedFulfillmentModes] = useState<string[]>([])
+  const [buyingFrequency, setBuyingFrequency] = useState('')
+  const [neighborBuyingComfort, setNeighborBuyingComfort] = useState('')
 
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<any>(null)
