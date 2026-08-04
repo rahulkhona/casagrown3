@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { useReferralCapture, getReferralData } from '../../../lib/useReferralCapture'
 import { createClient } from '../../../lib/supabase'
+import { trackMetaLead } from '../../../lib/crm-analytics'
 import { Navbar } from '../../components/Navbar'
 import { BottomNav } from '../../components/BottomNav'
 import { MarketProvider } from '../../../lib/store'
@@ -506,6 +507,11 @@ function InterestPageContent() {
         body: JSON.stringify(submitPayload),
       })
       const respData = await resp.json()
+
+      if (resp.ok || respData?.success) {
+        const leadContentName = scope === 'sell' ? 'interest_sell' : 'interest_buy'
+        trackMetaLead(leadContentName)
+      }
 
       if (userId) {
         try {

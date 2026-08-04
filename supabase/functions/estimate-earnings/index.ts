@@ -1,4 +1,5 @@
 import { handleLeadIngestion, CORS } from "../_shared/funnel_processor.ts";
+import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -32,35 +33,86 @@ Deno.serve(async (req: Request) => {
       plants: payload.plants || [],
       trees: payload.trees || []
     }),
+    mergeAiResult: (payload, aiResult) => {
+      const plants = payload.plants || [];
+      const trees = payload.trees || [];
+      const allItems = [...plants, ...trees].join(', ');
+      return {
+        ...aiResult,
+        _selected_items: allItems
+      };
+    },
     getAiPrompt: (payload) => {
-      const produceList = [ ...(payload.plants || []), ...(payload.trees || []) ];
-      const produceStr = produceList.length ? produceList.join(", ") : "None";
+      const pStr = (payload.plants || []).join(', ');
+      const tStr = (payload.trees || []).join(', ');
+      const zip = payload.zipcode || '90210';
+      const size = payload.size || 'Medium';
 
-      return `You are an expert agricultural and economic estimator for CasaGrown, a neighborhood backyard produce marketplace.
+      return `Given a residential garden in US ZIP code ${zip} with size "${size}", plants [${pStr}], and fruit trees [${tStr}]:
 
-A home grower has provided the following details about their garden:
-- Zipcode: ${payload.zipcode || "Unknown"}
-- Garden Space: ${payload.size}
-- Selected Produce: ${produceStr}
+Estimate the potential excess seasonal produce and its financial value if sold locally on a peer-to-peer marketplace.
 
-Task:
-1. The user has explicitly provided the specific quantities of each plant and tree they are growing (indicated by 'xN' in the input). Use these EXACT quantities to calculate their yield. Do not estimate different plant counts. Account for the local climate and typical amateur yields for this area, which are much lower than professional farms.
-2. Based on their provided plant/tree counts and local climate, estimate the EXCESS produce this garden might yield in a typical growing season that a family couldn't eat themselves.
-3. Estimate the total potential earnings in USD if they sold this excess to neighbors at fair local organic market prices for this specific zipcode. Keep this grounded in reality based on their specific plant quantities.
-4. Provide exactly 3 fun, relatable financial analogies for these earnings PER YEAR. Keep them short.
-5. Briefly explain the reasoning behind this estimate based on the local market value and the yields expected from their provided plant quantities. Keep it to 1-2 short sentences.
+CRITICAL INSTRUCTIONS:
+1. You MUST calculate and include projected excess yields for EVERY SINGLE plant and tree item listed in the input above. Do not skip or omit any selected fruit trees or plants.
+2. YIELD REALISM & QUANTITY SCALING:
+   - Calculate yields by multiplying the user's exact item quantity (xN) by realistic suburban backyard amateur yields.
+   - Vegetable plants (tomatoes, peppers, zucchini, cucumbers, eggplants): ~3–8 lbs surplus PER PLANT.
+   - Residential fruit trees (citrus, stone fruits, avocados, apples, pears, figs): ~20–40 excess fruits (or ~15–30 lbs) PER MATURE TREE.
+   - Berry bushes & plants (strawberries, blueberries, blackberries): ~1–3 lbs surplus PER BUSH/PLANT.
+   - Leafy greens & herbs (basil, kale, spinach, mint): ~5–10 bunches/lbs surplus PER PLANT.
+   - DO NOT generate commercial farm yields (such as 45 lbs for a single tomato plant). Keep calculations realistic for suburban backyard growers.
 
-Example Input context:
-Zipcode: 90210, Space: Small Backyard, Selected Produce: Tomatoes (x2), Peppers (x1), Lemons (x1)
-Example Output:
-{
-  "excess_produce": "15 lbs of tomatoes, 10 lbs of peppers, and 30 lbs of lemons",
-  "estimated_annual_earnings": 250,
-  "analogies": ["1 car payment", "Your streaming subscriptions for the year", "A weekend getaway"],
-  "reasoning": "In 90210, local organic prices for these yields from 2 tomato plants, 1 pepper plant, and 1 dwarf lemon tree average $250."
-}
+Return JSON with exactly these fields:
+1. "excess_produce": string (comma-separated list of estimated excess yield for ALL selected items, e.g. "8 lbs tomatoes, 3 lbs peppers, 30 lemons")
+2. "estimated_annual_earnings": number (realistic annual $ total earnings from selling all surplus produce, e.g. 120)
+3. "analogies": array of 3 strings (fun relatable things that amount of money pays for, e.g. ["A week of organic groceries", "3 months of Netflix & Spotify", "A nice dinner out for two"])
+4. "reasoning": string (1 concise sentence explaining the estimate based on local market prices)
 
 Respond ONLY with the JSON object for the provided details (no markdown, no code fences):`;
+    },
+    emailSubject: "Your CasaGrown Backyard Earnings Report is Ready! 🌿",
+    getSuccessHtml: (firstName: string, leadId: string, result: any) => {
+      const analogiesHtml = (result.analogies || []).map((a: string) => `
+        <li style="margin-bottom: 8px; color: #4b5563; font-size: 14px;">🎯 ${a}</li>
+      `).join('');
+
+      const selectedItems = result._selected_items || "";
+
+      const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">Our AI has analyzed the potential of your backyard garden based on local demand and pricing for all your selected crops & fruit trees.</p>
+
+        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+          <p style="margin: 0; color: #166534; font-weight: bold; text-transform: uppercase; font-size: 11px; letter-spacing: 1px;">Estimated Annual Earnings</p>
+          <div style="font-size: 44px; color: #14532d; font-weight: 900; margin: 6px 0;">$${result.estimated_annual_earnings}</div>
+          <p style="margin: 0; color: #15803d; font-style: italic; font-size: 13px;">${result.reasoning}</p>
+        </div>
+
+        ${selectedItems ? `
+        <div style="margin-bottom: 16px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px;">
+          <h3 style="color: #14532d; font-size: 14px; margin: 0 0 6px;">🌳 Selected Garden Crops & Trees</h3>
+          <p style="color: #166534; margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5;">${selectedItems}</p>
+        </div>` : ''}
+
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #166534; font-size: 15px; margin: 0 0 6px;">🍅 Projected Surplus Yield</h3>
+          <p style="color: #374151; font-weight: bold; margin: 0; font-size: 14px; line-height: 1.5;">${result.excess_produce}</p>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+          <p style="color: #374151; font-weight: bold; margin-bottom: 8px; font-size: 14px;">That's enough extra cash per year to pay for:</p>
+          <ul style="list-style-type: none; padding: 0; margin: 0;">
+            ${analogiesHtml}
+          </ul>
+        </div>
+
+        ${actionButton("Start Selling on CasaGrown →", "https://casagrown.com/create-listing")}
+      `;
+
+      return wrapInBrandedTemplate({
+        title: "Backyard Potential Report",
+        greeting: `Hi ${firstName},`,
+        bodyHtml
+      });
     }
   });
 });

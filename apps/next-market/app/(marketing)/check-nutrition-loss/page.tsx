@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../lib/crm-analytics'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackMetaLead } from '../../../lib/crm-analytics'
+import { sendLocalMailpitEmail } from '../../../lib/local-mailpit'
 
 export default function NutritionLossLandingPage() {
 
@@ -31,6 +32,7 @@ export default function NutritionLossLandingPage() {
 
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<any>(null)
+  const [hasActiveListings, setHasActiveListings] = useState(false)
 
   // Lead Capture State
   const [name, setName] = useState('')
@@ -38,6 +40,26 @@ export default function NutritionLossLandingPage() {
   const [phone, setPhone] = useState('')
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const loadingSteps = [
+    { pct: 25, text: "Analyzing post-harvest transit times..." },
+    { pct: 55, text: "Calculating Vitamin C & nutrient degradation..." },
+    { pct: 80, text: "Matching local fresh harvest stands near " + (zipcode || '95125') + "..." },
+    { pct: 95, text: "Finalizing personalized nutrition report..." }
+  ]
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+
+  useEffect(() => {
+    let interval: any;
+    if (isLoading) {
+      interval = setInterval(() => {
+        setLoadingMsgIdx(prev => (prev + 1) % loadingSteps.length)
+      }, 1500)
+    } else {
+      setLoadingMsgIdx(0)
+    }
+    return () => clearInterval(interval)
+  }, [isLoading])
 
   const selectedProduceRef = React.useRef(selectedProduce)
   const nameRef = React.useRef(name)
@@ -191,10 +213,7 @@ export default function NutritionLossLandingPage() {
     }
     setErrorMsg("")
     wentNext.current = true
-    setStep('calculating')
-    setTimeout(() => {
-      setStep('lead-capture')
-    }, 1200)
+    setStep('lead-capture')
   }
 
   const handleLeadCapture = async (e: React.FormEvent) => {
@@ -235,30 +254,51 @@ export default function NutritionLossLandingPage() {
         }).catch(err => console.error("Failed to auto-register buy interests:", err))
       }
 
-      const { data, error } = await supabase.functions.invoke('estimate-nutrition-loss', {
-        body: {
-          produce: finalProduce,
-          lead: { 
-            name, 
-            email, 
-            phone, 
-            zipcode: zipcode.trim() || '95125',
-            store_types: selectedStoreTypes,
-            fulfillment_modes: selectedFulfillmentModes,
-            buying_frequency: buyingFrequency,
-            neighbor_buying_comfort: neighborBuyingComfort,
-            marketingConsent,
-            ...trackingData 
-          }
+      const payload = {
+        produce: finalProduce,
+        lead: { 
+          name, 
+          email, 
+          phone, 
+          zipcode: zipcode.trim() || '95125',
+          store_types: selectedStoreTypes,
+          fulfillment_modes: selectedFulfillmentModes,
+          buying_frequency: buyingFrequency,
+          neighbor_buying_comfort: neighborBuyingComfort,
+          marketingConsent,
+          ...trackingData 
         }
-      })
+      }
+
+      let { data, error } = await supabase.functions.invoke('estimate-nutrition-loss', { body: payload })
       
-      if (error) {
-        console.error("Backend request failed:", error)
-      } else if (data && data.error) {
-        console.error("Function logic error:", data.error)
-      } else if (data && data.ai_nutrition_result) {
-        setResults(data.ai_nutrition_result)
+      if (!error) {
+        trackMetaLead('buyer_nutrition_report', { force: true })
+      }
+
+      // Check marketplace for active produce listings
+      try {
+        const { data: activeListings } = await supabase
+          .from('market_products')
+          .select('id')
+          .eq('status', 'active')
+          .limit(1)
+        if (activeListings && activeListings.length > 0) {
+          setHasActiveListings(true)
+        }
+      } catch (mErr) {
+        console.warn("Marketplace listings check failed:", mErr)
+      }
+
+      if (!error && data?.queued) {
+        wentNext.current = true
+        setStep('queued')
+        return
+      }
+
+      if (data && data.ai_nutrition_result) {
+        const resObj = data.ai_nutrition_result
+        setResults(resObj)
         wentNext.current = true
         setStep('results')
         return
@@ -815,27 +855,124 @@ export default function NutritionLossLandingPage() {
                       </label>
                     </div>
 
-                    <button type="submit" disabled={isLoading} className="btn-action">
-                      {isLoading ? 'Generating Report...' : 'Get My Free Nutrition Report →'}
+                    <button 
+                      type="submit" 
+                      disabled={isLoading} 
+                      className="btn-action"
+                      style={{ position: 'relative', overflow: 'hidden', opacity: isLoading ? 0.95 : 1, transition: 'all 0.3s' }}
+                    >
+                      {isLoading && (
+                        <div 
+                          style={{ 
+                            position: 'absolute', top: 0, left: 0, bottom: 0, 
+                            width: `${loadingSteps[loadingMsgIdx].pct}%`, 
+                            background: 'rgba(255,255,255,0.25)', 
+                            transition: 'width 0.6s ease-in-out' 
+                          }} 
+                        />
+                      )}
+                      {isLoading ? (
+                        <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                          <span className="spinner" style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+                          <span style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {loadingSteps[loadingMsgIdx].pct}% • {loadingSteps[loadingMsgIdx].text}
+                          </span>
+                        </span>
+                      ) : (
+                        'Get My Free Nutrition Report →'
+                      )}
                     </button>
                   </form>
                 </div>
               )}
 
-              {/* STEP 10: RESULTS / QUEUED */}
-              {(step === 'results' || step === 'queued') && (
+              {/* STEP 10: RESULTS */}
+              {step === 'results' && results && (
+                <div className="fade-in-up" style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🥬</div>
+                  <h2 className="form-heading" style={{ fontSize: '1.8rem', marginBottom: '8px', color: '#4ade80' }}>
+                    Your Nutrition Report is Ready!
+                  </h2>
+                  <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', lineHeight: 1.6 }}>
+                    We've emailed a full copy of this report to <strong>{email}</strong>.
+                  </p>
+
+                  {/* Summary / Freshness Score Card */}
+                  <div style={{ background: 'rgba(34,197,94,0.1)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(74,222,128,0.3)', marginBottom: '24px', textAlign: 'left' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#4ade80', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                      POST-HARVEST ANALYSIS
+                    </div>
+                    <p style={{ fontSize: '1.05rem', color: '#ffffff', lineHeight: 1.6, margin: 0 }}>
+                      {results.summary || 'Store-bought produce loses significant Vitamin C and essential nutrients during multi-day transport.'}
+                    </p>
+                  </div>
+
+                  {/* Items Breakdown Table */}
+                  {results.items && results.items.length > 0 && (
+                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: '24px', textAlign: 'left' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(255,255,255,0.05)', color: '#4ade80', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            <th style={{ padding: '12px 16px' }}>Item</th>
+                            <th style={{ padding: '12px 16px' }}>Nutrient Loss</th>
+                            <th style={{ padding: '12px 16px' }}>Transit Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.items.map((item: any, idx: number) => (
+                            <tr key={idx} style={{ borderBottom: idx < results.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                              <td style={{ padding: '12px 16px', fontWeight: 600, textTransform: 'capitalize' }}>{item.name}</td>
+                              <td style={{ padding: '12px 16px', color: '#f87171', fontWeight: 700 }}>{item.nutrient_loss_pct}</td>
+                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>{item.time_to_shelf}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Dynamic CTA depending on marketplace availability */}
+                  {(() => {
+                    const firstProduce = selectedProduce.find(p => p !== 'Other') || customProduceList[0]?.name || ''
+                    if (hasActiveListings) {
+                      return (
+                        <Link 
+                          href={`/market?q=${encodeURIComponent(firstProduce)}&zipcode=${encodeURIComponent(zipcode || '95125')}`} 
+                          className="btn-action" 
+                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
+                        >
+                          🛒 Find Fresh {firstProduce ? firstProduce.charAt(0).toUpperCase() + firstProduce.slice(1) : 'Harvest'} Near You →
+                        </Link>
+                      )
+                    } else {
+                      return (
+                        <Link 
+                          href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${firstProduce ? `&produce=${encodeURIComponent(firstProduce)}` : ''}`} 
+                          className="btn-action" 
+                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
+                        >
+                          🔔 Register Interest & Get Notified of Local Harvest →
+                        </Link>
+                      )
+                    }
+                  })()}
+                </div>
+              )}
+
+              {/* STEP 10: QUEUED (Fallback if AI delayed) */}
+              {step === 'queued' && (
                 <div className="fade-in-up" style={{ textAlign: 'center', padding: '20px 0' }}>
                   <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🌱</div>
                   <h2 className="form-heading" style={{ fontSize: '1.8rem', marginBottom: '12px' }}>
-                    {step === 'results' ? 'Your Nutrition Report is Ready!' : 'Your Report is on the Way!'}
+                    Your Report is On Its Way!
                   </h2>
                   <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', lineHeight: 1.6 }}>
-                    {results ? `Estimated grocery freshness score: ${results.overall_freshness_score || 58}/100.` : `We're analyzing agricultural data for your specific items and emailing your personalized report to `} <strong>{email}</strong>.
+                    We're analyzing post-harvest degradation data for your specific items and emailing your personalized report to <strong>{email}</strong>.
                   </p>
 
                   <div style={{ background: 'rgba(34,197,94,0.1)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(74,222,128,0.3)', marginBottom: '24px', textAlign: 'left' }}>
                     <p style={{ fontSize: '0.95rem', color: '#4ade80', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
-                      🔔 We've saved your produce list to match you with backyard growers in {zipcode || '95125'}! As soon as local neighbors harvest fresh produce, we'll notify you.
+                      🔔 We've saved your produce list to match you with backyard growers near {zipcode || '95125'}! As soon as local neighbors harvest fresh produce, we'll notify you.
                     </p>
                   </div>
                   

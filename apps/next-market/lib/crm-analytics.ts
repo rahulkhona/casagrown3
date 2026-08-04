@@ -28,15 +28,65 @@ function getSessionId(): string {
   return id
 }
 
-/** Parse UTM params from the current URL */
+/** Parse UTM params from the current URL and persist Meta tracking markers */
 function getUtmParams(): Record<string, string | null> {
   if (typeof window === 'undefined') return {}
   const params = new URLSearchParams(window.location.search)
+  const utmSource = params.get('utm_source')
+  const fbclid = params.get('fbclid')
+
+  if (utmSource) {
+    try { sessionStorage.setItem('crm_utm_source', utmSource) } catch {}
+  }
+  if (fbclid) {
+    try { sessionStorage.setItem('crm_fbclid', fbclid) } catch {}
+  }
+
   return {
-    utm_source: params.get('utm_source'),
+    utm_source: utmSource,
     utm_campaign: params.get('utm_campaign'),
     utm_content: params.get('utm_content'),
     utm_medium: params.get('utm_medium'),
+  }
+}
+
+/**
+ * Check if the user's session originated from Meta/Facebook traffic (Ads, Posts, or Referrals).
+ * Returns true if URL params, sessionStorage, or document.referrer indicate Facebook/Instagram.
+ */
+export function isMetaTraffic(): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const urlUtm = (params.get('utm_source') || '').toLowerCase()
+    const hasFbclid = params.has('fbclid') || !!sessionStorage.getItem('crm_fbclid')
+    
+    const storedUtm = (sessionStorage.getItem('crm_utm_source') || '').toLowerCase()
+    const referrer = (document.referrer || '').toLowerCase()
+
+    const metaKeywords = ['facebook', 'fb', 'instagram', 'ig', 'meta', 'fb_ad', 'an']
+    
+    const isMetaUtm = metaKeywords.some((keyword) => urlUtm.includes(keyword) || storedUtm.includes(keyword))
+    const isMetaReferrer = referrer.includes('facebook.com') || referrer.includes('instagram.com') || referrer.includes('fb.com')
+
+    return hasFbclid || isMetaUtm || isMetaReferrer
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Fires Meta Pixel 'Lead' event ONLY if traffic originated from Meta/Facebook
+ * or if force is set to true (e.g. for dedicated ad landing pages).
+ */
+export function trackMetaLead(contentName: string, options: { force?: boolean } = {}): void {
+  if (typeof window === 'undefined') return
+
+  if (options.force || isMetaTraffic()) {
+    if ((window as any).fbq) {
+      ;(window as any).fbq('track', 'Lead', { content_name: contentName })
+    }
   }
 }
 

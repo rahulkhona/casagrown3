@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { trackMetaLead } from '../../../lib/crm-analytics'
 import { useSearchParams } from 'next/navigation'
 
 import { normalizeStateCode, validateProfileFields } from '../../../lib/address'
@@ -765,6 +766,7 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
 
       if (!isDraft) {
         updateState({ isPublished: true, publishedProductId: insertedProduct.id })
+        trackMetaLead('create_listing_published')
       }
       
       // Refresh the global auth cache before finishing to prevent stale state redirects

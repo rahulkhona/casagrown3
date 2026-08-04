@@ -81,7 +81,9 @@ export async function sendTransactionEmail(
         messageStream = "outbound";
     }
 
-    const isProduction = !!token;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const isLocal = supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
+    const isProduction = !!token && !isLocal;
 
     try {
         if (isProduction) {
@@ -116,12 +118,14 @@ export async function sendTransactionEmail(
         // Local dev: Mailpit SMTP (no auth, no TLS)
         const client = new SMTPClient({
             connection: {
-                hostname: "host.docker.internal",
+                hostname: Deno.env.get("MAILPIT_HOST") ?? "host.docker.internal",
                 port: 54325,
                 tls: false,
             },
             debug: { allowUnsecure: true },
         });
+
+        const cleanHtml = payload.htmlBody.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
 
         // deno-lint-ignore no-explicit-any
         const sendOpts: any = {
@@ -129,7 +133,7 @@ export async function sendTransactionEmail(
             to: payload.to,
             subject: payload.subject,
             content: "auto",
-            html: payload.htmlBody,
+            html: cleanHtml,
             ...(payload.textBody && { text: payload.textBody }),
         };
 
@@ -184,7 +188,9 @@ export async function sendBroadcastEmail(
     const messageStream = Deno.env.get("POSTMARK_BROADCAST_STREAM") ??
         "broadcast";
 
-    const isProduction = !!token;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const isLocal = supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
+    const isProduction = !!token && !isLocal;
 
     const smtpConfig = isProduction
         ? {
@@ -199,7 +205,7 @@ export async function sendBroadcastEmail(
         }
         : {
             // Local dev fallback
-            hostname: "host.docker.internal",
+            hostname: Deno.env.get("MAILPIT_HOST") ?? "host.docker.internal",
             port: 54325,
             tls: false,
         };
@@ -210,13 +216,15 @@ export async function sendBroadcastEmail(
             ...(!isProduction && { debug: { allowUnsecure: true } }),
         });
 
+        const cleanHtml = payload.htmlBody.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+
         // deno-lint-ignore no-explicit-any
         const sendOpts: any = {
             from: fromEmail,
             to: payload.to,
             subject: payload.subject,
             content: "auto",
-            html: payload.htmlBody,
+            html: cleanHtml,
             ...(payload.textBody && { text: payload.textBody }),
         };
 

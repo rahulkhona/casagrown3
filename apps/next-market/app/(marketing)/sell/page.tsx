@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
-import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../lib/crm-analytics'
+import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackMetaLead } from '../../../lib/crm-analytics'
+import { sendLocalMailpitEmail } from '../../../lib/local-mailpit'
 
 export default function SellLandingPage() {
 
@@ -158,12 +159,11 @@ export default function SellLandingPage() {
   }, [])
 
 
-  const loadingMessages = [
-    "Analyzing climate data for your zipcode...",
-    "Calculating expected amateur yields for your specific plant varieties...",
-    "Checking local organic market prices in your area...",
-    "Estimating your annual backyard earnings...",
-    "Finalizing your personalized CasaGrown report..."
+  const loadingSteps = [
+    { pct: 25, text: "Analyzing climate & soil data for your zipcode..." },
+    { pct: 55, text: "Calculating amateur yields for crop counts..." },
+    { pct: 80, text: "Checking local organic market prices..." },
+    { pct: 95, text: "Finalizing personalized CasaGrown report..." }
   ]
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
 
@@ -171,8 +171,8 @@ export default function SellLandingPage() {
     let interval: any;
     if (isLoading) {
       interval = setInterval(() => {
-        setLoadingMsgIdx(prev => (prev + 1) % loadingMessages.length)
-      }, 4000)
+        setLoadingMsgIdx(prev => (prev + 1) % loadingSteps.length)
+      }, 1500)
     } else {
       setLoadingMsgIdx(0)
     }
@@ -246,11 +246,7 @@ export default function SellLandingPage() {
   const handleCalculate = async () => {
     trackFieldInteract('/sell', 4, 'next_button', true)
     wentNext.current = true
-    setStep('calculating')
-    // Just wait 1.5 seconds for the UI, then show the lead capture form
-    setTimeout(() => {
-      setStep('lead-capture')
-    }, 1500)
+    setStep('lead-capture')
   }
 
   const handleLeadCapture = async (e: React.FormEvent) => {
@@ -301,35 +297,39 @@ export default function SellLandingPage() {
       let finalData = null;
       
       try {
-        const { data, error } = await supabase.functions.invoke('estimate-earnings', {
-          body: {
-            zipcode,
-            size: gardenSize,
-            plants: finalPlants,
-            trees: finalTrees,
-            excess_handling: excessHandling,
-            selling_comfort: sellingComfort,
-            lead: { 
-              name, 
-              email, 
-              phone, 
-              marketingConsent,
-              ...trackingData 
-            }
+        const payload = {
+          zipcode,
+          size: gardenSize,
+          plants: finalPlants,
+          trees: finalTrees,
+          excess_handling: excessHandling,
+          selling_comfort: sellingComfort,
+          lead: { 
+            name, 
+            email, 
+            phone, 
+            marketingConsent,
+            ...trackingData 
           }
-        })
-        
+        }
+
+        let { data, error } = await supabase.functions.invoke('estimate-earnings', { body: payload })
+
+        if (!error) {
+          trackMetaLead('sell_backyard_calculator', { force: true })
+        }
+
         if (!error && data?.queued) {
           wentNext.current = true
           setStep('queued')
           return
         }
         
-        if (!error && data?.ai_estimate_result) {
+        if (data && data.ai_estimate_result) {
           finalData = data.ai_estimate_result
         }
       } catch (invokeErr) {
-        // Edge function unavailable — proceed gracefully to queued/results step
+        console.error("[SellPage] Edge function invoke failed:", invokeErr)
       }
       
       if (finalData) {
@@ -841,14 +841,24 @@ export default function SellLandingPage() {
                   <button 
                     type="submit" 
                     className="btn-action" 
-                    style={{ opacity: isLoading ? 0.7 : 1, transition: 'all 0.3s' }} 
+                    style={{ position: 'relative', overflow: 'hidden', opacity: isLoading ? 0.95 : 1, transition: 'all 0.3s' }} 
                     disabled={isLoading}
                   >
+                    {isLoading && (
+                      <div 
+                        style={{ 
+                          position: 'absolute', top: 0, left: 0, bottom: 0, 
+                          width: `${loadingSteps[loadingMsgIdx].pct}%`, 
+                          background: 'rgba(255,255,255,0.25)', 
+                          transition: 'width 0.6s ease-in-out' 
+                        }} 
+                      />
+                    )}
                     {isLoading ? (
-                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                      <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                         <span className="spinner" style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
-                        <span style={{ fontSize: '0.9rem', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {loadingMessages[loadingMsgIdx]}
+                        <span style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {loadingSteps[loadingMsgIdx].pct}% • {loadingSteps[loadingMsgIdx].text}
                         </span>
                       </span>
                     ) : (

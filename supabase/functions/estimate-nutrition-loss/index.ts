@@ -1,4 +1,5 @@
 import { handleLeadIngestion, CORS } from "../_shared/funnel_processor.ts";
+import { wrapInBrandedTemplate, actionButton } from "../_shared/email-templates.ts";
 import pluralize from "https://esm.sh/pluralize@8.0.0";
 
 Deno.serve(async (req: Request) => {
@@ -100,6 +101,45 @@ Respond ONLY with the JSON object. Do not use markdown blocks or code fences.`;
           })),
           { onConflict: 'name' }
         );
+    },
+    emailSubject: "Your Post-Harvest Grocery Nutrition Loss Report is Ready! 🥬",
+    getSuccessHtml: (firstName: string, leadId: string, result: any) => {
+      const itemsHtml = (result.items || []).map((item: any) => `
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px; font-weight: bold; text-transform: capitalize; font-size: 13px;">${item.name}</td>
+          <td style="padding: 10px; color: #dc2626; font-weight: bold; font-size: 13px;">${item.nutrient_loss_pct}</td>
+          <td style="padding: 10px; color: #4b5563; font-size: 13px;">${item.time_to_shelf}</td>
+          <td style="padding: 10px; color: #4b5563; font-size: 13px;">${item.impacted_nutrients}</td>
+        </tr>
+      `).join('');
+
+      const bodyHtml = `
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">${result.summary || 'Store-bought produce loses significant nutrition between harvest and retail shelves.'}</p>
+
+        <div style="margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="background-color: #f9fafb; color: #374151;">
+                <th style="padding: 10px;">Produce</th>
+                <th style="padding: 10px;">Loss</th>
+                <th style="padding: 10px;">Transit</th>
+                <th style="padding: 10px;">Impacted Nutrients</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+        </div>
+
+        ${actionButton("Find Fresh Local Harvest Near You →", "https://casagrown.com/interest?scope=buy")}
+      `;
+
+      return wrapInBrandedTemplate({
+        title: "Grocery Nutrition Loss Report",
+        greeting: `Hi ${firstName},`,
+        bodyHtml
+      });
     }
   });
 });
