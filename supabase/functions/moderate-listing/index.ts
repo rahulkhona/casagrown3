@@ -16,13 +16,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// ── AI config ────────────────────────────────────────────────────────────────
-// Uses Google Gemini API directly (free tier: 15 RPM, no credits needed).
-// The OpenAI-compatible endpoint means the rest of the code stays the same.
-const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
+import { fetchAiCompletion, cleanJsonText } from "../_shared/funnel_processor.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -204,7 +198,7 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
     if (SKIP_AI) {
       // Skip Gemini only during automated E2E tests — auto-approve
       console.log(`⏭️ [SKIP_AI] Skipping Gemini moderation for "${name}" — auto-approving`);
-    } else if (AI_KEY) {
+    } else {
       try {
         // Build message content — text + optional image
         const content: any[] = [];
@@ -226,27 +220,19 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
 
         content.push({ type: "text", text: parts[0].text });
 
-        const aiRes = await fetch(AI_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${AI_KEY}`,
-            "HTTP-Referer": "https://casagrown.com",
-            "X-Title": "CasaGrown Listing Moderation",
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            messages: [{ role: "user", content }],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
-          }),
+        const aiRes = await fetchAiCompletion({
+          content,
+          responseFormat: { type: "json_object" },
+          models: ["gemma-4-31b-it", "gemini-3.5-flash-lite"],
+          timeoutMs: 15000,
+          temperature: 0.1,
         });
 
         if (aiRes.ok) {
           const aiData = await aiRes.json();
           const raw = aiData?.choices?.[0]?.message?.content ?? "{}";
           try {
-            moderationResult = JSON.parse(raw);
+            moderationResult = JSON.parse(cleanJsonText(raw));
           } catch {
             console.warn("⚠️ Could not parse AI response:", raw);
           }
@@ -257,8 +243,6 @@ NOTE: $0 (free) listings are VALID — CasaGrown encourages free sharing and giv
       } catch (fetchErr) {
         console.warn("⚠️ AI moderation connection failed — defaulting to approved:", fetchErr);
       }
-    } else {
-      console.warn("⚠️ OPENROUTER_API_KEY not set — auto-approving");
     }
 
     // ── 4. Apply result ───────────────────────────────────────────────────────

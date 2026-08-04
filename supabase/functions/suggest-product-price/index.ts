@@ -9,17 +9,10 @@
  * Response: { price_usd: number, unit: string, source: "ai_estimate" }
  */
 
-const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
+import { fetchAiCompletion, cleanJsonText, CORS } from "../_shared/funnel_processor.ts";
+
 const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1");
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Content-Type": "application/json",
-};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -47,11 +40,7 @@ Deno.serve(async (req: Request) => {
       }), { headers: CORS });
     }
 
-    if (!AI_KEY) {
-      return new Response(JSON.stringify({ error: "AI not configured" }), {
-        status: 200, headers: CORS,
-      });
-    }
+
 
     const geography = [city, state].filter(Boolean).join(", ") || "United States";
     const requestedUnit = unit && validUnits.includes(unit) ? unit : null;
@@ -75,46 +64,15 @@ Respond ONLY with a JSON object (no markdown, no code fences):
   "unit": "${requestedUnit ? requestedUnit : '<one of: each | bunch | dozen | jar | bag | box | basket>'}"
 }`;
 
-    let aiRes = await fetch(AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AI_KEY}`,
-        "HTTP-Referer": "https://casagrown.com",
-        "X-Title": "CasaGrown Price Suggestion",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
-        temperature: 0.3,
-      }),
+    const aiRes = await fetchAiCompletion({
+      content: prompt,
+      maxTokens: 100,
+      timeoutMs: 8000
     });
-
-    // Retry once on 429/503
-    if (aiRes.status === 429 || aiRes.status === 503) {
-      console.warn(`Gemma ${aiRes.status}, retrying after 2s...`);
-      await new Promise((r) => setTimeout(r, 2000));
-      aiRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Price Suggestion",
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 100,
-          temperature: 0.3,
-        }),
-      });
-    }
 
     if (!aiRes.ok) {
       const errText = await aiRes.text();
-      console.error("Gemma API error:", aiRes.status, errText);
+      console.error("AI API error:", aiRes.status, errText);
       return new Response(JSON.stringify({ error: `AI ${aiRes.status}` }), {
         status: 200, headers: CORS,
       });
@@ -122,10 +80,7 @@ Respond ONLY with a JSON object (no markdown, no code fences):
 
     const aiData = await aiRes.json();
     const raw = aiData.choices?.[0]?.message?.content ?? "";
-    const jsonStr = raw
-      .replace(/```json\n?/g, "").replace(/```\n?/g, "")
-      .replace(/<thought>[\s\S]*?<\/thought>/g, "")
-      .trim();
+    const jsonStr = cleanJsonText(raw);
 
     let result;
     try {

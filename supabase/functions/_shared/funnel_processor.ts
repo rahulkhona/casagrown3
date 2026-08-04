@@ -7,36 +7,101 @@ const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KE
 const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3.5-flash-lite";
 
-const CANDIDATE_MODELS = Array.from(new Set([
+/** Default fallback chain: fast → medium → strong */
+const DEFAULT_MODELS = Array.from(new Set([
   AI_MODEL,
   "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
-  "gemini-2.5-flash"
+  "gemma-4-31b-it"
 ]));
 
 /**
- * Helper to invoke LLM with model fallback chain and timeout ceiling
+ * Strip markdown code fences, <thought> tags, and extract the outermost JSON object.
+ * Exported so edge functions can reuse this for their own response parsing.
  */
-async function fetchAiCompletion(prompt: string, timeoutMs: number = 8000): Promise<Response | null> {
+export function cleanJsonText(raw: string): string {
+  let text = raw.replace(/<thought>[\s\S]*?<\/thought>/gi, "").trim();
+  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    text = match[0];
+    const lastBrace = text.lastIndexOf('}');
+    if (lastBrace !== -1) {
+      text = text.substring(0, lastBrace + 1);
+    }
+  }
+  return text;
+}
+
+export type AiCompletionOptions = {
+  /** Text prompt string, or multimodal content array (for vision/photo) */
+  content: string | Array<{type: string; text?: string; image_url?: {url: string}}>;
+  /** Timeout per model attempt in ms (default 8000) */
+  timeoutMs?: number;
+  /** Max tokens to generate (default 1500) */
+  maxTokens?: number;
+  /** Temperature (default 0.3) */
+  temperature?: number;
+  /** Optional response format constraint */
+  responseFormat?: {type: string};
+  /** Optional model chain override (defaults to DEFAULT_MODELS) */
+  models?: string[];
+};
+
+/**
+ * Invoke LLM with model fallback chain and per-model timeout ceiling.
+ * Supports both text-only and multimodal (image+text) content.
+ */
+export async function fetchAiCompletion(options: AiCompletionOptions): Promise<Response | null>;
+/** @deprecated Legacy signature — use options object instead */
+export async function fetchAiCompletion(prompt: string, timeoutMs?: number): Promise<Response | null>;
+export async function fetchAiCompletion(
+  promptOrOptions: string | AiCompletionOptions,
+  legacyTimeoutMs?: number
+): Promise<Response | null> {
+  // Normalize legacy (string, number) calls to options object
+  const opts: AiCompletionOptions = typeof promptOrOptions === "string"
+    ? { content: promptOrOptions, timeoutMs: legacyTimeoutMs }
+    : promptOrOptions;
+
+  const {
+    content,
+    timeoutMs = 8000,
+    maxTokens = 1500,
+    temperature = 0.3,
+    responseFormat,
+    models,
+  } = opts;
+
   const currentKey = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? AI_KEY;
   if (!currentKey || Deno.env.get('AI_MOCK') === 'true') return null;
 
-  for (const modelName of CANDIDATE_MODELS) {
+  const candidateModels = models ?? DEFAULT_MODELS;
+
+  // Build messages array — supports both string content and multimodal content arrays
+  const messages = [{ role: "user", content }];
+
+  for (const modelName of candidateModels) {
     try {
+      const bodyObj: Record<string, any> = {
+        model: modelName,
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+      };
+      if (responseFormat) {
+        bodyObj.response_format = responseFormat;
+      }
+
       const fetchPromise = fetch(AI_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${currentKey}`,
           "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Background Estimator",
+          "X-Title": "CasaGrown AI",
         },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 1500,
-          temperature: 0.3,
-        }),
+        body: JSON.stringify(bodyObj),
       });
 
       const timeoutPromise = new Promise<null>((_, reject) =>
@@ -240,19 +305,7 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
           if (aiRes && aiRes.ok) {
             const aiData = await aiRes.json();
             const raw = aiData.choices?.[0]?.message?.content ?? "";
-            
-            let text = raw.replace(/<thought>[\s\S]*?<\/thought>/gi, "").trim();
-            text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-            const match = text.match(/\{[\s\S]*\}/);
-            if (match) {
-              text = match[0];
-              const lastBrace = text.lastIndexOf('}');
-              if (lastBrace !== -1) {
-                text = text.substring(0, lastBrace + 1);
-              }
-            }
-    
-            const parsedResult = JSON.parse(text);
+            const parsedResult = JSON.parse(cleanJsonText(raw));
             const result = config.mergeAiResult ? config.mergeAiResult(payload, parsedResult) : parsedResult;
             
             const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -531,12 +584,7 @@ export async function handleBackgroundQueue(req: Request, config: QueueConfig): 
 
           const aiData = await aiRes.json();
           const raw = aiData.choices?.[0]?.message?.content ?? "";
-          const jsonStr = raw
-            .replace(/```json\n?/g, "").replace(/```\n?/g, "")
-            .replace(/<thought>[\s\S]*?<\/thought>/g, "")
-            .trim();
-
-          result = JSON.parse(jsonStr);
+          result = JSON.parse(cleanJsonText(raw));
         }
 
         await sendBroadcastEmail({

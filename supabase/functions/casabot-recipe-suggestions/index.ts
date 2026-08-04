@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { fetchAiCompletion, cleanJsonText } from "../_shared/funnel_processor.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,76 +92,30 @@ Do not output literal dots or placeholders. Fill the values with actual, helpful
       })
     }
 
-    const geminiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ error: 'AI not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const aiRes = await fetchAiCompletion({
+      content: systemPrompt,
+      maxTokens: 800,
+      temperature: 0.7,
+      timeoutMs: 8000
+    })
 
-    const primaryModel = Deno.env.get('AI_MODEL') ?? 'gemma-4-31b-it'
-    const models = [
-      { name: primaryModel, version: 'v1beta' },
-      { name: 'gemini-2.5-flash', version: 'v1beta' },
-    ]
-    let geminiData: any = null
-
-    for (const model of models) {
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
-            generationConfig: {
-              maxOutputTokens: 800,
-              temperature: 0.7,
-            },
-          }),
-        }
-      )
-
-      if (geminiRes.ok) {
-        geminiData = await geminiRes.json()
-        console.log(`[CasaBot Recipe] ${model.name} succeeded`)
-        break
-      } else {
-        console.warn(`[CasaBot Recipe] ${model.name} failed (${geminiRes.status}), trying next...`)
-        await new Promise(r => setTimeout(r, 500))
-      }
-    }
-
-    if (!geminiData) {
-      console.error('All Gemini models failed')
+    if (!aiRes.ok) {
+      console.error('AI generation failed:', await aiRes.text())
       return new Response(JSON.stringify({ error: 'AI generation failed' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const parts = geminiData?.candidates?.[0]?.content?.parts || []
-    const reply = parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('') || 
-                  parts.map((p: any) => p.text || '').join('')
+    const aiData = await aiRes.json()
+    const raw = aiData.choices?.[0]?.message?.content ?? ""
 
     let recipesArray: string[] = []
     let intro = ''
     try {
-      const start = reply.indexOf('{')
-      const end = reply.lastIndexOf('}')
-      if (start >= 0 && end > start) {
-        const parsed = JSON.parse(reply.substring(start, end + 1))
-        recipesArray = parsed.recipes || []
-        intro = parsed.intro || ''
-      } else {
-        // Fallback: try parsing as array
-        const arrStart = reply.indexOf('[')
-        const arrEnd = reply.lastIndexOf(']')
-        if (arrStart >= 0 && arrEnd > arrStart) {
-          recipesArray = JSON.parse(reply.substring(arrStart, arrEnd + 1))
-        }
-      }
+      const parsed = JSON.parse(cleanJsonText(raw))
+      recipesArray = parsed.recipes || []
+      intro = parsed.intro || ''
     } catch(e) {
       console.error('Error parsing recipes:', e)
     }

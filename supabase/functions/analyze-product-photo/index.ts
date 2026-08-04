@@ -9,9 +9,8 @@
  * Response: { name, category, description, suggested_unit, price_usd?, quantity?, ... }
  */
 
-const AI_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? "";
-const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemma-4-31b-it";
+import { fetchAiCompletion, cleanJsonText } from "../_shared/funnel_processor.ts";
+
 const IS_LOCAL = (Deno.env.get("SUPABASE_URL") ?? "").includes("localhost") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("127.0.0.1") ||
   (Deno.env.get("SUPABASE_URL") ?? "").includes("kong:8000");
@@ -70,12 +69,6 @@ Deno.serve(async (req: Request) => {
         } : {}),
       }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
-    }
-
-    if (!AI_KEY) {
-      return new Response(JSON.stringify({ error: "AI not configured" }), {
-        status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
 
@@ -195,139 +188,30 @@ Rules:
       });
     }
 
-    // Retry once on rate limit (429) or server error (503)
-    let aiRes = await fetch(AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AI_KEY}`,
-        "HTTP-Referer": "https://casagrown.com",
-        "X-Title": "CasaGrown Product Analysis",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [{ role: "user", content }],
-        max_tokens: 4096,
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      }),
+    const aiRes = await fetchAiCompletion({
+      content,
+      maxTokens: 4096,
+      responseFormat: { type: "json_object" },
+      timeoutMs: 10000,
     });
 
-    if (aiRes.status === 429 || aiRes.status === 503) {
-      console.warn(`Gemini ${aiRes.status}, retrying after 2s...`);
-      await new Promise((r) => setTimeout(r, 2000));
-      aiRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Product Analysis",
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages: [{ role: "user", content }],
-          max_tokens: 4096,
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-        }),
-      });
-    }
-
-    // If primary model fails, try backup model before giving up
     if (!aiRes.ok) {
-      console.warn("Primary model HTTP error:", aiRes.status, "— trying backup model");
-      const BACKUP_MODEL = "gemma-4-31b-it";
-      aiRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Product Analysis",
-        },
-        body: JSON.stringify({
-          model: BACKUP_MODEL,
-          messages: [{ role: "user", content }],
-          max_tokens: 4096,
-          temperature: 0.3,
-        }),
+      const errText = await aiRes.text();
+      console.error("AI failed:", aiRes.status, errText);
+      return new Response(JSON.stringify({ error: `AI error ${aiRes.status}: ${errText.slice(0, 200)}` }), {
+        status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
-      if (!aiRes.ok) {
-        const errText = await aiRes.text();
-        console.error("Both models failed:", aiRes.status, errText);
-        return new Response(JSON.stringify({ error: `AI error ${aiRes.status}: ${errText.slice(0, 200)}` }), {
-          status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
     }
 
     const aiData = await aiRes.json();
-
-    // Parse JSON from response — robust extraction for various model output formats
     const raw = aiData.choices?.[0]?.message?.content ?? "";
     console.log("[AI-RESPONSE] model:", aiData.model, "raw:", raw.slice(0, 500));
 
     let result;
-    const tryParse = (s: string) => {
-      try { return JSON.parse(s.trim()); } catch { return null; }
-    };
-
-    // 1. Try direct parse
-    result = tryParse(raw);
-
-    // 2. Strip markdown fences, thought tags, and other model artifacts
-    if (!result) {
-      const cleaned = raw
-        .replace(/```json\n?/g, "").replace(/```\n?/g, "")
-        .replace(/<thought>[\s\S]*?<\/thought>/g, "")
-        .replace(/<start_of_turn>[\s\S]*?<end_of_turn>/g, "")
-        .replace(/<[^>]+>/g, "")  // strip any remaining XML-like tags
-        .trim();
-      result = tryParse(cleaned);
-    }
-
-    // 3. Extract first JSON object {...} from anywhere in the response
-    if (!result) {
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) {
-        result = tryParse(match[0]);
-      }
-    }
-
-    if (!result) {
-      // ── Fallback: retry with backup model ──
-      const BACKUP_MODEL = "gemma-4-31b-it";
-      console.warn("Primary model parse failed, retrying with", BACKUP_MODEL, "raw:", raw.slice(0, 300));
-      const backupRes = await fetch(AI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_KEY}`,
-          "HTTP-Referer": "https://casagrown.com",
-          "X-Title": "CasaGrown Product Analysis",
-        },
-        body: JSON.stringify({
-          model: BACKUP_MODEL,
-          messages: [{ role: "user", content }],
-          max_tokens: 4096,
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (backupRes.ok) {
-        const backupData = await backupRes.json();
-        const backupRaw = backupData.choices?.[0]?.message?.content ?? "";
-        result = tryParse(backupRaw);
-        if (!result) {
-          const backupMatch = backupRaw.match(/\{[\s\S]*\}/);
-          if (backupMatch) result = tryParse(backupMatch[0]);
-        }
-      }
-    }
-
-    if (!result) {
-      console.warn("Failed to parse AI response (both models):", raw.slice(0, 500));
+    try {
+      result = JSON.parse(cleanJsonText(raw));
+    } catch (e) {
+      console.warn("Failed to parse AI response:", raw.slice(0, 500));
       return new Response(JSON.stringify({ error: "Could not parse AI response", raw_preview: raw.slice(0, 200) }), {
         status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
