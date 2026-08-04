@@ -160,10 +160,14 @@ export default function SellLandingPage() {
 
 
   const loadingSteps = [
-    { pct: 25, text: "Analyzing climate & soil data for your zipcode..." },
-    { pct: 55, text: "Calculating amateur yields for crop counts..." },
-    { pct: 80, text: "Checking local organic market prices..." },
-    { pct: 95, text: "Finalizing personalized CasaGrown report..." }
+    { pct: 15, text: "Analyzing climate & soil data for your zipcode..." },
+    { pct: 30, text: "Calculating amateur yields for crop counts..." },
+    { pct: 50, text: "Checking local organic market prices..." },
+    { pct: 70, text: "Finalizing personalized CasaGrown report..." },
+    { pct: 80, text: "Almost there, running enhanced analysis..." },
+    { pct: 88, text: "Taking a bit longer, using our deep analysis model..." },
+    { pct: 94, text: "Hang tight, crunching the final numbers..." },
+    { pct: 97, text: "Just a few more seconds..." },
   ]
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
 
@@ -171,8 +175,8 @@ export default function SellLandingPage() {
     let interval: any;
     if (isLoading) {
       interval = setInterval(() => {
-        setLoadingMsgIdx(prev => (prev + 1) % loadingSteps.length)
-      }, 1500)
+        setLoadingMsgIdx(prev => Math.min(prev + 1, loadingSteps.length - 1))
+      }, 2500)
     } else {
       setLoadingMsgIdx(0)
     }

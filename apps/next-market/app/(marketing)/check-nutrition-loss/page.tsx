@@ -42,10 +42,14 @@ export default function NutritionLossLandingPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   const loadingSteps = [
-    { pct: 25, text: "Analyzing post-harvest transit times..." },
-    { pct: 55, text: "Calculating Vitamin C & nutrient degradation..." },
-    { pct: 80, text: "Matching local fresh harvest stands near " + (zipcode || '95125') + "..." },
-    { pct: 95, text: "Finalizing personalized nutrition report..." }
+    { pct: 15, text: "Analyzing post-harvest transit times..." },
+    { pct: 30, text: "Calculating Vitamin C & nutrient degradation..." },
+    { pct: 50, text: "Matching local fresh harvest stands near " + (zipcode || '95125') + "..." },
+    { pct: 70, text: "Finalizing personalized nutrition report..." },
+    { pct: 80, text: "Almost there, running enhanced analysis..." },
+    { pct: 88, text: "Taking a bit longer, using our deep analysis model..." },
+    { pct: 94, text: "Hang tight, crunching the final numbers..." },
+    { pct: 97, text: "Just a few more seconds..." },
   ]
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
 
@@ -53,8 +57,8 @@ export default function NutritionLossLandingPage() {
     let interval: any;
     if (isLoading) {
       interval = setInterval(() => {
-        setLoadingMsgIdx(prev => (prev + 1) % loadingSteps.length)
-      }, 1500)
+        setLoadingMsgIdx(prev => Math.min(prev + 1, loadingSteps.length - 1))
+      }, 2500)
     } else {
       setLoadingMsgIdx(0)
     }
