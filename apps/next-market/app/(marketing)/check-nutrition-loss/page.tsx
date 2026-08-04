@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackMetaLead } from '../../../lib/crm-analytics'
-import { sendLocalMailpitEmail } from '../../../lib/local-mailpit'
 
 export default function NutritionLossLandingPage() {
 
