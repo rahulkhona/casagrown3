@@ -192,28 +192,45 @@ export async function sendBroadcastEmail(
     const isLocal = supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
     const isProduction = !!token && !isLocal;
 
-    const smtpConfig = isProduction
-        ? {
-            // Production: Dedicated Broadcast Cluster
-            hostname: "smtp-broadcasts.postmarkapp.com",
-            port: 465,
-            tls: true,
-            auth: {
-                username: token!,
-                password: token!,
-            },
-        }
-        : {
-            // Local dev fallback
-            hostname: Deno.env.get("MAILPIT_HOST") ?? "host.docker.internal",
-            port: 54325,
-            tls: false,
-        };
-
     try {
+        if (isProduction) {
+            // Production: Postmark REST API (same approach as sendBroadcastEmailBatch)
+            // SMTP over TLS (port 465) times out from Supabase Edge Functions
+            const res = await fetch("https://api.postmarkapp.com/email", {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Postmark-Server-Token": token!,
+                },
+                body: JSON.stringify({
+                    From: fromEmail,
+                    To: payload.to,
+                    Subject: payload.subject,
+                    HtmlBody: payload.htmlBody,
+                    ...(payload.textBody && { TextBody: payload.textBody }),
+                    MessageStream: messageStream,
+                    ...(payload.metadata && { Metadata: payload.metadata }),
+                }),
+            });
+
+            if (!res.ok) {
+                const errStr = await res.text();
+                throw new Error(`Postmark REST API error: ${res.status} ${errStr}`);
+            }
+
+            console.log(`📡 Broadcast sent via Postmark REST to ${payload.to}: ${payload.subject}`);
+            return { success: true };
+        }
+
+        // Local dev: Mailpit SMTP (no auth, no TLS)
         const client = new SMTPClient({
-            connection: smtpConfig,
-            ...(!isProduction && { debug: { allowUnsecure: true } }),
+            connection: {
+                hostname: Deno.env.get("MAILPIT_HOST") ?? "host.docker.internal",
+                port: 54325,
+                tls: false,
+            },
+            debug: { allowUnsecure: true },
         });
 
         const cleanHtml = payload.htmlBody.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
@@ -228,20 +245,10 @@ export async function sendBroadcastEmail(
             ...(payload.textBody && { text: payload.textBody }),
         };
 
-        if (isProduction) {
-            sendOpts.headers = {
-                "X-PM-Message-Stream": messageStream,
-            };
-        }
-
         await client.send(sendOpts);
         await client.close();
 
-        if (isProduction) {
-            console.log(`📡 Broadcast sent via Postmark to ${payload.to}: ${payload.subject}`);
-        } else {
-            console.log(`📡 Broadcast sent to Mailpit for ${payload.to}: ${payload.subject}`);
-        }
+        console.log(`📡 Broadcast sent to Mailpit for ${payload.to}: ${payload.subject}`);
         return { success: true };
     } catch (err) {
         console.error(`❌ Broadcast send failed for ${payload.to}:`, err);
