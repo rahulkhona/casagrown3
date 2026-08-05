@@ -69,7 +69,7 @@ async function getExpectedActions(
       let met = false;
       if (mode === 'ai' && d.aiSql) {
         try {
-          const checkSql = `SELECT 1 FROM (${d.aiSql}) AS aq WHERE aq.id = '${recipientId}'::uuid LIMIT 1`;
+          const checkSql = `SELECT * FROM (${d.aiSql}) AS aq WHERE aq.id = '${recipientId}'::uuid LIMIT 1`;
           const { data, error } = await supabase.rpc('execute_audience_query', {
             p_query: checkSql
           });
