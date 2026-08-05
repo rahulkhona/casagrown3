@@ -8,12 +8,11 @@ const AI_URL = Deno.env.get("AI_URL") ?? "https://generativelanguage.googleapis.
 const AI_MODEL = Deno.env.get("AI_MODEL") ?? "gemini-3.5-flash-lite";
 
 /** Default fallback chain: fast → medium → strong */
-const DEFAULT_MODELS = Array.from(new Set([
-  AI_MODEL,
+const DEFAULT_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
   "gemma-4-31b-it"
-]));
+];
 
 /**
  * Strip markdown code fences, <thought> tags, and extract the outermost JSON object.
@@ -300,7 +299,11 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
         const currentKey = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("OPENROUTER_API_KEY") ?? AI_KEY;
         if (currentKey && Deno.env.get('AI_MOCK') !== 'true') {
           const prompt = config.getAiPrompt(payload);
-          const aiRes = await fetchAiCompletion(prompt, 15000);
+          const aiRes = await fetchAiCompletion({
+            content: prompt,
+            timeoutMs: 8000,
+            models: ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemma-4-31b-it"]
+          });
           
           if (aiRes && aiRes.ok) {
             const aiData = await aiRes.json();
