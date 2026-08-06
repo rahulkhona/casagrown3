@@ -21,7 +21,7 @@ export const test = base.extend({
     await page.addInitScript(() => {
       try {
         // Read the token from storageState (Playwright restores this)
-        const raw = localStorage.getItem('sb-127-auth-token')
+        const raw = localStorage.getItem('sb-localhost-auth-token') || localStorage.getItem('sb-127-auth-token')
         if (raw) {
           const parsed = JSON.parse(raw)
           if (parsed.access_token) {
@@ -31,6 +31,8 @@ export const test = base.extend({
               refresh_token: parsed.refresh_token,
               user: parsed.user,
             }))
+            localStorage.setItem('sb-localhost-auth-token', raw)
+            localStorage.setItem('sb-127-auth-token', raw)
           }
         }
         // Dismiss alpha modal

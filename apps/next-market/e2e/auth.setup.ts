@@ -48,25 +48,24 @@ setup('authenticate market user', async ({ page }) => {
         refresh_token: refreshToken,
         user: u,
       })
+      const ssrPayload = JSON.stringify({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: u,
+      })
       // Standard Supabase auth keys
       localStorage.setItem('supabase.auth.token', sessionPayload)
-      // Variant key used by @supabase/ssr
-      localStorage.setItem(
-        'sb-127-auth-token',
-        JSON.stringify({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          user: u,
-        })
-      )
+      // Variant keys used by @supabase/ssr (127.0.0.1 and localhost)
+      localStorage.setItem('sb-127-auth-token', ssrPayload)
+      localStorage.setItem('sb-localhost-auth-token', ssrPayload)
     },
     { accessToken: access_token, refreshToken: refresh_token, user }
   )
 
   // 4. Set cookies for @supabase/ssr createBrowserClient
   // The SSR client uses cookies with base64url encoding by default.
-  // Cookie name defaults to STORAGE_KEY = 'supabase.auth.token'
+  // Cookie name defaults to STORAGE_KEY derived from hostname ('sb-localhost-auth-token' or 'sb-127-auth-token')
   const sessionForCookie = {
     access_token,
     refresh_token,
@@ -78,6 +77,15 @@ setup('authenticate market user', async ({ page }) => {
   const cookieValue = Buffer.from(JSON.stringify(sessionForCookie)).toString('base64url')
 
   await page.context().addCookies([
+    {
+      name: 'sb-localhost-auth-token',
+      value: `base64-${cookieValue}`,
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Lax',
+      httpOnly: false,
+      expires: Math.floor(Date.now() / 1000) + 3600,
+    },
     {
       name: 'sb-127-auth-token',
       value: `base64-${cookieValue}`,

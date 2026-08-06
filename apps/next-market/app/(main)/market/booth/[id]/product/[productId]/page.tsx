@@ -22,6 +22,29 @@ export async function generateMetadata(
   const defaultOgImage = `${siteUrl}/og-share.jpg`
 
   try {
+    // Demo products use synthetic IDs (not valid UUIDs) — skip DB query
+    if (productId.startsWith('demo-')) {
+      return {
+        metadataBase: new URL(siteUrl),
+        title: defaultTitle,
+        description: defaultDesc,
+        openGraph: {
+          title: defaultTitle,
+          description: defaultDesc,
+          siteName: 'CasaGrown Market',
+          type: 'website',
+          url: `/market/booth/${id}/product/${productId}`,
+          images: [{ url: defaultOgImage, width: 1200, height: 630, alt: 'CasaGrown Market' }],
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: defaultTitle,
+          description: defaultDesc,
+          images: [defaultOgImage],
+        },
+      }
+    }
+
     const supabase = await createServerSupabase()
     const { data: product } = await supabase
       .from('market_products')
