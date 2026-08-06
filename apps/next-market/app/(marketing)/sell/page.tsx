@@ -249,19 +249,26 @@ export default function SellLandingPage() {
             const supabase = createClient();
             let resumed = false;
 
-            const resumeWithSession = async (session: any) => {
-              if (resumed) return; // prevent double-execution
-              resumed = true;
-              const u = session?.user;
-              const uEmail = u?.email || draft.email || '';
-              const uName = u?.user_metadata?.full_name || u?.user_metadata?.name || draft.name || 'Grower';
-              
-              if (uEmail) {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+            // Use onAuthStateChange to capture session (getSession returns null
+            // because Supabase clears internal state during token refresh after init).
+            // Use direct fetch() for the edge function call instead of functions.invoke()
+            // to avoid deadlocking on Supabase client's internal init state.
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+              if (resumed) return;
+              if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
+                subscription.unsubscribe();
+                resumed = true;
+                const u = session.user;
+                const uEmail = u.email;
+                const uName = u.user_metadata?.full_name || u.user_metadata?.name || draft.name || 'Grower';
+
                 setEmail(uEmail);
                 setName(uName);
                 if (draft.phone) setPhone(draft.phone);
                 localStorage.removeItem('casagrown_sell_draft');
-                
+
                 setIsLoading(true);
                 setStep('calculating');
 
@@ -274,9 +281,9 @@ export default function SellLandingPage() {
                 if (allCrops.length > 0) {
                   fetch('/api/interest/submit', {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                       'Content-Type': 'application/json',
-                      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+                      Authorization: `Bearer ${session.access_token}`
                     },
                     body: JSON.stringify({
                       name: uName,
@@ -308,33 +315,33 @@ export default function SellLandingPage() {
                   lead: { name: uName, email: uEmail, phone: draft.phone, marketingConsent: draft.marketingConsent }
                 };
 
-                const { data } = await supabase.functions.invoke('estimate-earnings', { body: payload });
-                if (data && data.ai_estimate_result) {
-                  setResults(data.ai_estimate_result);
-                  setStep('results');
-                } else {
+                try {
+                  const resp = await fetch(`${supabaseUrl}/functions/v1/estimate-earnings`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${session.access_token}`,
+                      apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+                    },
+                    body: JSON.stringify(payload)
+                  });
+                  const data = await resp.json();
+                  if (data?.ai_estimate_result) {
+                    setResults(data.ai_estimate_result);
+                    setStep('results');
+                  } else {
+                    setStep('queued');
+                  }
+                } catch (e) {
+                  console.error('[SellPage] Edge function error:', e);
                   setStep('queued');
                 }
                 setIsLoading(false);
               }
-            };
+            });
 
-            // Poll getSession with retries — avoids onAuthStateChange deadlock
-            // where functions.invoke() hangs if called during client init callbacks
-            (async () => {
-              let session = null;
-              for (let i = 0; i < 10; i++) {
-                const { data } = await supabase.auth.getSession();
-                if (data.session?.user?.email) {
-                  session = data.session;
-                  break;
-                }
-                await new Promise(r => setTimeout(r, 300));
-              }
-              if (session) {
-                resumeWithSession(session);
-              }
-            })();
+            // Safety timeout: clean up listener if nothing fires after 10s
+            setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
           }
         } catch (e) {
           console.error('[SellPage] Failed to resume draft:', e);

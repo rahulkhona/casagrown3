@@ -196,20 +196,26 @@ export default function NutritionLossLandingPage() {
             const supabase = createClient();
             let resumed = false;
 
-            const resumeWithSession = async (session: any) => {
-              if (resumed) return; // prevent double-execution
-              resumed = true;
-              const u = session?.user;
-              const uEmail = u?.email || draft.email || '';
-              const uName = u?.user_metadata?.full_name || u?.user_metadata?.name || draft.name || 'Friend';
-              
-              if (uEmail) {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+            // Use onAuthStateChange to capture session (getSession returns null
+            // because Supabase clears internal state during token refresh after init).
+            // Use direct fetch() for the edge function call instead of functions.invoke()
+            // to avoid deadlocking on Supabase client's internal init state.
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+              if (resumed) return;
+              if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
+                subscription.unsubscribe();
+                resumed = true;
+                const u = session.user;
+                const uEmail = u.email;
+                const uName = u.user_metadata?.full_name || u.user_metadata?.name || draft.name || 'Friend';
+
                 setEmail(uEmail);
                 setName(uName);
                 if (draft.phone) setPhone(draft.phone);
                 localStorage.removeItem('casagrown_nutrition_draft');
-                
-                // Auto-submit lead capture
+
                 setIsLoading(true);
                 setStep('calculating');
 
@@ -220,9 +226,9 @@ export default function NutritionLossLandingPage() {
 
                 fetch('/api/interest/submit', {
                   method: 'POST',
-                  headers: { 
+                  headers: {
                     'Content-Type': 'application/json',
-                    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+                    Authorization: `Bearer ${session.access_token}`
                   },
                   body: JSON.stringify({
                     name: uName,
@@ -237,43 +243,40 @@ export default function NutritionLossLandingPage() {
                   })
                 }).catch(() => {});
 
-                const { data } = await supabase.functions.invoke('calculate-nutrition-loss', {
-                  body: {
-                    produce: finalProduce,
-                    zipcode: draft.zipcode || '95125',
-                    store_types: draft.selectedStoreTypes,
-                    fulfillment_modes: draft.selectedFulfillmentModes,
-                    buying_frequency: draft.buyingFrequency,
-                    lead: { name: uName, email: uEmail, phone: draft.phone }
+                try {
+                  const resp = await fetch(`${supabaseUrl}/functions/v1/calculate-nutrition-loss`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${session.access_token}`,
+                      apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+                    },
+                    body: JSON.stringify({
+                      produce: finalProduce,
+                      zipcode: draft.zipcode || '95125',
+                      store_types: draft.selectedStoreTypes,
+                      fulfillment_modes: draft.selectedFulfillmentModes,
+                      buying_frequency: draft.buyingFrequency,
+                      lead: { name: uName, email: uEmail, phone: draft.phone }
+                    })
+                  });
+                  const data = await resp.json();
+                  if (data?.ai_nutrition_result) {
+                    setResults(data.ai_nutrition_result);
+                    setStep('results');
+                  } else {
+                    setStep('queued');
                   }
-                });
-
-                if (data && data.ai_nutrition_result) {
-                  setResults(data.ai_nutrition_result);
-                  setStep('results');
-                } else {
+                } catch (e) {
+                  console.error('[NutritionLoss] Edge function error:', e);
                   setStep('queued');
                 }
                 setIsLoading(false);
               }
-            };
+            });
 
-            // Poll getSession with retries — avoids onAuthStateChange deadlock
-            // where functions.invoke() hangs if called during client init callbacks
-            (async () => {
-              let session = null;
-              for (let i = 0; i < 10; i++) {
-                const { data } = await supabase.auth.getSession();
-                if (data.session?.user?.email) {
-                  session = data.session;
-                  break;
-                }
-                await new Promise(r => setTimeout(r, 300));
-              }
-              if (session) {
-                resumeWithSession(session);
-              }
-            })();
+            // Safety timeout: clean up listener if nothing fires after 10s
+            setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
           }
         } catch (e) {
           console.error('[NutritionLoss] Failed to resume draft:', e);
