@@ -133,18 +133,37 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
 
 
-    // Step 1: Read session from cookie (instant, no network) with getUser fallback
-    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
-      let sessionUser = session?.user
+    // Step 1: Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      console.log('[BOOTSTRAP] onAuthStateChange:', _event, session?.user?.id, session?.user?.email)
+      if (session?.user) {
+        const u = { id: session.user.id, email: session.user.email ?? undefined }
+        setUser(u)
+        setLoading(true)
+        fetchBootstrap(u.id)
+      } else if (_event === 'SIGNED_OUT') {
+        setUser(null)
+        setData(prev => prev ? { ...prev, profile: null, badges: null } : null)
+      }
+    })
+
+    // Step 2: Read session (try getUser first for reliable cookie verification on fresh OAuth landing)
+    const initSession = async () => {
+      let sessionUser: any = null
+
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        sessionUser = userData?.user
+      } catch { /* ignore */ }
+
       if (!sessionUser) {
         try {
-          const { data: userData } = await supabase.auth.getUser()
-          sessionUser = userData?.user
+          const { data: sessionData } = await supabase.auth.getSession()
+          sessionUser = sessionData?.session?.user
         } catch { /* ignore */ }
       }
 
       if (sessionUser) {
-        // Check for Playwright test override
         setUser({ id: sessionUser.id, email: sessionUser.email ?? undefined })
         fetchBootstrap(sessionUser.id)
       } else {
@@ -165,21 +184,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
         setUser(null)
         fetchBootstrap(null)
       }
-    })
+    }
 
-    // Listen for auth changes (login/logout/token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      console.log('[BOOTSTRAP] onAuthStateChange:', _event, session?.user?.id, session?.user?.email)
-      if (session?.user) {
-        const u = { id: session.user.id, email: session.user.email ?? undefined }
-        setUser(u)
-        setLoading(true)
-        fetchBootstrap(u.id)
-      } else {
-        setUser(null)
-        setData(prev => prev ? { ...prev, profile: null, badges: null } : null)
-      }
-    })
+    initSession()
 
     // Register global native session receiver
     if (typeof window !== 'undefined') {

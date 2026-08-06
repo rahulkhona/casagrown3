@@ -20,9 +20,8 @@ export function useAuth() {
   const { data, loading: bootstrapLoading, user, refresh } = useBootstrap()
   const pathname = usePathname()
 
-  // Re-fetch bootstrap on navigation (catches profile-setup / ToS completion)
+  // Re-fetch bootstrap on navigation (catches profile-setup / ToS completion / fresh OAuth landing)
   useEffect(() => {
-    if (!user) return
     refresh()
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
