@@ -244,7 +244,7 @@ export default function NutritionLossLandingPage() {
                 }).catch(() => {});
 
                 try {
-                  const resp = await fetch(`${supabaseUrl}/functions/v1/calculate-nutrition-loss`, {
+                  const resp = await fetch(`${supabaseUrl}/functions/v1/estimate-nutrition-loss`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -253,11 +253,17 @@ export default function NutritionLossLandingPage() {
                     },
                     body: JSON.stringify({
                       produce: finalProduce,
-                      zipcode: draft.zipcode || '95125',
-                      store_types: draft.selectedStoreTypes,
-                      fulfillment_modes: draft.selectedFulfillmentModes,
-                      buying_frequency: draft.buyingFrequency,
-                      lead: { name: uName, email: uEmail, phone: draft.phone }
+                      lead: {
+                        name: uName,
+                        email: uEmail,
+                        phone: draft.phone || '',
+                        zipcode: draft.zipcode || '95125',
+                        store_types: draft.selectedStoreTypes,
+                        fulfillment_modes: draft.selectedFulfillmentModes,
+                        buying_frequency: draft.buyingFrequency,
+                        neighbor_buying_comfort: draft.neighborBuyingComfort,
+                        marketingConsent: draft.marketingConsent,
+                      }
                     })
                   });
                   const data = await resp.json();
