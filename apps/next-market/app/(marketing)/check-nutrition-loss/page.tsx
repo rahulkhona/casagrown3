@@ -258,27 +258,24 @@ export default function NutritionLossLandingPage() {
               }
             };
 
-            // Try getSession first (works when cookies are already hydrated)
-            (async () => {
-              console.log('[NutritionLoss] autostart: attempting getSession...');
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session?.user?.email) {
-                console.log('[NutritionLoss] autostart: session found via getSession', session.user.email);
+            // Register listener FIRST — INITIAL_SESSION fires during createClient() init
+            // and would be missed if we registered after getSession()
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+              if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
+                subscription.unsubscribe();
                 resumeWithSession(session);
-              } else {
-                console.log('[NutritionLoss] autostart: no session yet, listening for auth state change...');
-                // Fallback: listen for auth events (INITIAL_SESSION or SIGNED_IN)
-                const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-                  console.log('[NutritionLoss] autostart: onAuthStateChange event:', event, session?.user?.email);
-                  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
-                    subscription.unsubscribe();
-                    resumeWithSession(session);
-                  }
-                });
-                // Safety timeout: if no auth event after 10s, clean up listener
-                setTimeout(() => { if (!resumed) { console.log('[NutritionLoss] autostart: 10s timeout — no session detected'); subscription.unsubscribe(); } }, 10000);
               }
-            })();
+            });
+
+            // Also try getSession as a fast path (belt-and-suspenders)
+            supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
+              if (session?.user?.email) {
+                resumeWithSession(session); // resumed flag prevents double-execution
+              }
+            });
+
+            // Safety timeout: clean up listener if nothing fires after 10s
+            setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
           }
         } catch (e) {
           console.error('[NutritionLoss] Failed to resume draft:', e);
