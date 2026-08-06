@@ -1146,7 +1146,14 @@ export default function SellLandingPage() {
 
                   {/* CTA buttons */}
                   {(() => {
-                    const firstCrop = selectedPlants.find(p => p !== 'Other') || selectedTrees.find(t => t !== 'Other' && t !== 'None') || customPlantsList[0]?.name || customTreesList[0]?.name || ''
+                    const allCropNames = [
+                      ...selectedPlants.filter(p => p !== 'Other'),
+                      ...customPlantsList.filter(c => c.name.trim()).map(c => c.name.trim()),
+                      ...selectedTrees.filter(t => t !== 'Other' && t !== 'None'),
+                      ...customTreesList.filter(c => c.name.trim()).map(c => c.name.trim()),
+                    ]
+                    const firstCrop = allCropNames[0] || ''
+                    const itemsParam = allCropNames.length > 0 ? `&items=${encodeURIComponent(allCropNames.join(','))}` : (firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : '')
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <Link 
@@ -1157,7 +1164,7 @@ export default function SellLandingPage() {
                           🚀 Create Your First Listing →
                         </Link>
                         <Link 
-                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : ''}`} 
+                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
                           style={{ 
                             display: 'block', textDecoration: 'none', textAlign: 'center',
                             padding: '18px 32px', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800,
@@ -1187,7 +1194,14 @@ export default function SellLandingPage() {
                   </p>
                   
                   {(() => {
-                    const firstCrop = selectedPlants.find(p => p !== 'Other') || selectedTrees.find(t => t !== 'Other' && t !== 'None') || customPlantsList[0]?.name || customTreesList[0]?.name || ''
+                    const allCropNames = [
+                      ...selectedPlants.filter(p => p !== 'Other'),
+                      ...customPlantsList.filter(c => c.name.trim()).map(c => c.name.trim()),
+                      ...selectedTrees.filter(t => t !== 'Other' && t !== 'None'),
+                      ...customTreesList.filter(c => c.name.trim()).map(c => c.name.trim()),
+                    ]
+                    const firstCrop = allCropNames[0] || ''
+                    const itemsParam = allCropNames.length > 0 ? `&items=${encodeURIComponent(allCropNames.join(','))}` : ''
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <Link 
@@ -1198,7 +1212,7 @@ export default function SellLandingPage() {
                           🚀 Create Your First Listing →
                         </Link>
                         <Link 
-                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : ''}`} 
+                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
                           style={{ 
                             display: 'block', textDecoration: 'none', textAlign: 'center',
                             padding: '18px 32px', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800,

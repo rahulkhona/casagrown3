@@ -388,12 +388,29 @@ function InterestPageContent() {
     if (newMatches.length > 0) {
       autoSelectedRef.current = true
       setSelectedInterests(newMatches)
-      if (!userId) {
-        setIsModalOpen(true)
-        setGuestAuthStep('auth')
-      }
+      // Do NOT open modal here — userId may not be resolved yet (bootstrap race).
+      // Logged-in users: the auto-save effect below will handle it.
+      // Guest users: they click Save & Get Notified themselves.
     }
-  }, [searchParams, scope, communityItems, savedInterestKeys, userId])
+  }, [searchParams, scope, communityItems, savedInterestKeys])
+
+  // Auto-save for logged-in users arriving from sell/nutrition wizard.
+  // Detects: email + zipcode + produce all present in URL (written by sell/nutrition result page).
+  // Fires once when userId becomes available (bootstrap may be slow).
+  const autoSavedFromWizardRef = React.useRef(false)
+  useEffect(() => {
+    if (autoSavedFromWizardRef.current || !userId) return
+    const hasEmail = !!searchParams.get('email')
+    const hasZip = !!searchParams.get('zipcode')
+    const hasProduce = !!(searchParams.get('produce') || searchParams.get('items'))
+    if (!hasEmail || !hasZip || !hasProduce) return
+    // All wizard params present — auto-save the pre-selected interests + zipcode silently
+    autoSavedFromWizardRef.current = true
+    // Give auto-select effect a tick to populate selectedInterests
+    setTimeout(() => {
+      handleSubmitInterest()
+    }, 50)
+  }, [userId, searchParams])
 
   // Restore interest draft from localStorage after OAuth redirect.
   // When user selected items, entered zipcode, clicked OAuth, and returned logged in,

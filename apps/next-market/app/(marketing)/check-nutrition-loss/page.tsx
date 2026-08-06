@@ -1160,7 +1160,12 @@ export default function NutritionLossLandingPage() {
 
                   {/* Dynamic CTA depending on marketplace availability */}
                   {(() => {
-                    const firstProduce = selectedProduce.find(p => p !== 'Other') || customProduceList[0]?.name || ''
+                    const allProduceNames = [
+                      ...selectedProduce.filter(p => p !== 'Other'),
+                      ...customProduceList.filter(c => c.name.trim()).map(c => c.name.trim()),
+                    ]
+                    const firstProduce = allProduceNames[0] || ''
+                    const itemsParam = allProduceNames.length > 0 ? `&items=${encodeURIComponent(allProduceNames.join(','))}` : ''
                     if (hasActiveListings) {
                       return (
                         <Link 
@@ -1174,7 +1179,7 @@ export default function NutritionLossLandingPage() {
                     } else {
                       return (
                         <Link 
-                          href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${firstProduce ? `&produce=${encodeURIComponent(firstProduce)}` : ''}`} 
+                          href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${itemsParam}`} 
                           className="btn-action" 
                           style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
                         >
@@ -1203,7 +1208,11 @@ export default function NutritionLossLandingPage() {
                     </p>
                   </div>
                   
-                  <Link href="/interest?scope=buy" className="btn-action" style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}>
+                  <Link 
+                    href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${selectedProduce.filter(p => p !== 'Other').length > 0 ? `&items=${encodeURIComponent([...selectedProduce.filter(p => p !== 'Other'), ...customProduceList.filter(c => c.name.trim()).map(c => c.name.trim())].join(','))}` : ''}`} 
+                    className="btn-action" 
+                    style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}
+                  >
                     🔔 Set Up Your Produce Alerts →
                   </Link>
                 </div>
