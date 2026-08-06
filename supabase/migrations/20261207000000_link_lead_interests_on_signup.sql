@@ -41,11 +41,14 @@ BEGIN
   END IF;
 
   -- 3. Check for Active Signup Reward (Global Scope)
-  SELECT points INTO signup_reward_points
-  FROM incentive_rules
-  WHERE action_type = 'signup'
-    AND scope = 'global'
-    AND (end_date IS NULL OR end_date > now())
+  SELECT cr.points INTO signup_reward_points
+  FROM campaign_rewards cr
+  JOIN incentive_campaigns ic ON ic.id = cr.campaign_id
+  WHERE cr.behavior = 'signup'
+    AND ic.is_active = true
+    AND ic.starts_at <= now()
+    AND ic.ends_at > now()
+  ORDER BY ic.starts_at DESC
   LIMIT 1;
 
   -- 4. Award Points if Rule Exists

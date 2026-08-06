@@ -740,27 +740,15 @@ function InterestPageContent() {
         {(() => {
           const trimmedSearch = searchQuery.trim()
           const exactMatchExists = trimmedSearch ? EXHAUSTIVE_US_PRODUCE.some((item) => item.name.toLowerCase() === trimmedSearch.toLowerCase()) : true
-          const qLower = trimmedSearch.toLowerCase()
           
-          const isCategoryMatch = [
-            /fruit/i, /veg/i, /berry/i, /berries/i, /melon/i, /citrus/i, /green/i, /root/i, /squash/i, /pepper/i, /tomato/i, /apple/i, /pear/i, /peach/i, /plum/i, /cherry/i, /grape/i, /mango/i, /guava/i, /fig/i, /persimmon/i, /pomegranate/i, /avocado/i, /lemon/i, /lime/i, /orange/i, /tangerine/i, /mandarin/i, /kumquat/i, /cucumber/i, /zucchini/i, /eggplant/i, /bean/i, /pea/i, /kale/i, /lettuce/i, /spinach/i, /chard/i, /carrot/i, /beet/i, /radish/i, /potato/i, /onion/i, /scallion/i, /garlic/i, /corn/i, /okra/i, /pumpkin/i, /broccoli/i, /cauliflower/i, /asparagus/i, /chickoo/i, /sapodilla/i, /jackfruit/i, /lychee/i, /longan/i, /durian/i, /rambutan/i, /passionfruit/i, /dragon/i, /microgreen/i, /sprout/i,
-            /herb/i, /basil/i, /mint/i, /rosemary/i, /thyme/i, /cilantro/i, /parsley/i, /oregano/i, /sage/i, /chive/i, /dill/i, /lavender/i, /tarragon/i, /marjoram/i,
-            /flower/i, /rose/i, /sunflower/i, /dahlia/i, /zinnia/i, /bouquet/i, /floral/i, /arrangement/i, /peony/i, /tulip/i, /orchid/i, /marigold/i,
-            /plant/i, /seedling/i, /starter/i, /sapling/i, /tree/i, /bush/i, /cutting/i, /pot/i, /potted/i, /nursery/i,
-            /seed/i, /bulb/i, /pod/i,
-            /egg/i, /poultry/i, /chicken/i, /duck/i, /quail/i, /goose/i, /turkey/i,
-            /honey/i, /honeycomb/i, /wax/i, /beeswax/i, /apiary/i,
-            /soil/i, /compost/i, /fertilizer/i, /mulch/i, /planter/i, /raised/i, /garden/i, /supplies/i, /equipment/i
-          ].some((pattern) => pattern.test(qLower)) || !!fetchedCustomImage
-
-          const isValidCustomItem = trimmedSearch.length >= 2 && !exactMatchExists && checkTextForViolations(trimmedSearch).isClean && isCategoryMatch
+          const isValidCustomItem = trimmedSearch.length >= 2 && !exactMatchExists && checkTextForViolations(trimmedSearch).isClean
 
           const customItem: ProduceItem | null = isValidCustomItem ? {
             id: `custom_${trimmedSearch.toLowerCase().replace(/\s+/g, '_')}`,
             name: trimmedSearch.charAt(0).toUpperCase() + trimmedSearch.slice(1),
             category: 'produce',
-            displayCategory: 'Custom Item',
-            image: fetchedCustomImage || '/images/produce_placeholder.jpg',
+            displayCategory: 'Custom Interest',
+            image: fetchedCustomImage || getProduceImage(trimmedSearch),
             buyersCount: 0,
             sellersCount: 0,
             unit: 'item',

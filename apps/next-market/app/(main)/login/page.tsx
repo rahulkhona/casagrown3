@@ -320,6 +320,31 @@ function LoginPageInner() {
 
         {step === 'email' ? (
           <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                className={styles.socialButton}
+                disabled={loading}
+              >
+                <span style={{ fontSize: '18px' }}>🌐</span> Continue with Google
+              </button>
+              {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('apple')}
+                className={styles.socialButton}
+                disabled={loading}
+              >
+                <span style={{ fontSize: '18px' }}></span> Continue with Apple
+              </button>
+              )}
+            </div>
+
+            <div className={styles.divider} style={{ margin: '16px 0' }}>
+              <span>or continue with email</span>
+            </div>
+
             <form onSubmit={handleEmailSubmit} className={styles.form}>
               <div className="form-group">
                 <label className="label" htmlFor="email">Email Address</label>
@@ -332,7 +357,6 @@ function LoginPageInner() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  autoFocus
                 />
               </div>
               <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
@@ -340,38 +364,8 @@ function LoginPageInner() {
               </button>
               <p className={styles.helperText}>
                 We'll send a one-time code to your email. No password needed.
-                <br />
-                <small>Check your inbox (or Mailpit at localhost:54324 for local dev)</small>
               </p>
             </form>
-
-            {ENABLE_SOCIAL_LOGIN && (
-              <div className={styles.socialArea}>
-                <div className={styles.divider}>
-                  <span>or</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin('google')}
-                    className={styles.socialButton}
-                    disabled={loading}
-                  >
-                    <span style={{ fontSize: '18px' }}>🌐</span> Continue with Google
-                  </button>
-                  {!(typeof window !== 'undefined' && (window as any).IS_NATIVE_APP && !(window as any).NATIVE_SUPPORTS_APPLE_LOGIN) && (
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin('apple')}
-                    className={styles.socialButton}
-                    disabled={loading}
-                  >
-                    <span style={{ fontSize: '18px' }}></span> Continue with Apple
-                  </button>
-                  )}
-                </div>
-              </div>
-            )}
           </>
         ) : (
           <form onSubmit={handleOtpSubmit} className={styles.form}>

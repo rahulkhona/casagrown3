@@ -38,7 +38,7 @@ function MyInterestsContent() {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login')
+      router.push('/login?redirect=' + encodeURIComponent('/my-interests'))
     }
   }, [loading, isAuthenticated, router])
 

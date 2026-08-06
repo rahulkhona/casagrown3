@@ -79,13 +79,13 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'basil', name: 'Fresh Basil', category: 'produce', displayCategory: 'Fresh Produce', image: '/products/fresh-basil.png', buyersCount: 45, sellersCount: 17, unit: 'bunch' },
   { id: 'mint', name: 'Fresh Mint', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1628556270448-4d4e4148e1b1?w=600&auto=format&fit=crop&q=80', buyersCount: 35, sellersCount: 13, unit: 'bunch' },
   { id: 'rosemary', name: 'Rosemary', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1515586000433-45406d8e6662?w=600&auto=format&fit=crop&q=80', buyersCount: 38, sellersCount: 14, unit: 'bunch' },
-  { id: 'thyme', name: 'Thyme', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1515586000433-45406d8e6662?w=600&auto=format&fit=crop&q=80', buyersCount: 22, sellersCount: 7, unit: 'bunch' },
+  { id: 'thyme', name: 'Thyme', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1599940824399-b87987ceb72a?w=600&auto=format&fit=crop&q=80', buyersCount: 22, sellersCount: 7, unit: 'bunch' },
   { id: 'parsley', name: 'Parsley', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1588879460618-9249e7d947d1?w=600&auto=format&fit=crop&q=80', buyersCount: 32, sellersCount: 11, unit: 'bunch' },
   { id: 'cilantro', name: 'Cilantro', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?w=600&auto=format&fit=crop&q=80', buyersCount: 42, sellersCount: 16, unit: 'bunch' },
   { id: 'oregano', name: 'Oregano', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1608686207856-001b95cf60ca?w=600&auto=format&fit=crop&q=80', buyersCount: 25, sellersCount: 8, unit: 'bunch' },
-  { id: 'sage', name: 'Sage', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1608686207856-001b95cf60ca?w=600&auto=format&fit=crop&q=80', buyersCount: 18, sellersCount: 5, unit: 'bunch' },
-  { id: 'chives', name: 'Chives', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1588879460618-9249e7d947d1?w=600&auto=format&fit=crop&q=80', buyersCount: 20, sellersCount: 6, unit: 'bunch' },
-  { id: 'dill', name: 'Dill', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1588879460618-9249e7d947d1?w=600&auto=format&fit=crop&q=80', buyersCount: 16, sellersCount: 5, unit: 'bunch' },
+  { id: 'sage', name: 'Sage', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1594313016519-640ed47407ea?w=600&auto=format&fit=crop&q=80', buyersCount: 18, sellersCount: 5, unit: 'bunch' },
+  { id: 'chives', name: 'Chives', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=600&auto=format&fit=crop&q=80', buyersCount: 20, sellersCount: 6, unit: 'bunch' },
+  { id: 'dill', name: 'Dill', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80', buyersCount: 16, sellersCount: 5, unit: 'bunch' },
   { id: 'lavender', name: 'Lavender', category: 'produce', displayCategory: 'Fresh Produce', image: 'https://images.unsplash.com/photo-1528183429752-a97d0bf99b5a?w=600&auto=format&fit=crop&q=80', buyersCount: 33, sellersCount: 10, unit: 'bundle' },
 
   // ── FLOWERS ──
@@ -107,8 +107,8 @@ export const EXHAUSTIVE_US_PRODUCE: ProduceItem[] = [
   { id: 'fruit_trees', name: 'Fruit Tree Saplings (Citrus/Fig/Avocado)', category: 'plants', displayCategory: 'Plants & Seedlings', image: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=600&auto=format&fit=crop&q=80', buyersCount: 26, sellersCount: 7, unit: 'tree' },
 
   // ── SEEDS ──
-  { id: 'heirloom_veg_seeds', name: 'Heirloom Vegetable Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?w=600&auto=format&fit=crop&q=80', buyersCount: 35, sellersCount: 12, unit: 'pack' },
-  { id: 'herb_seeds', name: 'Herb & Medicinal Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?w=600&auto=format&fit=crop&q=80', buyersCount: 28, sellersCount: 9, unit: 'pack' },
+  { id: 'heirloom_veg_seeds', name: 'Heirloom Vegetable Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=600&auto=format&fit=crop&q=80', buyersCount: 35, sellersCount: 12, unit: 'pack' },
+  { id: 'herb_seeds', name: 'Herb & Medicinal Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=600&auto=format&fit=crop&q=80', buyersCount: 28, sellersCount: 9, unit: 'pack' },
   { id: 'wildflower_seeds', name: 'Wildflower & Pollinator Seeds', category: 'seeds', displayCategory: 'Seeds', image: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=600&auto=format&fit=crop&q=80', buyersCount: 31, sellersCount: 10, unit: 'pack' },
 
   // ── EGGS ──

@@ -21,7 +21,5 @@ const isMobile = () => {
 }
 
 export const ENABLE_SOCIAL_LOGIN =
-  (typeof window !== 'undefined' && (window as any).NATIVE_SUPPORTS_SOCIAL_LOGIN === true) ||
-  (process.env.NEXT_PUBLIC_ENABLE_SOCIAL_LOGIN === 'true') ||
-  (typeof window !== 'undefined' && window.localStorage.getItem('enable_social_login') === 'true')
+  process.env.NEXT_PUBLIC_ENABLE_SOCIAL_LOGIN !== 'false'
 
