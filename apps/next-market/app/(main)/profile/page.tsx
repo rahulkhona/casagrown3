@@ -81,8 +81,11 @@ function ProfilePageInner() {
 
   // Fetch actual profile from Supabase
   useEffect(() => {
-    if (!user) return
-    // Fetch profile
+    if (!user) {
+      if (!authLoading) setLoading(false)
+      return
+    }
+    setLoading(true)
     supabase
       .from('profiles')
       .select('full_name, street_address, city, state_code, zip_code, zip_plus4, avatar_url, phone_number, phone_verified, sms_enabled, twilio_blocked, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
@@ -124,13 +127,16 @@ function ProfilePageInner() {
         if (data?.farm_name || data?.business_type || data?.seller_bio || data?.business_license || data?.food_handler_permit || data?.cottage_food_permit || data?.insurance_provider) {
           setShowBusiness(true)
         }
+      })
+      .finally(() => {
         setLoading(false)
       })
+
     // Check if user has a booth
     supabase.from('market_booths').select('id').eq('owner_id', user.id).limit(1).then(({ data }: { data: any }) => {
       if (data && data.length > 0) setHasBooth(true)
     })
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (searchParams.get('verifyPhone') === 'true' && !phoneVerified) {
