@@ -258,27 +258,22 @@ export default function NutritionLossLandingPage() {
               }
             };
 
-            // Register listener FIRST — INITIAL_SESSION fires during createClient() init
-            // and would be missed if we registered after getSession()
-            const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-              if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
-                subscription.unsubscribe();
-                // Defer to next tick — calling supabase.functions.invoke() during
-                // INITIAL_SESSION callback deadlocks (init waits for callback to return,
-                // invoke waits for init to complete)
-                setTimeout(() => resumeWithSession(session), 0);
+            // Poll getSession with retries — avoids onAuthStateChange deadlock
+            // where functions.invoke() hangs if called during client init callbacks
+            (async () => {
+              let session = null;
+              for (let i = 0; i < 10; i++) {
+                const { data } = await supabase.auth.getSession();
+                if (data.session?.user?.email) {
+                  session = data.session;
+                  break;
+                }
+                await new Promise(r => setTimeout(r, 300));
               }
-            });
-
-            // Also try getSession as a fast path (belt-and-suspenders)
-            supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-              if (session?.user?.email) {
-                resumeWithSession(session); // resumed flag prevents double-execution
+              if (session) {
+                resumeWithSession(session);
               }
-            });
-
-            // Safety timeout: clean up listener if nothing fires after 10s
-            setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
+            })();
           }
         } catch (e) {
           console.error('[NutritionLoss] Failed to resume draft:', e);
