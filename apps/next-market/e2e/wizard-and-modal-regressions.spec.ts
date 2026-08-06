@@ -147,6 +147,7 @@ async function ensureAuthenticated(page: any) {
         expires_in: 3600, token_type: 'bearer', user: freshData.user,
       })).toString('base64url')
       await page.context().addCookies([
+        { name: 'sb-localhost-auth-token', value: `base64-${cookieVal}`, domain: 'localhost', path: '/', sameSite: 'Lax', httpOnly: false, expires: Math.floor(Date.now() / 1000) + 3600 },
         { name: 'sb-127-auth-token', value: `base64-${cookieVal}`, domain: 'localhost', path: '/', sameSite: 'Lax', httpOnly: false, expires: Math.floor(Date.now() / 1000) + 3600 },
         { name: 'supabase.auth.token', value: `base64-${cookieVal}`, domain: 'localhost', path: '/', sameSite: 'Lax', httpOnly: false, expires: Math.floor(Date.now() / 1000) + 3600 },
       ])

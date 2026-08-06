@@ -72,16 +72,20 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // 5. Step 4: Store Types
+    await page.getByText('Traditional Supermarket').click()
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // 6. Step 5: Grocery Fulfillment
+    await page.getByText('In-Store Shopping').click()
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // 7. Step 6: Shopping Frequency
+    await page.getByText('Once a week').click()
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // 8. Step 7: Neighbor Openness
-    await page.getByRole('button', { name: 'Calculate My Nutrition Loss →' }).click()
+    await page.getByText('Very open to trying it!').click()
+    await page.getByRole('button', { name: /Calculate My Nutrition Loss|Check My Nutrition Loss/i }).click()
 
     // Intercept interest submission API call
     const interestApiPromise = page.waitForResponse(
