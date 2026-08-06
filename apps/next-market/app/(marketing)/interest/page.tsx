@@ -582,18 +582,19 @@ function InterestPageContent() {
 
       if (submitUserId) {
         try {
-          const updates: Record<string, any> = {
+          const profileName = name.trim() || user?.email?.split('@')[0] || 'Grower'
+          const now = new Date().toISOString()
+          await supabase.from('profiles').upsert({
+            id: submitUserId,
+            email: submitEmail,
+            full_name: profileName,
             zip_code: finalZipcodes[0],
-          }
-          if (name.trim()) updates.full_name = name.trim()
-          if (tosChecked) updates.tos_accepted_at = new Date().toISOString()
-          if (name.trim() && tosChecked) updates.profile_completed_at = new Date().toISOString()
-          await supabase.from('profiles').update(updates).eq('id', submitUserId)
+            tos_accepted_at: now,
+            profile_completed_at: now,
+          }, { onConflict: 'id' })
           setIsProfileComplete(true)
           try { await refresh() } catch {}
-          if (name.trim()) {
-            window.dispatchEvent(new CustomEvent('profile-updated', { detail: { fullName: name.trim() } }))
-          }
+          window.dispatchEvent(new CustomEvent('profile-updated', { detail: { fullName: profileName } }))
         } catch (profileErr) {
           console.error('Failed to update profile:', profileErr)
         }
