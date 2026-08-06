@@ -7,13 +7,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useReferralCapture, getReferralData } from '../../../lib/useReferralCapture'
 import { createClient } from '../../../lib/supabase'
 import { trackMetaLead } from '../../../lib/crm-analytics'
-import { Navbar } from '../../components/Navbar'
-import { BottomNav } from '../../components/BottomNav'
-import { MarketProvider } from '../../../lib/store'
-import { CartProvider } from '../../../lib/useCart'
-import { BootstrapProvider, useBootstrap } from '../../../lib/useBootstrap'
-import { QuickSetupProvider, useQuickSetup } from '../../../lib/useQuickSetup'
-import { ErrorToastProvider } from '../../components/ErrorToast'
+import { useBootstrap } from '../../../lib/useBootstrap'
+import { useQuickSetup } from '../../../lib/useQuickSetup'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../../lib/address'
 import { EXHAUSTIVE_US_PRODUCE, getProduceImage, type ProduceItem } from '../../../lib/produceCatalog'
@@ -653,11 +648,9 @@ function InterestPageContent() {
     : "Set up your produce notifications"
 
   return (
-    <div style={{ ...styles.pageRoot, paddingTop: isStandalone ? 0 : '64px' }}>
-      {/* Official App Navbar Header (renders unless mode=standalone query param is passed) */}
-      {!isStandalone ? (
-        <Navbar />
-      ) : (
+    <div style={{ ...styles.pageRoot, paddingTop: isStandalone ? 0 : '0px' }}>
+      {/* Standalone header for embedded/native mode */}
+      {isStandalone && (
         <header style={styles.navHeader}>
           <div style={styles.navContainer}>
             <Link href="/market" style={styles.logoLink}>
@@ -1272,9 +1265,6 @@ function InterestPageContent() {
           imageUrl={getProduceImage(savedShareInterests[0])}
         />
       )}
-
-      {/* Mobile Bottom Navigation Bar (renders when inside main app) */}
-      {!isStandalone && <BottomNav />}
     </div>
   )
 }
@@ -1282,17 +1272,7 @@ function InterestPageContent() {
 export default function InterestPage() {
   return (
     <Suspense fallback={<div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }} />}>
-      <ErrorToastProvider>
-        <BootstrapProvider>
-          <MarketProvider>
-            <CartProvider>
-              <QuickSetupProvider>
-                <InterestPageContent />
-              </QuickSetupProvider>
-            </CartProvider>
-          </MarketProvider>
-        </BootstrapProvider>
-      </ErrorToastProvider>
+      <InterestPageContent />
     </Suspense>
   )
 }
