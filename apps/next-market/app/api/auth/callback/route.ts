@@ -21,18 +21,19 @@ export async function GET(request: Request) {
   const redirect = searchParams.get('redirect') || '/market'
   const isNative = searchParams.get('native') === 'true'
 
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
+  const siteOrigin = (forwardedHost && !origin.includes('localhost'))
+    ? `${forwardedProto}://${forwardedHost}`
+    : origin
+
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=no_code`)
+    return NextResponse.redirect(`${siteOrigin}/login?error=no_code`)
   }
 
   const cookieStore = await cookies()
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-  // Capture cookies from Supabase's setAll callback so we can attach
-  // them to the redirect response. NextResponse.redirect() creates a
-  // new response object that doesn't carry cookies from cookieStore.set().
-  const sessionCookies: { name: string; value: string; options: any }[] = []
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -46,7 +47,6 @@ export async function GET(request: Request) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options)
           })
-          sessionCookies.push(...cookiesToSet)
         },
       },
     }
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
   if (error) {
     console.error('[api/auth/callback] Code exchange failed:', error.message)
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
+    return NextResponse.redirect(`${siteOrigin}/login?error=${encodeURIComponent(error.message)}`)
   }
 
   if (isNative) {
@@ -65,20 +65,8 @@ export async function GET(request: Request) {
       const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`
       return NextResponse.redirect(dl)
     }
-    return NextResponse.redirect(`${origin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`)
+    return NextResponse.redirect(`${siteOrigin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`)
   }
 
-  const response = NextResponse.redirect(`${origin}${redirect}`)
-
-  // Attach session cookies to the redirect response.
-  // httpOnly MUST be false so createBrowserClient can read via document.cookie.
-  for (const { name, value, options } of sessionCookies) {
-    response.cookies.set(name, value, {
-      ...options,
-      path: '/',
-      httpOnly: false,
-    })
-  }
-
-  return response
+  return NextResponse.redirect(`${siteOrigin}${redirect}`)
 }

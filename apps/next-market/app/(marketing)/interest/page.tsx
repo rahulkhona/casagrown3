@@ -36,6 +36,7 @@ function InterestPageContent() {
   const scope = searchParams.get('scope') as 'buy' | 'sell' | null
 
   const { user, refresh } = useBootstrap()
+  const { requireAuth } = useQuickSetup()
   const userId = user?.id || null
 
   const [activeCategory, setActiveCategory] = useState<FilterCategory>('all')
@@ -503,7 +504,7 @@ function InterestPageContent() {
       return
     }
 
-    // IF USER IS NOT LOGGED IN, REDIRECT TO LOGIN PAGE!
+    // IF USER IS NOT LOGGED IN, OPEN QUICKSETUP MODAL!
     if (!userId) {
       try {
         const draft = {
@@ -515,7 +516,12 @@ function InterestPageContent() {
         }
         localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
       } catch {}
-      router.push(`/login?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}`)
+      requireAuth({
+        trigger: 'interest_save',
+        onReady: () => {
+          handleSubmitInterest(undefined, activeInterests, finalZipcodes)
+        }
+      })
       return
     }
 
@@ -621,7 +627,13 @@ function InterestPageContent() {
         }
         localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
       } catch {}
-      router.push(`/login?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}`)
+      requireAuth({
+        trigger: 'interest_save',
+        onReady: () => {
+          setIsModalOpen(true)
+          setGuestAuthStep('completed')
+        }
+      })
       return
     }
     setIsModalOpen(true)
