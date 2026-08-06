@@ -816,7 +816,7 @@ function InterestPageContent() {
                         }
                         await supabase.auth.signInWithOAuth({
                           provider: 'google',
-                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth-callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
+                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
                         })
                       } catch (err: any) {
                         setOtpError(err?.message || 'Google sign in failed')
@@ -841,7 +841,7 @@ function InterestPageContent() {
                         }
                         await supabase.auth.signInWithOAuth({
                           provider: 'apple',
-                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth-callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
+                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
                         })
                       } catch (err: any) {
                         setOtpError(err?.message || 'Apple sign in failed')
