@@ -182,6 +182,7 @@ export default function NutritionLossLandingPage() {
       if (isAutostart) {
         try {
           const rawDraft = localStorage.getItem('casagrown_nutrition_draft');
+            console.log('[NutritionLoss] autostart: draft found?', !!rawDraft);
           if (rawDraft) {
             const draft = JSON.parse(rawDraft);
             if (draft.zipcode) setZipcode(draft.zipcode);
@@ -259,19 +260,23 @@ export default function NutritionLossLandingPage() {
 
             // Try getSession first (works when cookies are already hydrated)
             (async () => {
+              console.log('[NutritionLoss] autostart: attempting getSession...');
               const { data: { session } } = await supabase.auth.getSession();
               if (session?.user?.email) {
+                console.log('[NutritionLoss] autostart: session found via getSession', session.user.email);
                 resumeWithSession(session);
               } else {
-                // Fallback: listen for SIGNED_IN event (fires when OAuth session becomes available)
+                console.log('[NutritionLoss] autostart: no session yet, listening for auth state change...');
+                // Fallback: listen for auth events (INITIAL_SESSION or SIGNED_IN)
                 const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-                  if (event === 'SIGNED_IN' && session?.user?.email) {
+                  console.log('[NutritionLoss] autostart: onAuthStateChange event:', event, session?.user?.email);
+                  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
                     subscription.unsubscribe();
                     resumeWithSession(session);
                   }
                 });
                 // Safety timeout: if no auth event after 10s, clean up listener
-                setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
+                setTimeout(() => { if (!resumed) { console.log('[NutritionLoss] autostart: 10s timeout — no session detected'); subscription.unsubscribe(); } }, 10000);
               }
             })();
           }

@@ -321,19 +321,23 @@ export default function SellLandingPage() {
 
             // Try getSession first (works when cookies are already hydrated)
             (async () => {
+              console.log('[SellPage] autostart: attempting getSession...');
               const { data: { session } } = await supabase.auth.getSession();
               if (session?.user?.email) {
+                console.log('[SellPage] autostart: session found via getSession', session.user.email);
                 resumeWithSession(session);
               } else {
-                // Fallback: listen for SIGNED_IN event (fires when OAuth session becomes available)
+                console.log('[SellPage] autostart: no session yet, listening for auth state change...');
+                // Fallback: listen for auth events (INITIAL_SESSION or SIGNED_IN)
                 const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-                  if (event === 'SIGNED_IN' && session?.user?.email) {
+                  console.log('[SellPage] autostart: onAuthStateChange event:', event, session?.user?.email);
+                  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
                     subscription.unsubscribe();
                     resumeWithSession(session);
                   }
                 });
                 // Safety timeout: if no auth event after 10s, clean up listener
-                setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
+                setTimeout(() => { if (!resumed) { console.log('[SellPage] autostart: 10s timeout — no session detected'); subscription.unsubscribe(); } }, 10000);
               }
             })();
           }
