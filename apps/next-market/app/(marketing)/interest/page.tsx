@@ -339,10 +339,15 @@ function InterestPageContent() {
       }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => syncUser(session?.user || null))
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      syncUser(session?.user || null)
+    // Use onAuthStateChange only — getSession()/getUser() return null because
+    // Supabase clears internal state during token refresh after init (no-op lock).
+    // Same approach as /sell page (see line 254 comment there).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+      if (event === 'SIGNED_OUT') {
+        syncUser(null)
+      } else if (session?.user) {
+        syncUser(session.user)
+      }
     })
 
     return () => {
