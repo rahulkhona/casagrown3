@@ -247,7 +247,11 @@ export default function SellLandingPage() {
             if (draft.sellingComfort) setSellingComfort(draft.sellingComfort);
 
             const supabase = createClient();
-            supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
+            let resumed = false;
+
+            const resumeWithSession = async (session: any) => {
+              if (resumed) return; // prevent double-execution
+              resumed = true;
               const u = session?.user;
               const uEmail = u?.email || draft.email || '';
               const uName = u?.user_metadata?.full_name || u?.user_metadata?.name || draft.name || 'Grower';
@@ -313,7 +317,25 @@ export default function SellLandingPage() {
                 }
                 setIsLoading(false);
               }
-            });
+            };
+
+            // Try getSession first (works when cookies are already hydrated)
+            (async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.user?.email) {
+                resumeWithSession(session);
+              } else {
+                // Fallback: listen for SIGNED_IN event (fires when OAuth session becomes available)
+                const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+                  if (event === 'SIGNED_IN' && session?.user?.email) {
+                    subscription.unsubscribe();
+                    resumeWithSession(session);
+                  }
+                });
+                // Safety timeout: if no auth event after 10s, clean up listener
+                setTimeout(() => { if (!resumed) subscription.unsubscribe(); }, 10000);
+              }
+            })();
           }
         } catch (e) {
           console.error('[SellPage] Failed to resume draft:', e);
