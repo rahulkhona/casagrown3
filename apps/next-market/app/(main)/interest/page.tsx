@@ -54,7 +54,7 @@ function InterestPageContent() {
   const [zipError, setZipError] = useState('')
 
   // Guest QuickSetup Auth State
-  const [guestAuthStep, setGuestAuthStep] = useState<'auth' | 'otp' | 'completed'>('auth')
+  const [guestAuthStep, setGuestAuthStep] = useState<'zip' | 'auth' | 'otp' | 'completed'>('zip')
   const [otpEmail, setOtpEmail] = useState(searchParams.get('email') || '')
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
   const [otpSending, setOtpSending] = useState(false)
@@ -615,23 +615,22 @@ function InterestPageContent() {
   }
 
   const handleSaveClick = () => {
+    // Guests: open modal at zip step so they can enter their location first
     if (!userId) {
-      try {
-        const draft = {
-          scope,
-          selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })),
-          zipcodes,
-        }
-        localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
-      } catch {}
-      requireAuth({
-        trigger: 'interest_save',
-        redirectTo: '/interest?scope=' + (scope || 'buy'),
-        onReady: () => {
-          setIsModalOpen(true)
-          setGuestAuthStep('completed')
-        }
-      })
+      setIsModalOpen(true)
+      setGuestAuthStep('zip')
+      return
+    }
+    // Logged-in users: validate zip then open modal
+    const finalZipcodes = [...zipcodes]
+    if (zipInput.trim() && /^\d{5}$/.test(zipInput.trim()) && !finalZipcodes.includes(zipInput.trim())) {
+      finalZipcodes.push(zipInput.trim())
+    }
+    if (addressFields.zip && /^\d{5}$/.test(addressFields.zip.trim()) && !finalZipcodes.includes(addressFields.zip.trim())) {
+      finalZipcodes.push(addressFields.zip.trim())
+    }
+    if (finalZipcodes.length === 0) {
+      setZipError('Please add a 5-digit zipcode before saving')
       return
     }
     setIsModalOpen(true)
@@ -874,7 +873,83 @@ function InterestPageContent() {
             </div>
 
             <div style={styles.modalBody}>
-              {/* Not Logged In - OAuth & OTP */}
+              {/* Step: Zipcode entry for guests */}
+              {!userId && guestAuthStep === 'zip' && (
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>📍 Where are you located?</h3>
+                  <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>We'll notify you when local growers or buyers match your interests.</p>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={styles.label}>Zipcode *</label>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={5}
+                        value={zipInput}
+                        onChange={(e) => { setZipInput(e.target.value); setZipError('') }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddZipcode() } }}
+                        placeholder="e.g. 94025"
+                        autoFocus
+                        style={{ ...styles.input, flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddZipcode}
+                        style={{ padding: '8px 16px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        + Add
+                      </button>
+                    </div>
+
+                    {zipcodes.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                        {zipcodes.map((z) => (
+                          <span key={z} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: '9999px', padding: '3px 10px', fontSize: '13px', fontWeight: 600 }}>
+                            {z}
+                            <button type="button" onClick={() => handleRemoveZipcode(z)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {zipError && <div style={styles.errorText}>{zipError}</div>}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Commit any typed-but-not-added zip
+                      const pending = zipInput.trim()
+                      if (pending && /^\d{5}$/.test(pending) && !zipcodes.includes(pending)) {
+                        setZipcodes(prev => [...prev, pending])
+                        setZipInput('')
+                      }
+                      const finalZips = [...zipcodes]
+                      if (pending && /^\d{5}$/.test(pending) && !finalZips.includes(pending)) finalZips.push(pending)
+                      if (finalZips.length === 0) {
+                        setZipError('Please enter at least one zipcode')
+                        return
+                      }
+                      // Save draft with zipcode before going to auth
+                      try {
+                        const draft = {
+                          scope,
+                          selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })),
+                          zipcodes: finalZips,
+                        }
+                        localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
+                      } catch {}
+                      setGuestAuthStep('auth')
+                    }}
+                    style={{ ...styles.btnPrimary, width: '100%' }}
+                  >
+                    Continue →
+                  </button>
+                </div>
+              )}
+
+              {/* Step: Auth (Google/Apple/OTP) */}
               {!userId && guestAuthStep === 'auth' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <button

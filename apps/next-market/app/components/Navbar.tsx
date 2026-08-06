@@ -687,15 +687,7 @@ export function NavbarInner() {
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
                         onClick={() => {
                           setMenuOpen(false)
-                          if (!hasSession) {
-                            requireAuth({
-                              trigger: 'notify_menu_sell',
-                              redirectTo: '/interest?scope=sell',
-                              onReady: () => router.push('/interest?scope=sell'),
-                            })
-                          } else {
-                            router.push('/interest?scope=sell')
-                          }
+                          router.push('/interest?scope=sell')
                         }}
                         style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
                       >
@@ -707,15 +699,7 @@ export function NavbarInner() {
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
                         onClick={() => {
                           setMenuOpen(false)
-                          if (!hasSession) {
-                            requireAuth({
-                              trigger: 'notify_menu_buy',
-                              redirectTo: '/interest?scope=buy',
-                              onReady: () => router.push('/interest?scope=buy'),
-                            })
-                          } else {
-                            router.push('/interest?scope=buy')
-                          }
+                          router.push('/interest?scope=buy')
                         }}
                         style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
                       >
