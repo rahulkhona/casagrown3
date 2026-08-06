@@ -29,6 +29,11 @@ export async function GET(request: Request) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+  // Capture cookies from Supabase's setAll callback so we can attach
+  // them to the redirect response. NextResponse.redirect() creates a
+  // new response object that doesn't carry cookies from cookieStore.set().
+  const sessionCookies: { name: string; value: string; options: any }[] = []
+
   const supabase = createServerClient(
     supabaseUrl,
     supabaseKey,
@@ -41,6 +46,7 @@ export async function GET(request: Request) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options)
           })
+          sessionCookies.push(...cookiesToSet)
         },
       },
     }
@@ -54,16 +60,25 @@ export async function GET(request: Request) {
   }
 
   if (isNative) {
-    // For native apps, get the session and redirect to auth-callback
-    // which will construct the deep link with the tokens
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`
       return NextResponse.redirect(dl)
     }
-    // Fallback: redirect to auth-callback page to handle deep link
     return NextResponse.redirect(`${origin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`)
   }
 
-  return NextResponse.redirect(`${origin}${redirect}`)
+  const response = NextResponse.redirect(`${origin}${redirect}`)
+
+  // Attach session cookies to the redirect response.
+  // httpOnly MUST be false so createBrowserClient can read via document.cookie.
+  for (const { name, value, options } of sessionCookies) {
+    response.cookies.set(name, value, {
+      ...options,
+      path: '/',
+      httpOnly: false,
+    })
+  }
+
+  return response
 }
