@@ -807,9 +807,16 @@ function InterestPageContent() {
                     onClick={async () => {
                       try {
                         const supabase = createClient()
+                        // Persist selected interests so they survive OAuth redirect
+                        if (typeof window !== 'undefined') {
+                          try {
+                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })) }
+                            localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
+                          } catch {}
+                        }
                         await supabase.auth.signInWithOAuth({
                           provider: 'google',
-                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/interest` : undefined }
+                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth-callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
                         })
                       } catch (err: any) {
                         setOtpError(err?.message || 'Google sign in failed')
@@ -825,9 +832,16 @@ function InterestPageContent() {
                     onClick={async () => {
                       try {
                         const supabase = createClient()
+                        // Persist selected interests so they survive OAuth redirect
+                        if (typeof window !== 'undefined') {
+                          try {
+                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })) }
+                            localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
+                          } catch {}
+                        }
                         await supabase.auth.signInWithOAuth({
                           provider: 'apple',
-                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/interest` : undefined }
+                          options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth-callback?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}` : undefined }
                         })
                       } catch (err: any) {
                         setOtpError(err?.message || 'Apple sign in failed')
