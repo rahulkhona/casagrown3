@@ -29,6 +29,11 @@ export async function GET(request: Request) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+  // Capture cookies that Supabase sets during exchangeCodeForSession
+  // so we can attach them to the redirect response.
+  // cookieStore.getAll() only returns REQUEST cookies, not newly set ones.
+  const sessionCookies: { name: string; value: string; options: any }[] = []
+
   const supabase = createServerClient(
     supabaseUrl,
     supabaseKey,
@@ -41,6 +46,8 @@ export async function GET(request: Request) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options)
           })
+          // Save for attaching to redirect response
+          sessionCookies.push(...cookiesToSet)
         },
       },
     }
@@ -53,36 +60,23 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
   }
 
-  // Build the redirect response first, then ensure session cookies are attached.
-  // cookies() from next/headers may not carry over to NextResponse.redirect()
-  // automatically in all Next.js/Vercel deployment scenarios.
-  const redirectUrl = isNative
-    ? (() => {
-        // For native apps, try to construct deep link with tokens
-        // Fallback handled below
-        return `${origin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`
-      })()
-    : `${origin}${redirect}`
-
   if (isNative) {
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`
       return NextResponse.redirect(dl)
     }
+    return NextResponse.redirect(`${origin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`)
   }
 
-  const response = NextResponse.redirect(redirectUrl)
+  const response = NextResponse.redirect(`${origin}${redirect}`)
 
-  // Copy session cookies onto the redirect response so the browser stores them
-  const allCookies = cookieStore.getAll()
-  for (const cookie of allCookies) {
-    response.cookies.set(cookie.name, cookie.value, {
+  // Attach the session cookies that Supabase set during code exchange
+  // onto the redirect response so the browser actually stores them
+  for (const { name, value, options } of sessionCookies) {
+    response.cookies.set(name, value, {
+      ...options,
       path: '/',
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 365, // 1 year
     })
   }
 
