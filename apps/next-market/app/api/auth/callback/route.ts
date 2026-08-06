@@ -29,11 +29,6 @@ export async function GET(request: Request) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  // Capture cookies that Supabase sets during exchangeCodeForSession
-  // so we can attach them to the redirect response.
-  // cookieStore.getAll() only returns REQUEST cookies, not newly set ones.
-  const sessionCookies: { name: string; value: string; options: any }[] = []
-
   const supabase = createServerClient(
     supabaseUrl,
     supabaseKey,
@@ -46,8 +41,6 @@ export async function GET(request: Request) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options)
           })
-          // Save for attaching to redirect response
-          sessionCookies.push(...cookiesToSet)
         },
       },
     }
@@ -61,24 +54,16 @@ export async function GET(request: Request) {
   }
 
   if (isNative) {
+    // For native apps, get the session and redirect to auth-callback
+    // which will construct the deep link with the tokens
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       const dl = `casagrown://auth-callback?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`
       return NextResponse.redirect(dl)
     }
+    // Fallback: redirect to auth-callback page to handle deep link
     return NextResponse.redirect(`${origin}/auth-callback?native=true&redirect=${encodeURIComponent(redirect)}`)
   }
 
-  const response = NextResponse.redirect(`${origin}${redirect}`)
-
-  // Attach the session cookies that Supabase set during code exchange
-  // onto the redirect response so the browser actually stores them
-  for (const { name, value, options } of sessionCookies) {
-    response.cookies.set(name, value, {
-      ...options,
-      path: '/',
-    })
-  }
-
-  return response
+  return NextResponse.redirect(`${origin}${redirect}`)
 }
