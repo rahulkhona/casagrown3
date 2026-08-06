@@ -682,44 +682,22 @@ export function NavbarInner() {
 
                     <div className={styles.menuSection}>
                       <div className={styles.menuSectionLabel}>Explore</div>
-                      <button
-                        type="button"
+                      <Link
+                        href="/interest?scope=sell"
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          if (!hasSession) {
-                            requireAuth({
-                              trigger: 'notify_menu_sell',
-                              onReady: () => router.push('/interest?scope=sell'),
-                            })
-                          } else {
-                            router.push('/interest?scope=sell')
-                          }
-                        }}
-                        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
+                        onClick={() => setMenuOpen(false)}
                       >
                         <span className={styles.menuItemIcon}>📢</span>
                         <span>Notify me when buyers want what I have</span>
-                      </button>
-                      <button
-                        type="button"
+                      </Link>
+                      <Link
+                        href="/interest?scope=buy"
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          if (!hasSession) {
-                            requireAuth({
-                              trigger: 'notify_menu_buy',
-                              onReady: () => router.push('/interest?scope=buy'),
-                            })
-                          } else {
-                            router.push('/interest?scope=buy')
-                          }
-                        }}
-                        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
+                        onClick={() => setMenuOpen(false)}
                       >
                         <span className={styles.menuItemIcon}>🔔</span>
                         <span>Notify me when sellers list what I need</span>
-                      </button>
+                      </Link>
                     </div>
                   </>
                 )}
