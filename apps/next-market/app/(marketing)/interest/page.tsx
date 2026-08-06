@@ -34,7 +34,8 @@ function InterestPageContent() {
   const isStandalone = searchParams.get('mode') === 'standalone'
   const scope = searchParams.get('scope') as 'buy' | 'sell' | null
 
-  const { refresh } = useBootstrap()
+  const { user, refresh } = useBootstrap()
+  const userId = user?.id || null
 
   const [activeCategory, setActiveCategory] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -207,7 +208,6 @@ function InterestPageContent() {
   }, [])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -267,15 +267,17 @@ function InterestPageContent() {
       if (error) {
         setOtpError(error.message)
       } else if (data.user) {
-        setUserId(data.user.id)
         setEmail(data.user.email || otpEmail.trim())
         setName(data.user.user_metadata?.full_name || '')
-        setGuestAuthStep('completed')
         try {
           await refresh()
         } catch {
           // ignore
         }
+        // Auto-submit interests after successful OTP login
+        setTimeout(() => {
+          handleSubmitInterest()
+        }, 100)
       }
     } catch (err: any) {
       setOtpError(err?.message || 'Failed to verify code')
@@ -286,9 +288,8 @@ function InterestPageContent() {
 
   useEffect(() => {
     const supabase = createClient()
-    const syncUser = async (user: any) => {
+    const syncUserData = async () => {
       if (user) {
-        setUserId(user.id)
         setEmail(user.email || '')
         
         const { data: dbInterests } = await supabase
@@ -313,7 +314,7 @@ function InterestPageContent() {
           .eq('id', user.id)
           .single()
 
-        const fullName = profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || ''
+        const fullName = profile?.full_name || ''
         if (fullName) setName(fullName)
         
         if (fullName && profile?.tos_accepted_at) {
@@ -331,29 +332,14 @@ function InterestPageContent() {
           })
         }
       } else {
-        setUserId(null)
         setEmail('')
         setName('')
         setIsProfileComplete(false)
-        setGuestAuthStep('auth')
       }
     }
 
-    // Use onAuthStateChange only — getSession()/getUser() return null because
-    // Supabase clears internal state during token refresh after init (no-op lock).
-    // Same approach as /sell page (see line 254 comment there).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-      if (event === 'SIGNED_OUT') {
-        syncUser(null)
-      } else if (session?.user) {
-        syncUser(session.user)
-      }
-    })
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
+    syncUserData()
+  }, [user])
 
   // Auto-select produce item from ?produce= or ?items= or ?q= query param
   const autoSelectedRef = React.useRef(false)
@@ -413,8 +399,8 @@ function InterestPageContent() {
   }, [searchParams, scope, communityItems, savedInterestKeys, userId])
 
   // Restore interest draft from localStorage after OAuth redirect.
-  // When user selected items, clicked OAuth, and returned logged in,
-  // re-select those items and open the save modal (zipcode step).
+  // When user selected items, entered zipcode, clicked OAuth, and returned logged in,
+  // re-select those items, restore zipcodes, and save automatically to database.
   const draftRestoredRef = React.useRef(false)
   useEffect(() => {
     if (draftRestoredRef.current || !userId) return
@@ -436,8 +422,11 @@ function InterestPageContent() {
         }
         if (restored.length > 0) {
           setSelectedInterests(restored)
-          setIsModalOpen(true)
-          setGuestAuthStep('completed') // Skip auth, go to zipcode/save step
+          const restoredZips = draft.zipcodes || []
+          if (restoredZips.length > 0) {
+            setZipcodes(restoredZips)
+          }
+          handleSubmitInterest(undefined, restored, restoredZips)
         }
       }
     } catch {}
@@ -489,20 +478,43 @@ function InterestPageContent() {
     return selectedInterests.some((si) => si.item.id === itemId && si.type === type)
   }
 
-  const handleSubmitInterest = async (e?: React.FormEvent) => {
+  const handleSubmitInterest = async (
+    e?: React.FormEvent,
+    overrideInterests?: SelectedInterest[],
+    overrideZipcodes?: string[]
+  ) => {
     if (e) e.preventDefault()
     setZipError('')
 
-    let finalZipcodes = [...zipcodes]
-    if (zipInput.trim() && /^\d{5}$/.test(zipInput.trim()) && !finalZipcodes.includes(zipInput.trim())) {
-      finalZipcodes.push(zipInput.trim())
-    }
-    if (addressFields.zip && /^\d{5}$/.test(addressFields.zip.trim()) && !finalZipcodes.includes(addressFields.zip.trim())) {
-      finalZipcodes.push(addressFields.zip.trim())
+    const activeInterests = overrideInterests || selectedInterests
+    let finalZipcodes = overrideZipcodes ? [...overrideZipcodes] : [...zipcodes]
+    if (!overrideZipcodes) {
+      if (zipInput.trim() && /^\d{5}$/.test(zipInput.trim()) && !finalZipcodes.includes(zipInput.trim())) {
+        finalZipcodes.push(zipInput.trim())
+      }
+      if (addressFields.zip && /^\d{5}$/.test(addressFields.zip.trim()) && !finalZipcodes.includes(addressFields.zip.trim())) {
+        finalZipcodes.push(addressFields.zip.trim())
+      }
     }
 
     if (finalZipcodes.length === 0) {
       setZipError('Please add a 5-digit zipcode or home address before saving')
+      return
+    }
+
+    // IF USER IS NOT LOGGED IN, SAVE DRAFT AND PROMPT FOR AUTH!
+    if (!userId) {
+      try {
+        const draft = {
+          scope,
+          selectedInterests: activeInterests.map(si => ({ name: si.item.name, type: si.type })),
+          zipcodes: finalZipcodes,
+          name,
+          email,
+        }
+        localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
+      } catch {}
+      setGuestAuthStep('auth')
       return
     }
 
@@ -515,7 +527,7 @@ function InterestPageContent() {
           email,
           phone: null,
           zipcodes: finalZipcodes,
-          interests: selectedInterests.map((si) => ({
+          interests: activeInterests.map((si) => ({
             produce_name: si.item.name,
             interest_type: si.type,
             category: si.item.category,
@@ -570,12 +582,12 @@ function InterestPageContent() {
       }
 
       const newlySavedKeys = new Set(savedInterestKeys)
-      selectedInterests.forEach(si => newlySavedKeys.add(`${si.item.name.toLowerCase()}_${si.type}`))
+      activeInterests.forEach(si => newlySavedKeys.add(`${si.item.name.toLowerCase()}_${si.type}`))
       setSavedInterestKeys(newlySavedKeys)
       setUserInterestCount(newlySavedKeys.size)
 
-      setSavedShareInterests(selectedInterests.map(i => i.item.name))
-      setSavedShareScope(selectedInterests[0]?.type || scope || 'buy')
+      setSavedShareInterests(activeInterests.map(i => i.item.name))
+      setSavedShareScope(activeInterests[0]?.type || scope || 'buy')
       setIsModalOpen(false)
       setSuccessBanner(true)
       setSelectedInterests([])
@@ -588,13 +600,8 @@ function InterestPageContent() {
   }
 
   const handleSaveClick = () => {
-    if (!userId) {
-      setIsModalOpen(true)
-      setGuestAuthStep('auth')
-    } else {
-      setIsModalOpen(true)
-      setGuestAuthStep('completed')
-    }
+    setIsModalOpen(true)
+    setGuestAuthStep('completed')
   }
 
   const showBuy = scope === 'buy' || scope === null
@@ -846,7 +853,7 @@ function InterestPageContent() {
                         // Persist selected interests so they survive OAuth redirect
                         if (typeof window !== 'undefined') {
                           try {
-                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })) }
+                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })), zipcodes }
                             localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
                           } catch {}
                         }
@@ -871,7 +878,7 @@ function InterestPageContent() {
                         // Persist selected interests so they survive OAuth redirect
                         if (typeof window !== 'undefined') {
                           try {
-                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })) }
+                            const draft = { scope, selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })), zipcodes }
                             localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
                           } catch {}
                         }
