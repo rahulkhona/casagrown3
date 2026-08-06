@@ -324,7 +324,10 @@ export default function SellLandingPage() {
             const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
               if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
                 subscription.unsubscribe();
-                resumeWithSession(session);
+                // Defer to next tick — calling supabase.functions.invoke() during
+                // INITIAL_SESSION callback deadlocks (init waits for callback to return,
+                // invoke waits for init to complete)
+                setTimeout(() => resumeWithSession(session), 0);
               }
             });
 
