@@ -51,6 +51,25 @@ export default function NutritionLossLandingPage() {
     { pct: 97, text: "Just a few more seconds..." },
   ]
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0)
+  const [showEmailForm, setShowEmailForm] = useState(false)
+
+  const saveNutritionDraft = (extraData?: { name?: string; phone?: string; marketingConsent?: boolean }) => {
+    try {
+      const draft = {
+        zipcode,
+        selectedProduce,
+        customProduceList,
+        selectedStoreTypes,
+        selectedFulfillmentModes,
+        buyingFrequency,
+        neighborBuyingComfort,
+        name: extraData?.name || name,
+        phone: extraData?.phone || phone,
+        marketingConsent: extraData?.marketingConsent ?? marketingConsent,
+      }
+      localStorage.setItem('casagrown_nutrition_draft', JSON.stringify(draft))
+    } catch {}
+  }
 
   useEffect(() => {
     let interval: any;
@@ -158,7 +177,86 @@ export default function NutritionLossLandingPage() {
       });
 
       const leadId = params.get('id');
-      if (leadId) {
+      const isAutostart = params.get('autostart') === '1';
+
+      if (isAutostart) {
+        try {
+          const rawDraft = localStorage.getItem('casagrown_nutrition_draft');
+          if (rawDraft) {
+            const draft = JSON.parse(rawDraft);
+            if (draft.zipcode) setZipcode(draft.zipcode);
+            if (draft.selectedProduce) setSelectedProduce(draft.selectedProduce);
+            if (draft.customProduceList) setCustomProduceList(draft.customProduceList);
+            if (draft.selectedStoreTypes) setSelectedStoreTypes(draft.selectedStoreTypes);
+            if (draft.selectedFulfillmentModes) setSelectedFulfillmentModes(draft.selectedFulfillmentModes);
+            if (draft.buyingFrequency) setBuyingFrequency(draft.buyingFrequency);
+            if (draft.neighborBuyingComfort) setNeighborBuyingComfort(draft.neighborBuyingComfort);
+
+            const supabase = createClient();
+            supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
+              const u = session?.user;
+              const uEmail = u?.email || draft.email || '';
+              const uName = u?.user_metadata?.full_name || u?.user_metadata?.name || draft.name || 'Friend';
+              
+              if (uEmail) {
+                setEmail(uEmail);
+                setName(uName);
+                if (draft.phone) setPhone(draft.phone);
+                localStorage.removeItem('casagrown_nutrition_draft');
+                
+                // Auto-submit lead capture
+                setIsLoading(true);
+                setStep('calculating');
+
+                const finalProduce = [
+                  ...(draft.selectedProduce || []).filter((p: string) => p !== 'Other'),
+                  ...(draft.customProduceList || []).filter((c: any) => c.name?.trim()).map((c: any) => c.name.trim())
+                ];
+
+                fetch('/api/interest/submit', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+                  },
+                  body: JSON.stringify({
+                    name: uName,
+                    email: uEmail,
+                    phone: draft.phone || '',
+                    zipcodes: [draft.zipcode || '95125'],
+                    interests: finalProduce.map(p => ({ produce_name: p, interest_type: 'buy' })),
+                    store_types: draft.selectedStoreTypes,
+                    fulfillment_modes: draft.selectedFulfillmentModes,
+                    buying_frequency: draft.buyingFrequency,
+                    neighbor_buying_comfort: draft.neighborBuyingComfort,
+                  })
+                }).catch(() => {});
+
+                const { data } = await supabase.functions.invoke('calculate-nutrition-loss', {
+                  body: {
+                    produce: finalProduce,
+                    zipcode: draft.zipcode || '95125',
+                    store_types: draft.selectedStoreTypes,
+                    fulfillment_modes: draft.selectedFulfillmentModes,
+                    buying_frequency: draft.buyingFrequency,
+                    lead: { name: uName, email: uEmail, phone: draft.phone }
+                  }
+                });
+
+                if (data && data.ai_nutrition_result) {
+                  setResults(data.ai_nutrition_result);
+                  setStep('results');
+                } else {
+                  setStep('queued');
+                }
+                setIsLoading(false);
+              }
+            });
+          }
+        } catch (e) {
+          console.error('[NutritionLoss] Failed to resume draft:', e);
+        }
+      } else if (leadId) {
         setIsLoading(true);
         const supabase = createClient();
         const fetchReport = async () => {
@@ -221,9 +319,17 @@ export default function NutritionLossLandingPage() {
 
   const handleLeadCapture = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !email) return
+    if (!name.trim()) {
+      setErrorMsg('Please enter your full name above to proceed.')
+      return
+    }
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address above to view your report.')
+      return
+    }
     
     setIsLoading(true)
+    setErrorMsg('')
     trackFieldInteract('/check-nutrition-loss', 9, 'next_button', true)
     
     try {
@@ -427,7 +533,11 @@ export default function NutritionLossLandingPage() {
                     />
                   </div>
 
-                  <button onClick={() => { wentNext.current = true; setStep('produce') }} className="btn-action">
+                  <button 
+                    disabled={zipcode.length < 5}
+                    onClick={() => { wentNext.current = true; setStep('produce') }} 
+                    className="btn-action"
+                  >
                     Next →
                   </button>
                 </div>
@@ -751,93 +861,31 @@ export default function NutritionLossLandingPage() {
                 </div>
               )}
 
-              {/* STEP 9: LEAD CAPTURE */}
+              {/* STEP 9: LEAD CAPTURE / AUTH CHOICES */}
               {step === 'lead-capture' && (
                 <div className="fade-in-up">
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '4px 12px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '12px', border: '1px solid rgba(74,222,128,0.3)' }}>
                     <span>✅</span> Analysis Complete
                   </div>
-                  <h2 className="form-heading">Where should we send your report?</h2>
+                  <h2 className="form-heading">Where should we send your nutrition loss report?</h2>
                   <p className="form-subheading">Your personalized produce degradation report & local freshness matches are ready.</p>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-                    <button 
-                      type="button" 
-                      onClick={async () => {
-                        const supabase = createClient();
-                        await supabase.auth.signInWithOAuth({
-                          provider: 'google',
-                          options: { redirectTo: `${window.location.origin}/auth-callback?next=/my-interests` }
-                        });
-                      }}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
-                        padding: '14px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)',
-                        background: 'rgba(255,255,255,0.06)', color: 'white', fontWeight: 700, fontSize: '0.95rem',
-                        cursor: 'pointer', transition: 'all 0.2s'
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                      </svg>
-                      Continue with Google
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={async () => {
-                        const supabase = createClient();
-                        await supabase.auth.signInWithOAuth({
-                          provider: 'apple',
-                          options: { redirectTo: `${window.location.origin}/auth-callback?next=/my-interests` }
-                        });
-                      }}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
-                        padding: '14px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)',
-                        background: 'rgba(255,255,255,0.06)', color: 'white', fontWeight: 700, fontSize: '0.95rem',
-                        cursor: 'pointer', transition: 'all 0.2s'
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 170 170" fill="currentColor">
-                        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.33.13-9.13-1.9-14.4-6.1-3.32-2.6-7.27-7.27-11.87-14.01-6.19-9.11-11.1-19.53-14.73-31.27-3.63-11.74-5.45-22.95-5.45-33.62 0-14.52 3.63-26.68 10.9-36.48 7.27-9.8 16.59-14.75 27.97-14.87 4.71 0 9.87 1.15 15.48 3.44 5.61 2.29 9.4 3.44 11.37 3.44 1.73 0 5.64-1.2 11.75-3.6 6.11-2.4 11.34-3.53 15.69-3.39 12.33.63 22.38 5.4 30.15 14.31-10.93 6.64-16.27 15.77-16.03 27.39.24 9.17 3.82 16.89 10.74 23.16 6.92 6.27 15.11 9.77 24.58 10.5-.78 4.76-2.02 9.72-3.72 14.88zm-30.82-106.1c0 6.65-2.4 13.06-7.21 19.23-4.8 6.17-10.87 9.88-18.2 11.13-.24-1.12-.36-2.2-.36-3.23 0-6.65 2.51-13.17 7.53-19.56 5.02-6.39 11.08-10.08 18.17-11.07.07 1.17.07 2.34.07 3.5z"/>
-                      </svg>
-                      Continue with Apple
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
-                    <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-                    <span>OR ENTER EMAIL BELOW</span>
-                    <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-                  </div>
-
-                  <form onSubmit={handleLeadCapture}>
+                  {/* Top: Name & Phone Inputs */}
+                  <div style={{ marginBottom: '16px' }}>
+                    {errorMsg && <div className="form-error-banner" style={{ marginBottom: '16px' }}>{errorMsg}</div>}
                     <div className="input-group">
-                      <label>Your Name</label>
+                      <label>Your Name <span style={{ color: '#ef4444' }}>*</span></label>
                       <input 
                         type="text" 
                         placeholder="First and Last Name" 
                         value={name} 
-                        onChange={e => setName(e.target.value)} 
+                        onChange={e => { setName(e.target.value); setErrorMsg('') }} 
                         required 
                         autoFocus
                       />
                     </div>
-                    <div className="input-group">
-                      <label>Email Address</label>
-                      <input 
-                        type="email" 
-                        placeholder="you@example.com" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)} 
-                        required 
-                      />
-                    </div>
-                    <div className="input-group">
+
+                    <div className="input-group" style={{ marginTop: '12px' }}>
                       <label>Phone Number (Optional for SMS match alerts)</label>
                       <input 
                         type="tel" 
@@ -847,45 +895,190 @@ export default function NutritionLossLandingPage() {
                       />
                     </div>
 
-                    <div style={{ marginBottom: 20 }}>
-                      <label className="checkbox-wrap">
-                        <input 
-                          type="checkbox" 
-                          checked={marketingConsent} 
-                          onChange={e => setMarketingConsent(e.target.checked)} 
-                        />
-                        <span className="checkbox-text">Send me local harvest alerts when neighbors list fresh produce near {zipcode || '95125'}</span>
+                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="marketingConsentCheck"
+                        checked={marketingConsent}
+                        onChange={e => setMarketingConsent(e.target.checked)}
+                        style={{ accentColor: '#22c55e', width: '16px', height: '16px' }}
+                      />
+                      <label htmlFor="marketingConsentCheck" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+                        I agree to receive local produce availability & degradation report updates.
                       </label>
                     </div>
+                  </div>
 
-                    <button 
-                      type="submit" 
-                      disabled={isLoading} 
-                      className="btn-action"
-                      style={{ position: 'relative', overflow: 'hidden', opacity: isLoading ? 0.95 : 1, transition: 'all 0.3s' }}
-                    >
-                      {isLoading && (
-                        <div 
+                  {/* Divider */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0 16px 0', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                    <span>Choose How to Receive Report</span>
+                    <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                  </div>
+
+                  {/* Responsive Flex Layout & Divider Styles */}
+                  <style>{`
+                    .options-flex-wrapper {
+                      display: flex;
+                      flex-direction: column;
+                      gap: 16px;
+                      margin-bottom: 20px;
+                    }
+                    .options-col {
+                      flex: 1;
+                      display: flex;
+                      flex-direction: column;
+                      gap: 12px;
+                    }
+                    .desktop-vertical-divider {
+                      display: none;
+                      width: 1px;
+                      background: rgba(255,255,255,0.12);
+                      position: relative;
+                      margin: 0 4px;
+                    }
+                    .mobile-horizontal-divider {
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                      margin: 4px 0;
+                      color: rgba(255,255,255,0.3);
+                      font-size: 0.7rem;
+                      font-weight: 600;
+                    }
+
+                    @media (min-width: 580px) {
+                      .options-flex-wrapper {
+                        flex-direction: row;
+                        align-items: stretch;
+                        gap: 20px;
+                      }
+                      .desktop-vertical-divider {
+                        display: block;
+                      }
+                      .mobile-horizontal-divider {
+                        display: none;
+                      }
+                    }
+                  `}</style>
+
+                  {/* Sending Options Row */}
+                  <div className="options-flex-wrapper">
+                    {/* Left Column: Social Auth CTAs */}
+                    <div className="options-col">
+                      <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.88rem', fontWeight: 600 }}>Instant 1-Tap Access</label>
+                      {/* Google OAuth Primary Button */}
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          saveNutritionDraft({ name, phone, marketingConsent })
+                          const supabase = createClient();
+                          await supabase.auth.signInWithOAuth({
+                            provider: 'google',
+                            options: { redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent('/check-nutrition-loss?autostart=1')}` }
+                          });
+                        }}
+                        className={email.trim() ? '' : 'btn-action'}
+                        style={{ 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                          padding: '14px', borderRadius: '16px', fontWeight: 700, fontSize: '0.88rem', width: '100%',
+                          transition: 'all 0.3s',
+                          ...(email.trim() ? {
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
+                            color: 'white', cursor: 'pointer', boxShadow: 'none'
+                          } : {})
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                        </svg>
+                        Continue with Google
+                      </button>
+
+                      {/* Apple OAuth Secondary Button */}
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          saveNutritionDraft({ name, phone, marketingConsent })
+                          const supabase = createClient();
+                          await supabase.auth.signInWithOAuth({
+                            provider: 'apple',
+                            options: { redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent('/check-nutrition-loss?autostart=1')}` }
+                          });
+                        }}
+                        style={{ 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                          padding: '14px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)',
+                          background: 'rgba(255,255,255,0.06)', color: 'white', fontWeight: 700, fontSize: '0.88rem',
+                          cursor: 'pointer', transition: 'all 0.3s', width: '100%'
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 170 170" fill="currentColor">
+                          <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.33.13-9.13-1.9-14.4-6.1-3.32-2.6-7.27-7.27-11.87-14.01-6.19-9.11-11.1-19.53-14.73-31.27-3.63-11.74-5.45-22.95-5.45-33.62 0-14.52 3.63-26.68 10.9-36.48 7.27-9.8 16.59-14.75 27.97-14.87 4.71 0 9.87 1.15 15.48 3.44 5.61 2.29 9.4 3.44 11.37 3.44 1.73 0 5.64-1.2 11.75-3.6 6.11-2.4 11.34-3.53 15.69-3.39 12.33.63 22.38 5.4 30.15 14.31-10.93 6.64-16.27 15.77-16.03 27.39.24 9.17 3.82 16.89 10.74 23.16 6.92 6.27 15.11 9.77 24.58 10.5-.78 4.76-2.02 9.72-3.72 14.88zm-30.82-106.1c0 6.65-2.4 13.06-7.21 19.23-4.8 6.17-10.87 9.88-18.2 11.13-.24-1.12-.36-2.2-.36-3.23 0-6.65 2.51-13.17 7.53-19.56 5.02-6.39 11.08-10.08 18.17-11.07.07 1.17.07 2.34.07 3.5z"/>
+                        </svg>
+                        Continue with Apple
+                      </button>
+                    </div>
+
+                    {/* Desktop Vertical Divider (Only on Screens >= 580px) */}
+                    <div className="desktop-vertical-divider">
+                      <div style={{ 
+                        position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', 
+                        background: '#141e17', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)',
+                        fontSize: '0.65rem', fontWeight: 800, width: '24px', height: '24px', borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5
+                      }}>
+                        OR
+                      </div>
+                    </div>
+
+                    {/* Mobile Horizontal OR Divider */}
+                    <div className="mobile-horizontal-divider">
+                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                      <span>OR</span>
+                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                    </div>
+
+                    {/* Right Column: Email Input & Submit Button */}
+                    <div className="options-col">
+                      <form onSubmit={handleLeadCapture} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div className="input-group">
+                          <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.88rem', fontWeight: 600 }}>Email Delivery <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input 
+                            type="email" 
+                            placeholder="you@example.com" 
+                            value={email} 
+                            onChange={e => { setEmail(e.target.value); setErrorMsg('') }} 
+                            required 
+                          />
+                        </div>
+
+                        <button 
+                          type="submit" 
+                          disabled={isLoading} 
+                          className={email.trim() ? 'btn-action' : ''}
                           style={{ 
-                            position: 'absolute', top: 0, left: 0, bottom: 0, 
-                            width: `${loadingSteps[loadingMsgIdx].pct}%`, 
-                            background: 'rgba(255,255,255,0.25)', 
-                            transition: 'width 0.6s ease-in-out' 
-                          }} 
-                        />
-                      )}
-                      {isLoading ? (
-                        <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                          <span className="spinner" style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
-                          <span style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {loadingSteps[loadingMsgIdx].pct}% • {loadingSteps[loadingMsgIdx].text}
-                          </span>
-                        </span>
-                      ) : (
-                        'Get My Free Nutrition Report →'
-                      )}
-                    </button>
-                  </form>
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            padding: '14px', borderRadius: '16px', fontWeight: 700, fontSize: '0.88rem',
+                            cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '4px',
+                            ...(email.trim() ? {} : {
+                              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
+                              color: 'white', boxShadow: 'none'
+                            })
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                          </svg>
+                          {isLoading ? 'Generating Report...' : 'Continue with email'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -954,7 +1147,7 @@ export default function NutritionLossLandingPage() {
                           className="btn-action" 
                           style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
                         >
-                          🔔 Register Interest & Get Notified of Local Harvest →
+                          🔔 Set Up Your Produce Alerts →
                         </Link>
                       )
                     }
@@ -980,7 +1173,7 @@ export default function NutritionLossLandingPage() {
                   </div>
                   
                   <Link href="/interest?scope=buy" className="btn-action" style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}>
-                    🔔 Notify me when local sellers have what I want →
+                    🔔 Set Up Your Produce Alerts →
                   </Link>
                 </div>
               )}

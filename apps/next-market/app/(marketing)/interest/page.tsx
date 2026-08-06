@@ -48,16 +48,16 @@ function InterestPageContent() {
   const [userInterestCount, setUserInterestCount] = useState<number | null>(null)
   const [savedInterestKeys, setSavedInterestKeys] = useState<Set<string>>(new Set())
 
-  // Form State
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [zipInput, setZipInput] = useState('')
-  const [zipcodes, setZipcodes] = useState<string[]>([])
+  // Form State — pre-fill from URL params (coming from lead magnet wizards)
+  const [name, setName] = useState(searchParams.get('name') || '')
+  const [email, setEmail] = useState(searchParams.get('email') || '')
+  const [zipInput, setZipInput] = useState(searchParams.get('zipcode') || '')
+  const [zipcodes, setZipcodes] = useState<string[]>(searchParams.get('zipcode') ? [searchParams.get('zipcode')!] : [])
   const [zipError, setZipError] = useState('')
 
   // Guest QuickSetup Auth State
   const [guestAuthStep, setGuestAuthStep] = useState<'auth' | 'otp' | 'completed'>('auth')
-  const [otpEmail, setOtpEmail] = useState('')
+  const [otpEmail, setOtpEmail] = useState(searchParams.get('email') || '')
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
   const [otpSending, setOtpSending] = useState(false)
   const [otpVerifying, setOtpVerifying] = useState(false)
@@ -862,7 +862,7 @@ function InterestPageContent() {
                       disabled={otpSending || !otpEmail.trim()}
                       style={{ ...styles.btnPrimary, width: '100%', opacity: otpSending || !otpEmail.trim() ? 0.5 : 1 }}
                     >
-                      {otpSending ? 'Sending code...' : 'Continue with Email →'}
+                      {otpSending ? 'Sending code...' : 'Continue with email'}
                     </button>
                   </form>
                 </div>

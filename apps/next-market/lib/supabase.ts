@@ -38,6 +38,7 @@ export function createClient() {
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
         signOut: async () => ({ error: null }),
         signInWithOtp: async () => ({ error: null }),
+        signInWithOAuth: async () => ({ error: null }),
         verifyOtp: async () => ({ data: { user: null }, error: null }),
       },
       functions: {

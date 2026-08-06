@@ -4,7 +4,7 @@ test('take screenshots of new booth features', async ({ page }) => {
   // 1. Login
   await page.goto('http://localhost:3001/login');
   await page.fill('input[type="email"]', 'seller@test.local');
-  await page.click('button:has-text("Continue with Email")');
+  await page.click('button:has-text("Continue with email")');
   await page.waitForTimeout(500);
 
   // Read Mailpit

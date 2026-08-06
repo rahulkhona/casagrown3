@@ -304,7 +304,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.getByRole('button', { name: /Calculate My Potential|Estimate My Potential/i }).click();
 
     // Step 8: Lead capture
-    await expect(page.locator('h2:has-text("Where should we send your report?"), h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('h2:has-text("Where should we send your earnings estimate report?"), h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
     
     // Verify wizard_step and field telemetry events are present
     expect(trackEvents).toEqual(
@@ -431,7 +431,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.getByRole('button', { name: 'Calculate My Nutrition Loss →' }).click();
 
     // Step 8: Lead capture
-    await expect(page.locator('h2:has-text("Where should we send your report?")')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('h2:has-text("Where should we send your nutrition loss report?")')).toBeVisible({ timeout: 30000 });
 
     // Verify wizard_step and field telemetry events are present
     expect(trackEvents).toEqual(
