@@ -339,7 +339,7 @@ function InterestPageContent() {
       }
     }
 
-    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => syncUser(user))
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => syncUser(session?.user || null))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       syncUser(session?.user || null)
