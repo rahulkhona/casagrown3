@@ -1163,7 +1163,7 @@ export default function SellLandingPage() {
                         >
                           🚀 Create Your First Listing →
                         </Link>
-                        <Link 
+                        <a 
                           href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
                           style={{ 
                             display: 'block', textDecoration: 'none', textAlign: 'center',
@@ -1173,7 +1173,7 @@ export default function SellLandingPage() {
                           }}
                         >
                           🔔 Get Notified When Buyers Want Your Produce
-                        </Link>
+                        </a>
                       </div>
                     )
                   })()}
@@ -1211,7 +1211,7 @@ export default function SellLandingPage() {
                         >
                           🚀 Create Your First Listing →
                         </Link>
-                        <Link 
+                        <a 
                           href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
                           style={{ 
                             display: 'block', textDecoration: 'none', textAlign: 'center',
@@ -1221,7 +1221,7 @@ export default function SellLandingPage() {
                           }}
                         >
                           🔔 Get Notified When Buyers Want Your Produce
-                        </Link>
+                        </a>
                       </div>
                     )
                   })()}

@@ -1178,13 +1178,13 @@ export default function NutritionLossLandingPage() {
                       )
                     } else {
                       return (
-                        <Link 
+                        <a 
                           href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${itemsParam}`} 
                           className="btn-action" 
                           style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
                         >
                           🔔 Set Up Your Produce Alerts →
-                        </Link>
+                        </a>
                       )
                     }
                   })()}
@@ -1208,13 +1208,13 @@ export default function NutritionLossLandingPage() {
                     </p>
                   </div>
                   
-                  <Link 
+                  <a 
                     href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${selectedProduce.filter(p => p !== 'Other').length > 0 ? `&items=${encodeURIComponent([...selectedProduce.filter(p => p !== 'Other'), ...customProduceList.filter(c => c.name.trim()).map(c => c.name.trim())].join(','))}` : ''}`} 
                     className="btn-action" 
                     style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}
                   >
                     🔔 Set Up Your Produce Alerts →
-                  </Link>
+                  </a>
                 </div>
               )}
 
