@@ -407,6 +407,37 @@ function InterestPageContent() {
     }
   }, [searchParams, scope, communityItems, savedInterestKeys, userId])
 
+  // Restore interest draft from localStorage after OAuth redirect.
+  // When user selected items, clicked OAuth, and returned logged in,
+  // re-select those items and open the save modal (zipcode step).
+  const draftRestoredRef = React.useRef(false)
+  useEffect(() => {
+    if (draftRestoredRef.current || !userId) return
+    try {
+      const raw = localStorage.getItem('casagrown_interest_draft')
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      localStorage.removeItem('casagrown_interest_draft')
+      draftRestoredRef.current = true
+
+      if (draft.selectedInterests?.length > 0) {
+        const fullCatalog = [...EXHAUSTIVE_US_PRODUCE, ...communityItems]
+        const restored: SelectedInterest[] = []
+        for (const item of draft.selectedInterests) {
+          const match = fullCatalog.find(c => c.name.toLowerCase() === item.name.toLowerCase())
+          if (match && !savedInterestKeys.has(`${match.name.toLowerCase()}_${item.type}`)) {
+            restored.push({ item: match, type: item.type })
+          }
+        }
+        if (restored.length > 0) {
+          setSelectedInterests(restored)
+          setIsModalOpen(true)
+          setGuestAuthStep('completed') // Skip auth, go to zipcode/save step
+        }
+      }
+    } catch {}
+  }, [userId, communityItems, savedInterestKeys])
+
   // Filter produce items purely by search query (combining top 100 preset + community added items)
   const filteredItems = useMemo(() => {
     const fullCatalog = [...EXHAUSTIVE_US_PRODUCE, ...communityItems]
