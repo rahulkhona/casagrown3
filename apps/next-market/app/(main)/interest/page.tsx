@@ -54,7 +54,7 @@ function InterestPageContent() {
   const [zipError, setZipError] = useState('')
 
   // Guest QuickSetup Auth State
-  const [guestAuthStep, setGuestAuthStep] = useState<'zip' | 'auth' | 'otp' | 'completed'>('zip')
+  const [guestAuthStep, setGuestAuthStep] = useState<'zip' | 'auth' | 'otp' | 'completed'>('auth')
   const [otpEmail, setOtpEmail] = useState(searchParams.get('email') || '')
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
   const [otpSending, setOtpSending] = useState(false)
@@ -615,13 +615,13 @@ function InterestPageContent() {
   }
 
   const handleSaveClick = () => {
-    // Guests: open modal at zip step so they can enter their location first
     if (!userId) {
+      // Guest: open modal at zip step so they enter location before auth
       setIsModalOpen(true)
       setGuestAuthStep('zip')
       return
     }
-    // Logged-in users: validate zip then open modal
+    // Logged-in: validate zip then open modal
     const finalZipcodes = [...zipcodes]
     if (zipInput.trim() && /^\d{5}$/.test(zipInput.trim()) && !finalZipcodes.includes(zipInput.trim())) {
       finalZipcodes.push(zipInput.trim())
@@ -630,7 +630,7 @@ function InterestPageContent() {
       finalZipcodes.push(addressFields.zip.trim())
     }
     if (finalZipcodes.length === 0) {
-      setZipError('Please add a 5-digit zipcode before saving')
+      setZipError('Please enter your zipcode before saving')
       return
     }
     setIsModalOpen(true)
@@ -873,83 +873,7 @@ function InterestPageContent() {
             </div>
 
             <div style={styles.modalBody}>
-              {/* Step: Zipcode entry for guests */}
-              {!userId && guestAuthStep === 'zip' && (
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>📍 Where are you located?</h3>
-                  <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>We'll notify you when local growers or buyers match your interests.</p>
-
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={styles.label}>Zipcode *</label>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={5}
-                        value={zipInput}
-                        onChange={(e) => { setZipInput(e.target.value); setZipError('') }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddZipcode() } }}
-                        placeholder="e.g. 94025"
-                        autoFocus
-                        style={{ ...styles.input, flex: 1 }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddZipcode}
-                        style={{ padding: '8px 16px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                      >
-                        + Add
-                      </button>
-                    </div>
-
-                    {zipcodes.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-                        {zipcodes.map((z) => (
-                          <span key={z} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: '9999px', padding: '3px 10px', fontSize: '13px', fontWeight: 600 }}>
-                            {z}
-                            <button type="button" onClick={() => handleRemoveZipcode(z)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}>✕</button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {zipError && <div style={styles.errorText}>{zipError}</div>}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Commit any typed-but-not-added zip
-                      const pending = zipInput.trim()
-                      if (pending && /^\d{5}$/.test(pending) && !zipcodes.includes(pending)) {
-                        setZipcodes(prev => [...prev, pending])
-                        setZipInput('')
-                      }
-                      const finalZips = [...zipcodes]
-                      if (pending && /^\d{5}$/.test(pending) && !finalZips.includes(pending)) finalZips.push(pending)
-                      if (finalZips.length === 0) {
-                        setZipError('Please enter at least one zipcode')
-                        return
-                      }
-                      // Save draft with zipcode before going to auth
-                      try {
-                        const draft = {
-                          scope,
-                          selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })),
-                          zipcodes: finalZips,
-                        }
-                        localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
-                      } catch {}
-                      setGuestAuthStep('auth')
-                    }}
-                    style={{ ...styles.btnPrimary, width: '100%' }}
-                  >
-                    Continue →
-                  </button>
-                </div>
-              )}
-
-              {/* Step: Auth (Google/Apple/OTP) */}
+              {/* Auth (Google/Apple/OTP) for guests */}
               {!userId && guestAuthStep === 'auth' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <button
@@ -1088,8 +1012,8 @@ function InterestPageContent() {
                 </form>
               )}
 
-              {/* Post-Auth Form Completion */}
-              {(userId || guestAuthStep === 'completed') && (
+              {/* Zipcode + details form: shown for logged-in users OR for guests collecting zip before auth */}
+              {(userId || guestAuthStep === 'completed' || guestAuthStep === 'zip') && (
                 <form onSubmit={handleSubmitInterest}>
                   {!isProfileComplete && (
                     <>
@@ -1253,13 +1177,43 @@ function InterestPageContent() {
 
                   {zipError && <div style={styles.errorText}>{zipError}</div>}
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    style={{ ...styles.btnPrimary, width: '100%', marginTop: '8px' }}
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save & Get Notified'}
-                  </button>
+                  {/* Guest at zip step: save draft + go to auth. Otherwise normal submit. */}
+                  {guestAuthStep === 'zip' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const finalZips = [...zipcodes]
+                        if (zipInput.trim() && /^\d{5}$/.test(zipInput.trim()) && !finalZips.includes(zipInput.trim())) {
+                          setZipcodes(prev => [...prev, zipInput.trim()])
+                          finalZips.push(zipInput.trim())
+                          setZipInput('')
+                        }
+                        if (finalZips.length === 0) {
+                          setZipError('Please enter at least one zipcode')
+                          return
+                        }
+                        try {
+                          localStorage.setItem('casagrown_interest_draft', JSON.stringify({
+                            scope,
+                            selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })),
+                            zipcodes: finalZips,
+                          }))
+                        } catch {}
+                        setGuestAuthStep('auth')
+                      }}
+                      style={{ ...styles.btnPrimary, width: '100%', marginTop: '8px' }}
+                    >
+                      Continue to Sign In →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      style={{ ...styles.btnPrimary, width: '100%', marginTop: '8px' }}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save & Get Notified'}
+                    </button>
+                  )}
                 </form>
               )}
             </div>
