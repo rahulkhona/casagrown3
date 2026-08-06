@@ -518,6 +518,7 @@ function InterestPageContent() {
       } catch {}
       requireAuth({
         trigger: 'interest_save',
+        redirectTo: '/interest?scope=' + (scope || 'buy'),
         onReady: () => {
           handleSubmitInterest(undefined, activeInterests, finalZipcodes)
         }
@@ -630,6 +631,7 @@ function InterestPageContent() {
       } catch {}
       requireAuth({
         trigger: 'interest_save',
+        redirectTo: '/interest?scope=' + (scope || 'buy'),
         onReady: () => {
           setIsModalOpen(true)
           setGuestAuthStep('completed')

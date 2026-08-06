@@ -24,6 +24,7 @@ interface QuickSetupModalProps {
   trigger?: string
   defaultSignIn?: boolean
   addressNote?: string
+  redirectTo?: string
   prefill?: {
     name?: string
     email?: string
@@ -38,7 +39,7 @@ interface QuickSetupModalProps {
 type Step = 'profile' | 'otp' | 'final'
 type LegalView = null | 'terms' | 'privacy'
 
-export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, defaultSignIn, addressNote, prefill }: QuickSetupModalProps) {
+export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, defaultSignIn, addressNote, redirectTo, prefill }: QuickSetupModalProps) {
   const supabase = createClient()
   const { refresh, user } = useBootstrap()
 
@@ -293,10 +294,11 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
       return
     }
 
+    const targetUrl = redirectTo || (window.location.pathname + window.location.search)
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+        redirectTo: `${window.location.origin}/api/auth/callback?redirect=${encodeURIComponent(targetUrl)}`,
         queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined
       }
     })

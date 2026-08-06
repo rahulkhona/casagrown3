@@ -10,6 +10,7 @@ interface RequireAuthOptions {
   onCancel?: () => void     // Called when user cancels/closes modal
   defaultSignIn?: boolean   // If true, QuickSetup opens with Sign In tab selected
   addressNote?: string      // Custom note explaining why address is needed
+  redirectTo?: string       // Custom redirect target URL after OAuth completion
   prefill?: {               // Pre-fill QuickSetup fields (e.g. from URL params)
     name?: string
     email?: string
@@ -84,6 +85,7 @@ export function QuickSetupProvider({ children }: { children: ReactNode }) {
         prefill={pendingAction?.prefill}
         defaultSignIn={pendingAction?.defaultSignIn}
         addressNote={pendingAction?.addressNote}
+        redirectTo={pendingAction?.redirectTo}
       />
     </QuickSetupContext.Provider>
   )
