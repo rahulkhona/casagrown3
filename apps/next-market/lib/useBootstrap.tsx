@@ -133,9 +133,16 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     const supabase = createClient()
 
 
-    // Step 1: Read session from cookie (instant, no network)
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-      const sessionUser = session?.user
+    // Step 1: Read session from cookie (instant, no network) with getUser fallback
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
+      let sessionUser = session?.user
+      if (!sessionUser) {
+        try {
+          const { data: userData } = await supabase.auth.getUser()
+          sessionUser = userData?.user
+        } catch { /* ignore */ }
+      }
+
       if (sessionUser) {
         // Check for Playwright test override
         setUser({ id: sessionUser.id, email: sessionUser.email ?? undefined })

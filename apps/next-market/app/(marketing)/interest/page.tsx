@@ -521,10 +521,17 @@ function InterestPageContent() {
     setIsSubmitting(true)
 
     try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const submitEmail = email || user?.email || ''
+      const submitUserId = userId || user?.id || null
+
       const referralData = getReferralData()
       const submitPayload = {
-          name,
-          email,
+          name: name || user?.email?.split('@')[0] || 'Grower',
+          email: submitEmail,
           phone: null,
           zipcodes: finalZipcodes,
           interests: activeInterests.map((si) => ({
@@ -542,16 +549,21 @@ function InterestPageContent() {
           accepts_sms: false,
           accepts_push: true,
           password: undefined,
-          user_id: userId,
+          user_id: submitUserId,
           ...referralData,
         }
-      if (email) {
-        try { localStorage.setItem('guest_email', email) } catch {}
+      if (submitEmail) {
+        try { localStorage.setItem('guest_email', submitEmail) } catch {}
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
       }
 
       const resp = await fetch('/api/interest/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(submitPayload),
       })
       const respData = await resp.json()
@@ -561,16 +573,15 @@ function InterestPageContent() {
         trackMetaLead(leadContentName)
       }
 
-      if (userId) {
+      if (submitUserId) {
         try {
-          const supabase = createClient()
           const updates: Record<string, any> = {
             zip_code: finalZipcodes[0],
           }
           if (name.trim()) updates.full_name = name.trim()
           if (tosChecked) updates.tos_accepted_at = new Date().toISOString()
           if (name.trim() && tosChecked) updates.profile_completed_at = new Date().toISOString()
-          await supabase.from('profiles').update(updates).eq('id', userId)
+          await supabase.from('profiles').update(updates).eq('id', submitUserId)
           setIsProfileComplete(true)
           try { await refresh() } catch {}
           if (name.trim()) {
