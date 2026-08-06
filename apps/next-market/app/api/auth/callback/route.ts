@@ -43,9 +43,9 @@ export async function GET(request: Request) {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
-          // Only capture — don't call cookieStore.set() which would
-          // create duplicate Set-Cookie headers. We attach these to
-          // the redirect response below instead.
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
           sessionCookies.push(...cookiesToSet)
         },
       },
