@@ -208,6 +208,7 @@ function InterestPageContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [authReady, setAuthReady] = useState(false)
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -339,7 +340,7 @@ function InterestPageContent() {
       }
     }
 
-    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => syncUser(user))
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => syncUser(user)).finally(() => setAuthReady(true))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       syncUser(session?.user || null)
@@ -353,6 +354,7 @@ function InterestPageContent() {
   // Auto-select produce item from ?produce= or ?items= or ?q= query param
   const autoSelectedRef = React.useRef(false)
   useEffect(() => {
+    if (!authReady) return // wait for auth to settle before auto-opening modal
     if (autoSelectedRef.current) return
     const rawParam = searchParams.get('produce') || searchParams.get('items') || searchParams.get('q')
     if (!rawParam) return
@@ -405,7 +407,7 @@ function InterestPageContent() {
         setGuestAuthStep('auth')
       }
     }
-  }, [searchParams, scope, communityItems, savedInterestKeys, userId])
+  }, [searchParams, scope, communityItems, savedInterestKeys, userId, authReady])
 
   // Filter produce items purely by search query (combining top 100 preset + community added items)
   const filteredItems = useMemo(() => {
