@@ -70,24 +70,38 @@ function MyInterestsContent() {
   }
 
   const handleUpdateStatus = async (id: string, newStatus: 'active' | 'paused') => {
-    const { error } = await supabase
-      .from('crm_produce_interests')
-      .update({ status: newStatus })
-      .eq('id', id)
-      
-    if (!error) {
-      setInterests((prev) => prev.map((i) => i.id === id ? { ...i, status: newStatus } : i))
+    try {
+      const resp = await fetch('/api/interest/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus, user_id: userId }),
+      })
+      const data = await resp.json()
+      if (data?.success) {
+        setInterests((prev) => prev.map((i) => (i.id === id ? { ...i, status: newStatus } : i)))
+      } else {
+        console.error('Failed to update interest status:', data?.error)
+      }
+    } catch (err) {
+      console.error('Error updating status:', err)
     }
   }
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase
-      .from('crm_produce_interests')
-      .delete()
-      .eq('id', id)
-      
-    if (!error) {
-      setInterests((prev) => prev.filter((i) => i.id !== id))
+    try {
+      const resp = await fetch('/api/interest/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'delete', user_id: userId }),
+      })
+      const data = await resp.json()
+      if (data?.success) {
+        setInterests((prev) => prev.filter((i) => i.id !== id))
+      } else {
+        console.error('Failed to delete interest:', data?.error)
+      }
+    } catch (err) {
+      console.error('Error deleting interest:', err)
     }
   }
 
