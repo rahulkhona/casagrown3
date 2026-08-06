@@ -683,7 +683,7 @@ export function NavbarInner() {
                     <div className={styles.menuSection}>
                       <div className={styles.menuSectionLabel}>Explore</div>
                       <Link
-                        href="/interest?scope=sell"
+                        href={hasSession ? "/interest?scope=sell" : `/login?redirect=${encodeURIComponent('/interest?scope=sell')}`}
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
                         onClick={() => setMenuOpen(false)}
                       >
@@ -691,7 +691,7 @@ export function NavbarInner() {
                         <span>Notify me when buyers want what I have</span>
                       </Link>
                       <Link
-                        href="/interest?scope=buy"
+                        href={hasSession ? "/interest?scope=buy" : `/login?redirect=${encodeURIComponent('/interest?scope=buy')}`}
                         className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
                         onClick={() => setMenuOpen(false)}
                       >

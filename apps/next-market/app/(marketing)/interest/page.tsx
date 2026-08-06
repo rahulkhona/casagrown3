@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useReferralCapture, getReferralData } from '../../../lib/useReferralCapture'
 import { createClient } from '../../../lib/supabase'
 import { trackMetaLead } from '../../../lib/crm-analytics'
@@ -31,6 +31,7 @@ interface SelectedInterest {
 function InterestPageContent() {
   useReferralCapture()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const isStandalone = searchParams.get('mode') === 'standalone'
   const scope = searchParams.get('scope') as 'buy' | 'sell' | null
 
@@ -502,7 +503,7 @@ function InterestPageContent() {
       return
     }
 
-    // IF USER IS NOT LOGGED IN, SAVE DRAFT AND PROMPT FOR AUTH!
+    // IF USER IS NOT LOGGED IN, REDIRECT TO LOGIN PAGE!
     if (!userId) {
       try {
         const draft = {
@@ -514,7 +515,7 @@ function InterestPageContent() {
         }
         localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
       } catch {}
-      setGuestAuthStep('auth')
+      router.push(`/login?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}`)
       return
     }
 
@@ -611,6 +612,18 @@ function InterestPageContent() {
   }
 
   const handleSaveClick = () => {
+    if (!userId) {
+      try {
+        const draft = {
+          scope,
+          selectedInterests: selectedInterests.map(si => ({ name: si.item.name, type: si.type })),
+          zipcodes,
+        }
+        localStorage.setItem('casagrown_interest_draft', JSON.stringify(draft))
+      } catch {}
+      router.push(`/login?redirect=${encodeURIComponent('/interest?scope=' + (scope || 'buy'))}`)
+      return
+    }
     setIsModalOpen(true)
     setGuestAuthStep('completed')
   }
