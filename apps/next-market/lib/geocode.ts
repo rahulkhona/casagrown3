@@ -14,7 +14,7 @@ interface GeoResult {
   zipCode?: string
 }
 
-const STATE_CODES: Record<string, string> = {
+export const STATE_CODES: Record<string, string> = {
   'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
   'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA',
   'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS',

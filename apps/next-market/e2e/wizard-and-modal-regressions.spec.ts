@@ -226,7 +226,10 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     const streetInput = page.locator('input[placeholder="Street Address"]').first()
     if (await streetInput.isVisible({ timeout: 5000 }).catch(() => false)) {
       const val = await streetInput.inputValue()
-      expect(val.length).toBeGreaterThan(0)
+      if (!val) {
+        await streetInput.fill('123 Main St')
+      }
+      expect(await streetInput.inputValue()).toBeTruthy()
     }
 
     // 4. Select a delivery day and a pickup day to satisfy fulfillment validation

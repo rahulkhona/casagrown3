@@ -350,8 +350,12 @@ test.describe('Notifications & Payouts', () => {
     })
 
     test('R3 — seller receipt contains financial breakdown', async () => {
-      const email = await findEmailBySubject('sale complete', 5000) ||
-                     await findEmailBySubject('seller', 5000)
+      let email = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        email = await findEmailBySubject('sale complete', 5000) || await findEmailBySubject('seller', 5000)
+        if (email && email.body.length > 200 && !email.body.startsWith('<!DOCTYPE html>\n<html')) break
+        await new Promise(r => setTimeout(r, 2000))
+      }
 
       if (email && email.body.length > 200 && !email.body.startsWith('<!DOCTYPE html>\n<html')) {
         // Seller receipt should contain financial section

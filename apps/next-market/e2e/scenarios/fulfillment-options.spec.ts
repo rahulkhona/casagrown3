@@ -100,9 +100,8 @@ test.describe('Product Fulfillment Options', () => {
     await page.waitForTimeout(3000)
     await assertPageHealthy(page)
 
-    const body = await page.locator('body').innerText()
-    expect(body).toContain('Delivery')
-    expect(body).toContain('Pickup')
+    await expect(page.locator('body')).toContainText('Delivery', { timeout: 10000 })
+    await expect(page.locator('body')).toContainText('Pickup', { timeout: 10000 })
     console.log('[FF1] ✅ Both Delivery and Pickup shown')
 
     await page.context().close()
