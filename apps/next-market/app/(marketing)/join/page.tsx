@@ -402,6 +402,7 @@ function JoinContent() {
       }
 
       // ── Save Profile ──
+      const firstPage = typeof window !== 'undefined' ? (localStorage.getItem('casagrown_first_page') || '/join') : '/join'
       const profileUpdate: Record<string, any> = {
         full_name: fullName.trim(),
         street_address: validatedStreet,
@@ -410,6 +411,7 @@ function JoinContent() {
         zip_plus4: validatedZipPlus4,
         zip_code: validatedZipPlus4.split('-')[0],
         county,
+        signup_source: firstPage,
         profile_completed_at: new Date().toISOString(),
       }
       if (geoLat !== null && geoLng !== null) {

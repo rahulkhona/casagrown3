@@ -187,6 +187,11 @@ echo "  Initializing storage buckets..."
 SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" node scripts/init-storage.js 2>&1 | sed 's/^/  /'
 echo -e "  ${GREEN}✅ Storage buckets initialized${NC}"
 
+# ── Upload interest catalog images ──
+echo "  Uploading interest catalog images..."
+SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" node scripts/upload-interest-images.js 2>&1 | sed 's/^/  /'
+echo -e "  ${GREEN}✅ Interest images ready${NC}"
+
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 2: Start Edge Functions Server
 # ─────────────────────────────────────────────────────────────────────────

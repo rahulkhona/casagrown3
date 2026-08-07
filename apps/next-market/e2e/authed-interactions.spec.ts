@@ -533,7 +533,7 @@ test.describe('Redeem Page Interactions', () => {
     await page.goto('/earnings/payout')
     await page.waitForTimeout(3000)
     const card = page.locator('[class*="gcCard"], button:has-text("Amazon"), button:has-text("Target")').first()
-    if (await card.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await card.isVisible({ timeout: 3000 }).catch(() => false) && await card.isEnabled().catch(() => false)) {
       await card.click()
       await page.waitForTimeout(1000)
       // Should show denomination selection

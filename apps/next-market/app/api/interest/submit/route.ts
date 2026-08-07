@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       utm_campaign,
       utm_content,
       utm_term,
+      source_url,
       first_touch_source,
       signup_referrer_id,
     } = body
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // 2. Insert or update crm_leads entry with UTM attribution
+    // 2. Insert or update crm_leads entry with UTM & source attribution
     const primaryZipcode = zipcodes[0]
     let userId = user?.id || body.user_id || null
 
@@ -63,7 +64,10 @@ export async function POST(req: Request) {
       if (matchedProfile?.id) userId = matchedProfile.id
     }
 
-    console.log('[Interest API] userId:', userId, 'interests count:', interests?.length, 'zipcodes:', zipcodes)
+    const effectiveSourceUrl = source_url || first_touch_source || body.source || '/interest'
+    const effectiveFirstTouch = first_touch_source || source_url || body.source || null
+
+    console.log('[Interest API] userId:', userId, 'source_url:', effectiveSourceUrl, 'interests count:', interests?.length)
 
     const { data: leadData, error: leadError } = await supabase
       .from('crm_leads')
@@ -76,7 +80,7 @@ export async function POST(req: Request) {
           accepts_email: accepts_email ?? true,
           accepts_sms: accepts_sms ?? true,
           source_platform: 'web',
-          source_url: '/interest',
+          source_url: effectiveSourceUrl,
           form_version: 'v1-interest-grid',
           utm_source: utm_source || null,
           utm_medium: utm_medium || null,
@@ -92,7 +96,7 @@ export async function POST(req: Request) {
             accepts_push: accepts_push ?? true,
             secondary_zipcodes: zipcodes.slice(1),
             interest_count: interests?.length || 0,
-            first_touch_source: first_touch_source || null,
+            first_touch_source: effectiveFirstTouch,
             referrer_id: signup_referrer_id || null,
           },
         },

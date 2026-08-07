@@ -73,7 +73,12 @@ test.describe('Signup Path Attribution E2E', () => {
     await page.waitForTimeout(3000)
 
     // 5. Query DB directly to assert profile signup_source matches /join
-    const dbSource = execSql(`SELECT signup_source FROM profiles WHERE email = '${email}'`).trim()
+    let dbSource = ''
+    for (let i = 0; i < 10; i++) {
+      dbSource = execSql(`SELECT signup_source FROM profiles WHERE email = '${email}'`).trim()
+      if (dbSource) break
+      await page.waitForTimeout(1000)
+    }
     expect(dbSource).toBe('/join')
 
     // Clean up DB
@@ -126,7 +131,12 @@ test.describe('Signup Path Attribution E2E', () => {
     await page.waitForTimeout(3000)
 
     // 6. Query DB directly to assert profile signup_source matches /growbot
-    const dbSource = execSql(`SELECT signup_source FROM profiles WHERE email = '${email}'`).trim()
+    let dbSource = ''
+    for (let i = 0; i < 10; i++) {
+      dbSource = execSql(`SELECT signup_source FROM profiles WHERE email = '${email}'`).trim()
+      if (dbSource) break
+      await page.waitForTimeout(1000)
+    }
     expect(dbSource).toBe('/growbot')
 
     // Clean up DB

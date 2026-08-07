@@ -1,7 +1,8 @@
+import { vi } from 'vitest'
 import { GET } from './route'
 
-jest.mock('next/headers', () => ({
-  cookies: jest.fn().mockResolvedValue({
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
     get: (key: string) => {
       if (key === 'cg_ref') return { value: 'usr_ref_100' }
       if (key === 'cg_intent') return { value: JSON.stringify({ type: 'follow', target: 'sarah' }) }

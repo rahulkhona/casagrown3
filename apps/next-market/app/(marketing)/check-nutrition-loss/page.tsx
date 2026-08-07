@@ -235,6 +235,8 @@ export default function NutritionLossLandingPage() {
                     email: uEmail,
                     phone: draft.phone || '',
                     zipcodes: [draft.zipcode || '95125'],
+                    source_url: '/check-nutrition-loss',
+                    first_touch_source: '/check-nutrition-loss',
                     interests: finalProduce.map(p => ({ produce_name: p, interest_type: 'buy' })),
                     store_types: draft.selectedStoreTypes,
                     fulfillment_modes: draft.selectedFulfillmentModes,

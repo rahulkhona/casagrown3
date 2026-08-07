@@ -36,12 +36,20 @@ vi.mock('../../../../lib/supabase', () => ({
   }),
 }))
 
-// Mock Bootstrap
+// Mock Bootstrap & QuickSetup
 vi.mock('../../../../lib/useBootstrap', () => ({
   useBootstrap: () => ({
+    user: null,
     refresh: vi.fn(),
   }),
   BootstrapProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
+vi.mock('../../../../lib/useQuickSetup', () => ({
+  useQuickSetup: () => ({
+    requireAuth: vi.fn(),
+  }),
+  QuickSetupProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
 describe('Produce Catalog & URL Parameter Ingestion', () => {
@@ -75,8 +83,8 @@ describe('Produce Catalog & URL Parameter Ingestion', () => {
 
     render(<InterestPage />)
     
-    // Guest modal opens automatically on parameter hydration
-    expect(await screen.findByText('Save Your Interests')).toBeInTheDocument()
+    // Items pre-selected: sticky bar appears with Save & Get Notified button
+    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
   })
 
   it('handles alias parameter ?items=Peaches,Figs&scope=sell', async () => {
@@ -85,7 +93,7 @@ describe('Produce Catalog & URL Parameter Ingestion', () => {
 
     render(<InterestPage />)
 
-    expect(await screen.findByText('Save Your Interests')).toBeInTheDocument()
+    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
   })
 
   it('handles unlisted custom produce items like ?produce=Chickoo', async () => {
@@ -94,6 +102,6 @@ describe('Produce Catalog & URL Parameter Ingestion', () => {
 
     render(<InterestPage />)
 
-    expect(await screen.findByText('Save Your Interests')).toBeInTheDocument()
+    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
   })
 })

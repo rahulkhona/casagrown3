@@ -21,4 +21,4 @@ CREATE POLICY "Authenticated Upload Access for interest-images"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'interest-images');
 
-COMMENT ON TABLE storage.objects IS 'Storage objects repository; interest-images bucket stores permanent master interests catalog photos without expiration.';
+

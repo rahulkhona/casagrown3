@@ -46,6 +46,22 @@ function InterestPageContent() {
   const [userInterestCount, setUserInterestCount] = useState<number | null>(null)
   const [savedInterestKeys, setSavedInterestKeys] = useState<Set<string>>(new Set())
 
+  // Custom Interest Modal state
+  const [customModalOpen, setCustomModalOpen] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customNameError, setCustomNameError] = useState('')
+  const [customCandidates, setCustomCandidates] = useState<string[]>([])
+  const [customSelectedImage, setCustomSelectedImage] = useState<string>('')
+  const [customSearching, setCustomSearching] = useState(false)
+  const [customUploading, setCustomUploading] = useState(false)
+  const [customAdding, setCustomAdding] = useState(false)
+  const [customAddError, setCustomAddError] = useState('')
+  const [customUploadPreview, setCustomUploadPreview] = useState<string>('')
+  const [customUploadFile, setCustomUploadFile] = useState<File | null>(null)
+  const [customIntent, setCustomIntent] = useState<'buy' | 'sell'>('buy')
+  const [showWebCameraModal, setShowWebCameraModal] = useState(false)
+  const customSearchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Form State — pre-fill from URL params (coming from lead magnet wizards)
   const [name, setName] = useState(searchParams.get('name') || '')
   const [email, setEmail] = useState(searchParams.get('email') || '')
@@ -180,12 +196,15 @@ function InterestPageContent() {
         if (data && data.length > 0) {
           const newItems: ProduceItem[] = []
           const presetNames = new Set(EXHAUSTIVE_US_PRODUCE.map((p) => p.name.toLowerCase()))
+          const presetIds = new Set(EXHAUSTIVE_US_PRODUCE.map((p) => p.id.toLowerCase()))
 
           for (const row of data) {
             if (!row.name || presetNames.has(row.name.toLowerCase())) continue
+            const rowId = (row.id || `community_${row.name.toLowerCase().replace(/\s+/g, '_')}`).toLowerCase()
+            if (presetIds.has(rowId)) continue
 
             newItems.push({
-              id: row.id || `community_${row.name.toLowerCase().replace(/\s+/g, '_')}`,
+              id: rowId,
               name: row.name,
               category: (row.category as any) || 'produce',
               displayCategory: 'Community Item',
@@ -549,11 +568,15 @@ function InterestPageContent() {
       const submitUserId = userId || user?.id || null
 
       const referralData = getReferralData()
+      const sourceUrlFromParam = searchParams.get('source_url') || searchParams.get('source') || (scope === 'sell' ? '/sell' : scope === 'buy' ? '/check-nutrition-loss' : '/interest')
+
       const submitPayload = {
           name: name || user?.email?.split('@')[0] || 'Grower',
           email: submitEmail,
           phone: null,
           zipcodes: finalZipcodes,
+          source_url: sourceUrlFromParam,
+          first_touch_source: sourceUrlFromParam,
           interests: activeInterests.map((si) => ({
             produce_name: si.item.name,
             interest_type: si.type,
@@ -732,7 +755,61 @@ function InterestPageContent() {
               bottom: 60px;
             }
           }
+
+          /* Custom Interest FAB — floats above sticky bar + native nav */
+          #add-custom-interest-fab {
+            bottom: 80px;
+          }
+          @media (max-width: 768px) {
+            #add-custom-interest-fab {
+              /* 60px native tab bar + 60px sticky save bar + 8px gap */
+              bottom: 128px;
+            }
+          }
+
+          @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+
+          /* Custom Interest Modal — mobile-safe sizing */
+          #custom-interest-modal {
+            max-height: 88vh;
+            max-height: 88dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          @media (max-width: 768px) {
+            /* Override the overlay to align modal to bottom on mobile */
+            #add-custom-interest-fab {
+              bottom: 128px;
+            }
+            .custom-interest-overlay-mobile {
+              align-items: flex-end !important;
+              padding: 0 !important;
+            }
+            #custom-interest-modal {
+              border-radius: 24px 24px 0 0 !important;
+              max-width: 100% !important;
+              width: 100% !important;
+              max-height: 88dvh !important;
+              max-height: 88vh !important;
+              margin: 0 !important;
+            }
+            #custom-interest-modal img {
+              height: 110px !important;
+              min-height: 44px;
+            }
+            #custom-interest-upload-label,
+            #custom-interest-camera-label {
+              min-height: 44px;
+            }
+            #custom-interest-add-btn {
+              min-height: 48px;
+            }
+          }
         `}</style>
+
       </div>
 
       {/* Main Grid Content */}
@@ -1268,6 +1345,544 @@ function InterestPageContent() {
         </div>
       )}
 
+      {/* ── + FAB: Add Custom Interest ── */}
+      <button
+        id="add-custom-interest-fab"
+        onClick={() => {
+          setCustomModalOpen(true)
+          setCustomName('')
+          setCustomNameError('')
+          setCustomCandidates([])
+          setCustomSelectedImage('')
+          setCustomUploadPreview('')
+          setCustomUploadFile(null)
+          setCustomAddError('')
+          setCustomIntent(scope === 'sell' ? 'sell' : 'buy')
+        }}
+        title="Add a custom interest"
+        style={{
+          position: 'fixed',
+          /* bottom controlled exclusively by #add-custom-interest-fab CSS class */
+          right: '20px',
+          width: '52px',
+          height: '52px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+          color: 'white',
+          border: 'none',
+          fontSize: '26px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(22,163,74,0.45)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 210,
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.1)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(22,163,74,0.55)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(22,163,74,0.45)' }}
+      >
+        +
+      </button>
+
+      {/* ── Custom Interest Modal ── */}
+      {customModalOpen && (
+        <div
+          style={styles.modalOverlay}
+          className="custom-interest-overlay-mobile"
+          onClick={() => setCustomModalOpen(false)}
+        >
+          <div
+            id="custom-interest-modal"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drag handle — visible on mobile */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px', paddingBottom: '2px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '2px', backgroundColor: '#d1d5db' }} />
+            </div>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>➕ Add Custom Interest</h2>
+              <button style={styles.modalCloseBtn} onClick={() => setCustomModalOpen(false)}>✕</button>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px', marginTop: 0 }}>
+                Can't find what you grow or want? Add it here and we'll match you with nearby neighbors.
+              </p>
+
+              {/* Name Input — auto-searches images after 600ms */}
+              <div style={{ marginBottom: '4px' }}>
+                <label style={styles.label}>What do you grow or want? *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="custom-interest-name-input"
+                    type="text"
+                    value={customName}
+                    maxLength={50}
+                    placeholder="e.g. Dragon Fruit, Jackfruit, Loquat..."
+                    style={{ ...styles.input, paddingRight: customSearching ? '42px' : '14px' }}
+                    onChange={e => {
+                      const val = e.target.value
+                      setCustomName(val)
+                      setCustomAddError('')
+                      setCustomCandidates([])
+                      setCustomSelectedImage('')
+                      setCustomUploadPreview('')
+                      setCustomUploadFile(null)
+
+                      // Cancel any pending search
+                      if (customSearchTimer.current) clearTimeout(customSearchTimer.current)
+
+                      const trimmed = val.trim()
+                      if (trimmed.length < 2) { setCustomNameError(''); return }
+                      if (!/^[a-zA-Z\s\-]+$/.test(trimmed)) {
+                        setCustomNameError('Only letters, spaces, and hyphens allowed')
+                        return
+                      }
+                      const modCheck = checkTextForViolations(trimmed)
+                      if (!modCheck.isClean) {
+                        setCustomNameError(modCheck.error || 'This name is not allowed')
+                        return
+                      }
+                      const allNames = [...EXHAUSTIVE_US_PRODUCE, ...communityItems].map(p => p.name.toLowerCase())
+                      if (allNames.includes(trimmed.toLowerCase())) {
+                        setCustomNameError('This item is already in the catalog — find it by searching above')
+                        return
+                      }
+                      setCustomNameError('')
+
+                      // Auto-search images after 600ms of no typing
+                      customSearchTimer.current = setTimeout(async () => {
+                        setCustomSearching(true)
+                        try {
+                          const supabase = createClient()
+                          const { data: blocked } = await supabase
+                            .from('blocked_products')
+                            .select('product_name')
+                          if (blocked?.some((b: any) => trimmed.toLowerCase().includes(b.product_name.toLowerCase()))) {
+                            setCustomNameError('This item name is not permitted on CasaGrown')
+                            setCustomSearching(false)
+                            return
+                          }
+                          const res = await fetch(`/api/interest/candidates?name=${encodeURIComponent(trimmed)}`)
+                          const data = await res.json()
+                          setCustomCandidates(data.candidates || [])
+                          if (data.candidates?.length > 0) setCustomSelectedImage(data.candidates[0])
+                        } catch {
+                          setCustomCandidates([])
+                        } finally {
+                          setCustomSearching(false)
+                        }
+                      }, 600)
+                    }}
+                  />
+                  {/* Spinner shown inside input while searching */}
+                  {customSearching && (
+                    <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '16px', pointerEvents: 'none' }}>⏳</div>
+                  )}
+                </div>
+                {customNameError && <div style={styles.errorText}>{customNameError}</div>}
+              </div>
+
+              {/* Image Picker — shows candidates and user's uploaded/captured photo in selection grid */}
+              {(customSearching || customCandidates.length > 0 || customUploadPreview) && (
+                <div style={{ marginTop: '16px', marginBottom: '4px' }}>
+                  <label style={styles.label}>
+                    {customSearching ? 'Finding images…' : 'Pick an image'}
+                  </label>
+                  {customSearching ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{ height: '90px', borderRadius: '10px', background: 'linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {/* Featured User Photo Tile */}
+                      {customUploadPreview && (
+                        <div
+                          style={{
+                            border: customSelectedImage === customUploadPreview ? '3px solid #16a34a' : '2px solid #e5e7eb',
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            padding: 0,
+                            cursor: 'pointer',
+                            background: '#f0fdf4',
+                            position: 'relative',
+                            height: '90px',
+                          }}
+                          onClick={() => setCustomSelectedImage(customUploadPreview)}
+                        >
+                          <img
+                            src={customUploadPreview}
+                            alt="Your Photo"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                          {/* Remove Photo Button */}
+                          <button
+                            type="button"
+                            title="Remove photo"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCustomUploadPreview('')
+                              setCustomUploadFile(null)
+                              if (customCandidates.length > 0) {
+                                setCustomSelectedImage(customCandidates[0])
+                              } else {
+                                setCustomSelectedImage('')
+                              }
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: '4px',
+                              left: '4px',
+                              background: 'rgba(239,68,68,0.9)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '22px',
+                              height: '22px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              zIndex: 5,
+                            }}
+                          >
+                            ✕
+                          </button>
+                          {customSelectedImage === customUploadPreview && (
+                            <div style={{ position: 'absolute', top: '4px', right: '4px', background: '#16a34a', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px' }}>✓</div>
+                          )}
+                          <div style={{ position: 'absolute', bottom: '0', left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '10px', padding: '2px 4px', textAlign: 'center', fontWeight: 600 }}>Your Photo</div>
+                        </div>
+                      )}
+
+                      {/* Candidate Image Tiles */}
+                      {customCandidates.map((url, idx) => (
+                        <button
+                          key={url}
+                          id={`custom-interest-img-tile-${idx}`}
+                          type="button"
+                          onClick={() => { setCustomSelectedImage(url); setCustomUploadPreview(''); setCustomUploadFile(null) }}
+                          style={{
+                            border: customSelectedImage === url ? '3px solid #16a34a' : '2px solid #e5e7eb',
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            padding: 0,
+                            cursor: 'pointer',
+                            background: 'none',
+                            position: 'relative',
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={`Option ${idx + 1}`}
+                            style={{ width: '100%', height: '90px', objectFit: 'cover', display: 'block' }}
+                            onError={e => { (e.currentTarget as HTMLImageElement).src = '/images/produce_placeholder.jpg' }}
+                          />
+                          {customSelectedImage === url && (
+                            <div style={{ position: 'absolute', top: '4px', right: '4px', background: '#16a34a', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px' }}>✓</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Upload / Camera — Brings photo straight into active selection */}
+              <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                <label style={{ ...styles.label, marginBottom: '10px' }}>Or use your own photo</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {/* Upload from library */}
+                  <label
+                    id="custom-interest-upload-label"
+                    htmlFor="custom-interest-file-input"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '11px 14px',
+                      borderRadius: '12px',
+                      border: customUploadFile ? '2px solid #16a34a' : '1.5px dashed #d1d5db',
+                      backgroundColor: customUploadFile ? '#f0fdf4' : '#f9fafb',
+                      fontSize: '13px',
+                      color: customUploadFile ? '#16a34a' : '#6b7280',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  >
+                    📁 {customUploadFile ? '✓ Photo Selected' : 'Upload photo'}
+                  </label>
+                  <input
+                    id="custom-interest-file-input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (file.size > 5 * 1024 * 1024) { setCustomAddError('Image must be under 5MB'); return }
+                      setCustomUploadFile(file)
+                      const reader = new FileReader()
+                      reader.onload = ev => {
+                        const dataUrl = ev.target?.result as string
+                        setCustomUploadPreview(dataUrl)
+                        setCustomSelectedImage(dataUrl)
+                      }
+                      reader.readAsDataURL(file)
+                    }}
+                  />
+                  {/* Take photo with camera widget */}
+                  <button
+                    id="custom-interest-camera-btn"
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                        setShowWebCameraModal(true)
+                      } else {
+                        document.getElementById('custom-interest-camera-input')?.click()
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '11px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px dashed #d1d5db',
+                      backgroundColor: '#f9fafb',
+                      fontSize: '13px',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  >
+                    📷 Take photo
+                  </button>
+                  <input
+                    id="custom-interest-camera-input"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (file.size > 5 * 1024 * 1024) { setCustomAddError('Image must be under 5MB'); return }
+                      setCustomUploadFile(file)
+                      const reader = new FileReader()
+                      reader.onload = ev => {
+                        const dataUrl = ev.target?.result as string
+                        setCustomUploadPreview(dataUrl)
+                        setCustomSelectedImage(dataUrl)
+                      }
+                      reader.readAsDataURL(file)
+                    }}
+                  />
+                </div>
+                {/* Clear Photo Action Button */}
+                {customUploadPreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomUploadPreview('')
+                      setCustomUploadFile(null)
+                      if (customCandidates.length > 0) {
+                        setCustomSelectedImage(customCandidates[0])
+                      } else {
+                        setCustomSelectedImage('')
+                      }
+                    }}
+                    style={{
+                      marginTop: '8px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: 0,
+                    }}
+                  >
+                    🗑️ Remove photo &amp; reset selection
+                  </button>
+                )}
+              </div>
+
+              {customAddError && <div style={{ ...styles.errorText, marginBottom: '12px' }}>{customAddError}</div>}
+
+              {/* I have this / I want this toggle — only shown if scope param is NOT provided */}
+              {!scope && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ ...styles.label, marginBottom: '10px' }}>I want to…</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCustomIntent('buy')}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: customIntent === 'buy' ? '2px solid #16a34a' : '1.5px solid #e5e7eb',
+                        backgroundColor: customIntent === 'buy' ? '#f0fdf4' : '#ffffff',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        color: customIntent === 'buy' ? '#15803d' : '#6b7280',
+                      }}
+                    >
+                      🛒 Buy / Want this
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomIntent('sell')}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: customIntent === 'sell' ? '2px solid #16a34a' : '1.5px solid #e5e7eb',
+                        backgroundColor: customIntent === 'sell' ? '#f0fdf4' : '#ffffff',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        color: customIntent === 'sell' ? '#15803d' : '#6b7280',
+                      }}
+                    >
+                      🌱 Grow / Have this
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {customAddError && <div style={{ ...styles.errorText, marginBottom: '12px' }}>{customAddError}</div>}
+
+              {/* Add & Auto-select Button */}
+              <button
+                id="custom-interest-add-btn"
+                type="button"
+                disabled={customAdding || customUploading || customName.trim().length < 2 || !!customNameError || (!customSelectedImage && !customUploadFile)}
+                onClick={async () => {
+                  const trimmed = customName.trim()
+                  if (!trimmed || customNameError) return
+                  if (!customSelectedImage && !customUploadFile) {
+                    setCustomAddError('Please pick or upload an image')
+                    return
+                  }
+
+                  setCustomAdding(true)
+                  setCustomAddError('')
+                  try {
+                    const supabase = createClient()
+                    let finalImageUrl = customSelectedImage
+
+                    // Upload user's own image if provided
+                    if (customUploadFile) {
+                      if (userId) {
+                        setCustomUploading(true)
+                        const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+                        const ext = customUploadFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+                        const path = `community/${userId}/${slug}_${Date.now()}.${ext}`
+                        const { error: upErr } = await supabase.storage
+                          .from('interest-images')
+                          .upload(path, customUploadFile, { upsert: true })
+                        if (upErr) throw new Error(upErr.message)
+                        const { data: urlData } = supabase.storage.from('interest-images').getPublicUrl(path)
+                        finalImageUrl = urlData.publicUrl
+                        setCustomUploading(false)
+                      } else {
+                        finalImageUrl = customUploadPreview
+                      }
+                    }
+
+                    // Upsert to community_produce_catalog if logged in
+                    const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+                    const displayName = trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+                    if (userId) {
+                      await supabase.from('community_produce_catalog').upsert(
+                        { id: slug, name: displayName, category: 'produce', image: finalImageUrl || '/images/produce_placeholder.jpg' },
+                        { onConflict: 'id' }
+                      )
+                    }
+
+                    const newItem: ProduceItem = {
+                      id: `community_${slug}`,
+                      name: displayName,
+                      category: 'produce',
+                      displayCategory: 'Community Item',
+                      image: finalImageUrl || '/images/produce_placeholder.jpg',
+                      buyersCount: 1,
+                      sellersCount: 0,
+                      unit: 'item',
+                    }
+
+                    // 1. Add to community items grid
+                    setCommunityItems(prev => [newItem, ...prev.filter(p => p.id !== newItem.id)])
+
+                    // 2. Auto-select this custom item with chosen intent or scope
+                    const targetType = scope || customIntent
+                    setSelectedInterests(prev => [
+                      ...prev.filter(si => !(si.item.id === newItem.id && si.type === targetType)),
+                      { item: newItem, type: targetType }
+                    ])
+
+                    // 3. Close custom modal
+                    setCustomModalOpen(false)
+                  } catch (err: any) {
+                    setCustomAddError(err?.message || 'Failed to add custom interest')
+                    setCustomUploading(false)
+                  } finally {
+                    setCustomAdding(false)
+                  }
+                }}
+                style={{
+                  ...styles.btnPrimary,
+                  width: '100%',
+                  opacity: (customAdding || customUploading || customName.trim().length < 2 || !!customNameError || (!customSelectedImage && !customUploadFile)) ? 0.5 : 1,
+                  cursor: (customAdding || customUploading || customName.trim().length < 2 || !!customNameError || (!customSelectedImage && !customUploadFile)) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {customUploading ? '⏳ Uploading image...' : customAdding ? '⏳ Adding...' : '➕ Add to My Selections'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Web Camera Modal */}
+      {showWebCameraModal && (
+        <InlineWebCameraModal
+          onCapture={(dataUrl, file) => {
+            setShowWebCameraModal(false)
+            setCustomUploadPreview(dataUrl)
+            setCustomSelectedImage(dataUrl)
+            setCustomUploadFile(file)
+          }}
+          onClose={() => setShowWebCameraModal(false)}
+        />
+      )}
+
       {/* Social Share Modal for Saved Interests (Buyer Wishlist or Seller Harvest) */}
       {savedShareInterests.length > 0 && (
         <SocialShareModal
@@ -1562,11 +2177,11 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 100,
+    zIndex: 1000,
     padding: '16px',
   },
   modalCard: {
@@ -1657,4 +2272,83 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1.5px solid #d1d5db',
     backgroundColor: '#f9fafb',
   },
+}
+
+function InlineWebCameraModal({
+  onCapture,
+  onClose,
+}: {
+  onCapture: (dataUrl: string, file: File) => void
+  onClose: () => void
+}) {
+  const videoRef = React.useRef<HTMLVideoElement>(null)
+  const [stream, setStream] = React.useState<MediaStream | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let active = true
+    async function initCamera() {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        })
+        if (!active) {
+          mediaStream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        setStream(mediaStream)
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+          videoRef.current.play()
+        }
+      } catch (err: any) {
+        if (active) setError(err?.message || 'Camera permission denied or unavailable.')
+      }
+    }
+    initCamera()
+    return () => {
+      active = false
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+    }
+  }, [])
+
+  const handleTakePhoto = () => {
+    if (!videoRef.current) return
+    const video = videoRef.current
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 480
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        onCapture(dataUrl, file)
+      }
+    }, 'image/jpeg', 0.9)
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ backgroundColor: '#1f2937', borderRadius: '20px', overflow: 'hidden', maxWidth: '500px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ width: '100%', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #374151' }}>
+          <span style={{ color: 'white', fontWeight: 700, fontSize: '16px' }}>📷 Take Photo</span>
+          <button type="button" onClick={() => { if (stream) stream.getTracks().forEach(t => t.stop()); onClose() }} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ width: '100%', height: '320px', backgroundColor: 'black', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {error ? (
+            <div style={{ color: '#ef4444', padding: '20px', textAlign: 'center', fontSize: '14px' }}>{error}</div>
+          ) : (
+            <video ref={videoRef} playsInline autoPlay muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
+        </div>
+        <div style={{ padding: '16px', display: 'flex', gap: '12px', width: '100%', justifyContent: 'center' }}>
+          <button type="button" onClick={() => { if (stream) stream.getTracks().forEach(t => t.stop()); onClose() }} style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid #4b5563', backgroundColor: '#374151', color: 'white', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={handleTakePhoto} disabled={!stream} style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: '#22c55e', color: 'white', fontWeight: 700, cursor: stream ? 'pointer' : 'not-allowed' }}>📸 Snap Photo</button>
+        </div>
+      </div>
+    </div>
+  )
 }

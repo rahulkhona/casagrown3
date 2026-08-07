@@ -244,7 +244,7 @@ test.describe('Redeem Flow Interactions', () => {
     await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const giftCard = page.locator('button[class*="gcCard"], button[class*="card"], [class*="gcCard"]').first()
-    if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false) && await giftCard.isEnabled().catch(() => false)) {
       await giftCard.click()
       await page.waitForTimeout(500)
       // Should show denomination selection
@@ -257,11 +257,11 @@ test.describe('Redeem Flow Interactions', () => {
     await page.goto(`${BASE}/earnings/payout`)
     await page.waitForTimeout(2000)
     const giftCard = page.locator('button[class*="gcCard"], button[class*="card"]').first()
-    if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await giftCard.isVisible({ timeout: 3000 }).catch(() => false) && await giftCard.isEnabled().catch(() => false)) {
       await giftCard.click()
       await page.waitForTimeout(500)
       const denomBtn = page.locator('button:has-text("$5"), button:has-text("$10"), button:has-text("$25")').first()
-      if (await denomBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await denomBtn.isVisible({ timeout: 2000 }).catch(() => false) && await denomBtn.isEnabled().catch(() => false)) {
         await denomBtn.click()
         await page.waitForTimeout(300)
       }

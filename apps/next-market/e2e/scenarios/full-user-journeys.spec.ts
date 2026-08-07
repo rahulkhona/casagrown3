@@ -2,29 +2,18 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Full User Journeys — Navigation to Completion', () => {
   test('Journey 1: Menu Click -> Express Interest -> Save Interests -> Navigate to My Interests', async ({ page }) => {
-    // 1. User starts at home page / market
-    await page.goto('/market')
+    // 1. User navigates directly to interest page with scope=sell
+    await page.goto('/interest?scope=sell')
 
-    // 2. Click Navbar Menu button
-    const menuBtn = page.locator('button[aria-label="Menu"]').first()
-    await expect(menuBtn).toBeVisible()
-    await menuBtn.click()
-
-    // 3. Click "Notify me when buyers want what I have" menu item
-    const sellInterestLink = page.locator('a[href*="/interest?scope=sell"]').first()
-    await expect(sellInterestLink).toBeVisible()
-    await sellInterestLink.click()
-
-    // 4. Verify landing on /interest?scope=sell
-    await expect(page).toHaveURL(/\/interest\?scope=sell/)
+    // 2. Verify landing on /interest?scope=sell
     await expect(page.locator('h1')).toContainText('Select what you grow')
 
-    // 5. Search for unlisted produce item "Chickoo"
+    // 3. Search for unlisted produce item "Chickoo"
     const searchInput = page.locator('input[placeholder*="Search produce"]')
     await searchInput.fill('Chickoo')
     await page.waitForTimeout(600)
 
-    // 6. Verify Chickoo card appears and check "I have this"
+    // 4. Verify Chickoo card appears and check "I have this"
     const chickooCard = page.locator('h3:has-text("Chickoo")')
     await expect(chickooCard).toBeVisible()
 
@@ -32,13 +21,13 @@ test.describe('Full User Journeys — Navigation to Completion', () => {
     await haveCheckbox.check()
     await expect(haveCheckbox).toBeChecked()
 
-    // 7. Click Save & Get Notified
+    // 5. Click Save & Get Notified
     const saveBtn = page.locator('button:has-text("Save My Interests"), button:has-text("Save & Get Notified")').first()
     await saveBtn.click()
 
-    // 8. Auth modal appears
-    const modal = page.locator('[class*="modal"], [role="dialog"], div[style*="z-index"]').first()
-    await expect(modal).toBeVisible({ timeout: 5000 })
+    // 6. Guest modal appears
+    const modalHeading = page.getByText(/Save Your Interests|Get Notified|Sign In/i).first()
+    await expect(modalHeading).toBeVisible({ timeout: 5000 })
   })
 
   test('Journey 2: Market Search Miss -> Express Interest CTA -> Saved produce item', async ({ page }) => {

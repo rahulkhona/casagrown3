@@ -19,7 +19,9 @@ config({ path: resolve(__dirname, '../../../../.env') })
 export const SUPABASE_URL = 'http://127.0.0.1:54321'
 export const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+export const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.V4YxW8tQgWkWqE0P1xWqE0P1xWqE0P1xWqE0P1xWqE0'
 export const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
 export const MAILPIT_URL = 'http://localhost:54324'
 export const BASE_URL = 'http://localhost:3001'

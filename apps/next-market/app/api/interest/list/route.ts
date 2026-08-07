@@ -82,7 +82,7 @@ export async function GET(req: Request) {
         demandData.forEach((row: any) => {
           if (row.produce_name) {
             const buyerFamilies = getProduceFamilies(row.produce_name)
-            if (buyerFamilies.some((f) => sellFamilies.has(f))) {
+            if (buyerFamilies.some((f: string) => sellFamilies.has(f))) {
               counts[row.produce_name] = (counts[row.produce_name] || 0) + 1
             }
           }

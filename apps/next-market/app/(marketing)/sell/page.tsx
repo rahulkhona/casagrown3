@@ -290,6 +290,8 @@ export default function SellLandingPage() {
                       email: uEmail,
                       phone: draft.phone || '',
                       zipcodes: [draft.zipcode || '95125'],
+                      source_url: '/sell',
+                      first_touch_source: '/sell',
                       interests: allCrops.map(crop => ({ produce_name: crop, interest_type: 'sell' }))
                     })
                   }).catch(() => {});
@@ -436,6 +438,8 @@ export default function SellLandingPage() {
             email,
             phone,
             zipcodes: [zipcode || '95125'],
+            source_url: '/sell',
+            first_touch_source: '/sell',
             interests: allCrops.map(crop => ({ produce_name: crop, interest_type: 'sell' })),
             utm_source: trackingData.utm_source,
             utm_medium: trackingData.utm_medium,

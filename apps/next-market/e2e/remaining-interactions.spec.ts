@@ -679,7 +679,7 @@ test.describe('Payout Method Flows', () => {
     }
     // Select a card
     const gcCard = page.locator('[class*="gcCard"], button:has-text("Amazon"), button:has-text("Target")').first()
-    if (await gcCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await gcCard.isVisible({ timeout: 2000 }).catch(() => false) && await gcCard.isEnabled().catch(() => false)) {
       await gcCard.click()
       await page.waitForTimeout(500)
       // Denomination button

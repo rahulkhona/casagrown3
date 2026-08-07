@@ -25,6 +25,8 @@ interface TouchPoint {
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
+  utm_content: string | null
+  utm_term: string | null
   landed_at: string
   landing_url: string
 }
@@ -44,11 +46,15 @@ function detectSource(params: URLSearchParams): {
   utm_source: string | null
   utm_medium: string | null
   utm_campaign: string | null
+  utm_content: string | null
+  utm_term: string | null
 } {
   const ref = params.get('ref')
   const utmSource = params.get('utm_source')
   const utmMedium = params.get('utm_medium')
   const utmCampaign = params.get('utm_campaign')
+  const utmContent = params.get('utm_content')
+  const utmTerm = params.get('utm_term')
 
   // If ?ref= is present, this is a user invite
   if (ref) {
@@ -58,6 +64,8 @@ function detectSource(params: URLSearchParams): {
       utm_source: utmSource,
       utm_medium: utmMedium,
       utm_campaign: utmCampaign,
+      utm_content: utmContent,
+      utm_term: utmTerm,
     }
   }
 
@@ -69,6 +77,8 @@ function detectSource(params: URLSearchParams): {
       utm_source: utmSource,
       utm_medium: utmMedium,
       utm_campaign: utmCampaign,
+      utm_content: utmContent,
+      utm_term: utmTerm,
     }
   }
 
@@ -76,27 +86,27 @@ function detectSource(params: URLSearchParams): {
   if (typeof document !== 'undefined' && document.referrer) {
     const referrer = document.referrer.toLowerCase()
     if (referrer.includes('facebook.com') || referrer.includes('fb.com')) {
-      return { source: 'facebook', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null }
+      return { source: 'facebook', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
     if (referrer.includes('nextdoor.com')) {
-      return { source: 'nextdoor', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null }
+      return { source: 'nextdoor', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
     if (referrer.includes('instagram.com')) {
-      return { source: 'instagram', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null }
+      return { source: 'instagram', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
     if (referrer.includes('twitter.com') || referrer.includes('x.com')) {
-      return { source: 'twitter', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null }
+      return { source: 'twitter', referrer_id: null, utm_source: null, utm_medium: 'social', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
     if (referrer.includes('google.com')) {
-      return { source: 'google_organic', referrer_id: null, utm_source: null, utm_medium: 'organic', utm_campaign: null }
+      return { source: 'google_organic', referrer_id: null, utm_source: null, utm_medium: 'organic', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
     if (referrer.includes('bing.com')) {
-      return { source: 'bing_organic', referrer_id: null, utm_source: null, utm_medium: 'organic', utm_campaign: null }
+      return { source: 'bing_organic', referrer_id: null, utm_source: null, utm_medium: 'organic', utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
     }
   }
 
   // No identifiable source
-  return { source: 'organic', referrer_id: null, utm_source: null, utm_medium: null, utm_campaign: null }
+  return { source: 'organic', referrer_id: null, utm_source: null, utm_medium: null, utm_campaign: null, utm_content: utmContent, utm_term: utmTerm }
 }
 
 function getStoredState(): ReferralState {
@@ -122,6 +132,8 @@ export function useReferralCapture() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    const params = new URLSearchParams(window.location.search)
+
     // Capture the first touch landing path unconditionally
     const pathKey = 'casagrown_first_page'
     if (!localStorage.getItem(pathKey)) {
@@ -137,8 +149,6 @@ export function useReferralCapture() {
       }
       localStorage.setItem(pathKey, path)
     }
-
-    const params = new URLSearchParams(window.location.search)
 
     // Capture Facebook Messenger parameters if present
     const fbPsid = params.get('fb_psid')
@@ -169,6 +179,8 @@ export function useReferralCapture() {
       utm_source: detection.utm_source,
       utm_medium: detection.utm_medium,
       utm_campaign: detection.utm_campaign,
+      utm_content: detection.utm_content,
+      utm_term: detection.utm_term,
       landed_at: new Date().toISOString(),
       landing_url: window.location.pathname + window.location.search,
     }
@@ -246,6 +258,8 @@ export function getReferralData(): Record<string, string | null> {
     utm_source: lastTouch?.utm_source || null,
     utm_medium: lastTouch?.utm_medium || null,
     utm_campaign: lastTouch?.utm_campaign || null,
+    utm_content: lastTouch?.utm_content || null,
+    utm_term: lastTouch?.utm_term || null,
   }
 }
 

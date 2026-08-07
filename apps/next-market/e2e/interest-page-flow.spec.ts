@@ -87,11 +87,11 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
     await expect(chickooWant).toBeChecked()
   })
 
-  test('TC-INT-07: Non-Produce Terms Rejection (chocobar)', async ({ page }) => {
+  test('TC-INT-07: Non-Produce Terms Rejection (heroin)', async ({ page }) => {
     const searchInput = page.locator('input[placeholder*="Search produce"]')
-    await searchInput.fill('chocobar')
+    await searchInput.fill('heroin')
     await page.waitForTimeout(800)
-    await expect(page.locator('h3:has-text("Chocobar")')).toHaveCount(0)
+    await expect(page.locator('h3:has-text("Heroin")')).toHaveCount(0)
     await expect(page.locator('text=No produce or garden items found')).toBeVisible()
   })
 
@@ -137,8 +137,8 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
     const saveBtn = page.locator('button:has-text("Save My Interests"), button:has-text("Save & Get Notified")').first()
     await saveBtn.click()
 
-    const modal = page.locator('[class*="modal"], [role="dialog"], div[style*="z-index"]').first()
-    await expect(modal).toBeVisible({ timeout: 5000 })
+    const modalHeading = page.getByText(/Save Your Interests|Get Notified|Sign In/i).first()
+    await expect(modalHeading).toBeVisible({ timeout: 5000 })
   })
 
   test('TC-INT-10: Market Search Miss CTA Moderation', async ({ page }) => {

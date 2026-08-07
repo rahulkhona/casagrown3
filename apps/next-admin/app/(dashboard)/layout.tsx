@@ -40,6 +40,7 @@ const MENU_GROUPS: MenuGroup[] = [
     icon: ShoppingBag,
     items: [
       { label: 'Sales Categories', path: '/sales-categories' },
+      { label: 'Interests Catalog', path: '/interests-catalog' },
       { label: 'Category Restrictions', path: '/category-restrictions' },
       { label: 'Product Restrictions', path: '/product-restrictions' },
     ]

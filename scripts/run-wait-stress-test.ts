@@ -198,9 +198,12 @@ try {
   const [sampleSlotEnrollment] = await sql`
     SELECT next_evaluation_at FROM crm_sequence_enrollments WHERE sequence_id = ${sequenceId} LIMIT 1;
   `;
-  const slotEval = new Date(sampleSlotEnrollment.next_evaluation_at);
-  const diffSecondsSlot = (slotEval.getTime() - Date.now()) / 1000;
-  console.log(`Slot wait verification: next_evaluation_at scheduled for ${slotEval.toUTCString()} (in ${diffSecondsSlot.toFixed(1)} seconds)`);
+  let slotEval: Date | null = null;
+  if (sampleSlotEnrollment?.next_evaluation_at) {
+    slotEval = new Date(sampleSlotEnrollment.next_evaluation_at);
+    const diffSecondsSlot = (slotEval.getTime() - Date.now()) / 1000;
+    console.log(`Slot wait verification: next_evaluation_at scheduled for ${slotEval.toUTCString()} (in ${diffSecondsSlot.toFixed(1)} seconds)`);
+  }
 
   // 11. Run Cycle 5 again BEFORE the slot is active to verify it doesn't process early
   console.log("\n[VERIFY] Executing runner early (before slot window opens) to prove gating works...");
@@ -208,7 +211,7 @@ try {
   console.log(`Early Execution Output: processed ${resEarly.processed} enrollments (Expected: 0)`);
 
   // 12. Wait for the slot window to open (remaining seconds)
-  const waitTimeMs = Math.max(0, (slotEval.getTime() - Date.now()) + 5000); // add 5s buffer
+  const waitTimeMs = Math.max(0, ((slotEval ? slotEval.getTime() : Date.now()) - Date.now()) + 5000); // add 5s buffer
   console.log(`\n[SLEEP] Waiting ${Math.ceil(waitTimeMs / 1000)} seconds for slot window to open...`);
   await sleep(waitTimeMs);
   console.log("[SLEEP] Wait finished.");
