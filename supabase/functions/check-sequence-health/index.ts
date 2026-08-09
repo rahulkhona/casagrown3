@@ -169,7 +169,7 @@ Deno.serve(async (req: Request) => {
       const recipientIds = enrollments.map((e: any) => e.recipient_id);
       const { data: leadsMeta } = await supabase
         .from("crm_leads")
-        .select("id, email, phone, accepts_email, accepts_sms, converted_user_id, profile_completed_at")
+        .select("id, email, phone, accepts_email, accepts_sms, profile_completed_at")
         .in("id", recipientIds.slice(0, 500));
 
       const leadMap = new Map<string, any>();

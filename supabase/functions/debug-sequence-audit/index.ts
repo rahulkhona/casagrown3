@@ -40,31 +40,29 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Get converted user ids to check listings
-  const convertedUserIds = (leads || [])
-    .filter((l: any) => l.converted_user_id)
-    .map((l: any) => l.converted_user_id);
-
+  // Get profiles matching lead emails (for converted users check & listings)
+  const leadEmails = (leads || []).map((l: any) => l.email).filter(Boolean);
+  
+  let profileMapByEmail: Record<string, any> = {};
   let sellersWithListings: string[] = [];
-  if (convertedUserIds.length > 0) {
-    const { data: products } = await supabase
-      .from("market_products")
-      .select("seller_id")
-      .in("seller_id", convertedUserIds);
-    if (products) {
-      sellersWithListings = [...new Set(products.map((p: any) => p.seller_id))];
-    }
-  }
-
-  // Get profiles for converted users (for tos_accepted_at)
-  let profileMap: Record<string, any> = {};
-  if (convertedUserIds.length > 0) {
+  
+  if (leadEmails.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, tos_accepted_at, full_name")
-      .in("id", convertedUserIds);
-    if (profiles) {
-      profiles.forEach((p: any) => { profileMap[p.id] = p; });
+      .select("id, email, tos_accepted_at, full_name")
+      .in("email", leadEmails);
+      
+    if (profiles && profiles.length > 0) {
+      profiles.forEach((p: any) => { profileMapByEmail[p.email.toLowerCase()] = p; });
+      const userIds = profiles.map((p: any) => p.id);
+      
+      const { data: products } = await supabase
+        .from("market_products")
+        .select("seller_id")
+        .in("seller_id", userIds);
+      if (products) {
+        sellersWithListings = [...new Set(products.map((p: any) => p.seller_id))];
+      }
     }
   }
 
@@ -72,9 +70,9 @@ Deno.serve(async (req: Request) => {
   const leadsWithContext = (leads || []).map((lead: any) => {
     const hasEmail = typeof lead.email === "string" && lead.email.trim().length > 0;
     const hasPhone = typeof lead.phone === "string" && lead.phone.trim().length > 0;
-    const profile = lead.converted_user_id ? profileMap[lead.converted_user_id] : null;
-    const hasListings = lead.converted_user_id
-      ? sellersWithListings.includes(lead.converted_user_id)
+    const profile = lead.email ? profileMapByEmail[lead.email.toLowerCase()] : null;
+    const hasListings = profile
+      ? sellersWithListings.includes(profile.id)
       : false;
 
     const now = Date.now();

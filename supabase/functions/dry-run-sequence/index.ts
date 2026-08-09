@@ -146,7 +146,7 @@ serve(async (req) => {
     profilesList.forEach(p => profileMap.set(p.id, p))
 
     // 3b. Batch-check which candidates have created listings
-    // For leads: use converted_user_id → seller_id lookup
+    // For leads: use email → profile id lookup
     // For users: use their id directly
     const sellerIdMap = new Map<string, string>() // candidateId → sellerId
     for (const c of candidates) {
@@ -154,8 +154,9 @@ serve(async (req) => {
         sellerIdMap.set(c.id, c.id)
       } else {
         const meta = metaMap.get(c.id)
-        if (meta?.converted_user_id) {
-          sellerIdMap.set(c.id, meta.converted_user_id)
+        if (meta?.email) {
+          const matchedP = profilesList.find(p => p.email && p.email.toLowerCase() === meta.email.toLowerCase())
+          if (matchedP) sellerIdMap.set(c.id, matchedP.id)
         }
       }
     }

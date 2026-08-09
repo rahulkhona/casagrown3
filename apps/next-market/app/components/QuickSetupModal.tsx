@@ -408,7 +408,6 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
           await supabase
             .from('crm_leads')
             .update({
-              converted_user_id: userId,
               converted_at: new Date().toISOString(),
               status: 'converted',
             })
