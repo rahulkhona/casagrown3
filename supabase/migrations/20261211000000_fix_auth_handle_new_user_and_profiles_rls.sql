@@ -2,7 +2,7 @@
 
 SET search_path TO public, extensions;
 
--- 1. Update handle_new_user() to eliminate stale incentive_rules references
+-- 1. Update handle_new_user() to eliminate stale references
 --    Combines robust OAuth full_name fallbacks, lead produce interest linking, and campaign_rewards signup incentives
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -86,7 +86,7 @@ BEGIN
     WHERE id = matched_lead_id;
   END IF;
 
-  -- 3. Check for Active Signup Reward in campaign_rewards (never incentive_rules)
+  -- 3. Check for Active Signup Reward in campaign_rewards
   SELECT cr.points INTO signup_reward_points
   FROM campaign_rewards cr
   JOIN incentive_campaigns ic ON ic.id = cr.campaign_id
