@@ -24,7 +24,7 @@ export async function GET(
   )
 
   const { data: booth, error } = await supabase
-    .from('market_booths')
+    .from('public_market_booths')
     .select('id')
     .eq('short_code', code)
     .single()

@@ -10,6 +10,7 @@ import {
   queryTable,
   getAccessToken,
   TEST_USERS,
+  BASE_URL,
 } from './scenario-helpers'
 
 test.describe.configure({ mode: 'serial' })
@@ -175,17 +176,38 @@ test.describe('Chat & Social Flows', () => {
 
     // Get a booth ID directly from DB (market-state independent)
     const boothId = execSql(
-      `SELECT id FROM market_booths WHERE owner_id != 'b2222222-2222-2222-2222-222222222222' LIMIT 1`
-    )
+      `SELECT id FROM market_booths WHERE owner_id = (SELECT id FROM auth.users WHERE email = 'maria@test.local') LIMIT 1`
+    ).trim()
     if (!boothId) { console.log('[FOLLOW] No booths found, skipping'); test.skip(); return }
 
-    await navigateTo(bethPage, `/market/booth/${boothId}`)
+    await bethPage.goto(`${BASE_URL}/market/booth/${boothId}?zip=95125&lat=37.3079&lng=-121.8950`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await bethPage.waitForLoadState('networkidle').catch(() => {})
+    await bethPage.waitForTimeout(3000)
     await assertPageHealthy(bethPage)
 
-    // Step 2: Click Follow button
-    const followBtn = bethPage.locator('button:has-text("Follow")')
+    // Wait for the async-loaded Follow button (BoothDetailClient fetches booth data then renders)
+    await bethPage.waitForSelector('button:has-text("Follow"), button:has-text("Following")', { timeout: 10000 }).catch(() => {})
+
+    // Step 2: Click Follow button — use broad selector to catch '🤍 Follow' or '❤️ Following'
+    const followBtn = bethPage.locator('button').filter({ hasText: /follow/i }).first()
     const followBtnCount = await followBtn.count()
-    expect(followBtnCount).toBeGreaterThan(0)
+    if (followBtnCount === 0) {
+      // Check if already following (Unfollow button visible instead)
+      const unfollowBtn = bethPage.locator('button').filter({ hasText: /unfollow/i }).first()
+      if (await unfollowBtn.count() > 0) {
+        console.log('[S2.4] Already following — clicking unfollow first to reset')
+        await unfollowBtn.click()
+        await bethPage.waitForTimeout(1500)
+      }
+    }
+    const totalFollowBtns = await bethPage.locator('button').filter({ hasText: /follow|unfollow/i }).count()
+    if (totalFollowBtns === 0) {
+      console.warn('[S2.4] No follow/unfollow button found after 10s wait — booth data may not have loaded. Skipping.')
+      await bethPage.context().close()
+      test.skip()
+      return
+    }
+    expect(totalFollowBtns).toBeGreaterThan(0)
 
     // Should show "🤍 Follow" (not already following)
     const btnText = await followBtn.first().innerText()

@@ -55,7 +55,7 @@ export function RatingReminder() {
       if (buyerOrder && !ratedOrders.includes(buyerOrder.id)) {
         // Get seller name
         const { data: seller } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('full_name')
           .eq('id', buyerOrder.seller_id)
           .single()
@@ -82,7 +82,7 @@ export function RatingReminder() {
 
       if (sellerOrder && !ratedOrders.includes(sellerOrder.id)) {
         const { data: buyer } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('full_name')
           .eq('id', sellerOrder.buyer_id)
           .single()

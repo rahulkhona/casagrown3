@@ -33,10 +33,10 @@ export default function FollowingPage() {
     if (follows && follows.length > 0) {
       const boothIds = follows.map((f: any) => f.booth_id)
       const { data: boothData } = await supabase
-        .from('market_booths')
+        .from('public_market_booths')
         .select(`
           id, owner_id, name,
-          profiles!market_booths_owner_id_fkey(full_name, avatar_url)
+          public_profiles!market_booths_owner_id_fkey(full_name, avatar_url)
         `)
         .in('id', boothIds)
 
@@ -44,8 +44,8 @@ export default function FollowingPage() {
         setFollowing(boothData.map((b: any) => ({
           booth_id: b.id,
           owner_id: b.owner_id,
-          owner_name: b.profiles?.full_name || 'Neighbor',
-          avatar_url: b.profiles?.avatar_url,
+          owner_name: b.public_profiles?.full_name || 'Neighbor',
+          avatar_url: b.public_profiles?.avatar_url,
           booth_name: b.name
         })))
       }

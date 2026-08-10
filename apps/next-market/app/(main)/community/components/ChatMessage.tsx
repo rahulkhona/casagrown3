@@ -372,7 +372,7 @@ function ChatFollowButton({ targetUserId, currentUserId, isSmall }: { targetUser
     if (!_chatFollowCache.has(key)) {
       _chatFollowCache.set(key, (async () => {
         const supabase = createClient()
-        const { data: booth } = await supabase.from('market_booths').select('id').eq('owner_id', targetUserId).single()
+        const { data: booth } = await supabase.from('public_market_booths').select('id').eq('owner_id', targetUserId).single()
         if (!booth) return { boothId: null, isFollowing: false }
         
         const { data: follow } = await supabase.from('market_followers')

@@ -24,17 +24,17 @@ const mockComments = [
   {
     id: 'q1', product_id: 'p1', author_id: 'buyer-1', parent_id: null,
     body: 'Are these organic?', created_at: new Date(Date.now() - 300000).toISOString(),
-    profiles: { full_name: 'Alice Buyer', avatar_url: null },
+    public_profiles: { full_name: 'Alice Buyer', avatar_url: null },
   },
   {
     id: 'r1', product_id: 'p1', author_id: 'seller-1', parent_id: 'q1',
     body: 'Yes, certified organic!', created_at: new Date(Date.now() - 60000).toISOString(),
-    profiles: { full_name: 'Bob Seller', avatar_url: 'https://img.test/bob.jpg' },
+    public_profiles: { full_name: 'Bob Seller', avatar_url: 'https://img.test/bob.jpg' },
   },
   {
     id: 'q2', product_id: 'p1', author_id: 'buyer-2', parent_id: null,
     body: 'Do you deliver?', created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-    profiles: { full_name: 'Charlie', avatar_url: null },
+    public_profiles: { full_name: 'Charlie', avatar_url: null },
   },
 ]
 

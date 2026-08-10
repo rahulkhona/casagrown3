@@ -139,9 +139,10 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
   const loadOrder = useCallback(async () => {
     if (!user) return
+    // Step 1: Load the order without cross-user FK joins (profiles and market_booths are now RLS-restricted)
     const { data, error } = await supabase
       .from('market_orders')
-      .select('*, delivery_address, buyer:buyer_id(full_name, street_address, avatar_url), seller:seller_id(full_name, street_address, avatar_url), booth:booth_id(name, pickup_address)')
+      .select('*, delivery_address, booth:booth_id(name)')
       .eq('id', orderId)
       .single()
 
@@ -150,15 +151,24 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
     }
 
     if (data) {
+      // Step 2: Fetch buyer profile, seller profile, and booth info from public views in parallel
+      const [{ data: buyerProfile }, { data: sellerProfile }, { data: boothInfo }] = await Promise.all([
+        supabase.from('public_profiles').select('full_name, avatar_url').eq('id', data.buyer_id).single(),
+        supabase.from('public_profiles').select('full_name, avatar_url').eq('id', data.seller_id).single(),
+        supabase.from('public_market_booths').select('name, pickup_display_address').eq('id', data.booth_id).single(),
+      ])
+
       setOrder({
         ...data,
-        buyer_name: (data as any).buyer?.full_name || 'Unknown',
-        seller_name: (data as any).seller?.full_name || 'Unknown',
-        buyer_address: (data as any).delivery_address || (data as any).buyer?.street_address || undefined,
-        seller_address: (data as any).booth?.pickup_address || (data as any).seller?.street_address || undefined,
-        buyer_avatar: (data as any).buyer?.avatar_url || undefined,
-        seller_avatar: (data as any).seller?.avatar_url || undefined,
-        booth_name: (data as any).booth?.name || 'Unknown Stand',
+        buyer_name: buyerProfile?.full_name || 'Unknown',
+        seller_name: sellerProfile?.full_name || 'Unknown',
+        // Use only delivery_address — never fall back to buyer's profile street_address (PII)
+        buyer_address: (data as any).delivery_address || undefined,
+        // Use only the booth's pickup_display_address — never fall back to seller profile street_address (PII)
+        seller_address: boothInfo?.pickup_display_address || undefined,
+        buyer_avatar: buyerProfile?.avatar_url || undefined,
+        seller_avatar: sellerProfile?.avatar_url || undefined,
+        booth_name: boothInfo?.name || (data as any).booth?.name || 'Unknown Stand',
       } as OrderDetail)
 
       // Check if current user is a helper for this booth
@@ -192,13 +202,13 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
       if (disp) {
         const { data: msgs } = await supabase
           .from('order_dispute_messages')
-          .select('*, profiles:sender_id(full_name)')
+          .select('*, public_profiles:sender_id(full_name)')
           .eq('dispute_id', disp.id)
           .order('created_at', { ascending: true })
         if (msgs) {
           setDisputeMessages(msgs.map((m: any) => ({
             ...m,
-            sender_name: m.profiles?.full_name || 'Unknown',
+            sender_name: m.public_profiles?.full_name || 'Unknown',
           })))
         }
       }

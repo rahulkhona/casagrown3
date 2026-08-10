@@ -5,7 +5,9 @@ import {
   assertPageHealthy,
   execSql,
   preAuthAllUsers,
+  BASE_URL,
 } from './scenario-helpers'
+
 
 test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () => {
   const BUYER_ID = 'b2222222-2222-2222-2222-222222222222' // Beth
@@ -74,8 +76,11 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
 
     // 3. Create a test product that uses a category with taxable rate (e.g. 'flowers')
     const prodRow = execSql(
-      `INSERT INTO market_products (seller_id, booth_id, name, description, price_usd, unit, inventory, category, is_active, moderation_status, market_date)
-       VALUES ('${SELLER_ID}', '${testBoothId}', 'Gap Tomatoes', 'Juicy tomatoes for gaps E2E', 10.00, 'lb', 100, 'flowers', true, 'approved', CURRENT_DATE)
+      `INSERT INTO market_products (seller_id, booth_id, name, description, price_usd, unit, inventory, category, is_active, moderation_status, market_date, window_dates, product_delivery_windows, product_pickup_windows)
+       VALUES ('${SELLER_ID}', '${testBoothId}', 'Gap Tomatoes', 'Juicy tomatoes for gaps E2E', 10.00, 'lb', 100, 'flowers', true, 'approved', CURRENT_DATE,
+         jsonb_build_array(to_char(CURRENT_DATE,'YYYY-MM-DD'), to_char(CURRENT_DATE+1,'YYYY-MM-DD')),
+         jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-22","start":"08:00","end":"22:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-22","start":"08:00","end":"22:00"}]'::jsonb),
+         jsonb_build_object(to_char(CURRENT_DATE,'YYYY-MM-DD'), '[{"id":"8-22","start":"08:00","end":"22:00"}]'::jsonb, to_char(CURRENT_DATE+1,'YYYY-MM-DD'), '[{"id":"8-22","start":"08:00","end":"22:00"}]'::jsonb))
        RETURNING id`
     )
     testProductId = prodRow ? prodRow.trim().split(/\s+/)[0] : ''
@@ -102,8 +107,9 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
         console.log(`[RESPONSE ERROR] ${response.url()} -> ${status}`)
       }
     })
-    await navigateTo(page, `/market/booth/${testBoothId}/product/${testProductId}`)
-    await page.waitForTimeout(1000)
+    await page.goto(`${BASE_URL}/market/booth/${testBoothId}/product/${testProductId}?zip=95125&lat=37.3079&lng=-121.8950`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForTimeout(2000)
     await assertPageHealthy(page)
 
     // Dismiss rating prompt if any
@@ -114,6 +120,7 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
 
     // 2. Click Buy button to open BuyModal
     const buyBtn = page.locator('button:has-text("Buy"), button:has-text("Order")').first()
+    await expect(buyBtn).toBeVisible({ timeout: 30000 })
     await buyBtn.click()
     await page.waitForTimeout(1000)
 

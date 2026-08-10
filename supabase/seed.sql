@@ -1421,9 +1421,9 @@ BEGIN
   -- S1: Pending delivery — seller needs to mark delivered or decline
   INSERT INTO market_orders (buyer_id, seller_id, booth_id, product_id, product_name,
     quantity, unit_price_usd, subtotal_usd, tax_amount_usd, total_usd,
-    fulfillment_type, status)
+    fulfillment_type, status, delivery_address)
   SELECT 'b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', b.id, p.id, 'Heirloom Peppers',
-    3, 4.50, 13.50, 1.25, 14.75, 'delivery', 'pending'
+    3, 4.50, 13.50, 1.25, 14.75, 'delivery', 'pending', '456 Willow Ave, San Jose, CA 95128'
   FROM market_booths b, market_products p
   WHERE b.owner_id = 'a1111111-1111-1111-1111-111111111111' AND p.name = 'Heirloom Peppers' LIMIT 1;
 

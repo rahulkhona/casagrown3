@@ -105,32 +105,50 @@ function OrdersContent() {
     if (!user) return
     setLoading(true)
 
+    // Step 1: Load raw orders without cross-user FK joins (profiles/market_booths are now RLS-restricted)
     const { data } = await supabase
       .from('market_orders')
       .select(`
         *,
-        buyer:buyer_id(full_name, avatar_url, street_address),
-        seller:seller_id(full_name, avatar_url, street_address),
-        booth:booth_id(name, pickup_address),
         product:product_id(window_dates, product_delivery_windows, product_pickup_windows)
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
       .order('created_at', { ascending: false })
 
-    if (data) {
+    if (data && data.length > 0) {
+      // Step 2: Collect unique IDs for batch lookups
+      const uniqueBuyerIds = Array.from(new Set(data.map((o: any) => o.buyer_id as string).filter(Boolean)))
+      const uniqueSellerIds = Array.from(new Set(data.map((o: any) => o.seller_id as string).filter(Boolean)))
+      const allProfileIds = Array.from(new Set([...uniqueBuyerIds, ...uniqueSellerIds]))
+      const uniqueBoothIds = Array.from(new Set(data.map((o: any) => o.booth_id as string).filter(Boolean)))
+
+      // Step 3: Batch fetch from public views in parallel
+      const [{ data: profileRows }, { data: boothRows }] = await Promise.all([
+        supabase.from('public_profiles').select('id, full_name, avatar_url').in('id', allProfileIds),
+        supabase.from('public_market_booths').select('id, name, pickup_display_address').in('id', uniqueBoothIds),
+      ])
+
+      // Step 4: Build lookup maps
+      const profileMap = Object.fromEntries((profileRows || []).map((p: any) => [p.id, p]))
+      const boothMap = Object.fromEntries((boothRows || []).map((b: any) => [b.id, b]))
+
       setOrders(data.map((o: any) => ({
         ...o,
-        buyer_name: o.buyer?.full_name || 'Unknown',
-        seller_name: o.seller?.full_name || 'Unknown',
-        buyer_avatar: o.buyer?.avatar_url || null,
-        seller_avatar: o.seller?.avatar_url || null,
-        booth_name: o.booth?.name || 'Unknown Stand',
-        buyer_address: o.delivery_address || o.buyer?.street_address || null,
-        seller_address: o.booth?.pickup_address || o.seller?.street_address || null,
+        buyer_name: profileMap[o.buyer_id]?.full_name || 'Unknown',
+        seller_name: profileMap[o.seller_id]?.full_name || 'Unknown',
+        buyer_avatar: profileMap[o.buyer_id]?.avatar_url || null,
+        seller_avatar: profileMap[o.seller_id]?.avatar_url || null,
+        booth_name: boothMap[o.booth_id]?.name || 'Unknown Stand',
+        // Use only delivery_address — never fall back to buyer's profile street_address (PII)
+        buyer_address: o.delivery_address || null,
+        // Use only booth's pickup_display_address — never fall back to seller profile street_address (PII)
+        seller_address: boothMap[o.booth_id]?.pickup_display_address || null,
         window_dates: o.product?.window_dates || null,
         product_delivery_windows: o.product?.product_delivery_windows || null,
         product_pickup_windows: o.product?.product_pickup_windows || null,
       })))
+    } else if (data) {
+      setOrders([])
     }
     setLoading(false)
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps

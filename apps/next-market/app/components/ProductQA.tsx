@@ -198,7 +198,7 @@ export function ProductQA({ productId, sellerId, isDemo, productName, productDes
     // Fetch comments with author profile info
     const { data } = await supabase
       .from('product_comments')
-      .select('*, profiles:author_id(full_name, avatar_url)')
+      .select('*, public_profiles:author_id(full_name, avatar_url)')
       .eq('product_id', productId)
       .order('created_at', { ascending: true })
 
@@ -232,8 +232,8 @@ export function ProductQA({ productId, sellerId, isDemo, productName, productDes
 
     setComments(data.map((c: any) => ({
       ...c,
-      author_name: c.profiles?.full_name || 'Anonymous',
-      author_avatar: c.profiles?.avatar_url || null,
+      author_name: c.public_profiles?.full_name || 'Anonymous',
+      author_avatar: c.public_profiles?.avatar_url || null,
       like_count: likeMap.get(c.id) || 0,
       liked_by_me: myLikes.has(c.id),
     })))

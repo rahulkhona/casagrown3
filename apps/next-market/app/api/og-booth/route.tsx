@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch booth info
     const { data: booth } = await supabase
-      .from('market_booths')
+      .from('public_market_booths')
       .select('name, header_image_url, booth_city, booth_state')
       .eq('id', boothId)
       .single()

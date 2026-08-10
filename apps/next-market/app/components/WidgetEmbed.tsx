@@ -18,7 +18,7 @@ export function WidgetEmbed() {
     if (!user) return
     const supabase = createClient()
     supabase
-      .from('market_booths')
+      .from('public_market_booths')
       .select('id, name')
       .eq('owner_id', user.id)
       .order('is_default', { ascending: false })

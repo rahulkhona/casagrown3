@@ -78,7 +78,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
   useEffect(() => {
     const load = async () => {
       const { data: boothData } = await supabase
-        .from('market_booths')
+        .from('public_market_booths')
         .select('*')
         .eq('id', id)
         .single()
@@ -95,7 +95,7 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
             .eq('moderation_status', 'approved')
             .order('created_at', { ascending: true }),
           supabase
-            .from('profiles')
+            .from('public_profiles')
             .select('seller_avg_rating, seller_rating_count, full_name, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
             .eq('id', boothData.owner_id)
             .single(),

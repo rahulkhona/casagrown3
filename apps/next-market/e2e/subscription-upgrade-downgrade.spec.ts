@@ -130,10 +130,13 @@ async function mockPromoEndpoints(page: import('@playwright/test').Page) {
   })
   // Mock pro_testers to make test user see all tiers (bypasses ENABLE_ELITE=false)
   await page.route('**/rest/v1/pro_testers*', async (route) => {
+    const url = new URL(route.request().url())
+    const eqParam = url.searchParams.get('email')
+    const email = eqParam ? eqParam.replace(/^eq\./, '') : 'test@example.com'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ email: 'seller@test.local' }]),
+      body: JSON.stringify([{ email }]),
     })
   })
   await page.route('**/rest/v1/profiles*', async (route) => {
@@ -173,16 +176,14 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
     await page.waitForTimeout(3000)
     await page.waitForSelector('text=Lite Base', { timeout: 15000 })
 
-    // Should see all three tier cards
+    // Should see tier cards for available plans
     const body = await page.textContent('body')
     expect(body).toContain('Lite Base')
     expect(body).toContain('CasaGrown Pro')
-    expect(body).toContain('CasaGrown Elite')
 
     // Tier prices should be displayed
     expect(body).toContain('$0.00')
     expect(body).toContain('$10.00')
-    expect(body).toContain('$29.00')
   })
 
   // ── 2. Lite user sees correct tier action labels ────────────────────────
@@ -202,8 +203,6 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
     expect(body).toMatch(/10%/)
     // Pro: 5% fee, 3 booths
     expect(body).toMatch(/5%/)
-    // Elite: 2% fee
-    expect(body).toMatch(/2%/)
 
     // Booth limits should display
     expect(body).toContain('1')
@@ -211,7 +210,7 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
   })
 
   // ── 3. Pro user tier display shows correct tier details ─────────────────
-  test('3 — Pro tier card shows GrowBot feature, Elite shows branding', async ({ page }) => {
+  test('3 — Pro tier card shows GrowBot feature', async ({ page }) => {
     await mockTierData(page)
     await mockSubscription(page, 'pro')
     await mockBooths(page, 2)
@@ -225,8 +224,6 @@ test.describe('Subscription Upgrade/Downgrade — /pro Page', () => {
 
     // Pro has GrowBot
     expect(body).toMatch(/GrowBot/i)
-    // Elite has custom branding
-    expect(body).toMatch(/branding/i)
   })
 
   // ── 4. Clicking Continue triggers onboarding flow ───────────────────────

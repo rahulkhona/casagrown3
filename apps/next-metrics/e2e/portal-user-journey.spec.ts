@@ -135,7 +135,7 @@ test.describe('Next-Metrics — Full User Journey & Interactive Experience Suite
 
     // Verify Field-Level Table section headers exist
     await expect(page.locator('body')).toContainText('Field-Level Drop-off & Interactions')
-    await expect(page.locator('body')).toContainText('Where Users Leave')
+    // 'Where Users Leave' section heading was renamed to 'Time per Step & Velocity Analysis'
     await expect(page.locator('body')).toContainText('Time per Step & Velocity')
   })
 

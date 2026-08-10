@@ -89,29 +89,14 @@ export default function ProductListingCard({ productId, messageContent, currentU
       if (!prod || cancelled) { setLoading(false); return }
       setProduct(prod)
 
+      // Use public_market_booths — base table is now RLS-restricted for cross-user reads
       const { data: b } = await supabase
-        .from('market_booths')
-        .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_address, pickup_display_address, owner_id, delivery_zipcodes')
+        .from('public_market_booths')
+        .select('id, name, offers_delivery, offers_pickup, delivery_radius_miles, pickup_display_address, owner_id, delivery_zipcodes')
         .eq('owner_id', prod.seller_id)
         .single()
       if (b && !cancelled) {
-        // Derive pickup address from seller profile if not set on booth
-        if (!b.pickup_address || !b.pickup_display_address) {
-          const { data: sellerProfile } = await supabase
-            .from('profiles')
-            .select('street_address, city, state_code, zip_plus4')
-            .eq('id', prod.seller_id)
-            .single()
-          if (sellerProfile?.street_address) {
-            if (!b.pickup_address) {
-              const fullAddr = [sellerProfile.street_address, sellerProfile.city, sellerProfile.state_code, sellerProfile.zip_plus4].filter(Boolean).join(', ')
-              b.pickup_address = fullAddr
-              b.pickup_display_address = anonymizeAddress(fullAddr)
-            } else if (!b.pickup_display_address) {
-              b.pickup_display_address = anonymizeAddress(b.pickup_address)
-            }
-          }
-        }
+        // pickup_display_address is the anonymized form; raw pickup_address is PII and not in the public view
         setBooth(b)
       }
       setLoading(false)
@@ -121,11 +106,11 @@ export default function ProductListingCard({ productId, messageContent, currentU
         const offersDelivery = prod.product_delivery_windows !== null && b.offers_delivery
         const offersPickup = prod.product_pickup_windows !== null && b.offers_pickup
         const fulfillmentText = offersDelivery && offersPickup 
-          ? `🚗 Delivery or 📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+          ? `🚗 Delivery or 📍 Pickup near ${b.pickup_display_address || 'you'}`
           : offersDelivery 
-            ? `🚗 Delivery near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+            ? `🚗 Delivery near ${b.pickup_display_address || 'you'}`
             : offersPickup 
-              ? `📍 Pickup near ${b.pickup_display_address || anonymizeAddress(b.pickup_address) || 'you'}`
+              ? `📍 Pickup near ${b.pickup_display_address || 'you'}`
               : '📍 Available nearby'
         
         const formattedQty = prod.inventory > 0 
@@ -182,18 +167,13 @@ export default function ProductListingCard({ productId, messageContent, currentU
     resolveBuyer()
   }, [currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Resolve seller's location from their profile address (delivery origin)
+  // Resolve seller's location from their booth's pickup_display_address (delivery origin)
+  // Note: seller's raw street address is PII; we use the anonymized pickup_display_address for distance display
   useEffect(() => {
-    if (!product) return
+    if (!booth) return
     async function resolveSeller() {
-      const { data: sellerProfile } = await supabase
-        .from('profiles')
-        .select('street_address, city, state_code, zip_plus4')
-        .eq('id', product!.seller_id)
-        .single()
-      if (sellerProfile?.street_address) {
-        const addr = [sellerProfile.street_address, sellerProfile.city, sellerProfile.state_code, sellerProfile.zip_plus4].filter(Boolean).join(', ')
-        const geo = await geocodeAddress(addr)
+      if (booth?.pickup_display_address) {
+        const geo = await geocodeAddress(booth.pickup_display_address)
         if (geo) { setSellerLat(geo.lat); setSellerLng(geo.lng) }
       }
     }

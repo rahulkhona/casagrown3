@@ -43,8 +43,8 @@ export default function MessagesInboxPage() {
             unread_count_b,
             participant_a,
             participant_b,
-            profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url),
-            profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url),
+            profile_a:public_profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url),
+            profile_b:public_profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url),
             market_chat_messages(content, created_at, sender_id, media)
           `)
           .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)

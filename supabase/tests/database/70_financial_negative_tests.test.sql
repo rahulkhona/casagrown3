@@ -277,7 +277,7 @@ SET LOCAL request.jwt.claims = '{"sub":"70700000-aaaa-bbbb-cccc-000000000003","r
 -- T14: Buyer in TX, seller in CA → cross_state error
 SELECT is(
   (place_market_order(
-    '70700000-cccc-0001-0001-000000000001', 1, 'pickup', '75254', 5.00
+    '70700000-cccc-0001-0001-000000000001', 1, 'delivery', '75254', 5.00
   ))->>'code',
   'cross_state',
   'Cross-state: TX buyer cannot purchase from CA seller'
@@ -286,7 +286,7 @@ SELECT is(
 -- T15: Cross-state error includes buyer_state and seller_state info
 SELECT ok(
   (place_market_order(
-    '70700000-cccc-0001-0001-000000000001', 1, 'pickup', '75254', 5.00
+    '70700000-cccc-0001-0001-000000000001', 1, 'delivery', '75254', 5.00
   ))->>'buyer_state' IS NOT NULL,
   'Cross-state: Error response includes buyer_state field'
 );

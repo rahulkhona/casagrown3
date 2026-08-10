@@ -232,7 +232,7 @@ export default function MessageThreadPage() {
       // Fetch conversation metadata
       const { data: convData, error: convError } = await supabase
         .from('market_conversations')
-        .select('*, profile_a:profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url, closure_status), profile_b:profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url, closure_status)')
+        .select('*, profile_a:public_profiles!market_conversations_participant_a_fkey(id, full_name, avatar_url, closure_status), profile_b:public_profiles!market_conversations_participant_b_fkey(id, full_name, avatar_url, closure_status)')
         .eq('id', id)
         .single()
 

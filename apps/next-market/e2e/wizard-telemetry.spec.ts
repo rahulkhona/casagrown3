@@ -156,6 +156,29 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
       }
     });
 
+    // Mock Supabase auth OTP endpoint so the page transitions to OTP step instantly
+    // without waiting for real email delivery from local Mailpit.
+    // This test is about telemetry tracking, not the auth flow itself.
+    await page.route('**/auth/v1/otp*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message_id: 'mock-otp-msg' }),
+      });
+    });
+    // Also intercept signInWithOtp which may use /auth/v1/signup or /auth/v1/token
+    await page.route('**/auth/v1/signup*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'mock-user-id', email: 'alice@example.com', confirmation_sent_at: new Date().toISOString() }),
+      });
+    });
+    // Also intercept the crm_leads insert (fire-and-forget)
+    await page.route('**/rest/v1/crm_leads*', async (route) => {
+      await route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    });
+
     await page.goto('/join');
     await page.waitForLoadState('networkidle');
 
@@ -167,10 +190,10 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.locator('#join-state').fill('CA');
     await page.locator('#join-zip').fill('95112');
 
-    // Continue
+    // Continue — OTP endpoint is mocked so step transitions immediately
     await page.getByRole('button', { name: 'Continue →' }).click();
 
-    // Step 2 OTP
+    // Step 2 OTP — should appear quickly since auth call is mocked
     await expect(page.locator('h2:has-text("Verify Your Email")')).toBeVisible({ timeout: 15000 });
     
     // Verify wizard_step and field telemetry events are present
@@ -192,6 +215,7 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
       ])
     );
   });
+
 
   test('join: should track field-level abandonment', async ({ page }) => {
     const trackEvents: any[] = [];

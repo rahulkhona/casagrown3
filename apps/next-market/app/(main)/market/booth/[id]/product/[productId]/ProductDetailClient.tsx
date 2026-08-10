@@ -134,14 +134,14 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
 
       const [{ data: prod }, { data: boothData }] = await Promise.all([
         supabase.from('market_products').select('*').eq('id', productId).single(),
-        supabase.from('market_booths').select('*').or(`id.eq.${boothId},owner_id.eq.${boothId}`).single(),
+        supabase.from('public_market_booths').select('*').or(`id.eq.${boothId},owner_id.eq.${boothId}`).single(),
       ])
       if (prod) setProduct(prod)
       if (boothData) {
-        // Fetch seller profile for rating + pickup address fallback
+        // Fetch seller profile for rating + display info (cross-user: use public view)
         const { data: profileData } = await supabase
-          .from('profiles')
-          .select('seller_avg_rating, seller_rating_count, full_name, street_address, city, state_code, zip_plus4, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
+          .from('public_profiles')
+          .select('seller_avg_rating, seller_rating_count, full_name, farm_name, business_type, seller_bio, business_license, food_handler_permit, cottage_food_permit, insurance_provider')
           .eq('id', boothData.owner_id)
           .single()
         if (profileData?.full_name) {
@@ -161,12 +161,8 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
           insuranceProvider: profileData?.insurance_provider || undefined,
         })
 
-        // Derive pickup address from seller profile if not set on booth
-        if (!boothData.pickup_address && profileData?.street_address) {
-          const fullAddr = [profileData.street_address, profileData.city, profileData.state_code, profileData.zip_plus4].filter(Boolean).join(', ')
-          boothData.pickup_address = fullAddr
-          boothData.pickup_display_address = anonymizeAddress(fullAddr)
-        } else if (boothData.pickup_address && !boothData.pickup_display_address) {
+        // Anonymize pickup address if not already set on booth
+        if (boothData.pickup_address && !boothData.pickup_display_address) {
           boothData.pickup_display_address = anonymizeAddress(boothData.pickup_address)
         }
         setBooth(boothData)
@@ -1302,7 +1298,7 @@ function MoreFromSeller({
 
       // Fetch other booths by the same seller
       const { data: booths } = await supabase
-        .from('market_booths')
+        .from('public_market_booths')
         .select('id, name, header_image_url, offers_pickup, offers_delivery, pickup_display_address')
         .eq('owner_id', sellerId)
         .eq('is_open', true)

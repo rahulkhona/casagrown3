@@ -76,8 +76,8 @@ function JoinBoothPageInner() {
       const testPasscode = prefilledPasscode || code
       
       const { data: boothData, error } = await supabase
-        .from('market_booths')
-        .select('id, name, owner_id, decorative_theme, header_image_url, profiles!market_booths_owner_id_fkey(full_name)')
+        .from('public_market_booths')
+        .select('id, name, owner_id, decorative_theme, header_image_url, public_profiles!market_booths_owner_id_fkey(full_name)')
         .eq('helper_passcode', testPasscode)
         .single()
 
@@ -87,7 +87,7 @@ function JoinBoothPageInner() {
         return
       }
 
-      const ownerProfile = (boothData as any).profiles
+      const ownerProfile = (boothData as any).public_profiles
       setBooth({
         id: boothData.id,
         name: boothData.name || 'Unnamed Stand',
@@ -109,8 +109,8 @@ function JoinBoothPageInner() {
     setErrorMsg('')
 
     const { data: boothData, error } = await supabase
-      .from('market_booths')
-      .select('id, name, owner_id, decorative_theme, header_image_url, profiles!market_booths_owner_id_fkey(full_name)')
+      .from('public_market_booths')
+      .select('id, name, owner_id, decorative_theme, header_image_url, public_profiles!market_booths_owner_id_fkey(full_name)')
       .eq('helper_passcode', passcode.trim().toUpperCase())
       .single()
 
@@ -127,7 +127,7 @@ function JoinBoothPageInner() {
       return
     }
 
-    const ownerProfile = (boothData as any).profiles
+    const ownerProfile = (boothData as any).public_profiles
     setBooth({
       id: boothData.id,
       name: boothData.name || 'Unnamed Stand',
