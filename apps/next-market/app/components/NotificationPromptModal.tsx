@@ -18,9 +18,10 @@ import styles from './NotificationPrompt.module.css'
 // =============================================================================
 
 const BENEFITS = [
+  { icon: '🎮', text: 'Get notified when new daily games drop to keep your streak alive', bg: '#fef3c7' },
+  { icon: '🌱', text: 'Get notified of new orders on your produce stand',             bg: '#fef9c3' },
   { icon: '📦', text: 'Get notified when your order is accepted, shipped, or delivered', bg: '#dcfce7' },
   { icon: '💬', text: 'Never miss a message from buyers or sellers',                   bg: '#dbeafe' },
-  { icon: '📋', text: 'Instant alerts for new orders on your produce stand',                   bg: '#fef3c7' },
 ]
 
 // =============================================================================

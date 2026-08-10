@@ -82,32 +82,30 @@ export function setAnalyticsUser(userId: string | null): void {
 
 /** Core tracking function — inserts into user_analytics table */
 export async function trackEvent(
-  eventType: 'page_view' | 'button_click' | 'form_submit' | 'error',
+  eventType: 'page_view' | 'button_click' | 'form_submit' | 'error' | 'game_event',
   eventName: string,
   metadata?: Record<string, any>
 ): Promise<void> {
   // Don't block UI — fire and forget
   try {
     if (typeof window === 'undefined') return
-    if (!_userId) return // Only track authenticated users
 
     const supabase = createClient()
     await supabase.from('user_analytics').insert({
-      user_id: _userId,
+      user_id: _userId || null,
       session_id: getSessionId(),
       txn_id: getTransactionId(),
       event_type: eventType,
       event_name: eventName,
       page_path: window.location.pathname,
-      metadata: { is_pwa: isPWA(), os: detectOS(), ...(metadata || {}) },
+      metadata: { is_pwa: isPWA(), os: detectOS(), is_guest: !_userId, ...(metadata || {}) },
       user_agent: navigator.userAgent,
-      // Columns used by metrics dashboard RPCs
       element_id: metadata?.elementId || null,
       element_label: metadata?.elementLabel || null,
       stack_trace: metadata?.stackTrace || null,
     })
-  } catch {
-    // Silently fail — analytics should never break the app
+  } catch (err) {
+    console.warn('[Analytics] Failed to log event:', err)
   }
 }
 
@@ -131,10 +129,39 @@ export function trackFormSubmit(formName: string, metadata?: Record<string, any>
   trackEvent('form_submit', formName, metadata)
 }
 
-/** Track an error */
-export function trackError(errorName: string, metadata?: Record<string, any>): void {
+/** Track runtime errors */
+export function trackError(errorName: string, error?: Error | Record<string, any>): void {
   trackEvent('error', errorName, {
-    ...metadata,
-    stackTrace: metadata?.stackTrace || metadata?.stack || null,
+    stackTrace: (error as Error)?.stack || null,
+    message: (error as Error)?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error)),
+    ...(typeof error === 'object' && !(error instanceof Error) ? error : {}),
+  })
+}
+
+// ============================================================================
+// Dedicated Daily Games Analytics Metrics
+// ============================================================================
+
+/** Track game page visit / landing */
+export function trackGameView(gameId: string, title?: string): void {
+  trackEvent('game_event', 'game_view', {
+    game_id: gameId,
+    game_title: title || gameId,
+  })
+}
+
+/** Track puzzle solve / victory */
+export function trackGameSolve(gameId: string, solveTimeSecs?: number): void {
+  trackEvent('game_event', 'game_solve', {
+    game_id: gameId,
+    duration_secs: solveTimeSecs || 0,
+  })
+}
+
+/** Track game result card share click */
+export function trackGameShare(gameId: string, channel?: string): void {
+  trackEvent('game_event', 'game_share_click', {
+    game_id: gameId,
+    channel: channel || 'generic',
   })
 }

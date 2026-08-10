@@ -28,11 +28,12 @@ describe('NotificationPromptModal', () => {
     expect(container.textContent).toContain('Not now')
   })
 
-  it('shows 3 benefits', () => {
+  it('shows notification benefits', () => {
     const { container } = render(React.createElement(NotificationPromptModal, defaultProps))
     expect(container.textContent).toContain('order is accepted')
     expect(container.textContent).toContain('miss a message')
     expect(container.textContent).toContain('new orders on your produce stand')
+    expect(container.textContent).toContain('new daily games drop')
   })
 
   it('renders denied variant', () => {

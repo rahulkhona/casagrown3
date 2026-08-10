@@ -26,6 +26,7 @@ import AddressInput from '../../components/AddressInput'
 import { type AddressFields, EMPTY_ADDRESS, toGeocodingString, formatFullAddress, normalizeStateCode } from '../../../lib/address'
 import GrowBotFAB from '../../components/GrowBotFAB'
 import { NativeBridge } from '../../../lib/nativeBridge'
+import DailyGamesBar from '../../components/games/DailyGamesBar'
 import styles from './page.module.css'
 
 // ── Feature Flags ──
@@ -1084,6 +1085,8 @@ function BrowseMarketPageInner() {
             </Link>
           </div>
 
+          <DailyGamesBar />
+
           <div className={styles.addressPrompt}>
           <h2 className={styles.promptTitle}>Where should we look?</h2>
           <p className={styles.promptText}>Tell us where you are and we'll show you fresh produce available for delivery or pickup nearby.</p>
@@ -1178,6 +1181,8 @@ function BrowseMarketPageInner() {
             <span className={styles.botBtn}>💬 Ask</span>
           </Link>
         </div>
+
+        <DailyGamesBar />
 
       {/* Address bar + change (always visible) */}
       <div className={styles.addressBar}>

@@ -200,12 +200,22 @@ async function enableWebPush(userId: string): Promise<boolean> {
 
     if (!subscription) return false
 
+    let guestDeviceId = ''
+    if (typeof window !== 'undefined') {
+      guestDeviceId = localStorage.getItem('casagrown_guest_device_id') || ''
+      if (!guestDeviceId) {
+        guestDeviceId = `guest_${Math.random().toString(36).substring(2, 15)}`
+        localStorage.setItem('casagrown_guest_device_id', guestDeviceId)
+      }
+    }
+
     const supabase = createClient()
     await supabase.functions.invoke('register-push-token', {
       body: {
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
         endpoint: subscription.endpoint,
+        guest_id: userId ? undefined : guestDeviceId
       },
     })
     return true

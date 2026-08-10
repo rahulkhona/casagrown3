@@ -21,31 +21,50 @@ import {
  */
 
 serveWithCors(async (req, { supabase, corsHeaders }) => {
-    // Authenticate
-    const auth = await requireAuth(req, supabase, corsHeaders);
-    if (auth instanceof Response) return auth;
-    const userId = auth;
-
     // Parse request
-    const { token, platform, endpoint } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { token, platform, endpoint, guest_id, timezone: bodyTimezone, zip_code: bodyZip, city: bodyCity, state_code: bodyState } = body;
+
+    // Detect timezone & location from Vercel Edge Request Headers or Request Body
+    const vercelTimezone = req.headers.get("x-vercel-ip-timezone");
+    const vercelZip = req.headers.get("x-vercel-ip-postal-code");
+    const vercelCity = req.headers.get("x-vercel-ip-city");
+    const vercelState = req.headers.get("x-vercel-ip-country-region");
+
+    const timezone = bodyTimezone || vercelTimezone || "America/Los_Angeles";
+    const zipCode = bodyZip || vercelZip || null;
+    const city = bodyCity || vercelCity || null;
+    const stateCode = bodyState || vercelState || null;
+
+    // Authenticate user or fallback to guest_id
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader && !authHeader.includes("anon")) {
+      const auth = await requireAuth(req, supabase, corsHeaders);
+      if (!(auth instanceof Response)) {
+        userId = auth;
+      }
+    }
+
+    if (!userId && !guest_id) {
+      return jsonError("Authentication or guest_id is required", 401, corsHeaders);
+    }
 
     // Validate
     if (!token) throw new Error("token is required");
-    if (!platform || !["web", "ios", "android", "expo"].includes(platform)) {
+    if (!["web", "ios", "android", "expo"].includes(platform)) {
         throw new Error("platform must be 'web', 'ios', 'android', or 'expo'");
     }
 
-    // Upsert subscription (update timestamp if already exists)
+    // Upsert subscription with location & timezone
+    const payload = userId
+      ? { user_id: userId, token, platform, endpoint: endpoint || null, timezone, zip_code: zipCode, city, state_code: stateCode, updated_at: new Date().toISOString() }
+      : { guest_id, token, platform, endpoint: endpoint || null, timezone, zip_code: zipCode, city, state_code: stateCode, updated_at: new Date().toISOString() };
+
     const { error } = await supabase.from("push_subscriptions").upsert(
+        payload,
         {
-            user_id: userId,
-            token,
-            platform,
-            endpoint: endpoint || null,
-            updated_at: new Date().toISOString(),
-        },
-        {
-            onConflict: "user_id,token",
+            onConflict: userId ? "user_id,token" : "guest_id,token",
         },
     );
 
@@ -54,7 +73,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     }
 
     console.log(
-        `✅ Push token registered: user=${userId}, platform=${platform}`,
+        `✅ Push token registered: user=${userId || guest_id}, platform=${platform}`,
     );
 
     return jsonOk({ success: true }, corsHeaders);
