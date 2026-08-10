@@ -295,7 +295,7 @@ RULES (follow strictly):\n`;
     }
 
     const AI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-    const primaryModel = Deno.env.get("AI_MODEL") || "gemma-4-31b-it";
+    const primaryModel = Deno.env.get("AI_MODEL") || "gemini-3.5-flash-lite";
     const models = [
       { name: primaryModel, version: "v1beta" },
       { name: "gemini-2.5-flash", version: "v1beta" },
