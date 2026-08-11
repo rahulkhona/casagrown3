@@ -10,6 +10,7 @@
 import {
   assertEquals,
   assertExists,
+  assert,
 } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 
 const SUPABASE_URL = 'http://127.0.0.1:54321'
@@ -48,7 +49,7 @@ Deno.test('usda-farmers-markets: returns valid structure', async () => {
   const data = await req.json();
   assertExists(data.data);
   assertExists(data.farms);
-  assertEquals(data.source, 'usda');
+  assert(data.source.startsWith('usda'));
   assertEquals(Array.isArray(data.data), true);
 });
 

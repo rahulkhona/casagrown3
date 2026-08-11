@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const BASE = 'https://www.usdalocalfoodportal.com/api'
@@ -61,7 +62,7 @@ serve(async (req) => {
   }
 
   try {
-    const { zipcode, lat, lng, radius = 50 } = await req.json()
+    const { zipcode, lat, lng, radius = 50, cacheKey } = await req.json()
 
     if (!zipcode && (lat == null || lng == null)) {
       return new Response(
@@ -70,14 +71,52 @@ serve(async (req) => {
       )
     }
 
+    const cleanZip = zipcode ? zipcode.substring(0, 5) : null
+    const targetKey = cacheKey || (cleanZip ? `usda_grid_zip_${cleanZip}` : (lat != null && lng != null) ? `usda_grid_${lat.toFixed(2)}_${lng.toFixed(2)}` : null)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+
+    // 1. Check DB Cache first (returns in ~20ms if fresh < 7 days)
+    if (targetKey && supabaseUrl && supabaseServiceKey) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+        const { data: cached } = await supabase
+          .from('usda_market_cache')
+          .select('markets, farms, updated_at')
+          .eq('cache_key', targetKey)
+          .single()
+
+        if (cached && Array.isArray(cached.markets) && cached.markets.length > 0) {
+          const ageMs = Date.now() - new Date(cached.updated_at).getTime()
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+          if (ageMs < SEVEN_DAYS_MS) {
+            const validatedOnfarm = (cached.farms || []).filter((f: any) => f._directory === 'onfarmmarket')
+            const validatedCsas = (cached.farms || []).filter((f: any) => f._directory === 'csa')
+            return new Response(
+              JSON.stringify({
+                data: cached.markets,
+                farms: cached.farms || [],
+                onfarm: validatedOnfarm,
+                csas: validatedCsas,
+                source: 'usda_db_cache',
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+      } catch (e: any) {
+        console.warn('USDA DB cache lookup notice:', e.message)
+      }
+    }
+
     const apiKey = Deno.env.get('USDA_API_KEYS') || Deno.env.get('USDA_API_KEY') || ''
     if (!apiKey) {
       console.warn('USDA_API_KEY is not set')
     }
 
     // Build params: prefer zip if available, fall back to lat/lng
-    const params = zipcode
-      ? `zip=${encodeURIComponent(zipcode)}&radius=${radius}`
+    const params = cleanZip
+      ? `zip=${encodeURIComponent(cleanZip)}&radius=${radius}`
       : `lat=${lat}&lng=${lng}&radius=${radius}`
 
     // Fetch all three directories in parallel
@@ -95,16 +134,31 @@ serve(async (req) => {
     const validatedOnfarm = farms.filter(f => f._directory === 'onfarmmarket')
     const validatedCsas = farms.filter(f => f._directory === 'csa')
 
+    // Upsert into DB cache
+    if (targetKey && supabaseUrl && supabaseServiceKey && (markets.length > 0 || farms.length > 0)) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+        await supabase.from('usda_market_cache').upsert({
+          cache_key: targetKey,
+          zip_code: cleanZip,
+          lat,
+          lng,
+          markets,
+          farms,
+          updated_at: new Date().toISOString(),
+        })
+      } catch (e: any) {
+        console.warn('Failed to upsert usda_market_cache:', e.message)
+      }
+    }
+
     return new Response(
       JSON.stringify({
-        // Backward-compatible: `data` is still the farmers markets array
         data: markets,
-        // New: individual farms (on-farm markets + CSAs) with validated websites
         farms,
-        // Detailed breakdown for admin CRM
         onfarm: validatedOnfarm,
         csas: validatedCsas,
-        source: 'usda',
+        source: 'usda_api',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

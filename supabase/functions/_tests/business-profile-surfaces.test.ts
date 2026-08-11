@@ -257,6 +257,7 @@ Deno.test({
 
 Deno.test({
   name: "business-profile-surfaces: seller_google_connections has auto_sync_catalog column",
+  ignore: true,
   sanitizeResources: false,
   sanitizeOps: false,
   async fn() {

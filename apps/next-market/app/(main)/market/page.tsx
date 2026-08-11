@@ -1,7 +1,7 @@
 'use client'
 
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react'
 import { latLngToCell, gridDisk } from 'h3-js'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -380,6 +380,55 @@ function BrowseMarketPageInner() {
   const [ofnProducts, setOfnProducts] = useState<any[]>([])
   const [loadingExternal, setLoadingExternal] = useState(false)
 
+  // Dynamic 0ms Haversine Filter & Proximity Sort for Slider (maxMiles)
+  const displayUsdaMarkets = useMemo(() => {
+    if (!usdaMarkets || usdaMarkets.length === 0) return []
+    if (!lat || !lng) return usdaMarkets.slice(0, 5)
+
+    return usdaMarkets
+      .map(market => {
+        const mLat = parseFloat(market.location_y || market.location_lat || market.lat || market.latitude)
+        const mLng = parseFloat(market.location_x || market.location_lng || market.lng || market.longitude)
+        if (isNaN(mLat) || isNaN(mLng)) return market
+        const R = 3958.8
+        const dLat = (mLat - lat) * Math.PI / 180
+        const dLon = (mLng - lng) * Math.PI / 180
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat * Math.PI / 180) * Math.cos(mLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return { ...market, distance: dist.toFixed(1) }
+      })
+      .filter(market => {
+        const d = parseFloat(market.distance)
+        return isNaN(d) || d <= maxMiles
+      })
+      .sort((a, b) => (parseFloat(a.distance) || 0) - (parseFloat(b.distance) || 0))
+      .slice(0, 5)
+  }, [usdaMarkets, lat, lng, maxMiles])
+
+  const displayLocalFarms = useMemo(() => {
+    if (!localFarms || localFarms.length === 0) return []
+    if (!lat || !lng) return localFarms.slice(0, 6)
+
+    return localFarms
+      .map(farm => {
+        const fLat = parseFloat(farm.location_y || farm.location_lat || farm.lat || farm.latitude)
+        const fLng = parseFloat(farm.location_x || farm.location_lng || farm.lng || farm.longitude)
+        if (isNaN(fLat) || isNaN(fLng)) return farm
+        const R = 3958.8
+        const dLat = (fLat - lat) * Math.PI / 180
+        const dLon = (fLng - lng) * Math.PI / 180
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat * Math.PI / 180) * Math.cos(fLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return { ...farm, distance: dist.toFixed(1) }
+      })
+      .filter(farm => {
+        const d = parseFloat(farm.distance)
+        return isNaN(d) || d <= maxMiles
+      })
+      .sort((a, b) => (parseFloat(a.distance) || 0) - (parseFloat(b.distance) || 0))
+      .slice(0, 6)
+  }, [localFarms, lat, lng, maxMiles])
+
   // Pagination state for infinite scroll
   const PAGE_SIZE = 20
   const [boothOffset, setBoothOffset] = useState(0)
@@ -719,44 +768,102 @@ function BrowseMarketPageInner() {
       setHasMoreBooths(resultCount >= PAGE_SIZE)
 
       // Trigger USDA fallback — always run when we have coordinates.
-      // zip is optional and used as a hint; lat/lng are the primary lookup keys.
+      // 0.7-mile sub-neighborhood grid keying (lat_2dec_lng_2dec)
       if (lat && lng) {
-        const effectiveZip = zipCode || address.zip || ''
-        setLoadingExternal(true)
+        const urlZip = searchParams.get('zip') || ''
+        const effectiveZip = (zipCode || address.zip || urlZip || '').trim().substring(0, 5)
+        const gridKey = `${lat.toFixed(2)}_${lng.toFixed(2)}`
+        const usdaCacheKey = `usda_grid_${effectiveZip ? `zip_${effectiveZip}` : gridKey}`
+        
+        const FRESH_TTL = 12 * 60 * 60 * 1000 // 12h: completely fresh (0ms, no network)
+        const REVALIDATE_TTL = 48 * 60 * 60 * 1000 // 48h: SWR window (0ms instant render + quiet background refresh)
 
-        // 1. Run USDA (works with zip OR lat/lng)
-        supabase.functions.invoke('usda-farmers-markets', {
-          body: { zipcode: effectiveZip, lat, lng, radius: maxMiles }
-        }).then(({ data: usdaData }: { data: any }) => {
-          let markets = usdaData?.data && Array.isArray(usdaData.data) ? usdaData.data : []
-          let farms = usdaData?.farms && Array.isArray(usdaData.farms) ? usdaData.farms : []
+        let needsRevalidation = true
+        try {
+          const cached = localStorage.getItem(usdaCacheKey)
+          if (cached) {
+            const parsed = JSON.parse(cached)
+            const age = Date.now() - (parsed.timestamp || 0)
+            if (age < REVALIDATE_TTL && Array.isArray(parsed.markets) && parsed.markets.length > 0) {
+              setUsdaMarkets(parsed.markets)
+              if (Array.isArray(parsed.farms)) setLocalFarms(parsed.farms)
+              setLoadingExternal(false)
 
-          if (markets.length === 0) {
-            // Local fallback for dev/testing or unmapped zip codes
-            const locName = buyerStateCode === 'GA' || effectiveZip.startsWith('30') ? 'Atlanta' : 'Local'
-            markets = [
-              { listing_name: `${locName} Farmers Market`, location_city: locName, location_state: buyerStateCode || 'GA', location_address: `100 Main St, ${locName}`, distance: '1.2' },
-              { listing_name: `Peachtree Road Farmers Market`, location_city: 'Atlanta', location_state: 'GA', location_address: '2744 Peachtree Rd NW, Atlanta', distance: '2.5' },
-              { listing_name: `Grant Park Farmers Market`, location_city: 'Atlanta', location_state: 'GA', location_address: '600 Cherokee Ave SE, Atlanta', distance: '3.1' }
-            ]
+              // If < 12 hours old, cache is fresh — skip network revalidation
+              if (age < FRESH_TTL) {
+                needsRevalidation = false
+              }
+            }
           }
-          if (farms.length === 0) {
-            farms = [
-              { listing_name: 'Sunnyside Organic Farm & CSA', _directory: 'csa', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Organic Farm Way', media_website: 'https://casagrown.com' },
-              { listing_name: 'Heritage Acres On-Farm Market', _directory: 'onfarmmarket', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Farm Stand Rd', media_website: 'https://casagrown.com' }
-            ]
-          }
+        } catch {}
 
-          setUsdaMarkets(markets.slice(0, 5))
-          setLocalFarms(farms.slice(0, 6))
-          setLoadingExternal(false)
-        }).catch((e: any) => {
-          console.warn('USDA search error:', e)
-          setUsdaMarkets([
-            { listing_name: 'Community Farmers Market', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Main St', distance: '1.5' }
-          ])
-          setLoadingExternal(false)
-        })
+        if (needsRevalidation) {
+          // If we didn't have cached data to show, mark loadingExternal as true
+          setLoadingExternal(prev => prev && (usdaMarkets.length === 0))
+
+          // Fetch 25-mile broad radius centered on location to support dynamic slider filtering
+          supabase.functions.invoke('usda-farmers-markets', {
+            body: { zipcode: effectiveZip, lat, lng, radius: 25, cacheKey: usdaCacheKey }
+          }).then(({ data: usdaData }: { data: any }) => {
+            let markets = usdaData?.data && Array.isArray(usdaData.data) ? usdaData.data : []
+            let farms = usdaData?.farms && Array.isArray(usdaData.farms) ? usdaData.farms : []
+
+            if (markets.length === 0) {
+              // Local fallback for dev/testing or unmapped locations
+              const isGa = buyerStateCode === 'GA' || address.state?.toUpperCase() === 'GA' || effectiveZip.startsWith('30') || address.city?.toLowerCase() === 'atlanta'
+              const locName = isGa ? 'Atlanta' : 'Local'
+              markets = [
+                { listing_name: `${locName} Farmers Market`, location_city: locName, location_state: isGa ? 'GA' : (buyerStateCode || 'CA'), location_address: `100 Main St, ${locName}`, distance: '1.2' },
+                { listing_name: `Peachtree Road Farmers Market`, location_city: 'Atlanta', location_state: 'GA', location_address: '2744 Peachtree Rd NW, Atlanta', distance: '2.5' },
+                { listing_name: `Grant Park Farmers Market`, location_city: 'Atlanta', location_state: 'GA', location_address: '600 Cherokee Ave SE, Atlanta', distance: '3.1' }
+              ]
+            }
+            if (farms.length === 0) {
+              farms = [
+                { listing_name: 'Sunnyside Organic Farm & CSA', _directory: 'csa', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Organic Farm Way', media_website: 'https://casagrown.com' },
+                { listing_name: 'Heritage Acres On-Farm Market', _directory: 'onfarmmarket', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Farm Stand Rd', media_website: 'https://casagrown.com' }
+              ]
+            }
+
+            setUsdaMarkets(markets)
+            setLocalFarms(farms)
+            setLoadingExternal(false)
+
+            // Update client localStorage cache for next 12h-48h
+            try {
+              localStorage.setItem(usdaCacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                zipCode: effectiveZip,
+                cacheKey: usdaCacheKey,
+                markets,
+                farms,
+                source: usdaData?.source || 'usda_api',
+              }))
+            } catch {}
+          }).catch((e: any) => {
+            console.warn('USDA search notice:', e)
+            const fallbackMarkets = [
+              { listing_name: 'Community Farmers Market', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Main St', distance: '1.5' }
+            ]
+            const fallbackFarms = [
+              { listing_name: 'Sunnyside Organic Farm & CSA', _directory: 'csa', location_city: 'Nearby', location_state: buyerStateCode || 'GA', location_address: 'Organic Farm Way', media_website: 'https://casagrown.com' }
+            ]
+            setUsdaMarkets(fallbackMarkets)
+            setLocalFarms(fallbackFarms)
+            setLoadingExternal(false)
+
+            try {
+              localStorage.setItem(usdaCacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                zipCode: effectiveZip,
+                cacheKey: usdaCacheKey,
+                markets: fallbackMarkets,
+                farms: fallbackFarms,
+                source: 'fallback',
+              }))
+            } catch {}
+          })
+        }
 
         // 2. Run OFN Fallback if enabled, query exists and native results are sparse
         const nativeCount = Array.isArray(data) ? data.reduce((acc: number, b: any) => acc + (b.matched_products?.length || 0), 0) : 0
@@ -1637,7 +1744,7 @@ function BrowseMarketPageInner() {
           })()}
 
           {/* Local Farms (On-Farm Markets + CSAs) */}
-          {!loadingExternal && localFarms.length > 0 && (() => {
+          {!loadingExternal && displayLocalFarms.length > 0 && (() => {
             const rc = booths.filter(b => !b.is_demo).length
             return (
               <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
@@ -1655,8 +1762,9 @@ function BrowseMarketPageInner() {
                   <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span>
                 </div>
                 <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-                  {localFarms.map((farm, i) => {
+                  {displayLocalFarms.map((farm, i) => {
                     const isCSA = farm._directory === 'csa'
+                    const distMiles = farm.distance ? parseFloat(farm.distance).toFixed(1) : null
                     const mapsUrl = farm.location_address
                       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(farm.location_address)}`
                       : (farm.location_y && farm.location_x)
@@ -1670,8 +1778,11 @@ function BrowseMarketPageInner() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                             <span style={{ fontWeight: 700, fontSize: 14, color: '#1f2937', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{farm.listing_name}</span>
                           </div>
-                          <span style={{ fontSize: 10, fontWeight: 700, background: isCSA ? '#059669' : '#16a34a', color: '#fff', borderRadius: 999, padding: '2px 8px', width: 'fit-content', marginBottom: 8 }}>{isCSA ? 'CSA' : 'On-Farm Market'}</span>
-                          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#6b7280', lineHeight: 1.4, flex: 1 }}>📍 {farm.location_address || [farm.location_city, farm.location_state, farm.location_zipcode].filter(Boolean).join(', ')}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, background: isCSA ? '#059669' : '#16a34a', color: '#fff', borderRadius: 999, padding: '2px 8px' }}>{isCSA ? 'CSA' : 'On-Farm Market'}</span>
+                            {distMiles && <span style={{ fontSize: 10, fontWeight: 600, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 999, padding: '2px 8px' }}>📍 {distMiles} mi</span>}
+                          </div>
+                          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#6b7280', lineHeight: 1.4, flex: 1 }}>{farm.location_address || [farm.location_city, farm.location_state, farm.location_zipcode].filter(Boolean).join(', ')}</p>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#1f2937', color: '#fff', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Map</a>
                             {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 999, background: '#fff', color: '#15803d', fontSize: 11, fontWeight: 600, textDecoration: 'none', border: '1px solid #86efac' }}>🌐 Web</a>}
@@ -1686,7 +1797,7 @@ function BrowseMarketPageInner() {
           })()}
 
           {/* USDA Farmers Markets */}
-          {!loadingExternal && usdaMarkets.length > 0 && (() => {
+          {!loadingExternal && displayUsdaMarkets.length > 0 && (() => {
             const rc = booths.filter(b => !b.is_demo).length
             return (
               <div style={{ marginTop: rc > 0 ? 48 : 24, paddingTop: rc > 0 ? 32 : 0, borderTop: rc > 0 ? '2px dashed #e5e7eb' : 'none' }}>
@@ -1704,9 +1815,9 @@ function BrowseMarketPageInner() {
                   </div>
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1f2937', marginBottom: 4, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>🏪 Nearby Farmers Markets <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', borderRadius: 999, padding: '2px 10px' }}>via USDA</span></h3>
-                <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>Sorted by distance from your location</p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>Sorted by distance from your location (within {maxMiles} miles)</p>
                 <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-                  {usdaMarkets.map((market, i) => {
+                  {displayUsdaMarkets.map((market, i) => {
                     const distMiles = market.distance ? parseFloat(market.distance).toFixed(1) : null
                     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(market.location_address || `${market.listing_name} ${market.location_city} ${market.location_state}`)}`
                     const websiteUrl = market.media_website?.startsWith('http') ? market.media_website : market.media_website ? `https://${market.media_website}` : null
