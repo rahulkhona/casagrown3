@@ -16,10 +16,21 @@ type Campaign = {
   system_alias: string | null
   name: string
   subject: string | null
-  channel: 'email' | 'sms'
+  channel: 'email' | 'sms' | 'push'
   status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused'
   scheduled_at: string | null
   sent_at: string | null
+  push_title?: string | null
+  push_body?: string | null
+  push_target_url?: string | null
+  is_ab_test?: boolean
+  variant_b_subject?: string | null
+  variant_b_html_body?: string | null
+  variant_b_push_title?: string | null
+  variant_b_push_body?: string | null
+  variant_b_sms_body?: string | null
+  schedule_enabled?: boolean
+  schedule_windows?: any[]
   stats: {
     total_sent?: number
     opened?: number
@@ -76,7 +87,7 @@ export default function CrmCampaignsPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [previewingAudience, setPreviewingAudience] = useState(false)
-  const [previewingChannel, setPreviewingChannel] = useState<'email' | 'sms'>('email')
+  const [previewingChannel, setPreviewingChannel] = useState<'email' | 'sms' | 'push'>('email')
   const [audienceMembers, setAudienceMembers] = useState<any[]>([])
   const [audienceLoading, setAudienceLoading] = useState(false)
 
@@ -99,10 +110,23 @@ export default function CrmCampaignsPage() {
 
   const emptyForm = {
     name: '',
-    channel: 'email' as 'email' | 'sms',
+    channel: 'email' as 'email' | 'sms' | 'push',
     subject: '',
     content_html: '',
     content_text: '',
+    push_title: '',
+    push_body: '',
+    push_target_url: '/market',
+    is_ab_test: false,
+    variant_b_subject: '',
+    variant_b_html_body: '',
+    variant_b_push_title: '',
+    variant_b_push_body: '',
+    variant_b_sms_body: '',
+    schedule_enabled: false,
+    schedule_start: '09:00:00',
+    schedule_end: '11:00:00',
+    schedule_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as string[],
     audience_id: '',
     sequence_id: '',
     scheduled_at: '',
@@ -119,7 +143,7 @@ export default function CrmCampaignsPage() {
 
   const [form, setForm] = useState(emptyForm)
 
-  const handlePreviewAudience = async (audienceId: string, channel: 'email' | 'sms') => {
+  const handlePreviewAudience = async (audienceId: string, channel: 'email' | 'sms' | 'push') => {
     if (!audienceId) return
     const audience = audiences.find(a => a.id === audienceId)
     if (!audience || !audience.audience_rpc_name) {
@@ -353,6 +377,21 @@ export default function CrmCampaignsPage() {
         subject: dbVars[0].subject || '',
         content_html: dbVars[0].content_html || '',
         content_text: dbVars[0].content_text || '',
+        push_title: data.push_title || '',
+        push_body: data.push_body || '',
+        push_target_url: data.push_target_url || '/market',
+        is_ab_test: data.is_ab_test || false,
+        variant_b_subject: data.variant_b_subject || '',
+        variant_b_html_body: data.variant_b_html_body || '',
+        variant_b_push_title: data.variant_b_push_title || '',
+        variant_b_push_body: data.variant_b_push_body || '',
+        variant_b_sms_body: data.variant_b_sms_body || '',
+        schedule_enabled: data.schedule_enabled || false,
+        schedule_start: data.schedule_windows?.[0]?.start || '09:00:00',
+        schedule_end: data.schedule_windows?.[0]?.end || '11:00:00',
+        schedule_days: (data.schedule_windows || []).flatMap((w: any) => w.days || []).length > 0
+          ? (data.schedule_windows || []).flatMap((w: any) => w.days || [])
+          : ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
         audience_id: data.audience_id || '',
         sequence_id: data.sequence_id || '',
         scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
@@ -375,6 +414,21 @@ export default function CrmCampaignsPage() {
         subject: data.subject || '',
         content_html: data.content_html || '',
         content_text: data.content_text || '',
+        push_title: data.push_title || '',
+        push_body: data.push_body || '',
+        push_target_url: data.push_target_url || '/market',
+        is_ab_test: data.is_ab_test || false,
+        variant_b_subject: data.variant_b_subject || '',
+        variant_b_html_body: data.variant_b_html_body || '',
+        variant_b_push_title: data.variant_b_push_title || '',
+        variant_b_push_body: data.variant_b_push_body || '',
+        variant_b_sms_body: data.variant_b_sms_body || '',
+        schedule_enabled: data.schedule_enabled || false,
+        schedule_start: data.schedule_windows?.[0]?.start || '09:00:00',
+        schedule_end: data.schedule_windows?.[0]?.end || '11:00:00',
+        schedule_days: (data.schedule_windows || []).flatMap((w: any) => w.days || []).length > 0
+          ? (data.schedule_windows || []).flatMap((w: any) => w.days || [])
+          : ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
         audience_id: data.audience_id || '',
         sequence_id: data.sequence_id || '',
         scheduled_at: data.scheduled_at ? toLocalDatetimeString(data.scheduled_at) : '',
@@ -523,6 +577,24 @@ export default function CrmCampaignsPage() {
       subject: templateMode ? null : (form.subject || null),
       content_html: templateMode ? null : (form.content_html || null),
       content_text: form.content_text || null,
+      push_title: form.push_title || null,
+      push_body: form.push_body || null,
+      push_target_url: form.push_target_url || '/market',
+      is_ab_test: form.is_ab_test || false,
+      variant_b_subject: form.variant_b_subject || null,
+      variant_b_html_body: form.variant_b_html_body || null,
+      variant_b_push_title: form.variant_b_push_title || null,
+      variant_b_push_body: form.variant_b_push_body || null,
+      variant_b_sms_body: form.variant_b_sms_body || null,
+      schedule_enabled: form.schedule_enabled || false,
+      schedule_windows: form.schedule_enabled
+        ? (form.schedule_days || ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']).map(day => ({
+            name: `${day.toUpperCase()} Window`,
+            days: [day],
+            start: (form as any)[`schedule_${day}_start`] || form.schedule_start || '09:00:00',
+            end: (form as any)[`schedule_${day}_end`] || form.schedule_end || '11:00:00'
+          }))
+        : [],
       audience_id: form.audience_id || null,
       sequence_id: form.sequence_id || null,
       data_source_id: form.data_source_id || null,
@@ -563,6 +635,24 @@ export default function CrmCampaignsPage() {
 
     if (!error && data) {
       const campaignId = data.id;
+
+      // Sync backend crm_notification_schedules if scheduling is enabled
+      if (form.schedule_enabled) {
+        const notifType = `campaign_${campaignId.replace(/[^a-z0-9]/gi, '_')}`
+        await supabase.from('crm_notification_schedules').upsert({
+          notification_type: notifType,
+          campaign_id: campaignId,
+          target_audience: form.audience_id || 'all',
+          is_active: true,
+          windows: payload.schedule_windows,
+          channels: {
+            push: form.channel === 'push',
+            email: form.channel === 'email',
+            sms: form.channel === 'sms'
+          },
+          fallback_timezone: 'America/Los_Angeles'
+        }, { onConflict: 'notification_type' })
+      }
 
       // Save/upsert campaign variants to database
       if (updatedVars.length > 0) {
@@ -959,6 +1049,96 @@ export default function CrmCampaignsPage() {
               </div>
             )}
 
+            {/* ⏱️ LOCAL-TIME WINDOW SCHEDULING PANEL */}
+            <div className="crm-field full-width" style={{ marginTop: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, color: '#166534' }}>
+                <input
+                  type="checkbox"
+                  checked={form.schedule_enabled || false}
+                  onChange={e => setForm(f => ({ ...f, schedule_enabled: e.target.checked }))}
+                  style={{ width: 18, height: 18, accentColor: '#16a34a' }}
+                />
+                ⏱️ Schedule Local-Time Send Window (Automated Background Dispatch)
+              </label>
+              <p style={{ fontSize: '0.8rem', color: '#15803d', margin: '4px 0 0' }}>
+                Select active days of week & local time window to dispatch in each recipient's local time zone.
+              </p>
+
+              {form.schedule_enabled && (
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#166534' }}>
+                    🗓️ Custom Send Window Hours Per Day (Recipient Local Time)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 10 }}>
+                    {[
+                      { key: 'mon', label: 'Monday' },
+                      { key: 'tue', label: 'Tuesday' },
+                      { key: 'wed', label: 'Wednesday' },
+                      { key: 'thu', label: 'Thursday' },
+                      { key: 'fri', label: 'Friday' },
+                      { key: 'sat', label: 'Saturday' },
+                      { key: 'sun', label: 'Sunday' },
+                    ].map(day => {
+                      const activeDays = form.schedule_days || ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                      const isEnabled = activeDays.includes(day.key)
+                      return (
+                        <div
+                          key={day.key}
+                          style={{
+                            background: isEnabled ? '#ffffff' : '#f9fafb',
+                            border: `1px solid ${isEnabled ? '#86efac' : '#e5e7eb'}`,
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            opacity: isEnabled ? 1 : 0.65
+                          }}
+                        >
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.83rem', color: isEnabled ? '#15803d' : '#6b7280', width: 95 }}>
+                            <input
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={e => {
+                                const updated = e.target.checked
+                                  ? [...activeDays, day.key]
+                                  : activeDays.filter((d: string) => d !== day.key)
+                                setForm(f => ({ ...f, schedule_days: updated }))
+                              }}
+                              style={{ accentColor: '#16a34a' }}
+                            />
+                            {day.label}
+                          </label>
+
+                          {isEnabled ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <input
+                                type="text"
+                                placeholder="09:00:00"
+                                value={(form as Record<string, any>)[`schedule_${day.key}_start`] || form.schedule_start || '09:00:00'}
+                                onChange={e => setForm(f => ({ ...f, [`schedule_${day.key}_start`]: e.target.value }))}
+                                style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: '0.78rem', width: 75 }}
+                              />
+                              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>-</span>
+                              <input
+                                type="text"
+                                placeholder="11:00:00"
+                                value={(form as Record<string, any>)[`schedule_${day.key}_end`] || form.schedule_end || '11:00:00'}
+                                onChange={e => setForm(f => ({ ...f, [`schedule_${day.key}_end`]: e.target.value }))}
+                                style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #d1d5db', fontSize: '0.78rem', width: 75 }}
+                              />
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>Off (Dud day)</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="crm-form-actions" style={{ marginTop: 24 }}>
             <button className="crm-btn-primary" onClick={handleSave} disabled={saving || !form.name}>

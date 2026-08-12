@@ -213,6 +213,20 @@ const buildNodeLabel = (nodeType: string, data: any, flatFields?: any[]): React.
       if (data?.data_source_id) summaryLines.push(`📊 Data source attached`);
       break;
     }
+    case 'action_push': {
+      icon = '📱';
+      title = userLabel || 'Send Push Notification';
+      if (data?.push_title) {
+        summaryLines.push(`Title: ${data.push_title.length > 40 ? data.push_title.slice(0, 37) + '...' : data.push_title}`);
+      }
+      if (data?.push_body) {
+        summaryLines.push(data.push_body.length > 50 ? data.push_body.slice(0, 47) + '...' : data.push_body);
+      }
+      if (data?.use_optimal_window) {
+        summaryLines.push(`⏱️ Optimal Window: ${data.optimal_window_start || '09:00:00'} - ${data.optimal_window_end || '11:00:00'}`);
+      }
+      break;
+    }
     case 'wait': {
       icon = '⏳';
       const d = data?.delayDays || 0;
@@ -798,6 +812,43 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     [reactFlowInstance, setNodes, sendSlotDefaults],
   )
 
+  const addNodeDirectly = useCallback((type: string) => {
+    let bgColor = 'white'
+    let border = '1px solid #d1d5db'
+    
+    if (type === 'action_email') { border = '2px solid #3b82f6' }
+    if (type === 'action_sms') { border = '2px solid #10b981' }
+    if (type === 'action_push') { border = '2px solid #c084fc' }
+    if (type === 'wait') { bgColor = '#fef3c7'; border = '1px solid #f59e0b' }
+    if (type === 'condition') { bgColor = '#e0e7ff'; border = '1px solid #6366f1' }
+    if (type === 'wait_for_slot') { bgColor = '#fdf4ff'; border = '2px solid #a855f7' }
+    if (type === 'fork') { bgColor = '#f0fdf4'; border = '2px solid #22c55e' }
+    if (type === 'join') { bgColor = '#f0fdf4'; border = '2px solid #16a34a' }
+    if (type === 'terminal') { bgColor = '#fee2e2'; border = '2px solid #ef4444' }
+
+    const nodeData: any = { 
+      type, 
+      subject: '', html: '', text: '',
+      push_title: '', push_body: '', push_target_url: '/market',
+      delayDays: 0, delayHours: 0, delayMinutes: 0, 
+      query: initialQuery, 
+      slots: type === 'wait_for_slot' ? (sendSlotDefaults?.email_slots || []) : undefined, 
+      slotPreset: type === 'wait_for_slot' ? 'email' : undefined
+    }
+    nodeData.label = buildNodeLabel(type, nodeData)
+
+    const newNode: Node = {
+      id: `${type}_${Date.now()}`,
+      type: 'default',
+      position: { x: 250, y: 150 + (nodes.length * 100) },
+      data: nodeData,
+      style: { background: bgColor, border, borderRadius: '8px', padding: '10px' }
+    }
+
+    setNodes((nds) => nds.concat(newNode))
+    setSelectedNode(newNode)
+  }, [nodes.length, sendSlotDefaults, setNodes, setSelectedNode])
+
   const runSimulation = async () => {
     try {
       setDryRunLoading(true)
@@ -936,10 +987,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       const v = updatedVars[newIndex];
       setEditorForm({
         name: v.variant_name,
-        channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+        channel: selectedNode?.data.type === 'action_push' ? 'push' : selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
         subject: v.subject || '',
         content_html: v.content_html || '',
         content_text: v.content_text || '',
+        push_title: (selectedNode?.data.push_title as string) || '',
+        push_body: (selectedNode?.data.push_body as string) || '',
+        push_target_url: (selectedNode?.data.push_target_url as string) || '/market',
         postmark_template_alias: '',
         test_emails: '',
         data_source_id: (selectedNode?.data.data_source_id as string) || ''
@@ -989,10 +1043,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
 
     setEditorForm({
       name: newVar.variant_name,
-      channel: selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
+      channel: selectedNode?.data.type === 'action_push' ? 'push' : selectedNode?.data.type === 'action_email' ? 'email' : 'sms',
       subject: newVar.subject,
       content_html: newVar.content_html,
       content_text: newVar.content_text,
+      push_title: (selectedNode?.data.push_title as string) || '',
+      push_body: (selectedNode?.data.push_body as string) || '',
+      push_target_url: (selectedNode?.data.push_target_url as string) || '/market',
       postmark_template_alias: '',
       test_emails: '',
       data_source_id: (selectedNode?.data.data_source_id as string) || ''
@@ -1118,7 +1175,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
     setSelectedNode(node)
     setUserLabel((node.data.userLabel as string) || '')
     
-    if (node.data.type === 'action_email' || node.data.type === 'action_sms') {
+    if (node.data.type === 'action_email' || node.data.type === 'action_sms' || node.data.type === 'action_push') {
       const nodeVars = variants.filter(v => v.node_id === node.id);
       setSelectedNodeVariants(nodeVars);
 
@@ -1126,10 +1183,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         setActiveVariantIndex(0);
         setEditorForm({
           name: nodeVars[0].variant_name,
-          channel: node.data.type === 'action_email' ? 'email' : 'sms',
+          channel: node.data.type === 'action_push' ? 'push' : node.data.type === 'action_email' ? 'email' : 'sms',
           subject: nodeVars[0].subject || '',
           content_html: nodeVars[0].content_html || '',
           content_text: nodeVars[0].content_text || '',
+          push_title: (node.data.push_title as string) || '',
+          push_body: (node.data.push_body as string) || '',
+          push_target_url: (node.data.push_target_url as string) || '/market',
           postmark_template_alias: '',
           test_emails: '',
           data_source_id: (node.data.data_source_id as string) || ''
@@ -1138,10 +1198,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         setActiveVariantIndex(-1);
         setEditorForm({
           name: '',
-          channel: node.data.type === 'action_email' ? 'email' : 'sms',
+          channel: node.data.type === 'action_push' ? 'push' : node.data.type === 'action_email' ? 'email' : 'sms',
           subject: (node.data.subject as string) || '',
           content_html: (node.data.html as string) || '',
           content_text: (node.data.text as string) || '',
+          push_title: (node.data.push_title as string) || '',
+          push_body: (node.data.push_body as string) || '',
+          push_target_url: (node.data.push_target_url as string) || '/market',
           postmark_template_alias: (node.data.postmark_template_alias as string) || '',
           test_emails: '',
           data_source_id: (node.data.data_source_id as string) || ''
@@ -1200,10 +1263,13 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
       if (n.id === selectedNode.id) {
         let newData = { ...n.data }
         
-        if (n.data.type === 'action_email' || n.data.type === 'action_sms') {
+        if (n.data.type === 'action_email' || n.data.type === 'action_sms' || n.data.type === 'action_push') {
           newData.subject = templateMode ? null : editorForm.subject
           newData.html = templateMode ? null : editorForm.content_html
           newData.text = editorForm.content_text
+          newData.push_title = editorForm.push_title
+          newData.push_body = editorForm.push_body
+          newData.push_target_url = editorForm.push_target_url
           newData.postmark_template_alias = templateMode ? editorForm.postmark_template_alias : null
           newData.data_source_id = editorForm.data_source_id || null
           newData.variantsCount = updatedVars.length
@@ -1788,28 +1854,76 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#374151' }}>Node Types</h3>
             <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 16px 0' }}>Drag nodes onto the canvas.</p>
             
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'action_email')} style={{ padding: '12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'action_email')} 
+              onClick={() => addNodeDirectly('action_email')}
+              style={{ padding: '12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               ✉️ Send Email
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'action_sms')} style={{ padding: '12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'action_sms')} 
+              onClick={() => addNodeDirectly('action_sms')}
+              style={{ padding: '12px', background: 'white', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               💬 Send SMS
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'wait')} style={{ padding: '12px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'action_push')} 
+              onClick={() => addNodeDirectly('action_push')}
+              style={{ padding: '12px', background: 'white', border: '1px solid #c084fc', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
+              📱 Send Push Notification
+            </div>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'wait')} 
+              onClick={() => addNodeDirectly('wait')}
+              style={{ padding: '12px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               ⏳ Wait Delay
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'condition')} style={{ padding: '12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'condition')} 
+              onClick={() => addNodeDirectly('condition')}
+              style={{ padding: '12px', background: '#e0e7ff', border: '1px solid #6366f1', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               🔀 Condition Split
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'wait_for_slot')} style={{ padding: '12px', background: '#fdf4ff', border: '2px solid #a855f7', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'wait_for_slot')} 
+              onClick={() => addNodeDirectly('wait_for_slot')}
+              style={{ padding: '12px', background: '#fdf4ff', border: '2px solid #a855f7', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               🕐 Wait for Optimal Slot
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'fork')} style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'fork')} 
+              onClick={() => addNodeDirectly('fork')}
+              style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               🔱 Fork (Parallel)
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'join')} style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #16a34a', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'join')} 
+              onClick={() => addNodeDirectly('join')}
+              style={{ padding: '12px', background: '#f0fdf4', border: '2px solid #16a34a', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               🔗 Join (Wait for All)
             </div>
-            <div draggable onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'terminal')} style={{ padding: '12px', background: '#fee2e2', border: '2px solid #ef4444', borderRadius: 8, cursor: 'grab', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div 
+              draggable 
+              onDragStart={(e) => e.dataTransfer.setData('application/reactflow', 'terminal')} 
+              onClick={() => addNodeDirectly('terminal')}
+              style={{ padding: '12px', background: '#fee2e2', border: '2px solid #ef4444', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+            >
               🛑 Terminal (End)
             </div>
           </div>
@@ -2194,9 +2308,60 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                 </div>
               )}
 
-               {(selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms') && (
+               {(selectedNode.data.type === 'action_email' || selectedNode.data.type === 'action_sms' || selectedNode.data.type === 'action_push') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.5, margin: 0 }}>Configure the message content that will be sent when a user reaches this node.</p>
+
+                  {/* ⏱️ OPTIMAL LOCAL-TIME SEND WINDOW */}
+                  <div style={{ marginTop: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem', color: '#166534' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedNode.data.use_optimal_window)}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, use_optimal_window: checked } } : n));
+                        }}
+                        style={{ width: 16, height: 16, accentColor: '#16a34a' }}
+                      />
+                      ⏱️ Optimal Local-Time Send Window
+                    </label>
+                    <p style={{ fontSize: '0.75rem', color: '#15803d', margin: '4px 0 0' }}>
+                      Holds dispatch until recipient's local clock falls inside window.
+                    </p>
+
+                    {Boolean(selectedNode.data.use_optimal_window) && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534' }}>Start</label>
+                          <input
+                            type="text"
+                            placeholder="09:00:00"
+                            value={String(selectedNode.data.optimal_window_start || '09:00:00')}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, optimal_window_start: val } } : n));
+                            }}
+                            style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #86efac', fontSize: '0.82rem', width: 90 }}
+                          />
+                        </div>
+                        <span style={{ color: '#166534', fontWeight: 700, marginTop: 12, fontSize: '0.8rem' }}>to</span>
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534' }}>End</label>
+                          <input
+                            type="text"
+                            placeholder="11:00:00"
+                            value={String(selectedNode.data.optimal_window_end || '11:00:00')}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, optimal_window_end: val } } : n));
+                            }}
+                            style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #86efac', fontSize: '0.82rem', width: 90 }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Variant Selection Panel */}
                   <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: 16 }}>
@@ -2377,7 +2542,17 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   )}
                   
                   <button 
-                    onClick={() => setEmailModalOpen(true)} 
+                    onClick={() => {
+                      const targetChannel = selectedNode.data.type === 'action_push' ? 'push' : selectedNode.data.type === 'action_sms' ? 'sms' : 'email';
+                      setEditorForm(f => ({
+                        ...f,
+                        channel: targetChannel,
+                        push_title: (selectedNode.data.push_title as string) || f.push_title || '',
+                        push_body: (selectedNode.data.push_body as string) || f.push_body || '',
+                        push_target_url: (selectedNode.data.push_target_url as string) || f.push_target_url || '/market'
+                      }));
+                      setEmailModalOpen(true);
+                    }} 
                     style={{ padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
                     Open Message Editor Modal
@@ -2663,7 +2838,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>Slot Preset</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      {['email', 'sms', 'custom'].map(preset => (
+                      {['email', 'sms', 'push', 'custom'].map(preset => (
                         <button
                           key={preset}
                           onClick={() => {
@@ -2671,18 +2846,18 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
                               ...prev,
                               preset,
                               slots: preset === 'email' ? (sendSlotDefaults?.email_slots || []) 
-                                   : preset === 'sms' ? (sendSlotDefaults?.sms_slots || []) 
+                                   : (preset === 'sms' || preset === 'push') ? (sendSlotDefaults?.sms_slots || []) 
                                    : prev.slots
                             }))
                           }}
                           style={{
-                            flex: 1, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6,
-                            cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                            flex: 1, padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6,
+                            cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
                             background: slotConfig.preset === preset ? '#a855f7' : '#f9fafb',
                             color: slotConfig.preset === preset ? 'white' : '#374151'
                           }}
                         >
-                          {preset === 'email' ? '📧 Email Default' : preset === 'sms' ? '💬 SMS Default' : '⚙️ Custom'}
+                          {preset === 'email' ? '📧 Email' : preset === 'sms' ? '💬 SMS' : preset === 'push' ? '📱 Push' : '⚙️ Custom'}
                         </button>
                       ))}
                     </div>

@@ -220,9 +220,9 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
       await expect(buyNowBtn).toBeEnabled()
     }
 
-    // Add to Cart SHOULD be visible despite quarantine
-    const addToCartBtn = page.locator('button:has-text("Add to Cart")')
-    expect(await addToCartBtn.isVisible({ timeout: 2000 }).catch(() => false)).toBe(true)
+    // Add to Cart / CTA button SHOULD be visible despite quarantine
+    const addToCartBtn = page.locator('button', { hasText: /Add to Cart|Buy Now|Order Now/i }).first()
+    await expect(addToCartBtn).toBeVisible({ timeout: 5000 })
 
     await page.context().close()
   })

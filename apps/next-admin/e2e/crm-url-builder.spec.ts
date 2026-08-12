@@ -275,9 +275,9 @@ test.describe('Link Picker — Campaigns form', () => {
 
     // After selecting a URL, step 2 should show with UTM fields
     await expect(page.getByText('Add Tracking')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByPlaceholder('e.g. summer-kickoff')).toBeVisible()
-    await expect(page.getByPlaceholder('e.g. backyard-gardeners-fb-group')).toBeVisible()
-    await expect(page.getByPlaceholder('e.g. sell-backyard-produce')).toBeVisible()
+    await expect(page.getByPlaceholder('e.g. summer-kickoff').first()).toBeVisible()
+    await expect(page.getByPlaceholder('e.g. backyard-gardeners-fb-group').first()).toBeVisible()
+    await expect(page.getByPlaceholder('e.g. sell-backyard-produce').first()).toBeVisible()
 
     // Both insert buttons should be visible
     await expect(page.locator('button:has-text("Insert Link")')).toBeVisible()
@@ -408,10 +408,10 @@ test.describe('Tracking URL Builder — Email Campaigns end-to-end', () => {
     }
 
     // Verify utm_term and label fields
-    await expect(page.getByPlaceholder('e.g. sell-backyard-produce')).toBeVisible({ timeout: 3000 })
-    await expect(page.getByText('Keyword / Group Tag')).toBeVisible()
-    await expect(page.getByPlaceholder('e.g. Facebook May Campaign')).toBeVisible()
-    await expect(page.getByText('Short Link Label')).toBeVisible()
+    await expect(page.getByPlaceholder('e.g. sell-backyard-produce').first()).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Keyword / Group Tag').first()).toBeVisible()
+    await expect(page.getByPlaceholder('e.g. Facebook May Campaign').first()).toBeVisible()
+    await expect(page.getByText('Short Link Label').first()).toBeVisible()
   })
 
   test('Custom URL input can insert an untracked link directly', async ({ page }) => {

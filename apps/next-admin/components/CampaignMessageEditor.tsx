@@ -3,15 +3,19 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import 'react-quill-new/dist/quill.snow.css'
+import TrackingUrlBuilder from './TrackingUrlBuilder'
 
 const ReactQuill = dynamic(() => import('../app/components/QuillEditor'), { ssr: false })
 
 export interface CampaignFormState {
   name: string
-  channel: 'email' | 'sms'
+  channel: 'email' | 'sms' | 'push'
   subject: string
   content_html: string
   content_text: string
+  push_title?: string
+  push_body?: string
+  push_target_url?: string
   postmark_template_alias: string
   test_emails: string
   data_source_id?: string
@@ -76,7 +80,7 @@ export default function CampaignMessageEditor({
 }: CampaignMessageEditorProps) {
   const quillRef = useRef<any>(null)
   
-  const [aiTargetField, setAiTargetField] = useState<'content_html' | 'content_text'>('content_html')
+  const [aiTargetField, setAiTargetField] = useState<'content_html' | 'content_text' | 'push_title' | 'push_body'>('content_html')
 
   const currentContent = (form.channel === 'email' && aiTargetField === 'content_text')
     ? (form.content_html || '')
@@ -101,7 +105,7 @@ export default function CampaignMessageEditor({
 
   const [landingPages, setLandingPages] = useState<any[]>([])
   const [promotions, setPromotions] = useState<any[]>([])
-  const [promoModalDest, setPromoModalDest] = useState<'quill' | 'clipboard' | null>(null)
+  const [promoModalDest, setPromoModalDest] = useState<'quill' | 'clipboard' | 'push_target_url' | null>(null)
   const [linkSearch, setLinkSearch] = useState('')
   const [linkSelectedUrl, setLinkSelectedUrl] = useState<string | null>(null)
   const [linkSelectedLabel, setLinkSelectedLabel] = useState('')
@@ -120,6 +124,7 @@ export default function CampaignMessageEditor({
   const [aiRefTab, setAiRefTab] = useState<'links' | 'images'>('links')
   const [aiRefSearch, setAiRefSearch] = useState('')
   const [shortLinks, setShortLinks] = useState<any[]>([])
+  const [appliedCampaignLinks, setAppliedCampaignLinks] = useState<{ url: string; label: string; created_at: string }[]>([])
 
   // Track Link Modal State
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -178,7 +183,7 @@ export default function CampaignMessageEditor({
   // Fetch landing pages and promos for the link picker
   const fetchLinkData = useCallback(async () => {
     const [{ data: fetchedShortLinks }, { data: lps }, { data: promos }] = await Promise.all([
-      supabase.from('crm_short_links').select('token, destination_url, label').is('campaign_id', null),
+      supabase.from('crm_short_links').select('token, destination_url, label').order('created_at', { ascending: false }),
       supabase.from('crm_landing_pages').select('id, slug, title').eq('is_active', true),
       supabase.from('crm_promotions').select('id, name, landing_page_id').order('created_at', { ascending: false })
     ])
@@ -802,11 +807,100 @@ export default function CampaignMessageEditor({
     <div className="crm-message-editor">
       {showChannelSelector && (
         <div className="crm-field">
-          <label>Channel</label>
-          <select value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value as 'email' | 'sms' }))}>
+          <label>Channel (Primary Medium)</label>
+          <select value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value as any }))}>
             <option value="email">📧 Email</option>
-            <option value="sms">💬 SMS</option>
+            <option value="push">📱 Push Notification</option>
+            <option value="sms">💬 SMS Text</option>
           </select>
+        </div>
+      )}
+
+      {/* ── PUSH NOTIFICATION SECTION ── */}
+      {form.channel === 'push' && (
+        <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: 8 }}>
+            <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#1e293b', fontWeight: 700 }}>📱 Push Notification Message</h4>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiTargetField('push_body');
+                  setAiPrompt('Generate a short, high-converting push notification body (under 120 chars) with relevant emojis.');
+                  setAiModalOpen(true);
+                }}
+                style={{ padding: '4px 10px', fontSize: '0.8rem', background: 'linear-gradient(to right, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                ✨ Ask AI
+              </button>
+            </div>
+          </div>
+
+          {/* Push Title */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Push Notification Title *</label>
+              <span style={{ fontSize: '0.78rem', color: (form.push_title || '').length > 50 ? '#dc2626' : '#64748b' }}>
+                {(form.push_title || '').length}/50 chars
+              </span>
+            </div>
+            <input
+              type="text"
+              placeholder="e.g. 🍓 Fresh Strawberries Dropped Nearby!"
+              value={form.push_title || ''}
+              onChange={e => setForm(f => ({ ...f, push_title: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+            />
+          </div>
+
+          {/* Push Body */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Push Message Body *</label>
+              <span style={{ fontSize: '0.78rem', color: (form.push_body || '').length > 120 ? '#dc2626' : '#64748b' }}>
+                {(form.push_body || '').length}/120 chars
+              </span>
+            </div>
+            <textarea
+              rows={3}
+              placeholder="e.g. Local growers just posted fresh organic strawberries near your zip code. Tap to view active booth stands!"
+              value={form.push_body || ''}
+              onChange={e => setForm(f => ({ ...f, push_body: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.9rem', resize: 'vertical' }}
+            />
+          </div>
+
+          {/* Deep Link Target URL (When Tapped) */}
+          <div>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+              🔗 Deep Link Target URL (When Tapped)
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                onChange={e => {
+                  if (e.target.value) {
+                    setForm(f => ({ ...f, push_target_url: e.target.value }))
+                  }
+                }}
+                style={{ padding: '8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.85rem', background: '#fff', maxWidth: 180 }}
+              >
+                <option value="">Quick Presets...</option>
+                <option value="/games">🎮 /games (Games Hub)</option>
+                <option value="/market">🌱 /market (Market Feed)</option>
+                <option value="/growbot">🤖 /growbot (GrowBot AI)</option>
+                <option value="/sell">🍓 /sell (Seller Calc)</option>
+                <option value="/join">👤 /join (Buyer Sign Up)</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="e.g. /games or /market?filter=my-interests"
+                value={form.push_target_url || '/market'}
+                onChange={e => setForm(f => ({ ...f, push_target_url: e.target.value }))}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.9rem', fontFamily: 'monospace' }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -1325,6 +1419,37 @@ export default function CampaignMessageEditor({
         )
       })()}
 
+      {/* 🔗 UNIFIED TRACKING URL BUILDER — Full UTM Link Generator across Email, SMS & Push */}
+      <div style={{ marginTop: 16 }}>
+        <TrackingUrlBuilder
+          defaultMedium={form.channel}
+          defaultCampaign={form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : ''}
+          onInsertUrl={(url) => {
+            setAppliedCampaignLinks(prev => [
+              { url, label: url, created_at: new Date().toISOString() },
+              ...prev.filter(x => x.url !== url)
+            ])
+            if (form.channel === 'push') {
+              setForm(f => ({ ...f, push_target_url: url }))
+              toast('✅ Target URL applied with full UTM tracking!')
+            } else if (form.channel === 'sms') {
+              setForm(f => ({ ...f, content_text: ((f.content_text || '').trim() + ' ' + url).trim() }))
+              toast('✅ Tracked link appended to SMS message & AI list!')
+            } else {
+              const quill = quillRef.current?.getEditor()
+              if (quill && htmlMode === 'wysiwyg') {
+                const idx = quillSelectionRef.current?.index ?? quill.getLength()
+                quill.insertText(idx, url, 'link', url)
+                quill.setSelection(idx + url.length, 0)
+              } else {
+                setForm(f => ({ ...f, content_html: (f.content_html || '') + ` <a href="${url}">${url}</a>` }))
+              }
+              toast('✅ Tracked link inserted into editor & added to AI reference list!')
+            }
+          }}
+        />
+      </div>
+
       {form.channel === 'email' && templateMode && (
         <div className="crm-field full-width" style={{ marginTop: 16 }}>
           <label>Postmark Template Alias *</label>
@@ -1507,6 +1632,9 @@ export default function CampaignMessageEditor({
                 quill.insertText(sel.index, label, 'link', finalUrl)
               }
             }
+          } else if (promoModalDest === 'push_target_url') {
+            setForm(f => ({ ...f, push_target_url: finalUrl }))
+            toast('✅ Deep link target URL set with tracking!')
           } else {
             navigator.clipboard.writeText(finalUrl)
             toast('Link copied to clipboard!')
@@ -2112,8 +2240,25 @@ export default function CampaignMessageEditor({
                   {aiRefTab === 'links' ? (() => {
                     const baseUrl = process.env.NEXT_PUBLIC_MARKET_URL || 'https://casagrown.com'
                     
-                    // Construct references
+                    // Construct references — prepend links applied directly during this campaign session at the top!
                     const referencesList: { label: string, type: string, url: string, destUrl?: string }[] = []
+
+                    appliedCampaignLinks.forEach(al => {
+                      referencesList.push({
+                        label: `⭐ ${al.url}`,
+                        type: 'Applied Campaign Link',
+                        url: al.url,
+                      })
+                    })
+
+                    referencesList.push(
+                      { label: '🎮 Daily Garden Games Hub', type: 'Core Page', url: `${baseUrl}/games` },
+                      { label: '🌱 Produce Market Feed', type: 'Core Page', url: `${baseUrl}/market` },
+                      { label: '🤖 GrowBot AI Chat', type: 'Core Page', url: `${baseUrl}/growbot` },
+                      { label: '🍓 Seller Calculator', type: 'Core Page', url: `${baseUrl}/sell` },
+                      { label: '👤 Buyer Sign Up', type: 'Core Page', url: `${baseUrl}/join` },
+                      { label: '🥗 Nutrition Loss Checker', type: 'Core Page', url: `${baseUrl}/check-nutrition-loss` },
+                    )
                     
                     landingPages.forEach(lp => {
                       referencesList.push({ label: lp.title, type: 'Landing Page', url: `${baseUrl}/p/${lp.slug}` })

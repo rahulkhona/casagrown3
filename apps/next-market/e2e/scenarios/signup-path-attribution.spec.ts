@@ -147,9 +147,10 @@ test.describe('Signup Path Attribution E2E', () => {
 
     // Seed the profile attribution directly (first-touch tracking = /growbot)
     execSql(`
-      INSERT INTO profiles (id, email, signup_source, full_name, created_at)
-      VALUES (gen_random_uuid(), '${email}', '/growbot', 'Path Test User 2', now())
-      ON CONFLICT (email) DO UPDATE SET signup_source = '/growbot'
+      UPDATE public.profiles SET signup_source = '/growbot' WHERE email = '${email}' OR id IN (SELECT id FROM auth.users WHERE email = '${email}');
+      INSERT INTO public.profiles (id, email, signup_source, full_name, created_at)
+      SELECT id, email, '/growbot', 'Path Test User 2', now() FROM auth.users WHERE email = '${email}'
+      ON CONFLICT (id) DO UPDATE SET signup_source = '/growbot';
     `)
 
     // Verify signup_source was set

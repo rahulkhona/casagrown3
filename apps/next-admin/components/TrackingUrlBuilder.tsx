@@ -31,8 +31,10 @@ interface TrackingUrlBuilderProps {
   nodeId?: string
   /** Compact mode: collapses into an accordion, suitable for sidebars */
   compact?: boolean
-  /** Custom destination URLs — overrides the default BASE_URLS list. Hides Custom URL toggle. */
+  /** Custom destination URLs — overrides the default BASE_URLS list. Hides Custom URL toggle. Hides Custom URL toggle. */
   destinations?: DestinationOption[]
+  /** Optional callback when user clicks 'Use This Link in Campaign' */
+  onInsertUrl?: (url: string) => void
 }
 
 const UTM_SOURCES = [
@@ -64,6 +66,8 @@ const UTM_MEDIUMS = [
 ]
 
 const BASE_URLS = [
+  { value: 'https://casagrown.com/games', label: '🎮 /games — Daily Garden Games Hub' },
+  { value: 'https://casagrown.com/market', label: '🌱 /market — Produce Market Feed' },
   { value: 'https://casagrown.com/growbot', label: '/growbot — GrowBot AI Chat' },
   { value: 'https://casagrown.com/create-listing-multi-arm', label: '/create-listing-multi-arm — Bandit Listing Flow' },
   { value: 'https://casagrown.com/create-listing-simple', label: '/create-listing-simple — Quick Listing' },
@@ -99,9 +103,10 @@ export default function TrackingUrlBuilder({
   nodeId,
   compact = false,
   destinations,
+  onInsertUrl,
 }: TrackingUrlBuilderProps) {
   const urlOptions = destinations && destinations.length > 0 ? destinations : BASE_URLS
-  const [isOpen, setIsOpen] = useState(!compact)
+  const [isOpen, setIsOpen] = useState(true)
   const [baseUrl, setBaseUrl] = useState(defaultBaseUrl || urlOptions[0]?.value || '')
   const [customBase, setCustomBase] = useState('')
   const [useCustom, setUseCustom] = useState(false)
@@ -261,13 +266,24 @@ export default function TrackingUrlBuilder({
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Full Tracking URL
             </span>
-            <button
-              type="button"
-              onClick={() => copyToClipboard(fullUrl, 'long')}
-              style={{ ...pill, background: copied === 'long' ? '#22c55e' : 'white', color: copied === 'long' ? 'white' : '#166534', border: '1px solid #bbf7d0' }}
-            >
-              {copied === 'long' ? '✓ Copied!' : '📋 Copy'}
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {onInsertUrl && (
+                <button
+                  type="button"
+                  onClick={() => onInsertUrl(fullUrl)}
+                  style={{ ...pill, background: '#166534', color: 'white' }}
+                >
+                  ✨ Apply to Campaign
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => copyToClipboard(fullUrl, 'long')}
+                style={{ ...pill, background: copied === 'long' ? '#22c55e' : 'white', color: copied === 'long' ? 'white' : '#166534', border: '1px solid #bbf7d0' }}
+              >
+                {copied === 'long' ? '✓ Copied!' : '📋 Copy'}
+              </button>
+            </div>
           </div>
           <code style={{ fontSize: '0.78rem', color: '#166534', wordBreak: 'break-all', lineHeight: 1.5, display: 'block' }}>
             {fullUrl}
@@ -315,13 +331,24 @@ export default function TrackingUrlBuilder({
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Short Link (self-hosted)
               </span>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(shortUrl, 'short')}
-                style={{ ...pill, background: copied === 'short' ? '#6366f1' : 'white', color: copied === 'short' ? 'white' : '#4338ca', border: '1px solid #c7d2fe' }}
-              >
-                {copied === 'short' ? '✓ Copied!' : '📋 Copy'}
-              </button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {onInsertUrl && (
+                  <button
+                    type="button"
+                    onClick={() => onInsertUrl(shortUrl)}
+                    style={{ ...pill, background: '#4338ca', color: 'white' }}
+                  >
+                    ✨ Apply Short Link to Campaign
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(shortUrl, 'short')}
+                  style={{ ...pill, background: copied === 'short' ? '#6366f1' : 'white', color: copied === 'short' ? 'white' : '#4338ca', border: '1px solid #c7d2fe' }}
+                >
+                  {copied === 'short' ? '✓ Copied!' : '📋 Copy'}
+                </button>
+              </div>
             </div>
             <code style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4338ca', wordBreak: 'break-all', display: 'block' }}>
               {shortUrl}

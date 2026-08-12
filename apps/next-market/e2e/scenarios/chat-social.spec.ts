@@ -218,9 +218,8 @@ test.describe('Chat & Social Flows', () => {
     await bethPage.waitForTimeout(1500)
 
     // Step 3: Verify button toggled to "Following"
-    const afterBtn = bethPage.locator('button:has-text("Following")')
-    const afterCount = await afterBtn.count()
-    expect(afterCount).toBeGreaterThan(0)
+    const afterBtn = bethPage.locator('button:has-text("Following")').first()
+    await expect(afterBtn).toBeVisible({ timeout: 5000 })
     console.log('[FOLLOW] ✅ Button toggled to Following')
 
     // Step 4: Navigate to /following and verify booth is listed

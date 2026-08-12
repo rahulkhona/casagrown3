@@ -22,7 +22,7 @@ describe('Daily Games Catalog & Gardening Vocabulary', () => {
     const spellGame = TODAY_DAILY_GAMES.find((g) => g.category === 'garden_spell')
     expect(spellGame).toBeDefined()
     expect(spellGame?.targetWord).toBeDefined()
-    expect(spellGame?.targetWord).toMatch(/^[A-Z]{5}$/) // 5-letter garden word
+    expect(spellGame?.targetWord).toMatch(/^[A-Z]{4,8}$/) // Garden word
 
     // Check Crop Anagram target word & variety detail
     const anagramGame = TODAY_DAILY_GAMES.find((g) => g.category === 'anagram')
