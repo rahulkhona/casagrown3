@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface EquationRow {
   leftStr: string
@@ -37,6 +39,12 @@ export default function NutritionalAlgebraCanvas({
   const [userAnswer, setUserAnswer] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [solved, setSolved] = useState(false)
+  const [revealedFactsCount, setRevealedFactsCount] = useState(0)
+
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
 
   const handleSubmit = () => {
     if (!userAnswer.trim()) return
@@ -49,11 +57,29 @@ export default function NutritionalAlgebraCanvas({
     }
   }
 
+  const handleApplyHint = () => {
+    if (solved) return
+
+    triggerHint(() => {
+      const nextFactIdx = Math.min(factBreakdown.length, revealedFactsCount + 1)
+      setRevealedFactsCount(nextFactIdx)
+
+      if (nextFactIdx >= factBreakdown.length) {
+        setUserAnswer(targetAnswer)
+        setErrorMsg(`💡 Final Hint: Target answer is ${targetAnswer}! ✨`)
+      } else {
+        setErrorMsg(`💡 Hint: ${factBreakdown[nextFactIdx - 1]}`)
+      }
+
+      return nextFactIdx - 1
+    })
+  }
+
   return (
     <div style={{ maxWidth: 550, margin: '0 auto', textAlign: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* TITLE & LEARNING INSTRUCTIONS */}
-      <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: 16, marginBottom: 20, textAlign: 'left' }}>
+      <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: 16, marginBottom: 16, textAlign: 'left' }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
           🥗 Garden Nutrition Challenge: {metricUnit}
         </h3>
@@ -62,28 +88,45 @@ export default function NutritionalAlgebraCanvas({
         </p>
       </div>
 
+      {/* HINT BUTTON */}
+      {!solved && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
+
+
       {/* MULTI-ROW NUTRITIONAL EQUATIONS (EACH ON ITS OWN ROW) */}
       <div style={{ background: '#ffffff', border: '2px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 20, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {rows.map((row, idx) => (
-          <div
-            key={idx}
-            style={{
-              background: row.colorTheme,
-              border: '1.5px solid rgba(0,0,0,0.08)',
-              padding: '12px 16px',
-              borderRadius: 10,
-              fontSize: 16,
-              fontWeight: 800,
-              color: '#1e293b',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <span>{row.leftStr}</span>
-            <span style={{ color: '#059669', fontWeight: 900 }}>= {row.rightVal}</span>
-          </div>
-        ))}
+        {rows.map((row, idx) => {
+          const isHinted = highlightedStep === idx
+          return (
+            <div
+              key={idx}
+              style={{
+                background: isHinted ? '#fef3c7' : row.colorTheme,
+                border: isHinted ? '3px solid #f59e0b' : '1.5px solid rgba(0,0,0,0.08)',
+                boxShadow: isHinted ? '0 0 16px rgba(245, 158, 11, 0.7)' : 'none',
+                animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
+                padding: '12px 16px',
+                borderRadius: 10,
+                fontSize: 16,
+                fontWeight: 800,
+                color: '#1e293b',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>{row.leftStr}</span>
+              <span style={{ color: '#059669', fontWeight: 900 }}>= {row.rightVal}</span>
+            </div>
+          )
+        })}
       </div>
 
       {/* REVEAL USDA NUTRITIONAL VALUE BREAKDOWN ONLY AFTER SOLVING */}

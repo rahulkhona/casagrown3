@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface CropAnagramCanvasProps {
   anagramText?: string // e.g. "L-E-M-O-N-S"
@@ -17,11 +19,16 @@ export default function CropAnagramCanvas({
 }: CropAnagramCanvasProps) {
   const target = solutionWord.toUpperCase().replace(/\s+/g, '')
 
-  // Extract scrambled letters
-  const scrambledLetters = anagramText
+  // Extract scrambled letters and ensure they are genuinely scrambled!
+  let scrambledLetters = anagramText
     .replace(/[^A-Z]/gi, '')
     .toUpperCase()
     .split('')
+
+  // Automatic Scramble Safeguard: If input string matches target, reverse/shuffle it!
+  if (scrambledLetters.join('') === target) {
+    scrambledLetters = [...scrambledLetters].reverse()
+  }
 
   const [userLetters, setUserLetters] = useState<string[]>([])
   const [availableLetters, setAvailableLetters] = useState<Array<{ id: number; char: string; used: boolean }>>(
@@ -29,6 +36,42 @@ export default function CropAnagramCanvas({
   )
   const [errorMsg, setErrorMsg] = useState('')
   const [solved, setSolved] = useState(false)
+
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
+
+  const handleApplyHint = () => {
+    if (solved) return
+
+    triggerHint(() => {
+      // Find next required letter from target that user needs
+      const nextIdx = userLetters.length
+      if (nextIdx >= target.length) return
+
+      const neededChar = target[nextIdx]
+      const freeLetterObj = availableLetters.find((l) => !l.used && l.char === neededChar)
+      if (!freeLetterObj) return
+
+      const updatedPool = availableLetters.map((l) => (l.id === freeLetterObj.id ? { ...l, used: true } : l))
+      const updatedUser = [...userLetters, neededChar]
+
+      setAvailableLetters(updatedPool)
+      setUserLetters(updatedUser)
+      setErrorMsg('')
+
+      if (updatedUser.length === target.length) {
+        if (updatedUser.join('') === target) {
+          setSolved(true)
+          onSolve()
+        }
+      }
+
+      return nextIdx
+    })
+  }
+
 
   // Tap scrambled letter badge to append to answer
   const handleLetterTap = (letterObj: { id: number; char: string; used: boolean }) => {
@@ -85,10 +128,10 @@ export default function CropAnagramCanvas({
   }
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div data-solution={target} style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* INSTRUCTIONS BANNER (NO SOLUTION SHOWN) */}
-      <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 12, padding: 14, marginBottom: 16, textAlign: 'left' }}>
+      <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 12, padding: 14, marginBottom: 14, textAlign: 'left' }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: '#1e40af' }}>
           🔤 Unscramble the Garden Crop Letters!
         </h3>
@@ -96,6 +139,16 @@ export default function CropAnagramCanvas({
           Tap the scrambled letter tiles below to spell out the {target.length}-letter garden produce item!
         </p>
       </div>
+
+      {/* HINT BUTTON */}
+      {!solved && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
 
       {/* PRODUCE VARIETY LEARNING NOTE (REVEALED ONLY AFTER SOLVING) */}
       {solved ? (
@@ -117,6 +170,7 @@ export default function CropAnagramCanvas({
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', minHeight: 52, marginBottom: 12 }}>
           {Array.from({ length: target.length }).map((_, idx) => {
             const char = userLetters[idx] || ''
+            const isHinted = highlightedStep === idx
 
             return (
               <button
@@ -124,18 +178,17 @@ export default function CropAnagramCanvas({
                 type="button"
                 onClick={() => char && handleRemoveUserLetter(idx)}
                 style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 8,
-                  border: char ? '2px solid #059669' : '2px dashed #cbd5e1',
-                  background: char ? '#ecfdf5' : '#f8fafc',
+                  width: 48,
+                  height: 48,
+                  borderRadius: 10,
+                  border: isHinted ? '3px solid #f59e0b' : char ? '2px solid #059669' : '2px dashed #cbd5e1',
+                  background: isHinted ? '#fef3c7' : char ? '#ecfdf5' : '#f8fafc',
                   color: '#111827',
                   fontSize: 20,
                   fontWeight: 800,
                   cursor: char ? 'pointer' : 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  boxShadow: isHinted ? '0 0 16px rgba(245, 158, 11, 0.8)' : char ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                  animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -168,6 +221,7 @@ export default function CropAnagramCanvas({
             <button
               key={lObj.id}
               type="button"
+              aria-label={`Scrambled Letter ${lObj.char} ID ${lObj.id}`}
               onClick={() => handleLetterTap(lObj)}
               disabled={lObj.used}
               style={{

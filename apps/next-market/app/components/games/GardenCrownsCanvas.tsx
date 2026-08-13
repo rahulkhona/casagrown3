@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface GardenPlotsCanvasProps {
   onSolve: () => void
@@ -25,6 +27,16 @@ const REGION_COLORS = [
   '#ffedd5', // Orange plot
 ]
 
+// Target solution coordinates [row, col] for 100% valid 6-queen solution
+const SOLUTION_POSITIONS: Array<[number, number]> = [
+  [0, 1],
+  [1, 3],
+  [2, 5],
+  [3, 0],
+  [4, 2],
+  [5, 4],
+]
+
 // Cell state: 0 = empty, 1 = produce item 🍋, 2 = cross ❌
 type CellState = 0 | 1 | 2
 
@@ -36,6 +48,11 @@ export default function GardenPlotsCanvas({ onSolve }: GardenPlotsCanvasProps) {
   const [solved, setSolved] = useState(false)
   const [showRules, setShowRules] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
 
   // Cycle cell state: 0 (empty) -> 1 (🍋) -> 2 (❌) -> 0
   const handleCellClick = (r: number, c: number) => {
@@ -54,6 +71,31 @@ export default function GardenPlotsCanvas({ onSolve }: GardenPlotsCanvasProps) {
     setGrid(nextGrid)
     checkWinCondition(nextGrid)
   }
+
+  const handleApplyHint = () => {
+    if (solved) return
+
+    triggerHint(() => {
+      // Find first solution position not yet filled with 1
+      const targetPos = SOLUTION_POSITIONS.find(([r, c]) => grid[r][c] !== 1)
+      if (!targetPos) return
+
+      const [tr, tc] = targetPos
+      const nextGrid = grid.map((row, rIdx) =>
+        row.map((cell, cIdx) => {
+          if (rIdx === tr && cIdx === tc) return 1
+          // Clear any wrong produce items in same row/col
+          if ((rIdx === tr || cIdx === tc) && cell === 1) return 0
+          return cell
+        })
+      )
+
+      setGrid(nextGrid)
+      checkWinCondition(nextGrid)
+      return `${tr}_${tc}`
+    })
+  }
+
 
   const checkWinCondition = (currentGrid: CellState[][]) => {
     let totalItems = 0
@@ -149,6 +191,16 @@ export default function GardenPlotsCanvas({ onSolve }: GardenPlotsCanvasProps) {
         )}
       </div>
 
+      {/* HINT BUTTON */}
+      {!solved && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
+
       {errorMsg && (
         <div style={{ color: '#dc2626', fontSize: 12, fontWeight: 'bold', marginBottom: 10 }}>{errorMsg}</div>
       )}
@@ -173,15 +225,19 @@ export default function GardenPlotsCanvas({ onSolve }: GardenPlotsCanvasProps) {
           row.map((cell, cIdx) => {
             const regId = REGION_MAP[rIdx][cIdx]
             const bg = REGION_COLORS[regId]
+            const isHinted = highlightedStep === `${rIdx}_${cIdx}`
 
             return (
               <button
                 key={`${rIdx}-${cIdx}`}
                 type="button"
+                aria-label={`Garden Plot Cell Row ${rIdx} Col ${cIdx}`}
                 onClick={() => handleCellClick(rIdx, cIdx)}
                 style={{
-                  background: bg,
-                  border: '1px solid rgba(0,0,0,0.1)',
+                  background: isHinted ? '#fef3c7' : bg,
+                  border: isHinted ? '3px solid #f59e0b' : '1px solid rgba(0,0,0,0.1)',
+                  boxShadow: isHinted ? '0 0 16px rgba(245, 158, 11, 0.8)' : 'none',
+                  animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
                   borderRadius: 4,
                   cursor: 'pointer',
                   fontSize: 22,

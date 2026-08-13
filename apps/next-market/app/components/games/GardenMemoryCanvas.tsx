@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface MatchPair {
   pairId: number
@@ -60,6 +62,38 @@ export default function GardenMemoryCanvas({ onSolve }: { onSolve: () => void })
 
   const [selectedCards, setSelectedCards] = useState<number[]>([])
   const [solved, setSolved] = useState(false)
+
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
+
+  const handleApplyHint = () => {
+    if (solved) return
+
+    triggerHint(() => {
+      // Find first un-matched pairId
+      const unmatchedCard = cards.find((c) => !c.matched)
+      if (!unmatchedCard) return
+
+      const targetPairId = unmatchedCard.pairId
+      const nextCards = cards.map((c) =>
+        c.pairId === targetPairId ? { ...c, flipped: true, matched: true } : c
+      )
+
+      setCards(nextCards)
+      setSelectedCards([])
+
+      const isComplete = nextCards.every((c) => c.matched)
+      if (isComplete) {
+        setSolved(true)
+        onSolve()
+      }
+
+      return targetPairId
+    })
+  }
+
 
   // Initialize 12 cards (6 produce cards + 6 matching nutrition/price cards)
   useEffect(() => {
@@ -148,7 +182,7 @@ export default function GardenMemoryCanvas({ onSolve }: { onSolve: () => void })
     <div style={{ maxWidth: 540, margin: '0 auto', textAlign: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* VALUE PROP MATCHING INSTRUCTIONS */}
-      <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 12, padding: 14, marginBottom: 16, textAlign: 'left' }}>
+      <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 12, padding: 14, marginBottom: 14, textAlign: 'left' }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 800, color: '#1e40af' }}>
           🥗 Match Produce with Real Nutrition & Local Stand Prices!
         </h3>
@@ -157,6 +191,16 @@ export default function GardenMemoryCanvas({ onSolve }: { onSolve: () => void })
           <div>• Example: Match <strong>🥑 Hass Avocado</strong> with <strong>10g Fiber (36% DV)</strong>!</div>
         </div>
       </div>
+
+      {/* HINT BUTTON */}
+      {!solved && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
 
       {/* MATCHED PROGRESS COUNTER */}
       <div style={{ background: '#ecfdf5', border: '1.5px solid #10b981', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -177,38 +221,43 @@ export default function GardenMemoryCanvas({ onSolve }: { onSolve: () => void })
           marginBottom: 20,
         }}
       >
-        {cards.map((card, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => handleCardClick(idx)}
-            style={{
-              minHeight: 96,
-              borderRadius: 10,
-              border: card.matched ? '2.5px solid #10b981' : card.flipped ? '2.5px solid #3b82f6' : '2px solid #059669',
-              background: card.matched ? '#ecfdf5' : card.flipped ? '#eff6ff' : '#059669',
-              color: card.flipped || card.matched ? '#111827' : '#ffffff',
-              padding: 8,
-              cursor: card.matched ? 'default' : 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: card.matched ? 'none' : '0 3px 8px rgba(0,0,0,0.12)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {card.flipped || card.matched ? (
-              <>
-                <div style={{ fontSize: 24, marginBottom: 2 }}>{card.emoji}</div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{card.title}</div>
-                <div style={{ fontSize: 10, color: '#059669', fontWeight: 700, marginTop: 2 }}>{card.sub}</div>
-              </>
-            ) : (
-              <span style={{ fontSize: 28 }}>🌱</span>
-            )}
-          </button>
-        ))}
+        {cards.map((card, idx) => {
+          const isHinted = highlightedStep === card.pairId
+          return (
+            <button
+              key={idx}
+              type="button"
+              aria-label={`Memory Card Pair ${card.pairId} Index ${idx}`}
+              onClick={() => handleCardClick(idx)}
+              style={{
+                minHeight: 96,
+                borderRadius: 10,
+                border: isHinted ? '3px solid #f59e0b' : card.matched ? '2.5px solid #10b981' : card.flipped ? '2.5px solid #3b82f6' : '2px solid #059669',
+                background: isHinted ? '#fef3c7' : card.matched ? '#ecfdf5' : card.flipped ? '#eff6ff' : '#059669',
+                color: card.flipped || card.matched ? '#111827' : '#ffffff',
+                padding: 8,
+                cursor: card.matched ? 'default' : 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isHinted ? '0 0 16px rgba(245, 158, 11, 0.8)' : card.matched ? 'none' : '0 3px 8px rgba(0,0,0,0.12)',
+                animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {card.flipped || card.matched ? (
+                <>
+                  <div style={{ fontSize: 24, marginBottom: 2 }}>{card.emoji}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{card.title}</div>
+                  <div style={{ fontSize: 10, color: '#059669', fontWeight: 700, marginTop: 2 }}>{card.sub}</div>
+                </>
+              ) : (
+                <span style={{ fontSize: 28 }}>🌱</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
     </div>

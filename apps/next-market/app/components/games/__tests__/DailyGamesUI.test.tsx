@@ -166,12 +166,12 @@ describe('Daily Games UI & User Interaction Test Suite', () => {
 
       expect(screen.getByText(/Unscramble the Garden Crop Letters!/i)).toBeTruthy()
 
-      const letterL = screen.getByRole('button', { name: 'L' })
-      const letterE = screen.getByRole('button', { name: 'E' })
-      const letterM = screen.getByRole('button', { name: 'M' })
-      const letterO = screen.getByRole('button', { name: 'O' })
-      const letterN = screen.getByRole('button', { name: 'N' })
-      const letterS = screen.getByRole('button', { name: 'S' })
+      const letterL = screen.getByRole('button', { name: /Scrambled Letter L/i })
+      const letterE = screen.getByRole('button', { name: /Scrambled Letter E/i })
+      const letterM = screen.getByRole('button', { name: /Scrambled Letter M/i })
+      const letterO = screen.getByRole('button', { name: /Scrambled Letter O/i })
+      const letterN = screen.getByRole('button', { name: /Scrambled Letter N/i })
+      const letterS = screen.getByRole('button', { name: /Scrambled Letter S/i })
 
       fireEvent.click(letterL)
       fireEvent.click(letterE)

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface JigsawPuzzleCanvasProps {
   imageUrl: string
@@ -9,7 +11,7 @@ interface JigsawPuzzleCanvasProps {
 }
 
 export default function JigsawPuzzleCanvas({
-  imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/f/f3/MeyerLemon.jpg',
+  imageUrl = '/images/catalog/studio_mandarins.jpg',
   title = 'Meyer Lemons',
   onSolve,
 }: JigsawPuzzleCanvasProps) {
@@ -24,6 +26,11 @@ export default function JigsawPuzzleCanvas({
   const [selectedPiece, setSelectedPiece] = useState<number | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [solved, setSolved] = useState(false)
+
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
 
   // Unplaced pieces in tray (scrambled 1..9)
   const allPieces = [4, 1, 9, 2, 7, 3, 8, 5, 6]
@@ -63,6 +70,33 @@ export default function JigsawPuzzleCanvas({
     }
   }
 
+  const handleApplyHint = () => {
+    if (solved) return
+
+    triggerHint(() => {
+      // Find first slot index 0..8 that is NOT correct (val !== idx + 1)
+      const targetSlot = gridSlots.findIndex((val, idx) => val !== idx + 1)
+      if (targetSlot === -1) return
+
+      const targetPiece = targetSlot + 1
+      const updated = gridSlots.map((val, idx) => {
+        if (idx === targetSlot) return targetPiece
+        if (val === targetPiece) return null
+        return val
+      })
+
+      setGridSlots(updated)
+
+      const isComplete = updated.every((val, idx) => val === idx + 1)
+      if (isComplete) {
+        setSolved(true)
+        onSolve()
+      }
+
+      return targetSlot
+    })
+  }
+
   const handleQuickSolve = () => {
     setGridSlots([1, 2, 3, 4, 5, 6, 7, 8, 9])
     setSolved(true)
@@ -74,6 +108,17 @@ export default function JigsawPuzzleCanvas({
       <p style={{ fontSize: 14, color: '#374151', marginBottom: 12, fontWeight: 600 }}>
         🧩 Tap a piece from the tray below, then tap a grid box to place it!
       </p>
+
+      {/* HINT BUTTON */}
+      {!solved && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
+
 
       {/* TARGET PREVIEW TOGGLE */}
       <div style={{ marginBottom: 16 }}>
@@ -110,19 +155,21 @@ export default function JigsawPuzzleCanvas({
         }}
       >
         {gridSlots.map((pieceId, slotIdx) => {
+          const isHinted = highlightedStep === slotIdx
           if (pieceId === null) {
             // Empty grid slot waiting for a piece
             return (
               <button
                 key={slotIdx}
                 type="button"
+                aria-label={`Grid Slot ${slotIdx + 1}`}
                 onClick={() => handleSlotClick(slotIdx)}
                 style={{
                   width: 96,
                   height: 96,
-                  background: selectedPiece !== null ? '#ecfdf5' : '#ffffff',
+                  background: isHinted ? '#fef3c7' : selectedPiece !== null ? '#ecfdf5' : '#ffffff',
                   borderRadius: 6,
-                  border: selectedPiece !== null ? '2px dashed #059669' : '1px dashed #cbd5e1',
+                  border: isHinted ? '3px solid #f59e0b' : selectedPiece !== null ? '2px dashed #059669' : '1px dashed #cbd5e1',
                   cursor: selectedPiece !== null ? 'pointer' : 'default',
                   display: 'flex',
                   alignItems: 'center',
@@ -130,6 +177,7 @@ export default function JigsawPuzzleCanvas({
                   color: '#94a3b8',
                   fontSize: 12,
                   fontWeight: 'bold',
+                  animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
                 }}
               >
                 {selectedPiece !== null ? 'Tap to Place' : `Slot ${slotIdx + 1}`}
@@ -147,6 +195,7 @@ export default function JigsawPuzzleCanvas({
             <button
               key={slotIdx}
               type="button"
+              aria-label={`Grid Slot ${slotIdx + 1} Piece ${pieceId}`}
               onClick={() => handleSlotClick(slotIdx)}
               title="Tap to remove piece back to tray"
               style={{
@@ -155,11 +204,12 @@ export default function JigsawPuzzleCanvas({
                 padding: 0,
                 borderRadius: 6,
                 backgroundImage: `url(${imageUrl})`,
-                backgroundSize: '290px 290px',
+                backgroundSize: '288px 288px',
                 backgroundPosition: `${posX}px ${posY}px`,
                 cursor: 'pointer',
-                border: '2px solid #059669',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                border: isHinted ? '3px solid #10b981' : '2px solid #059669',
+                boxShadow: isHinted ? '0 0 16px rgba(16, 185, 129, 0.8)' : '0 2px 6px rgba(0,0,0,0.15)',
+                animation: isHinted ? 'hintSnapGlow 1.2s ease-in-out' : 'none',
               }}
             />
           )
@@ -190,6 +240,7 @@ export default function JigsawPuzzleCanvas({
                 <button
                   key={pieceId}
                   type="button"
+                  aria-label={`Tray Piece ${pieceId}`}
                   onClick={() => handleSelectPiece(pieceId)}
                   style={{
                     width: 66,
@@ -197,7 +248,7 @@ export default function JigsawPuzzleCanvas({
                     padding: 0,
                     borderRadius: 8,
                     backgroundImage: `url(${imageUrl})`,
-                    backgroundSize: '200px 200px',
+                    backgroundSize: '198px 198px',
                     backgroundPosition: `${posX}px ${posY}px`,
                     cursor: 'pointer',
                     border: isSelected ? '3px solid #059669' : '2px solid #ffffff',

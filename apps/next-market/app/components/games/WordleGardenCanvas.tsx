@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useHintCooldown } from './useHintCooldown'
+import HintButton from './HintButton'
 
 interface WordleGardenCanvasProps {
   targetWord: string
@@ -21,6 +23,11 @@ export default function WordleGardenCanvas({
   const [feedbackMsg, setFeedbackMsg] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const { hintsRemaining, isCoolingDown, secondsLeft, highlightedStep, triggerHint } = useHintCooldown({
+    maxHints: 3,
+    cooldownDurationSeconds: 3,
+  })
+
   const handleTileClick = () => {
     inputRef.current?.focus()
   }
@@ -38,6 +45,33 @@ export default function WordleGardenCanvas({
     } else {
       setFeedbackMsg('Not quite right, try again! 🌿')
     }
+  }
+
+  const handleApplyHint = () => {
+    if (isGameOver) return
+
+    triggerHint(() => {
+      // Find first index where currentGuess is missing or wrong
+      let fillLength = currentGuess.length
+      for (let i = 0; i < target.length; i++) {
+        if (!currentGuess[i] || currentGuess[i] !== target[i]) {
+          fillLength = Math.max(fillLength, i + 1)
+          break
+        }
+      }
+      if (fillLength < target.length && fillLength <= currentGuess.length) {
+        fillLength = currentGuess.length + 1
+      }
+      const nextGuess = target.slice(0, Math.min(target.length, Math.max(1, fillLength)))
+      setCurrentGuess(nextGuess)
+      setFeedbackMsg(`💡 Hint applied! Added letter "${target[nextGuess.length - 1]}" ✨`)
+
+      if (nextGuess === target) {
+        setIsGameOver(true)
+        onSolve()
+      }
+      return nextGuess.length - 1
+    })
   }
 
   // Active box index (0 to wordLength - 1)
@@ -75,15 +109,26 @@ export default function WordleGardenCanvas({
         }}
       />
 
-      <p style={{ fontSize: 14, color: '#374151', marginBottom: 20, fontWeight: 600 }}>
+      <p style={{ fontSize: 14, color: '#374151', marginBottom: 12, fontWeight: 600 }}>
         🌿 Guess the {wordLength}-letter garden crop! Starts with &quot;<span style={{ color: '#059669', fontWeight: 800 }}>{target[0]}</span>&quot;
       </p>
+
+      {/* HINT BUTTON */}
+      {!isGameOver && (
+        <HintButton
+          hintsRemaining={hintsRemaining}
+          isCoolingDown={isCoolingDown}
+          secondsLeft={secondsLeft}
+          onClick={handleApplyHint}
+        />
+      )}
 
       {/* SINGLE ROW OF LETTER BOXES (NO NYT GRID) */}
       <div onClick={handleTileClick} style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 24, cursor: 'pointer', flexWrap: 'wrap' }}>
         {Array.from({ length: wordLength }).map((_, colIdx) => {
           const char = currentGuess[colIdx] || ''
           const isCurrentFocusBox = isFocused && colIdx === activeBoxIndex
+          const isHinted = highlightedStep === colIdx
 
           return (
             <div
@@ -97,12 +142,15 @@ export default function WordleGardenCanvas({
                 justifyContent: 'center',
                 fontSize: wordLength > 7 ? 20 : 24,
                 fontWeight: 800,
-                background: isCurrentFocusBox ? '#ecfdf5' : '#ffffff',
+                background: isHinted ? '#fef3c7' : isCurrentFocusBox ? '#ecfdf5' : '#ffffff',
                 color: '#111827',
-                border: isCurrentFocusBox ? '3px solid #059669' : '2px solid #cbd5e1',
-                boxShadow: isCurrentFocusBox
+                border: isHinted ? '3px solid #f59e0b' : isCurrentFocusBox ? '3px solid #059669' : '2px solid #cbd5e1',
+                boxShadow: isHinted
+                  ? '0 0 16px rgba(245, 158, 11, 0.7)'
+                  : isCurrentFocusBox
                   ? '0 0 0 4px rgba(5, 150, 105, 0.2)'
                   : char ? '0 3px 8px rgba(0,0,0,0.06)' : 'none',
+                animation: isHinted ? 'hintPulse 1.2s ease-in-out infinite' : 'none',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -141,3 +189,4 @@ export default function WordleGardenCanvas({
     </div>
   )
 }
+

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, Suspense } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { MarketProvider } from '../../lib/store'
 import { CartProvider } from '../../lib/useCart'
 import { useAuth } from '../../lib/useAuth'
@@ -112,11 +112,29 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function MainLayoutInner({ children }: { children: React.ReactNode }) {
+function FocusLayoutContent({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
+  const searchParams = useSearchParams()
+  const isFocusMode = searchParams?.get('focus') === 'true' || searchParams?.get('embed') === 'true'
 
   // Capture referral/UTM params from URL on every page load
   useReferralCapture()
+
+  if (isFocusMode) {
+    return (
+      <MarketProvider>
+        <CartProvider>
+          <ErrorToastProvider userId={user?.id}>
+            <main className="page-wrapper" style={{ padding: 0, margin: 0 }}>
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </main>
+          </ErrorToastProvider>
+        </CartProvider>
+      </MarketProvider>
+    )
+  }
 
   return (
     <MarketProvider>
@@ -138,6 +156,14 @@ function MainLayoutInner({ children }: { children: React.ReactNode }) {
       </ErrorToastProvider>
       </CartProvider>
     </MarketProvider>
+  )
+}
+
+function MainLayoutInner({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <FocusLayoutContent>{children}</FocusLayoutContent>
+    </Suspense>
   )
 }
 
