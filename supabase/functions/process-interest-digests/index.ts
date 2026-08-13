@@ -50,134 +50,220 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
     campaignId = newCamp?.id;
   }
 
+  const userGroups: Record<string, any[]> = {};
+  for (const matchGroup of matches) {
+    if (!userGroups[matchGroup.recipient_email]) {
+      userGroups[matchGroup.recipient_email] = [];
+    }
+    userGroups[matchGroup.recipient_email].push(matchGroup);
+  }
+
   let sentCount = 0;
   const pushUrl = (env('SUPABASE_URL') || 'http://host.docker.internal:54321') + '/functions/v1/send-push-notification';
 
-  for (const matchGroup of matches) {
-    const { recipient_email, recipient_name, is_user, user_id, lead_id, match_type, matches: items } = matchGroup;
-    
-    let subject = '';
-    let htmlContent = '';
-    
-    // Helper function to resolve high-res produce image URL
-    const getProduceImage = (name: string) => {
-      const lower = (name || '').toLowerCase()
-      if (lower.includes('strawberry') || lower.includes('berries')) return 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('avocado')) return 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('lemon') || lower.includes('citrus')) return 'https://images.unsplash.com/photo-1534706936160-d5ee67737249?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('tomato')) return 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('peach') || lower.includes('nectarine')) return 'https://images.unsplash.com/photo-1647413627916-24e680a133db?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('fig')) return 'https://images.unsplash.com/photo-1601379327928-1fed57e437c6?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('persimmon')) return 'https://images.unsplash.com/photo-1604882737321-e693746f504d?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('orange')) return 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('pepper')) return 'https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=400&auto=format&fit=crop&q=80'
-      if (lower.includes('egg') || lower.includes('honey')) return 'https://images.unsplash.com/photo-1587486913049-53fc88980cfc?w=400&auto=format&fit=crop&q=80'
-      return `${siteUrl}/images/produce_placeholder.jpg`
-    }
+  // Load interest catalog images from our own storage bucket via interest_image_overrides
+  const { data: imageOverrides } = await supabase
+    .from('interest_image_overrides')
+    .select('item_id, image_url')
+    .not('image_url', 'is', null);
 
-    // Render 2-column image card grid
-    const renderProduceGrid = (itemsList: any[]) => {
-      const gridCards = itemsList.map((item: any) => `
-        <td align="center" style="padding: 6px; width: 50%; vertical-align: top;">
-          <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); text-align: center;">
-            <img src="${getProduceImage(item.produce_name)}" alt="${item.produce_name}" style="width: 100%; height: 110px; object-fit: cover; display: block;" />
-            <div style="padding: 10px 8px; font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3;">
-              ${item.produce_name}
-            </div>
-          </div>
-        </td>
-      `).join('')
+  // Build lookup: normalized produce name -> storage URL
+  // item_id is stored as e.g. 'strawberries', 'avocado_sapling', 'cherry_tomatoes'
+  const imageMap = new Map<string, string>();
+  for (const row of (imageOverrides || [])) {
+    if (row.item_id && row.image_url) {
+      imageMap.set(row.item_id.toLowerCase().replace(/[^a-z0-9]/g, '_'), row.image_url);
+    }
+  }
+
+  // Resolve produce image from our interest_image_overrides catalog
+  const getProduceImage = (name: string): string => {
+    const normalized = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    // Direct match (e.g. 'strawberries' -> 'strawberries')
+    if (imageMap.has(normalized)) return imageMap.get(normalized)!;
+    // Partial match: find any key that contains the normalized word or vice versa
+    for (const [key, url] of imageMap) {
+      if (key.includes(normalized) || normalized.includes(key)) return url;
+    }
+    return `${siteUrl}/images/produce_placeholder.jpg`;
+  }
+
+  // 3-tier image fallback: storage URL → placeholder → null (name only)
+  // Placeholder is HEAD-checked once at startup (not per item).
+  const placeholderUrl = `${siteUrl}/images/produce_placeholder.jpg`;
+
+  const placeholderReachable = await (async () => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      const r = await fetch(placeholderUrl, { method: 'HEAD', signal: ctrl.signal });
+      clearTimeout(t);
+      return r.ok;
+    } catch { return false; }
+  })();
+
+  // Returns: verified storage URL | verified placeholder URL | null (no image)
+  const verifyImageUrl = async (url: string): Promise<string | null> => {
+    // Tier 1: try the storage/catalog URL
+    if (url && url !== placeholderUrl) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2000);
+        const res = await fetch(url, { method: 'HEAD', signal: ctrl.signal });
+        clearTimeout(t);
+        if (res.ok) return url;
+      } catch { /* fall through */ }
+    }
+    // Tier 2: try placeholder (already checked at startup)
+    if (placeholderReachable) return placeholderUrl;
+    // Tier 3: no image available — caller will render name-only card
+    return null;
+  }
+
+  // Render 2-column image card grid — async so we can verify each image URL
+  // before baking it into the HTML. Broken storage URLs are substituted with
+  // the placeholder server-side, so the email always has a working src.
+  const renderProduceGrid = async (itemsList: any[], match_type: string): Promise<string> => {
+    const gridCards = await Promise.all(itemsList.map(async (item: any) => {
+      const distanceLabel = item.distance_miles != null
+        ? `~${Number(item.distance_miles).toFixed(1)} mi away`
+        : item.matched_zipcode
+          ? `ZIP ${item.matched_zipcode}`
+          : null
+          
+      const prefix = match_type === 'seller' ? 'Buyer is ' : 'Listed '
+      const suffix = match_type === 'seller' ? '' : ' from you'
+      const labelHtml = distanceLabel
+        ? `<div style="font-size: 12px; color: #64748b; margin-top: 4px; font-weight: 500;">${prefix}${distanceLabel}${suffix}</div>`
+        : ''
+
+      // 3-tier fallback: storage URL → placeholder → null (name-only card)
+      const imgSrc = await verifyImageUrl(getProduceImage(item.produce_name))
+      const imgHtml = imgSrc
+        ? `<img src="${imgSrc}" alt="${item.produce_name}" width="100%" height="110" style="width: 100%; height: 110px; object-fit: cover; display: block;" />`
+        : `<div style="height: 24px;"></div>` // spacer so card isn't flush when name-only
 
       return `
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 16px 0 20px;">
-          <tr>
-            ${gridCards}
-          </tr>
-        </table>
-      `
-    }
-
-    // Helper function to build character-safe produce string (1 item name vs concise collective term)
-    const getProduceText = (itemsList: any[]) => {
-      const names = itemsList.map((i: any) => i.produce_name).filter(Boolean)
-      if (names.length === 1) return names[0]
-      return 'produce'
-    }
-
-    const itemText = getProduceText(items)
-
-    let pushTitle = ''
-    let pushBody = ''
-
-    if (match_type === 'seller') {
-      subject = items.length === 1 
-        ? `🌱 Buyers want your ${itemText}! | CasaGrown` 
-        : `🌱 Local neighbors are looking for your produce! | CasaGrown`
-
-      pushTitle = `🌱 Local demand for your produce!`
-      pushBody = `Buyers near you are searching for your produce. Tap to see active local demand!`
-      
-      const bodyHtml = `
-        <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
-          Great news! Buyers in your immediate neighborhood are actively looking to purchase fresh homegrown produce that you grow:
-        </p>
-
-        ${renderProduceGrid(items)}
-
-        <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
-          <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 500;">
-            💡 <strong>Grower Tip:</strong> Listings posted within 24 hours of buyer interest requests receive up to <strong>3x faster sales</strong>.
-          </p>
+      <td align="center" style="padding: 6px; width: 50%; vertical-align: top;">
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); text-align: center;">
+          ${imgHtml}
+          <div style="padding: 10px 8px; font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3;">
+            ${item.produce_name}
+            ${labelHtml}
+          </div>
         </div>
+      </td>
+    `
+    }))
 
-        ${actionButton(`${siteUrl}/my-interests?tab=demand`, 'View Active Buyer Demand →')}
-      `
+    return `
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 16px 0 20px;">
+        <tr>
+          ${gridCards}
+        </tr>
+      </table>
+    `
+  }
 
-      htmlContent = wrapInBrandedTemplate({
-        title: 'Local Demand Alert',
-        greeting: `Hi ${recipient_name || 'Grower'},`,
-        bodyHtml: bodyHtml,
-        headerEmoji: '🧺',
-        headerGradient: 'linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%)',
-      })
+  // Helper function to build character-safe produce string
+  const getProduceText = (itemsList: any[]) => {
+    const names = itemsList.map((i: any) => i.produce_name).filter(Boolean)
+    if (names.length === 1) return names[0]
+    return 'produce'
+  }
 
-    } else {
-      subject = `Your neighbors have listed produce that you want | CasaGrown`
+  for (const email of Object.keys(userGroups)) {
+    const groups = userGroups[email];
+    const { recipient_name, is_user, user_id, lead_id } = groups[0];
+    
+    let subject = 'Your CasaGrown Match Digest';
+    let pushTitle = 'CasaGrown Match Digest';
+    let pushBody = 'You have new activity nearby on CasaGrown.';
+    let pushUrlPath = '/market';
 
-      pushTitle = items.length === 1
-        ? `✨ Fresh ${itemText} listed nearby!`
-        : `✨ Fresh produce listed nearby!`
+    let hasSeller = false;
+    let hasBuyer = false;
+    let combinedBodyHtml = '';
 
-      pushBody = `Your neighbors just listed items on your wishlist. Tap to browse!`
-      
-      const bodyHtml = `
-        <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
-          Local growers in your area just posted new produce listings that match your saved produce interest alerts:
-        </p>
+    for (const mg of groups) {
+      const { match_type, matches: items } = mg;
+      const itemText = getProduceText(items);
 
-        ${renderProduceGrid(items)}
+      if (match_type === 'seller') {
+        hasSeller = true;
+        subject = items.length === 1 
+          ? `🌱 Buyers want your ${itemText}! | CasaGrown` 
+          : `🌱 Local neighbors are looking for your produce! | CasaGrown`;
+        pushTitle = `🌱 Local demand for your produce!`;
+        pushBody = `Buyers near you are searching for your produce. Tap to see active local demand!`;
+        pushUrlPath = '/my-interests?tab=demand&utm_source=push&utm_medium=interest_digest&utm_campaign=interest_matches&utm_content=seller_demand';
 
-        <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
-          <p style="margin: 0; font-size: 13px; color: #075985; font-weight: 500;">
-            🌿 <strong>100% Homegrown Guarantee:</strong> All produce on CasaGrown is harvested fresh by verified neighborhood stands.
-          </p>
-        </div>
+        combinedBodyHtml += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 18px; color: #1e293b; margin-top: 0; margin-bottom: 10px;">Demand Signal</h2>
+            <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
+              Great news! Buyers in your immediate neighborhood are actively looking to purchase fresh homegrown produce that you grow:
+            </p>
 
-        ${actionButton(`${siteUrl}/market?filter=my-interests`, 'Explore Produce Stands →')}
-      `
+            ${await renderProduceGrid(items, match_type)}
 
-      htmlContent = wrapInBrandedTemplate({
-        title: 'Nearby Harvest Match',
-        greeting: `Hi ${recipient_name || 'Neighbor'},`,
-        bodyHtml: bodyHtml,
-        headerEmoji: '🌾',
-        headerGradient: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)',
-      })
+            <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
+              <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 500;">
+                💡 <strong>Grower Tip:</strong> Listings posted within 24 hours of buyer interest requests receive up to <strong>3x faster sales</strong>.
+              </p>
+            </div>
+
+            ${actionButton(`${siteUrl}/my-interests?tab=demand&utm_source=email&utm_medium=interest_digest&utm_campaign=interest_matches&utm_content=seller_demand`, 'View Active Buyer Demand →')}
+          </div>
+        `;
+      } else {
+        hasBuyer = true;
+        subject = `Your neighbors have listed produce that you want | CasaGrown`;
+        pushTitle = items.length === 1
+          ? `✨ Fresh ${itemText} listed nearby!`
+          : `✨ Fresh produce listed nearby!`;
+        pushBody = `Your neighbors just listed items on your wishlist. Tap to browse!`;
+        pushUrlPath = '/market?filter=my-interests&utm_source=push&utm_medium=interest_digest&utm_campaign=interest_matches&utm_content=buyer_match';
+
+        combinedBodyHtml += `
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 18px; color: #1e293b; margin-top: 0; margin-bottom: 10px;">Match Alert</h2>
+            <p style="margin: 0 0 14px; font-size: 15px; color: #475569; line-height: 1.6;">
+              Local growers in your area just posted new produce listings that match your saved produce interest alerts:
+            </p>
+
+            ${await renderProduceGrid(items, match_type)}
+
+            <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
+              <p style="margin: 0; font-size: 13px; color: #075985; font-weight: 500;">
+                🌿 <strong>100% Homegrown Guarantee:</strong> All produce on CasaGrown is harvested fresh by verified neighborhood stands.
+              </p>
+            </div>
+
+            ${actionButton(`${siteUrl}/market?filter=my-interests&utm_source=email&utm_medium=interest_digest&utm_campaign=interest_matches&utm_content=buyer_match`, 'Explore Produce Stands →')}
+          </div>
+        `;
+      }
     }
+
+    if (hasSeller && hasBuyer) {
+      subject = 'New Matches & Demand in your neighborhood | CasaGrown';
+      pushTitle = 'New Activity in Your Area!';
+      pushBody = 'You have new produce matches and demand nearby. Tap to view.';
+      pushUrlPath = '/market';
+    }
+
+    const htmlContent = wrapInBrandedTemplate({
+      title: 'Local Activity Digest',
+      greeting: `Hi ${recipient_name || 'Neighbor'},`,
+      bodyHtml: combinedBodyHtml,
+      headerEmoji: '🧺',
+      headerGradient: 'linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%)',
+    });
     
     // Send Email
     try {
-      await sendBroadcastEmail(recipient_email, subject, htmlContent, env);
+      await sendBroadcastEmail(email, subject, htmlContent, env);
       
       // Log to crm_campaign_sends
       if (campaignId) {
@@ -185,12 +271,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
           campaign_id: campaignId,
           recipient_type: is_user ? 'user' : 'lead',
           recipient_id: is_user ? user_id : lead_id,
-          email: recipient_email,
+          email: email,
           sent_at: new Date().toISOString()
         });
       }
       
-      // Send Push Notification with produce-specific text & destination URLs
+      // Send Push Notification
       if (is_user && user_id) {
         await fetch(pushUrl, {
           method: 'POST',
@@ -202,27 +288,30 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
             userId: user_id,
             title: pushTitle,
             body: pushBody,
-            data: { url: match_type === 'seller' ? '/my-interests?tab=demand' : '/market?filter=my-interests' }
+            data: { url: pushUrlPath }
           })
         }).catch(e => console.error('Push error:', e));
       }
       
-      // Update match status
-      const matchIds = items.map((item: any) => item.match_id);
-      if (match_type === 'seller') {
-        await supabase.from('crm_interest_matches')
-          .update({ notified_seller_at: new Date().toISOString() })
-          .in('id', matchIds);
-      } else {
-        await supabase.from('crm_interest_matches')
-          .update({ notified_buyer_at: new Date().toISOString() })
-          .in('id', matchIds);
+      // Update match status for all groups processed for this user
+      for (const mg of groups) {
+        const { match_type, matches: items } = mg;
+        const matchIds = items.map((item: any) => item.match_id);
+        if (match_type === 'seller') {
+          await supabase.from('crm_interest_matches')
+            .update({ notified_seller_at: new Date().toISOString() })
+            .in('id', matchIds);
+        } else {
+          await supabase.from('crm_interest_matches')
+            .update({ notified_buyer_at: new Date().toISOString() })
+            .in('id', matchIds);
+        }
       }
       
       sentCount++;
       
     } catch (err) {
-      console.error('Failed to process match digest for', recipient_email, err);
+      console.error('Failed to process match digest for', email, err);
     }
   }
 

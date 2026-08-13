@@ -7,19 +7,38 @@ Deno.serve(async (req: Request) => {
   }
 
   // Check payload before doing ingestion to maintain 400 response for missing inputs
+  let payload: any = {};
+  let newReq = req;
   try {
     const clone = req.clone();
-    const payload = await clone.json();
+    payload = await clone.json();
+
+    let lat = payload.latitude ?? req.headers.get('x-vercel-ip-latitude');
+    let lng = payload.longitude ?? req.headers.get('x-vercel-ip-longitude');
+    let zip = payload.zipcode || req.headers.get('x-vercel-ip-postal-code');
+
+    payload.latitude = lat ? parseFloat(lat) : null;
+    payload.longitude = lng ? parseFloat(lng) : null;
+    if (!payload.zipcode && zip) {
+      payload.zipcode = zip;
+    }
+
     if (!payload.zipcode || !payload.size) {
       return new Response(JSON.stringify({ error: "Missing required inputs" }), {
         status: 400, headers: CORS,
       });
     }
+
+    newReq = new Request(req.url, {
+      method: req.method,
+      headers: req.headers,
+      body: JSON.stringify(payload)
+    });
   } catch (e) {
     // let handleLeadIngestion deal with bad json
   }
 
-  return await handleLeadIngestion(req, {
+  return await handleLeadIngestion(newReq, {
     formVersion: 'v1-earnings-estimator',
     hasBackyard: true,
     resultKey: 'ai_estimate_result',
@@ -31,7 +50,9 @@ Deno.serve(async (req: Request) => {
     buildMetadata: (payload) => ({
       garden_size: payload.size,
       plants: payload.plants || [],
-      trees: payload.trees || []
+      trees: payload.trees || [],
+      latitude: payload.latitude,
+      longitude: payload.longitude
     }),
     mergeAiResult: (payload, aiResult) => {
       const plants = payload.plants || [];

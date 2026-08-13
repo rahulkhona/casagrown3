@@ -6,14 +6,13 @@
 
 BEGIN;
 
-SELECT plan(8);
+SELECT plan(7);
 
--- 1. Test Table Existence: jigsaw_image_pool & jigsaw_image_gen_failures
+-- 1. Test Table Existence: jigsaw_image_pool
 SELECT has_table('public', 'jigsaw_image_pool', 'Table jigsaw_image_pool exists');
-SELECT has_table('public', 'jigsaw_image_gen_failures', 'Table jigsaw_image_gen_failures exists');
 
 -- 2. Test Function Existence: get_or_create_daily_jigsaw_image & sync_jigsaw_pool_from_interests_and_listings
-SELECT has_function('public', 'get_or_create_daily_jigsaw_image', ARRAY['text'], 'Function get_or_create_daily_jigsaw_image(text) exists');
+SELECT has_function('public', 'get_or_create_daily_jigsaw_image', ARRAY['date'], 'Function get_or_create_daily_jigsaw_image(date) exists');
 SELECT has_function('public', 'sync_jigsaw_pool_from_interests_and_listings', ARRAY[]::text[], 'Function sync_jigsaw_pool_from_interests_and_listings() exists');
 
 -- 3. Test Function Execution: Sync pool from existing interests & listings

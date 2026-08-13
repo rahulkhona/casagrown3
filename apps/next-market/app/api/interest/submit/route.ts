@@ -64,6 +64,29 @@ export async function POST(req: Request) {
       if (matchedProfile?.id) userId = matchedProfile.id
     }
 
+    let finalLat = body.latitude ?? null
+    let finalLng = body.longitude ?? null
+
+    if ((finalLat == null || finalLng == null) && userId) {
+      const { data: profileLoc } = await supabase
+        .from('profiles')
+        .select('home_location')
+        .eq('id', userId)
+        .maybeSingle()
+        
+      if (profileLoc?.home_location?.coordinates) {
+        finalLng = profileLoc.home_location.coordinates[0]
+        finalLat = profileLoc.home_location.coordinates[1]
+      }
+    }
+
+    if (finalLat == null || finalLng == null) {
+      const headerLat = req.headers.get('x-vercel-ip-latitude')
+      const headerLng = req.headers.get('x-vercel-ip-longitude')
+      if (headerLat) finalLat = parseFloat(headerLat)
+      if (headerLng) finalLng = parseFloat(headerLng)
+    }
+
     const effectiveSourceUrl = source_url || first_touch_source || body.source || '/interest'
     const effectiveFirstTouch = first_touch_source || source_url || body.source || null
 
@@ -119,6 +142,8 @@ export async function POST(req: Request) {
         zipcodes: zipcodes.map((z: string) => z.trim()),
         radius_miles: radius_miles || 5,
         home_address: home_address || null,
+        latitude: finalLat,
+        longitude: finalLng,
         preference_pickup: preference_pickup ?? true,
         preference_delivery: preference_delivery ?? true,
         status: 'active',
