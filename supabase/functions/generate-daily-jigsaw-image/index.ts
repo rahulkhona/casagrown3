@@ -57,6 +57,8 @@ serve(async (req) => {
         }),
         { headers: { "Content-Type": "application/json" } }
       )
+    }
+
     // 1b. Check total AI-generated image count in jigsaw_image_pool
     const { count: aiGeneratedCount } = await supabase
       .from("jigsaw_image_pool")
