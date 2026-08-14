@@ -4,12 +4,21 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../../next-market/lib/interestCatalog'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!
-)
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
-type ViewMode = 'all' | 'buyers' | 'sellers' | 'overlap'
+type ViewMode = 'all' | 'buyers' | 'sellers' | 'overlap' | 'clusters'
+
+export type MultiProduceCluster = {
+  id: string
+  produces: { name: string; displayCategory: string; image: string }[]
+  produceNames: string[]
+  zips: string[]
+  zipCount: number
+  totalBuyers: number
+  adHook: string
+}
 
 export type BuyerProduceDemand = {
   id: string
@@ -135,6 +144,17 @@ export default function ProduceDemandPage() {
     dir: 'desc',
   })
 
+  // On-demand Multi-Produce Multi-ZIP cluster finder state
+  const [minProduceInput, setMinProduceInput] = useState<number>(3)
+  const [minZipInput, setMinZipInput] = useState<number>(5)
+  const [hasSearchedClusters, setHasSearchedClusters] = useState(false)
+  const [isClustering, setIsClustering] = useState(false)
+  const [discoveredClusters, setDiscoveredClusters] = useState<MultiProduceCluster[]>([])
+  const [clusterSort, setClusterSort] = useState<{ key: 'zipCount' | 'totalBuyers' | 'produceCount'; dir: SortDirection }>({
+    key: 'zipCount',
+    dir: 'desc',
+  })
+
   const toast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(''), 4000)
@@ -145,51 +165,134 @@ export default function ProduceDemandPage() {
     toast(`Copied ${label} (${text}) to clipboard!`)
   }
 
+  // On-demand cluster finder algorithm
+  const runFindClusters = useCallback(() => {
+    setIsClustering(true)
+    const minP = Math.max(1, Number(minProduceInput) || 1)
+    const minZ = Math.max(1, Number(minZipInput) || 1)
+
+    // Build produce to Set<zip> map from buyerDemands
+    const pMap: { name: string; displayCategory: string; image: string; zips: Set<string>; zipBuyers: Map<string, number> }[] = []
+    
+    for (const b of buyerDemands) {
+      if (b.zipDetails.length >= minZ) {
+        const zSet = new Set<string>()
+        const zbMap = new Map<string, number>()
+        for (const zd of b.zipDetails) {
+          zSet.add(zd.zip)
+          zbMap.set(zd.zip, zd.buyers)
+        }
+        pMap.push({
+          name: b.name,
+          displayCategory: b.displayCategory,
+          image: b.image,
+          zips: zSet,
+          zipBuyers: zbMap,
+        })
+      }
+    }
+
+    const clusters: MultiProduceCluster[] = []
+    const seenClusterIds = new Set<string>()
+
+    // Helper: intersect array of Set<string>
+    const intersectZips = (sets: Set<string>[]): string[] => {
+      if (sets.length === 0) return []
+      let result = Array.from(sets[0])
+      for (let i = 1; i < sets.length; i++) {
+        const nextSet = sets[i]
+        result = result.filter(z => nextSet.has(z))
+        if (result.length === 0) break
+      }
+      return result.sort()
+    }
+
+    // Combinations recursive search (capped at size 5)
+    function combine(start: number, current: typeof pMap) {
+      if (current.length >= minP) {
+        const commonZips = intersectZips(current.map(c => c.zips))
+        if (commonZips.length >= minZ) {
+          const prodNames = current.map(c => c.name)
+          const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
+
+          if (!seenClusterIds.has(clusterId)) {
+            seenClusterIds.add(clusterId)
+
+            let totalB = 0
+            for (const item of current) {
+              for (const z of commonZips) {
+                totalB += item.zipBuyers.get(z) || 1
+              }
+            }
+
+            const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+            const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
+
+            clusters.push({
+              id: clusterId,
+              produces: current.map(c => ({ name: c.name, displayCategory: c.displayCategory, image: c.image })),
+              produceNames: prodNames,
+              zips: commonZips,
+              zipCount: commonZips.length,
+              totalBuyers: totalB,
+              adHook,
+            })
+          }
+        }
+      }
+
+      if (current.length >= 5) return
+
+      for (let i = start; i < pMap.length; i++) {
+        combine(i + 1, [...current, pMap[i]])
+      }
+    }
+
+    combine(0, [])
+
+    clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
+    setDiscoveredClusters(clusters)
+    setHasSearchedClusters(true)
+    setIsClustering(false)
+    toast(`Found ${clusters.length} ad target clusters with ≥${minP} items across ≥${minZ} ZIPs!`)
+  }, [buyerDemands, minProduceInput, minZipInput])
+
   // ── LIVE DATABASE FETCH ──────────────────────────────────────────
   const fetchDemandAndSupplyData = useCallback(async () => {
     setLoading(true)
     setDbError(null)
 
     try {
-      // 1. Fetch CRM Produce Interests
-      const { data: crmInterests } = await supabase
-        .from('crm_produce_interests')
-        .select('produce_name, interest_type, zipcodes, lead_id, user_id, status')
-        .eq('status', 'active')
+      // Fetch via server-side admin API (bypasses RLS restrictions for admin dashboards)
+      const res = await fetch('/api/crm/produce-demand')
+      let crmInterests: any[] = []
+      let profiles: any[] = []
+      let marketProducts: any[] = []
+      let marketBooths: any[] = []
 
-      // 2. Fetch CRM Leads with produce interests
-      const { data: crmLeads } = await supabase
-        .from('crm_leads')
-        .select('id, produce_interests, zipcode, form_version, metadata')
-        .not('produce_interests', 'is', null)
-
-      // 3. Fetch Onboarding produce_interests
-      const { data: onboardingInterests } = await supabase
-        .from('produce_interests')
-        .select('produce_name, user_id')
-
-      // 4. Fetch Profiles for ZIP codes
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, zip_code, city, state')
-
-      // 5. Fetch Market Products (real seller listings)
-      const { data: marketProducts } = await supabase
-        .from('market_products')
-        .select('name, category, seller_id')
-        .eq('is_active', true)
-
-      // 6. Fetch Market Booths for seller ZIPs
-      const { data: marketBooths } = await supabase
-        .from('market_booths')
-        .select('seller_id, booth_zip, pickup_zip, city, state')
-        .eq('status', 'active')
+      if (res.ok) {
+        const json = await res.json()
+        crmInterests = json.crmInterests || []
+        profiles = json.profiles || []
+        marketProducts = json.marketProducts || []
+        marketBooths = json.marketBooths || []
+      } else {
+        // Fallback to direct client
+        const { data: d1 } = await supabase.from('crm_produce_interests').select('produce_name, interest_type, zipcodes, lead_id, user_id, status').eq('status', 'active')
+        const { data: d2 } = await supabase.from('profiles').select('id, zip_code, city, state')
+        const { data: d3 } = await supabase.from('market_products').select('name, category, seller_id').eq('is_active', true)
+        const { data: d4 } = await supabase.from('market_booths').select('seller_id, booth_zip, pickup_zip, city, state').eq('status', 'active')
+        crmInterests = d1 || []
+        profiles = d2 || []
+        marketProducts = d3 || []
+        marketBooths = d4 || []
+      }
 
       const profileMap = new Map<string, { zip: string; city: string; state: string }>()
       if (profiles) {
         for (const p of profiles) {
           if (p.zip_code) {
-            profileMap.set(p.id, { zip: p.zip_code, city: p.city || '', state: p.state || '' })
+            profileMap.set(p.id, { zip: p.zip_code, city: p.city || '', state: p.state_code || p.state || '' })
           }
         }
       }
@@ -198,8 +301,9 @@ export default function ProduceDemandPage() {
       if (marketBooths) {
         for (const b of marketBooths) {
           const zip = b.booth_zip || b.pickup_zip
-          if (zip) {
-            boothMap.set(b.seller_id, { zip, city: b.city || '', state: b.state || '' })
+          const owner = b.owner_id || b.seller_id
+          if (zip && owner) {
+            boothMap.set(owner, { zip, city: b.booth_city || b.city || '', state: b.booth_state || b.state || '' })
           }
         }
       }
@@ -223,7 +327,7 @@ export default function ProduceDemandPage() {
         zipMap.get(cleanZip)!.buyers.add(buyerId)
       }
 
-      // Add crm_produce_interests (buy)
+      // Add canonical buyer interests directly from crm_produce_interests
       if (crmInterests) {
         for (const ci of crmInterests) {
           if (ci.interest_type === 'buy' && ci.produce_name) {
@@ -235,33 +339,6 @@ export default function ProduceDemandPage() {
 
             for (const z of zips) {
               recordBuyerInterest(ci.produce_name, z, buyerId, profile?.city, profile?.state)
-            }
-          }
-        }
-      }
-      // Add crm_leads ONLY if they are explicitly buyer forms (e.g. nutrition estimator or metadata.interest_type = 'buy')
-      if (crmLeads) {
-        for (const l of crmLeads) {
-          const isExplicitBuyer = 
-            l.form_version === 'v1-nutrition-estimator' || 
-            (l.metadata && typeof l.metadata === 'object' && (l.metadata as any).interest_type === 'buy')
-
-          if (isExplicitBuyer && l.produce_interests && l.zipcode) {
-            const items = l.produce_interests.split(',').map((s: string) => s.trim()).filter(Boolean)
-            for (const item of items) {
-              recordBuyerInterest(item, l.zipcode, l.id)
-            }
-          }
-        }
-      }
-
-      // Add onboarding produce_interests (strictly buyers)
-      if (onboardingInterests) {
-        for (const oi of onboardingInterests) {
-          if (oi.produce_name && oi.user_id) {
-            const prof = profileMap.get(oi.user_id)
-            if (prof && prof.zip) {
-              recordBuyerInterest(oi.produce_name, prof.zip, oi.user_id, prof.city, prof.state)
             }
           }
         }
@@ -285,7 +362,7 @@ export default function ProduceDemandPage() {
         zipMap.get(cleanZip)!.sellers.add(sellerId)
       }
 
-      // Add crm_produce_interests (sell)
+      // Add canonical seller interests directly from crm_produce_interests
       if (crmInterests) {
         for (const ci of crmInterests) {
           if (ci.interest_type === 'sell' && ci.produce_name) {
@@ -302,7 +379,7 @@ export default function ProduceDemandPage() {
         }
       }
 
-      // Add real market_products listings
+      // Add live market_products listings from sellers
       if (marketProducts) {
         for (const mp of marketProducts) {
           if (mp.name && mp.seller_id) {
@@ -313,7 +390,6 @@ export default function ProduceDemandPage() {
           }
         }
       }
-
       // ── Format Buyer Produce Demand list ─────────────────────────
       const buyersList: BuyerProduceDemand[] = []
       buyerMap.forEach((zMap, prodName) => {
@@ -603,7 +679,7 @@ export default function ProduceDemandPage() {
             className={`mode-btn ${viewMode === 'all' ? 'active' : ''}`}
             onClick={() => setViewMode('all')}
           >
-            📋 All 3 Tables
+            📋 All Tables
           </button>
           <button
             className={`mode-btn ${viewMode === 'buyers' ? 'active' : ''}`}
@@ -622,6 +698,13 @@ export default function ProduceDemandPage() {
             onClick={() => setViewMode('overlap')}
           >
             ⚡ (c) Matched by ZIP ({filteredOverlaps.length})
+          </button>
+          <button
+            id="btn-view-clusters"
+            className={`mode-btn ${viewMode === 'clusters' ? 'active' : ''}`}
+            onClick={() => setViewMode('clusters')}
+          >
+            📦 (d) Multi-Produce Ad Bundles {discoveredClusters.length > 0 ? `(${discoveredClusters.length})` : ''}
           </button>
         </div>
 
@@ -1019,6 +1102,172 @@ export default function ProduceDemandPage() {
                       </td>
                     </tr>
                   ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* TABLE (d): MULTI-PRODUCE MULTI-ZIP AD TARGET CLUSTERS          */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {(viewMode === 'all' || viewMode === 'clusters') && (
+        <div className="section-card cluster-section" id="multi-produce-cluster-section">
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">📦 Table (d) — Multi-Produce Multi-ZIP Bundled Ad Targets</h2>
+              <p className="section-desc">
+                Target multiple in-demand crops in a single unified Meta ad across all ZIP codes that share simultaneous demand for every item in the bundle.
+              </p>
+            </div>
+          </div>
+
+          {/* On-Demand Cluster Controls */}
+          <div className="cluster-finder-box">
+            <div className="cluster-input-group">
+              <div className="cluster-input-field">
+                <label htmlFor="input-min-produces">Min Produces in Bundle:</label>
+                <input
+                  id="input-min-produces"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={minProduceInput}
+                  onChange={e => setMinProduceInput(parseInt(e.target.value) || 1)}
+                  className="number-input"
+                />
+              </div>
+              <div className="cluster-input-field">
+                <label htmlFor="input-min-zips">Min Qualifying ZIP Codes:</label>
+                <input
+                  id="input-min-zips"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={minZipInput}
+                  onChange={e => setMinZipInput(parseInt(e.target.value) || 1)}
+                  className="number-input"
+                />
+              </div>
+              <button
+                id="btn-run-cluster-finder"
+                className="btn-find-clusters"
+                onClick={runFindClusters}
+                disabled={isClustering || loading}
+              >
+                {isClustering ? 'Finding Clusters…' : '🔍 Find Ad Target Clusters'}
+              </button>
+            </div>
+            <p className="cluster-hint">
+              Finds exact combinations where <strong>every ZIP in the group</strong> has active buyer demand for <strong>all of the bundled crops</strong>.
+            </p>
+          </div>
+
+          {/* Table */}
+          <div className="crm-table-wrap">
+            <table id="multi-produce-clusters-table" className="crm-table sortable-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '32%' }}>Bundled Produce Items</th>
+                  <th
+                    style={{ width: '15%' }}
+                    onClick={() => setClusterSort(s => ({ key: 'zipCount', dir: s.key === 'zipCount' && s.dir === 'asc' ? 'desc' : 'asc' }))}
+                  >
+                    Target ZIPs ({minZipInput}+) {clusterSort.key === 'zipCount' ? (clusterSort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+                  <th
+                    style={{ width: '15%' }}
+                    onClick={() => setClusterSort(s => ({ key: 'totalBuyers', dir: s.key === 'totalBuyers' && s.dir === 'asc' ? 'desc' : 'asc' }))}
+                  >
+                    Total Demand {clusterSort.key === 'totalBuyers' ? (clusterSort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                  </th>
+                  <th style={{ width: '38%' }}>Meta Ads Export &amp; Unified Ad Copy</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!hasSearchedClusters ? (
+                  <tr>
+                    <td colSpan={4} className="empty-td" style={{ padding: '32px 16px' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#374151' }}>
+                          ⚡ Cluster finder ready to compute
+                        </p>
+                        <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                          Enter your minimum produce count and ZIP threshold above, then click <strong>"Find Ad Target Clusters"</strong>.
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : discoveredClusters.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="empty-td" style={{ padding: '32px 16px' }}>
+                      No multi-produce clusters found with ≥{minProduceInput} crops across ≥{minZipInput} identical ZIP codes. Try lowering the thresholds.
+                    </td>
+                  </tr>
+                ) : (
+                  discoveredClusters.map(cluster => {
+                    const zipListStr = cluster.zips.join(', ')
+                    return (
+                      <tr key={cluster.id}>
+                        <td>
+                          <div className="bundle-chips-wrap">
+                            {cluster.produces.map(p => (
+                              <div key={p.name} className="bundle-produce-chip">
+                                <img src={p.image} alt={p.name} className="bundle-produce-thumb" />
+                                <div>
+                                  <span className="bundle-produce-name">{p.name}</span>
+                                  <span className="bundle-produce-cat">{p.displayCategory}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="zip-count-pill" style={{ background: '#e0e7ff', color: '#3730a3' }}>
+                            {cluster.zipCount} Shared ZIPs
+                          </span>
+                          <div className="zip-pills-wrap" style={{ marginTop: 6 }}>
+                            {cluster.zips.slice(0, 5).map(z => (
+                              <span key={z} className="zip-pill"><strong>{z}</strong></span>
+                            ))}
+                            {cluster.zips.length > 5 && (
+                              <span className="zip-pill" style={{ background: '#f3f4f6' }}>
+                                +{cluster.zips.length - 5} more
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="count-cell buyer-color">
+                            <span className="count-num">{cluster.totalBuyers}</span>
+                            <span className="count-sub">total buyers</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="ad-box-wrap">
+                            <p className="ad-hook-text">"{cluster.adHook}"</p>
+                            <div className="ad-btn-row">
+                              <button
+                                className="btn-copy-zips"
+                                onClick={() => copyToClipboard(zipListStr, `Cluster ZIPs (${cluster.zipCount} ZIPs)`)}
+                                title="Copy all cluster ZIPs for Meta Ads"
+                              >
+                                📋 Copy {cluster.zipCount} ZIPs
+                              </button>
+                              <button
+                                className="btn-copy-ad"
+                                onClick={() => copyToClipboard(cluster.adHook, 'Multi-Produce Ad Copy')}
+                                title="Copy pre-formatted Meta ad copy"
+                              >
+                                ✨ Copy Ad Copy
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
@@ -1490,6 +1739,158 @@ export default function ProduceDemandPage() {
 
         .btn-quick-copy:hover {
           color: #111827;
+        }
+
+        /* ── Cluster Finder Specific Styles ── */
+        .cluster-section {
+          border-left: 4px solid #6366f1;
+        }
+
+        .cluster-finder-box {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 18px 20px;
+          border-radius: 10px;
+          margin-bottom: 20px;
+        }
+
+        .cluster-input-group {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+
+        .cluster-input-field {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.88rem;
+          font-weight: 600;
+          color: #334155;
+        }
+
+        .number-input {
+          width: 70px;
+          padding: 8px 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #0f172a;
+          background: #ffffff;
+        }
+
+        .number-input:focus {
+          outline: none;
+          border-color: #6366f1;
+          box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-find-clusters {
+          background: #4f46e5;
+          color: #ffffff;
+          border: none;
+          padding: 9px 18px;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.15s;
+          box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-find-clusters:hover:not(:disabled) {
+          background: #4338ca;
+        }
+
+        .btn-find-clusters:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .cluster-hint {
+          font-size: 0.78rem;
+          color: #64748b;
+          margin: 10px 0 0;
+          line-height: 1.4;
+        }
+
+        /* Bundle Chips & Ad Box */
+        .bundle-chips-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .bundle-produce-chip {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          padding: 6px 10px;
+          border-radius: 8px;
+        }
+
+        .bundle-produce-thumb {
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          object-fit: cover;
+        }
+
+        .bundle-produce-name {
+          display: block;
+          font-size: 0.88rem;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .bundle-produce-cat {
+          display: block;
+          font-size: 0.72rem;
+          color: #64748b;
+        }
+
+        .ad-box-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .ad-hook-text {
+          margin: 0;
+          font-size: 0.8rem;
+          color: #334155;
+          font-style: italic;
+          background: #f8fafc;
+          border-left: 3px solid #6366f1;
+          padding: 8px 10px;
+          border-radius: 0 6px 6px 0;
+          line-height: 1.4;
+        }
+
+        .ad-btn-row {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .btn-copy-ad {
+          background: #eef2ff;
+          border: 1px solid #c7d2fe;
+          color: #4338ca;
+          font-size: 0.75rem;
+          font-weight: 700;
+          padding: 4px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .btn-copy-ad:hover {
+          background: #e0e7ff;
         }
       `}</style>
     </div>

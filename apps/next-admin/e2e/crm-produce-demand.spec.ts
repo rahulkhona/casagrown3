@@ -98,7 +98,7 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
   })
 
   test('view mode switcher correctly toggles tables', async ({ page }) => {
-    // Default: All 3 Tables visible
+    // Default: All Tables visible
     await expect(page.locator('text=Table (a) — Buyer Demand')).toBeVisible()
     await expect(page.locator('text=Table (b) — Seller Supply')).toBeVisible()
     await expect(page.locator('text=Table (c) — Matched Liquidity')).toBeVisible()
@@ -121,8 +121,8 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     await expect(page.locator('text=Table (b) — Seller Supply')).not.toBeVisible()
     await expect(page.locator('text=Table (c) — Matched Liquidity')).toBeVisible()
 
-    // Return to All 3 Tables
-    await page.locator('button:has-text("All 3 Tables")').click()
+    // Return to All Tables
+    await page.locator('button:has-text("All Tables")').click()
     await expect(page.locator('text=Table (a) — Buyer Demand')).toBeVisible()
     await expect(page.locator('text=Table (b) — Seller Supply')).toBeVisible()
     await expect(page.locator('text=Table (c) — Matched Liquidity')).toBeVisible()
@@ -224,5 +224,44 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     // Dismiss toast
     await page.locator('.toast-close').click()
     await expect(toast).not.toBeVisible()
+  })
+
+  test('Table (d) On-Demand Multi-Produce Ad Clusters calculates clusters on button click', async ({ page }) => {
+    await page.locator('#btn-view-clusters').click()
+
+    const clusterSection = page.locator('#multi-produce-cluster-section')
+    await expect(clusterSection).toBeVisible()
+
+    // Configure inputs: Min Produces = 2, Min ZIPs = 1
+    const minProducesInput = page.locator('#input-min-produces')
+    const minZipsInput = page.locator('#input-min-zips')
+
+    await minProducesInput.fill('2')
+    await minZipsInput.fill('1')
+
+    // Click on-demand find clusters button
+    const findBtn = page.locator('#btn-run-cluster-finder')
+    await findBtn.click()
+
+    // Table rows should appear with multi-item bundles
+    const clusterTable = page.locator('#multi-produce-clusters-table')
+    await expect(clusterTable).toBeVisible()
+
+    const firstRow = clusterTable.locator('tbody tr').first()
+    await expect(firstRow).toBeVisible()
+    await expect(firstRow.locator('.bundle-produce-chip').first()).toBeVisible()
+
+    // Verify copy buttons on cluster row
+    const copyZipsBtn = firstRow.locator('.btn-copy-zips')
+    await expect(copyZipsBtn).toBeVisible()
+    await copyZipsBtn.click()
+
+    const toast = page.locator('.crm-toast.success')
+    await expect(toast).toBeVisible({ timeout: 5000 })
+
+    const copyAdBtn = firstRow.locator('.btn-copy-ad')
+    await expect(copyAdBtn).toBeVisible()
+    await copyAdBtn.click()
+    await expect(toast).toBeVisible({ timeout: 5000 })
   })
 })

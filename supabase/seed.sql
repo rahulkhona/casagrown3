@@ -1997,15 +1997,31 @@ BEGIN
     (sess_wizard, '/create-listing-wizard', 'wizard_step', '/create-listing-wizard', '{"step_index": 1, "step_name": "text_input"}'),
     (sess_wizard, '/create-listing-wizard', 'wizard_step_timing', '/create-listing-wizard', '{"step": 1, "step_name": "text_input", "duration_secs": 18}');
 
-  -- Seed Produce Interests for E2E Test Seller (u1) and Buyer (u2)
+  -- Seed Produce Interests for E2E Test Seller (u1) and Buyer (u2) and realistic local demand
   INSERT INTO crm_produce_interests (id, user_id, produce_name, interest_type, zipcodes, status, radius_miles)
   VALUES 
-    ('e1111111-1111-1111-1111-111111111111', u1, 'Organic Strawberries', 'sell', ARRAY['95125'], 'active', 5),
-    ('e1111111-1111-1111-1111-222222222222', u1, 'Hass Avocados', 'sell', ARRAY['95125'], 'active', 5),
-    ('e1111111-1111-1111-1111-333333333333', u1, 'Meyer Lemons', 'sell', ARRAY['95125'], 'active', 5),
-    ('e2222222-2222-2222-2222-111111111111', u2, 'Organic Strawberries', 'buy', ARRAY['95125'], 'active', 5),
-    ('e2222222-2222-2222-2222-222222222222', u2, 'Heirloom Tomatoes', 'buy', ARRAY['95125'], 'active', 5)
-  ON CONFLICT (id) DO NOTHING;
+    -- Seller supply
+    ('e1111111-1111-1111-1111-111111111111', u1, 'Organic Strawberries', 'sell', ARRAY['95125', '95126'], 'active', 5),
+    ('e1111111-1111-1111-1111-222222222222', u1, 'Hass Avocados', 'sell', ARRAY['95125', '95120'], 'active', 5),
+    ('e1111111-1111-1111-1111-333333333333', u1, 'Meyer Lemons', 'sell', ARRAY['95120', '95125'], 'active', 5),
+    ('e1111111-1111-1111-1111-444444444444', u1, 'Heirloom Tomatoes', 'sell', ARRAY['95120', '95125'], 'active', 5),
+    ('e1111111-1111-1111-1111-555555555555', u1, 'Fresh Sweet Basil', 'sell', ARRAY['95120', '95126'], 'active', 5),
+
+    -- Buyer demand across shared ZIP clusters (95120, 95125, 95126, 94024)
+    ('e2222222-2222-2222-2222-111111111111', u2, 'Meyer Lemons', 'buy', ARRAY['95120', '95125', '95126', '94024'], 'active', 5),
+    ('e2222222-2222-2222-2222-222222222222', u2, 'Heirloom Tomatoes', 'buy', ARRAY['95120', '95125', '95126', '94024'], 'active', 5),
+    ('e2222222-2222-2222-2222-333333333333', u2, 'Valencia Oranges', 'buy', ARRAY['95120', '95125', '95126'], 'active', 5),
+    ('e2222222-2222-2222-2222-444444444444', u2, 'Fresh Sweet Basil', 'buy', ARRAY['95120', '95125', '95126', '94024'], 'active', 5),
+    ('e2222222-2222-2222-2222-555555555555', u2, 'Fresh Peaches', 'buy', ARRAY['95120', '95125'], 'active', 5),
+    ('e2222222-2222-2222-2222-666666666666', u2, 'Hass Avocados', 'buy', ARRAY['95125', '95126'], 'active', 5),
+    ('e2222222-2222-2222-2222-777777777777', u2, 'Organic Strawberries', 'buy', ARRAY['95125', '95126'], 'active', 5),
+    ('e2222222-2222-2222-2222-888888888888', u2, 'Raw Honey', 'buy', ARRAY['95120', '95125'], 'active', 5),
+    ('e2222222-2222-2222-2222-999999999999', u2, 'Farm Fresh Eggs', 'buy', ARRAY['95120', '95125'], 'active', 5)
+  ON CONFLICT (id) DO UPDATE SET
+    produce_name = EXCLUDED.produce_name,
+    interest_type = EXCLUDED.interest_type,
+    zipcodes = EXCLUDED.zipcodes,
+    status = EXCLUDED.status;
 
 END;
 $$;

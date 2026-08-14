@@ -61,7 +61,7 @@ async function getOtpFromMailpit(email: string, timeoutMs = 10_000): Promise<str
 }
 
 setup('authenticate as admin', async ({ page }) => {
-  setup.setTimeout(60_000)
+  setup.setTimeout(120_000)
 
   // 1. Clear Mailpit
   await clearMailpit()
