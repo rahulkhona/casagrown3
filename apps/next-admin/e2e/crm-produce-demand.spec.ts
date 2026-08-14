@@ -13,16 +13,16 @@ const adminDb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 function getSeedData() {
   const tag = `e2e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   const leads = [
-    { name: `Buyer CA 1 ${tag}`, email: `b_ca1_${tag}@test.local`, produce_interests: 'Meyer Lemons, Heirloom Tomatoes', zipcode: '95125' },
-    { name: `Buyer CA 2 ${tag}`, email: `b_ca2_${tag}@test.local`, produce_interests: 'Meyer Lemons, Valencia Oranges', zipcode: '95126' },
-    { name: `Buyer CA 3 ${tag}`, email: `b_ca3_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes, Sweet Corn', zipcode: '94024' },
-    { name: `Buyer CA 4 ${tag}`, email: `b_ca4_${tag}@test.local`, produce_interests: 'Fresh Sweet Basil, Meyer Lemons', zipcode: '95125' },
-    { name: `Buyer NY 1 ${tag}`, email: `b_ny1_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes, Fresh Sweet Basil', zipcode: '10001' },
-    { name: `Buyer NY 2 ${tag}`, email: `b_ny2_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes', zipcode: '10002' },
-    { name: `Buyer TX 1 ${tag}`, email: `b_tx1_${tag}@test.local`, produce_interests: 'Valencia Oranges, Sweet Corn', zipcode: '75001' },
-    { name: `Buyer TX 2 ${tag}`, email: `b_tx2_${tag}@test.local`, produce_interests: 'Valencia Oranges', zipcode: '78701' },
-    { name: `Buyer FL 1 ${tag}`, email: `b_fl1_${tag}@test.local`, produce_interests: 'Valencia Oranges, Meyer Lemons', zipcode: '33101' },
-    { name: `Buyer WA 1 ${tag}`, email: `b_wa1_${tag}@test.local`, produce_interests: 'Fresh Sweet Basil', zipcode: '98101' },
+    { name: `Buyer CA 1 ${tag}`, email: `b_ca1_${tag}@test.local`, produce_interests: 'Meyer Lemons, Heirloom Tomatoes', zipcode: '95125', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer CA 2 ${tag}`, email: `b_ca2_${tag}@test.local`, produce_interests: 'Meyer Lemons, Valencia Oranges', zipcode: '95126', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer CA 3 ${tag}`, email: `b_ca3_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes, Sweet Corn', zipcode: '94024', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer CA 4 ${tag}`, email: `b_ca4_${tag}@test.local`, produce_interests: 'Fresh Sweet Basil, Meyer Lemons', zipcode: '95125', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer NY 1 ${tag}`, email: `b_ny1_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes, Fresh Sweet Basil', zipcode: '10001', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer NY 2 ${tag}`, email: `b_ny2_${tag}@test.local`, produce_interests: 'Heirloom Tomatoes', zipcode: '10002', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer TX 1 ${tag}`, email: `b_tx1_${tag}@test.local`, produce_interests: 'Valencia Oranges, Sweet Corn', zipcode: '75001', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer TX 2 ${tag}`, email: `b_tx2_${tag}@test.local`, produce_interests: 'Valencia Oranges', zipcode: '78701', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer FL 1 ${tag}`, email: `b_fl1_${tag}@test.local`, produce_interests: 'Valencia Oranges, Meyer Lemons', zipcode: '33101', form_version: 'v1-nutrition-estimator' },
+    { name: `Buyer WA 1 ${tag}`, email: `b_wa1_${tag}@test.local`, produce_interests: 'Fresh Sweet Basil', zipcode: '98101', form_version: 'v1-nutrition-estimator' },
   ]
   const sellers = [
     { produce_name: 'Meyer Lemons', interest_type: 'sell', zipcodes: ['95125', '95126'], status: 'active' },

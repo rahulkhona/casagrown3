@@ -150,7 +150,7 @@ export default function ProduceDemandPage() {
       // 2. Fetch CRM Leads with produce interests
       const { data: crmLeads } = await supabase
         .from('crm_leads')
-        .select('id, produce_interests, zipcode')
+        .select('id, produce_interests, zipcode, form_version, metadata')
         .not('produce_interests', 'is', null)
 
       // 3. Fetch Onboarding produce_interests
@@ -229,20 +229,23 @@ export default function ProduceDemandPage() {
           }
         }
       }
-
-      // Add crm_leads
+      // Add crm_leads ONLY if they are explicitly buyer forms (e.g. nutrition estimator or metadata.interest_type = 'buy')
       if (crmLeads) {
         for (const l of crmLeads) {
-          if (l.produce_interests && l.zipcode) {
+          const isExplicitBuyer = 
+            l.form_version === 'v1-nutrition-estimator' || 
+            (l.metadata && typeof l.metadata === 'object' && (l.metadata as any).interest_type === 'buy')
+
+          if (isExplicitBuyer && l.produce_interests && l.zipcode) {
             const items = l.produce_interests.split(',').map((s: string) => s.trim()).filter(Boolean)
             for (const item of items) {
-              recordBuyerInterest(item, l.zipcode, l.id, l.city, l.state)
+              recordBuyerInterest(item, l.zipcode, l.id)
             }
           }
         }
       }
 
-      // Add onboarding produce_interests
+      // Add onboarding produce_interests (strictly buyers)
       if (onboardingInterests) {
         for (const oi of onboardingInterests) {
           if (oi.produce_name && oi.user_id) {
@@ -383,7 +386,7 @@ export default function ProduceDemandPage() {
     fetchDemandAndSupplyData()
   }, [fetchDemandAndSupplyData])
 
-  // Generate Overlap Matrix (Table c) where BOTH buyers > 0 and sellers > 0 in the same zipcode
+  // Generate Overlap Matrix (Table c) where BOTH genuine buyers > 0 and sellers > 0 in the same zipcode
   const overlapList = useMemo(() => {
     const overlaps: ProduceZipOverlap[] = []
     const sellerIndex = new Map<string, Map<string, { count: number; city?: string; state?: string }>>()
