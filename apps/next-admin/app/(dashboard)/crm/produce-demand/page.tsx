@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { createClient } from '../../../lib/supabase'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!
+)
 
 type ViewMode = 'all' | 'buyers' | 'sellers' | 'overlap'
 
@@ -13,7 +18,7 @@ export type BuyerProduceDemand = {
   image: string
   buyersCount: number
   zipCount: number
-  zipDetails: { zip: string; buyers: number; city?: string }[]
+  zipDetails: { zip: string; buyers: number; city?: string; state?: string }[]
   unit: string
 }
 
@@ -25,7 +30,7 @@ export type SellerProduceSupply = {
   image: string
   sellersCount: number
   zipCount: number
-  zipDetails: { zip: string; sellers: number; city?: string }[]
+  zipDetails: { zip: string; sellers: number; city?: string; state?: string }[]
   unit: string
 }
 
@@ -37,6 +42,7 @@ export type ProduceZipOverlap = {
   image: string
   zip: string
   city: string
+  state?: string
   buyersCount: number
   sellersCount: number
   totalActivity: number
@@ -45,432 +51,46 @@ export type ProduceZipOverlap = {
   unit: string
 }
 
-// Canonical California / South Bay produce demand dataset
-const INITIAL_BUYER_DEMAND: BuyerProduceDemand[] = [
-  {
-    id: 'heirloom_tomatoes',
-    name: 'Heirloom Tomatoes',
-    category: 'produce',
-    displayCategory: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 84,
-    zipCount: 12,
-    zipDetails: [
-      { zip: '95125', buyers: 22, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', buyers: 18, city: 'San Jose (Rose Garden)' },
-      { zip: '95128', buyers: 15, city: 'San Jose (Midtown)' },
-      { zip: '94024', buyers: 11, city: 'Los Altos' },
-      { zip: '94040', buyers: 10, city: 'Mountain View' },
-      { zip: '94022', buyers: 8, city: 'Los Altos Hills' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'lemons',
-    name: 'Meyer Lemons',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 68,
-    zipCount: 9,
-    zipDetails: [
-      { zip: '95125', buyers: 20, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', buyers: 16, city: 'San Jose (Rose Garden)' },
-      { zip: '95128', buyers: 14, city: 'San Jose (Midtown)' },
-      { zip: '94024', buyers: 10, city: 'Los Altos' },
-      { zip: '94040', buyers: 8, city: 'Mountain View' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'oranges',
-    name: 'Valencia Oranges',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 61,
-    zipCount: 8,
-    zipDetails: [
-      { zip: '95125', buyers: 18, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', buyers: 15, city: 'San Jose (Midtown)' },
-      { zip: '95126', buyers: 12, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', buyers: 9, city: 'Los Altos' },
-      { zip: '94087', buyers: 7, city: 'Sunnyvale' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'avocados',
-    name: 'Hass Avocados',
-    category: 'produce',
-    displayCategory: 'Fruit',
-    image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 55,
-    zipCount: 7,
-    zipDetails: [
-      { zip: '95125', buyers: 16, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', buyers: 14, city: 'Los Altos' },
-      { zip: '94040', buyers: 11, city: 'Mountain View' },
-      { zip: '95126', buyers: 8, city: 'San Jose (Rose Garden)' },
-      { zip: '94022', buyers: 6, city: 'Los Altos Hills' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'limes',
-    name: 'Persian Limes',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 52,
-    zipCount: 6,
-    zipDetails: [
-      { zip: '95125', buyers: 15, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', buyers: 13, city: 'San Jose (Midtown)' },
-      { zip: '95126', buyers: 11, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', buyers: 8, city: 'Los Altos' },
-      { zip: '94087', buyers: 5, city: 'Sunnyvale' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'figs',
-    name: 'Mission & Kadota Figs',
-    category: 'produce',
-    displayCategory: 'Fruit',
-    image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 48,
-    zipCount: 6,
-    zipDetails: [
-      { zip: '94022', buyers: 14, city: 'Los Altos Hills' },
-      { zip: '94040', buyers: 12, city: 'Mountain View' },
-      { zip: '94024', buyers: 10, city: 'Los Altos' },
-      { zip: '95125', buyers: 7, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', buyers: 5, city: 'San Jose (Rose Garden)' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'sweet_corn',
-    name: 'Sweet Corn',
-    category: 'produce',
-    displayCategory: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 45,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', buyers: 14, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', buyers: 11, city: 'San Jose (Midtown)' },
-      { zip: '95126', buyers: 9, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', buyers: 6, city: 'Los Altos' },
-      { zip: '94087', buyers: 5, city: 'Sunnyvale' },
-    ],
-    unit: 'dozen',
-  },
-  {
-    id: 'basil',
-    name: 'Fresh Sweet Basil',
-    category: 'herbs',
-    displayCategory: 'Herbs',
-    image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 44,
-    zipCount: 6,
-    zipDetails: [
-      { zip: '95125', buyers: 12, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', buyers: 10, city: 'San Jose (Rose Garden)' },
-      { zip: '94040', buyers: 8, city: 'Mountain View' },
-      { zip: '95128', buyers: 8, city: 'San Jose (Midtown)' },
-      { zip: '94024', buyers: 6, city: 'Los Altos' },
-    ],
-    unit: 'bunch',
-  },
-  {
-    id: 'mandarins',
-    name: 'Satsuma Mandarins',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 45,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', buyers: 15, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', buyers: 12, city: 'San Jose (Midtown)' },
-      { zip: '95126', buyers: 9, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', buyers: 5, city: 'Los Altos' },
-      { zip: '94087', buyers: 4, city: 'Sunnyvale' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'pasture_eggs',
-    name: 'Pasture-Raised Eggs',
-    category: 'eggs',
-    displayCategory: 'Eggs & Dairy',
-    image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 39,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', buyers: 12, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', buyers: 9, city: 'Los Altos' },
-      { zip: '94040', buyers: 8, city: 'Mountain View' },
-      { zip: '95128', buyers: 6, city: 'San Jose (Midtown)' },
-      { zip: '95126', buyers: 4, city: 'San Jose (Rose Garden)' },
-    ],
-    unit: 'dozen',
-  },
-  {
-    id: 'raw_honey',
-    name: 'Wildflower Honey',
-    category: 'honey',
-    displayCategory: 'Honey',
-    image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80',
-    buyersCount: 36,
-    zipCount: 4,
-    zipDetails: [
-      { zip: '95125', buyers: 13, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', buyers: 10, city: 'Los Altos' },
-      { zip: '94040', buyers: 8, city: 'Mountain View' },
-      { zip: '95128', buyers: 5, city: 'San Jose (Midtown)' },
-    ],
-    unit: 'jar',
-  },
-]
+// Produce Image & Category helper
+const PRODUCE_CATALOG_MAP: Record<string, { displayCategory: string; image: string; unit: string }> = {
+  'heirloom tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'cherry tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1546470427-e26264be0b11?auto=format&fit=crop&w=400&q=80', unit: 'pint' },
+  'meyer lemons': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'lemons': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'valencia oranges': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'oranges': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'mandarins': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'satsuma mandarins': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'persian limes': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'limes': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'hass avocados': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'avocados': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
+  'figs': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'mission & kadota figs': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
+  'sweet corn': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
+  'corn': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
+  'basil': { displayCategory: 'Herbs', image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80', unit: 'bunch' },
+  'fresh sweet basil': { displayCategory: 'Herbs', image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80', unit: 'bunch' },
+  'pasture-raised eggs': { displayCategory: 'Eggs & Dairy', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
+  'eggs': { displayCategory: 'Eggs & Dairy', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
+  'honey': { displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80', unit: 'jar' },
+  'wildflower honey': { displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80', unit: 'jar' },
+}
 
-// Canonical Seller supply dataset
-const INITIAL_SELLER_SUPPLY: SellerProduceSupply[] = [
-  {
-    id: 'heirloom_tomatoes',
-    name: 'Heirloom Tomatoes',
-    category: 'produce',
-    displayCategory: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 31,
-    zipCount: 9,
-    zipDetails: [
-      { zip: '95125', sellers: 8, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', sellers: 6, city: 'San Jose (Midtown)' },
-      { zip: '95126', sellers: 5, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', sellers: 4, city: 'Los Altos' },
-      { zip: '94040', sellers: 4, city: 'Mountain View' },
-      { zip: '94022', sellers: 4, city: 'Los Altos Hills' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'lemons',
-    name: 'Meyer Lemons',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 24,
-    zipCount: 7,
-    zipDetails: [
-      { zip: '95125', sellers: 7, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', sellers: 5, city: 'San Jose (Rose Garden)' },
-      { zip: '95128', sellers: 4, city: 'San Jose (Midtown)' },
-      { zip: '94024', sellers: 4, city: 'Los Altos' },
-      { zip: '94040', sellers: 4, city: 'Mountain View' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'oranges',
-    name: 'Valencia Oranges',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 22,
-    zipCount: 6,
-    zipDetails: [
-      { zip: '95125', sellers: 6, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', sellers: 5, city: 'San Jose (Midtown)' },
-      { zip: '95126', sellers: 4, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', sellers: 4, city: 'Los Altos' },
-      { zip: '94087', sellers: 3, city: 'Sunnyvale' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'avocados',
-    name: 'Hass Avocados',
-    category: 'produce',
-    displayCategory: 'Fruit',
-    image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 21,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', sellers: 6, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', sellers: 5, city: 'Los Altos' },
-      { zip: '94040', sellers: 4, city: 'Mountain View' },
-      { zip: '95126', sellers: 3, city: 'San Jose (Rose Garden)' },
-      { zip: '94022', sellers: 3, city: 'Los Altos Hills' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'limes',
-    name: 'Persian Limes',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 19,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', sellers: 5, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', sellers: 5, city: 'San Jose (Midtown)' },
-      { zip: '95126', sellers: 4, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', sellers: 3, city: 'Los Altos' },
-      { zip: '94087', sellers: 2, city: 'Sunnyvale' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'basil',
-    name: 'Fresh Sweet Basil',
-    category: 'herbs',
-    displayCategory: 'Herbs',
-    image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 16,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', sellers: 5, city: 'San Jose (Willow Glen)' },
-      { zip: '95126', sellers: 4, city: 'San Jose (Rose Garden)' },
-      { zip: '94040', sellers: 3, city: 'Mountain View' },
-      { zip: '95128', sellers: 2, city: 'San Jose (Midtown)' },
-      { zip: '94024', sellers: 2, city: 'Los Altos' },
-    ],
-    unit: 'bunch',
-  },
-  {
-    id: 'mandarins',
-    name: 'Satsuma Mandarins',
-    category: 'produce',
-    displayCategory: 'Citrus',
-    image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 16,
-    zipCount: 5,
-    zipDetails: [
-      { zip: '95125', sellers: 5, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', sellers: 4, city: 'San Jose (Midtown)' },
-      { zip: '95126', sellers: 3, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', sellers: 2, city: 'Los Altos' },
-      { zip: '94087', sellers: 2, city: 'Sunnyvale' },
-    ],
-    unit: 'bag',
-  },
-  {
-    id: 'sweet_corn',
-    name: 'Sweet Corn',
-    category: 'produce',
-    displayCategory: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 15,
-    zipCount: 4,
-    zipDetails: [
-      { zip: '95125', sellers: 5, city: 'San Jose (Willow Glen)' },
-      { zip: '95128', sellers: 4, city: 'San Jose (Midtown)' },
-      { zip: '95126', sellers: 3, city: 'San Jose (Rose Garden)' },
-      { zip: '94024', sellers: 3, city: 'Los Altos' },
-    ],
-    unit: 'dozen',
-  },
-  {
-    id: 'figs',
-    name: 'Mission & Kadota Figs',
-    category: 'produce',
-    displayCategory: 'Fruit',
-    image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 14,
-    zipCount: 4,
-    zipDetails: [
-      { zip: '94022', sellers: 5, city: 'Los Altos Hills' },
-      { zip: '94040', sellers: 4, city: 'Mountain View' },
-      { zip: '94024', sellers: 3, city: 'Los Altos' },
-      { zip: '95125', sellers: 2, city: 'San Jose (Willow Glen)' },
-    ],
-    unit: 'lb',
-  },
-  {
-    id: 'pasture_eggs',
-    name: 'Pasture-Raised Eggs',
-    category: 'eggs',
-    displayCategory: 'Eggs & Dairy',
-    image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 11,
-    zipCount: 4,
-    zipDetails: [
-      { zip: '95125', sellers: 4, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', sellers: 3, city: 'Los Altos' },
-      { zip: '94040', sellers: 2, city: 'Mountain View' },
-      { zip: '95128', sellers: 2, city: 'San Jose (Midtown)' },
-    ],
-    unit: 'dozen',
-  },
-  {
-    id: 'raw_honey',
-    name: 'Wildflower Honey',
-    category: 'honey',
-    displayCategory: 'Honey',
-    image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80',
-    sellersCount: 8,
-    zipCount: 3,
-    zipDetails: [
-      { zip: '95125', sellers: 3, city: 'San Jose (Willow Glen)' },
-      { zip: '94024', sellers: 3, city: 'Los Altos' },
-      { zip: '94040', sellers: 2, city: 'Mountain View' },
-    ],
-    unit: 'jar',
-  },
-]
+function resolveProduceMeta(produceName: string) {
+  const norm = produceName.trim().toLowerCase()
+  if (PRODUCE_CATALOG_MAP[norm]) return PRODUCE_CATALOG_MAP[norm]
 
-// Generate Overlap Matrix (Table c) where BOTH buyers > 0 and sellers > 0 in the same zipcode
-function computeOverlaps(
-  buyers: BuyerProduceDemand[],
-  sellers: SellerProduceSupply[]
-): ProduceZipOverlap[] {
-  const overlaps: ProduceZipOverlap[] = []
-  const sellerMap = new Map<string, Map<string, { count: number; city: string }>>()
-
-  for (const s of sellers) {
-    const zMap = new Map<string, { count: number; city: string }>()
-    for (const z of s.zipDetails) {
-      zMap.set(z.zip, { count: z.sellers, city: z.city || '' })
-    }
-    sellerMap.set(s.id, zMap)
+  for (const [k, v] of Object.entries(PRODUCE_CATALOG_MAP)) {
+    if (norm.includes(k) || k.includes(norm)) return v
   }
 
-  for (const b of buyers) {
-    const sZMap = sellerMap.get(b.id)
-    if (!sZMap) continue
-
-    for (const bz of b.zipDetails) {
-      const sItem = sZMap.get(bz.zip)
-      if (sItem && sItem.count > 0 && bz.buyers > 0) {
-        const ratio = parseFloat((bz.buyers / sItem.count).toFixed(2))
-        let state: 'BUYER_DEFICIT' | 'BALANCED' | 'SELLER_SURPLUS' = 'BALANCED'
-        if (ratio >= 2.0) state = 'BUYER_DEFICIT'
-        else if (ratio <= 0.7) state = 'SELLER_SURPLUS'
-
-        overlaps.push({
-          id: `${b.id}_${bz.zip}`,
-          produceId: b.id,
-          produceName: b.name,
-          displayCategory: b.displayCategory,
-          image: b.image,
-          zip: bz.zip,
-          city: bz.city || sItem.city || 'Local Area',
-          buyersCount: bz.buyers,
-          sellersCount: sItem.count,
-          totalActivity: bz.buyers + sItem.count,
-          buyerSellerRatio: ratio,
-          marketState: state,
-          unit: b.unit,
-        })
-      }
-    }
+  return {
+    displayCategory: 'Vegetables',
+    image: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+    unit: 'item',
   }
-
-  return overlaps
 }
 
 type BuyerSortKey = 'name' | 'displayCategory' | 'buyersCount' | 'zipCount'
@@ -480,8 +100,10 @@ type SortDirection = 'asc' | 'desc'
 
 export default function ProduceDemandPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('all')
-  const [buyerDemands, setBuyerDemands] = useState<BuyerProduceDemand[]>(INITIAL_BUYER_DEMAND)
-  const [sellerSupplies, setSellerSupplies] = useState<SellerProduceSupply[]>(INITIAL_SELLER_SUPPLY)
+  const [buyerDemands, setBuyerDemands] = useState<BuyerProduceDemand[]>([])
+  const [sellerSupplies, setSellerSupplies] = useState<SellerProduceSupply[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dbError, setDbError] = useState<string | null>(null)
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -513,9 +135,300 @@ export default function ProduceDemandPage() {
     toast(`Copied ${label} (${text}) to clipboard!`)
   }
 
-  // Overlap list
+  // ── LIVE DATABASE FETCH ──────────────────────────────────────────
+  const fetchDemandAndSupplyData = useCallback(async () => {
+    setLoading(true)
+    setDbError(null)
+
+    try {
+      // 1. Fetch CRM Produce Interests
+      const { data: crmInterests } = await supabase
+        .from('crm_produce_interests')
+        .select('produce_name, interest_type, zipcodes, lead_id, user_id, status')
+        .eq('status', 'active')
+
+      // 2. Fetch CRM Leads with produce interests
+      const { data: crmLeads } = await supabase
+        .from('crm_leads')
+        .select('id, produce_interests, zipcode')
+        .not('produce_interests', 'is', null)
+
+      // 3. Fetch Onboarding produce_interests
+      const { data: onboardingInterests } = await supabase
+        .from('produce_interests')
+        .select('produce_name, user_id')
+
+      // 4. Fetch Profiles for ZIP codes
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, zip_code, city, state')
+
+      // 5. Fetch Market Products (real seller listings)
+      const { data: marketProducts } = await supabase
+        .from('market_products')
+        .select('name, category, seller_id')
+        .eq('is_active', true)
+
+      // 6. Fetch Market Booths for seller ZIPs
+      const { data: marketBooths } = await supabase
+        .from('market_booths')
+        .select('seller_id, booth_zip, pickup_zip, city, state')
+        .eq('status', 'active')
+
+      const profileMap = new Map<string, { zip: string; city: string; state: string }>()
+      if (profiles) {
+        for (const p of profiles) {
+          if (p.zip_code) {
+            profileMap.set(p.id, { zip: p.zip_code, city: p.city || '', state: p.state || '' })
+          }
+        }
+      }
+
+      const boothMap = new Map<string, { zip: string; city: string; state: string }>()
+      if (marketBooths) {
+        for (const b of marketBooths) {
+          const zip = b.booth_zip || b.pickup_zip
+          if (zip) {
+            boothMap.set(b.seller_id, { zip, city: b.city || '', state: b.state || '' })
+          }
+        }
+      }
+
+      // ── Process Buyer Demand ─────────────────────────────────────
+      // Map: produce_name -> Map: zip -> { buyers: Set<buyer_id>, city, state }
+      const buyerMap = new Map<string, Map<string, { buyers: Set<string>; city?: string; state?: string }>>()
+
+      const recordBuyerInterest = (produce: string, zip: string, buyerId: string, city?: string, state?: string) => {
+        const prodKey = produce.trim().toLowerCase()
+        const cleanZip = zip.trim()
+        if (!prodKey || !cleanZip) return
+
+        if (!buyerMap.has(prodKey)) {
+          buyerMap.set(prodKey, new Map())
+        }
+        const zipMap = buyerMap.get(prodKey)!
+        if (!zipMap.has(cleanZip)) {
+          zipMap.set(cleanZip, { buyers: new Set(), city, state })
+        }
+        zipMap.get(cleanZip)!.buyers.add(buyerId)
+      }
+
+      // Add crm_produce_interests (buy)
+      if (crmInterests) {
+        for (const ci of crmInterests) {
+          if (ci.interest_type === 'buy' && ci.produce_name) {
+            const buyerId = ci.user_id || ci.lead_id || 'anon'
+            const profile = ci.user_id ? profileMap.get(ci.user_id) : undefined
+            const zips: string[] = ci.zipcodes && Array.isArray(ci.zipcodes) && ci.zipcodes.length > 0
+              ? ci.zipcodes
+              : profile?.zip ? [profile.zip] : []
+
+            for (const z of zips) {
+              recordBuyerInterest(ci.produce_name, z, buyerId, profile?.city, profile?.state)
+            }
+          }
+        }
+      }
+
+      // Add crm_leads
+      if (crmLeads) {
+        for (const l of crmLeads) {
+          if (l.produce_interests && l.zipcode) {
+            const items = l.produce_interests.split(',').map((s: string) => s.trim()).filter(Boolean)
+            for (const item of items) {
+              recordBuyerInterest(item, l.zipcode, l.id, l.city, l.state)
+            }
+          }
+        }
+      }
+
+      // Add onboarding produce_interests
+      if (onboardingInterests) {
+        for (const oi of onboardingInterests) {
+          if (oi.produce_name && oi.user_id) {
+            const prof = profileMap.get(oi.user_id)
+            if (prof && prof.zip) {
+              recordBuyerInterest(oi.produce_name, prof.zip, oi.user_id, prof.city, prof.state)
+            }
+          }
+        }
+      }
+
+      // ── Process Seller Supply ────────────────────────────────────
+      const sellerMap = new Map<string, Map<string, { sellers: Set<string>; city?: string; state?: string }>>()
+
+      const recordSellerSupply = (produce: string, zip: string, sellerId: string, city?: string, state?: string) => {
+        const prodKey = produce.trim().toLowerCase()
+        const cleanZip = zip.trim()
+        if (!prodKey || !cleanZip) return
+
+        if (!sellerMap.has(prodKey)) {
+          sellerMap.set(prodKey, new Map())
+        }
+        const zipMap = sellerMap.get(prodKey)!
+        if (!zipMap.has(cleanZip)) {
+          zipMap.set(cleanZip, { sellers: new Set(), city, state })
+        }
+        zipMap.get(cleanZip)!.sellers.add(sellerId)
+      }
+
+      // Add crm_produce_interests (sell)
+      if (crmInterests) {
+        for (const ci of crmInterests) {
+          if (ci.interest_type === 'sell' && ci.produce_name) {
+            const sellerId = ci.user_id || ci.lead_id || 'anon'
+            const profile = ci.user_id ? profileMap.get(ci.user_id) : undefined
+            const zips: string[] = ci.zipcodes && Array.isArray(ci.zipcodes) && ci.zipcodes.length > 0
+              ? ci.zipcodes
+              : profile?.zip ? [profile.zip] : []
+
+            for (const z of zips) {
+              recordSellerSupply(ci.produce_name, z, sellerId, profile?.city, profile?.state)
+            }
+          }
+        }
+      }
+
+      // Add real market_products listings
+      if (marketProducts) {
+        for (const mp of marketProducts) {
+          if (mp.name && mp.seller_id) {
+            const booth = boothMap.get(mp.seller_id) || profileMap.get(mp.seller_id)
+            if (booth && booth.zip) {
+              recordSellerSupply(mp.name, booth.zip, mp.seller_id, booth.city, booth.state)
+            }
+          }
+        }
+      }
+
+      // ── Format Buyer Produce Demand list ─────────────────────────
+      const buyersList: BuyerProduceDemand[] = []
+      for (const [prodName, zMap] of buyerMap.entries()) {
+        const allBuyers = new Set<string>()
+        const zipDetails: { zip: string; buyers: number; city?: string; state?: string }[] = []
+
+        for (const [z, info] of zMap.entries()) {
+          for (const b of info.buyers) allBuyers.add(b)
+          zipDetails.push({
+            zip: z,
+            buyers: info.buyers.size,
+            city: info.city,
+            state: info.state,
+          })
+        }
+
+        zipDetails.sort((a, b) => b.buyers - a.buyers)
+        const meta = resolveProduceMeta(prodName)
+
+        buyersList.push({
+          id: prodName.replace(/\s+/g, '_'),
+          name: prodName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          category: meta.displayCategory.toLowerCase(),
+          displayCategory: meta.displayCategory,
+          image: meta.image,
+          buyersCount: allBuyers.size,
+          zipCount: zipDetails.length,
+          zipDetails,
+          unit: meta.unit,
+        })
+      }
+
+      buyersList.sort((a, b) => b.buyersCount - a.buyersCount)
+      setBuyerDemands(buyersList)
+
+      // ── Format Seller Produce Supply list ────────────────────────
+      const sellersList: SellerProduceSupply[] = []
+      for (const [prodName, zMap] of sellerMap.entries()) {
+        const allSellers = new Set<string>()
+        const zipDetails: { zip: string; sellers: number; city?: string; state?: string }[] = []
+
+        for (const [z, info] of zMap.entries()) {
+          for (const s of info.sellers) allSellers.add(s)
+          zipDetails.push({
+            zip: z,
+            sellers: info.sellers.size,
+            city: info.city,
+            state: info.state,
+          })
+        }
+
+        zipDetails.sort((a, b) => b.sellers - a.sellers)
+        const meta = resolveProduceMeta(prodName)
+
+        sellersList.push({
+          id: prodName.replace(/\s+/g, '_'),
+          name: prodName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          category: meta.displayCategory.toLowerCase(),
+          displayCategory: meta.displayCategory,
+          image: meta.image,
+          sellersCount: allSellers.size,
+          zipCount: zipDetails.length,
+          zipDetails,
+          unit: meta.unit,
+        })
+      }
+
+      sellersList.sort((a, b) => b.sellersCount - a.sellersCount)
+      setSellerSupplies(sellersList)
+
+    } catch (err: any) {
+      console.error('[ProduceDemandPage] Error fetching live demand/supply:', err)
+      setDbError(err?.message || 'Failed to query database')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchDemandAndSupplyData()
+  }, [fetchDemandAndSupplyData])
+
+  // Generate Overlap Matrix (Table c) where BOTH buyers > 0 and sellers > 0 in the same zipcode
   const overlapList = useMemo(() => {
-    return computeOverlaps(buyerDemands, sellerSupplies)
+    const overlaps: ProduceZipOverlap[] = []
+    const sellerIndex = new Map<string, Map<string, { count: number; city?: string; state?: string }>>()
+
+    for (const s of sellerSupplies) {
+      const zMap = new Map<string, { count: number; city?: string; state?: string }>()
+      for (const z of s.zipDetails) {
+        zMap.set(z.zip, { count: z.sellers, city: z.city, state: z.state })
+      }
+      sellerIndex.set(s.id, zMap)
+    }
+
+    for (const b of buyerDemands) {
+      const sZMap = sellerIndex.get(b.id)
+      if (!sZMap) continue
+
+      for (const bz of b.zipDetails) {
+        const sItem = sZMap.get(bz.zip)
+        if (sItem && sItem.count > 0 && bz.buyers > 0) {
+          const ratio = parseFloat((bz.buyers / sItem.count).toFixed(2))
+          let state: 'BUYER_DEFICIT' | 'BALANCED' | 'SELLER_SURPLUS' = 'BALANCED'
+          if (ratio >= 2.0) state = 'BUYER_DEFICIT'
+          else if (ratio <= 0.7) state = 'SELLER_SURPLUS'
+
+          overlaps.push({
+            id: `${b.id}_${bz.zip}`,
+            produceId: b.id,
+            produceName: b.name,
+            displayCategory: b.displayCategory,
+            image: b.image,
+            zip: bz.zip,
+            city: bz.city || sItem.city || 'Local Area',
+            state: bz.state || sItem.state,
+            buyersCount: bz.buyers,
+            sellersCount: sItem.count,
+            totalActivity: bz.buyers + sItem.count,
+            buyerSellerRatio: ratio,
+            marketState: state,
+            unit: b.unit,
+          })
+        }
+      }
+    }
+
+    return overlaps
   }, [buyerDemands, sellerSupplies])
 
   // Filtered & Sorted Table (a): Buyer Demand
@@ -526,7 +439,12 @@ export default function ProduceDemandPage() {
           searchQuery.trim() === '' ||
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.displayCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.zipDetails.some(z => z.zip.includes(searchQuery.trim()) || (z.city && z.city.toLowerCase().includes(searchQuery.toLowerCase())))
+          item.zipDetails.some(
+            z =>
+              z.zip.includes(searchQuery.trim()) ||
+              (z.city && z.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
+              (z.state && z.state.toLowerCase().includes(searchQuery.toLowerCase()))
+          )
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || item.buyersCount >= minCountFilter
@@ -537,7 +455,7 @@ export default function ProduceDemandPage() {
         let valA = a[buyerSort.key]
         let valB = b[buyerSort.key]
         if (typeof valA === 'string') {
-          return buyerSort.dir === 'asc' ? valA.localeCompare(valB as string) : (valB as string).localeCompare(valA)
+          return buyerSort.dir === 'asc' ? (valA as string).localeCompare(valB as string) : (valB as string).localeCompare(valA as string)
         }
         return buyerSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
@@ -551,7 +469,12 @@ export default function ProduceDemandPage() {
           searchQuery.trim() === '' ||
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.displayCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.zipDetails.some(z => z.zip.includes(searchQuery.trim()) || (z.city && z.city.toLowerCase().includes(searchQuery.toLowerCase())))
+          item.zipDetails.some(
+            z =>
+              z.zip.includes(searchQuery.trim()) ||
+              (z.city && z.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
+              (z.state && z.state.toLowerCase().includes(searchQuery.toLowerCase()))
+          )
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || item.sellersCount >= minCountFilter
@@ -562,7 +485,7 @@ export default function ProduceDemandPage() {
         let valA = a[sellerSort.key]
         let valB = b[sellerSort.key]
         if (typeof valA === 'string') {
-          return sellerSort.dir === 'asc' ? valA.localeCompare(valB as string) : (valB as string).localeCompare(valA)
+          return sellerSort.dir === 'asc' ? (valA as string).localeCompare(valB as string) : (valB as string).localeCompare(valA as string)
         }
         return sellerSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
@@ -577,7 +500,8 @@ export default function ProduceDemandPage() {
           item.produceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.displayCategory.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.zip.includes(searchQuery.trim()) ||
-          item.city.toLowerCase().includes(searchQuery.toLowerCase())
+          item.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (item.state && item.state.toLowerCase().includes(searchQuery.toLowerCase()))
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || (item.buyersCount >= minCountFilter || item.sellersCount >= minCountFilter)
@@ -588,7 +512,7 @@ export default function ProduceDemandPage() {
         let valA = a[overlapSort.key]
         let valB = b[overlapSort.key]
         if (typeof valA === 'string') {
-          return overlapSort.dir === 'asc' ? valA.localeCompare(valB as string) : (valB as string).localeCompare(valA)
+          return overlapSort.dir === 'asc' ? (valA as string).localeCompare(valB as string) : (valB as string).localeCompare(valA as string)
         }
         return overlapSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
@@ -604,11 +528,16 @@ export default function ProduceDemandPage() {
     <div className="crm-page">
       {/* ── Header ── */}
       <div className="radar-header">
-        <div>
-          <h1 className="crm-title">Produce Demand &amp; Supply Intelligence Radar</h1>
-          <p className="crm-subtitle">
-            Inspect localized buyer demand, seller supply, and matched liquidity per ZIP code to prioritize where and for which produce to generate ads.
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 className="crm-title">Produce Demand &amp; Supply Intelligence Radar</h1>
+            <p className="crm-subtitle">
+              Live database queries across all buyer interests, CRM leads, and seller listings per ZIP code nationwide.
+            </p>
+          </div>
+          <button className="btn-refresh" onClick={fetchDemandAndSupplyData} disabled={loading}>
+            {loading ? 'Refreshing…' : '🔄 Refresh Live Data'}
+          </button>
         </div>
       </div>
 
@@ -620,27 +549,36 @@ export default function ProduceDemandPage() {
         </div>
       )}
 
+      {dbError && (
+        <div className="crm-toast error">
+          <span>Database query note: {dbError}</span>
+          <button onClick={() => setDbError(null)} className="toast-close">✕</button>
+        </div>
+      )}
+
       {/* ── KPI Summary Cards ── */}
       <div className="kpi-grid">
         <div className="kpi-card buyer-kpi">
           <div className="kpi-label">Total Buyer Demand</div>
-          <div className="kpi-value">{totalBuyers} Buyers</div>
+          <div className="kpi-value">{loading ? '…' : `${totalBuyers} Buyers`}</div>
           <div className="kpi-sub">Across {uniqueDemandZips} distinct ZIP codes</div>
         </div>
         <div className="kpi-card seller-kpi">
           <div className="kpi-label">Total Seller Supply</div>
-          <div className="kpi-value">{totalSellers} Sellers</div>
+          <div className="kpi-value">{loading ? '…' : `${totalSellers} Sellers`}</div>
           <div className="kpi-sub">Across {uniqueSupplyZips} distinct ZIP codes</div>
         </div>
         <div className="kpi-card overlap-kpi">
           <div className="kpi-label">Matched Produce-ZIP Pairs</div>
-          <div className="kpi-value">{overlapList.length} Liquid Markets</div>
+          <div className="kpi-value">{loading ? '…' : `${overlapList.length} Liquid Markets`}</div>
           <div className="kpi-sub">Both buyers &amp; sellers present in same ZIP</div>
         </div>
         <div className="kpi-card top-kpi">
           <div className="kpi-label">Top Demand Leader</div>
-          <div className="kpi-value">{buyerDemands[0]?.name || 'Heirloom Tomatoes'}</div>
-          <div className="kpi-sub">{buyerDemands[0]?.buyersCount} buyers in {buyerDemands[0]?.zipCount} ZIPs</div>
+          <div className="kpi-value">{loading ? '…' : (buyerDemands[0]?.name || 'None Recorded')}</div>
+          <div className="kpi-sub">
+            {buyerDemands[0] ? `${buyerDemands[0].buyersCount} buyers in ${buyerDemands[0].zipCount} ZIPs` : 'No active demand'}
+          </div>
         </div>
       </div>
 
@@ -680,7 +618,7 @@ export default function ProduceDemandPage() {
             <span className="search-icon">🔍</span>
             <input
               type="text"
-              placeholder="Search produce name, category, or ZIP (e.g. 95125, Meyer Lemons)..."
+              placeholder="Search produce name, category, city, or ZIP (e.g. 75001, Meyer Lemons)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="search-input"
@@ -710,6 +648,7 @@ export default function ProduceDemandPage() {
             onChange={e => setMinCountFilter(parseInt(e.target.value))}
           >
             <option value={0}>Min Count: Any</option>
+            <option value={5}>5+ People</option>
             <option value={10}>10+ People</option>
             <option value={20}>20+ People</option>
             <option value={40}>40+ People</option>
@@ -726,7 +665,7 @@ export default function ProduceDemandPage() {
             <div>
               <h2 className="section-title">🛒 Table (a) — Buyer Demand (Ranked by Active Buyers)</h2>
               <p className="section-desc">
-                Shows all produce items where local neighbors are actively looking to buy, with full ZIP code distribution.
+                Shows all produce items where buyers are actively searching across live database records.
               </p>
             </div>
             <span className="sort-hint">Click column headers to sort</span>
@@ -764,7 +703,11 @@ export default function ProduceDemandPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredBuyerDemands.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="empty-td">Loading live database records…</td>
+                  </tr>
+                ) : filteredBuyerDemands.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="empty-td">No buyer demand found matching filter.</td>
                   </tr>
@@ -801,7 +744,7 @@ export default function ProduceDemandPage() {
                         <td>
                           <div className="zip-pills-wrap">
                             {item.zipDetails.map(z => (
-                              <span key={z.zip} className="zip-pill" title={`${z.buyers} buyers in ${z.zip} - ${z.city}`}>
+                              <span key={z.zip} className="zip-pill" title={`${z.buyers} buyers in ${z.zip} ${z.city ? `(${z.city}, ${z.state || ''})` : ''}`}>
                                 <strong>{z.zip}</strong>
                                 <span className="zip-pill-sub">({z.buyers})</span>
                               </span>
@@ -834,7 +777,7 @@ export default function ProduceDemandPage() {
             <div>
               <h2 className="section-title">🌾 Table (b) — Seller Supply / Listings (Ranked by Active Sellers)</h2>
               <p className="section-desc">
-                Shows all produce items where local growers have active trees, gardens, or listings available.
+                Shows all produce items where local growers have listings or declared growing availability.
               </p>
             </div>
             <span className="sort-hint">Click column headers to sort</span>
@@ -872,7 +815,11 @@ export default function ProduceDemandPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredSellerSupplies.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="empty-td">Loading live database records…</td>
+                  </tr>
+                ) : filteredSellerSupplies.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="empty-td">No seller supply found matching filter.</td>
                   </tr>
@@ -909,7 +856,7 @@ export default function ProduceDemandPage() {
                         <td>
                           <div className="zip-pills-wrap">
                             {item.zipDetails.map(z => (
-                              <span key={z.zip} className="zip-pill seller-pill" title={`${z.sellers} sellers in ${z.zip} - ${z.city}`}>
+                              <span key={z.zip} className="zip-pill seller-pill" title={`${z.sellers} sellers in ${z.zip} ${z.city ? `(${z.city}, ${z.state || ''})` : ''}`}>
                                 <strong>{z.zip}</strong>
                                 <span className="zip-pill-sub">({z.sellers})</span>
                               </span>
@@ -991,7 +938,11 @@ export default function ProduceDemandPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredOverlaps.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="empty-td">Loading live database records…</td>
+                  </tr>
+                ) : filteredOverlaps.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="empty-td">No matched produce/zipcode pairs found matching filter.</td>
                   </tr>
@@ -1010,7 +961,7 @@ export default function ProduceDemandPage() {
                       <td>
                         <div>
                           <span className="zip-code-strong">{item.zip}</span>
-                          <span className="city-sub">{item.city}</span>
+                          <span className="city-sub">{item.city}{item.state ? `, ${item.state}` : ''}</span>
                         </div>
                       </td>
                       <td>
@@ -1091,6 +1042,28 @@ export default function ProduceDemandPage() {
           line-height: 1.4;
         }
 
+        .btn-refresh {
+          background: #ffffff;
+          border: 1px solid #d1d5db;
+          color: #374151;
+          font-size: 0.85rem;
+          font-weight: 600;
+          padding: 8px 14px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .btn-refresh:hover:not(:disabled) {
+          background: #f9fafb;
+          border-color: #9ca3af;
+        }
+
+        .btn-refresh:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
         /* Toast */
         .crm-toast {
           display: flex;
@@ -1104,12 +1077,18 @@ export default function ProduceDemandPage() {
           font-size: 0.9rem;
         }
 
+        .crm-toast.error {
+          background: #fef2f2;
+          color: #991b1b;
+          border-color: #fecaca;
+        }
+
         .toast-close {
           background: none;
           border: none;
           font-size: 1rem;
           cursor: pointer;
-          color: #065f46;
+          color: inherit;
           margin-left: 12px;
         }
 
