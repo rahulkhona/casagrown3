@@ -115,6 +115,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'Send Windows', path: '/crm/send-slots' },
       { label: 'Audiences', path: '/crm/audiences' },
       { label: 'Audience Functions', path: '/crm/audience-functions' },
+      { label: 'Produce Demand & Supply', path: '/crm/produce-demand' },
       { label: 'Assets', path: '/crm/assets' },
     ]
   },
