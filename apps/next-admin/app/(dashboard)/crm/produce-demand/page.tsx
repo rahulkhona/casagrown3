@@ -733,7 +733,7 @@ export default function ProduceDemandPage() {
           </div>
 
           <div className="crm-table-wrap">
-            <table className="crm-table sortable-table">
+            <table id="buyer-demand-table" className="crm-table sortable-table">
               <thead>
                 <tr>
                   <th
@@ -841,7 +841,7 @@ export default function ProduceDemandPage() {
           </div>
 
           <div className="crm-table-wrap">
-            <table className="crm-table sortable-table">
+            <table id="seller-supply-table" className="crm-table sortable-table">
               <thead>
                 <tr>
                   <th
@@ -949,7 +949,7 @@ export default function ProduceDemandPage() {
           </div>
 
           <div className="crm-table-wrap">
-            <table className="crm-table sortable-table">
+            <table id="overlap-matches-table" className="crm-table sortable-table">
               <thead>
                 <tr>
                   <th
