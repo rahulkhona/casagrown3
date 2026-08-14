@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../../next-market/lib/interestCatalog'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,39 +52,48 @@ export type ProduceZipOverlap = {
   unit: string
 }
 
-// Produce Image & Category helper
-const PRODUCE_CATALOG_MAP: Record<string, { displayCategory: string; image: string; unit: string }> = {
-  'heirloom tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'cherry tomatoes': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1546470427-e26264be0b11?auto=format&fit=crop&w=400&q=80', unit: 'pint' },
-  'meyer lemons': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'lemons': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1534531141738-9e530663737a?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'valencia oranges': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'oranges': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'mandarins': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'satsuma mandarins': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'persian limes': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'limes': { displayCategory: 'Citrus', image: 'https://images.unsplash.com/photo-1590502160462-0e95ee2698e8?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'hass avocados': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'avocados': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=400&q=80', unit: 'bag' },
-  'figs': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'mission & kadota figs': { displayCategory: 'Fruit', image: 'https://images.unsplash.com/photo-1601379327928-bedfaf9da2d0?auto=format&fit=crop&w=400&q=80', unit: 'lb' },
-  'sweet corn': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
-  'corn': { displayCategory: 'Vegetables', image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
-  'basil': { displayCategory: 'Herbs', image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80', unit: 'bunch' },
-  'fresh sweet basil': { displayCategory: 'Herbs', image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=400&q=80', unit: 'bunch' },
-  'pasture-raised eggs': { displayCategory: 'Eggs & Dairy', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
-  'eggs': { displayCategory: 'Eggs & Dairy', image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80', unit: 'dozen' },
-  'honey': { displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80', unit: 'jar' },
-  'wildflower honey': { displayCategory: 'Honey', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=400&q=80', unit: 'jar' },
+const MARKET_BASE_URL = 
+  process.env.NEXT_PUBLIC_APP_URL || 
+  (typeof window !== 'undefined' && window.location.hostname.includes('staging') 
+    ? 'https://market-staging.casagrown.com' 
+    : 'https://casagrown.com')
+
+function resolveImageUrl(url?: string): string {
+  if (!url) return 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80'
+  if (url.startsWith('/')) {
+    return `${MARKET_BASE_URL}${url}`
+  }
+  return url
 }
 
 function resolveProduceMeta(produceName: string) {
-  const norm = produceName.trim().toLowerCase()
-  if (PRODUCE_CATALOG_MAP[norm]) return PRODUCE_CATALOG_MAP[norm]
+  const norm = produceName.trim().toLowerCase().replace(/[_-]/g, ' ')
+  
+  // 1. Exact match by name or id
+  const exact = EXHAUSTIVE_INTERESTS_CATALOG.find(
+    i => i.name.toLowerCase() === norm || i.id.toLowerCase().replace(/[_-]/g, ' ') === norm
+  )
+  if (exact) {
+    return {
+      displayCategory: exact.displayCategory,
+      image: resolveImageUrl(exact.image),
+      unit: exact.unit || 'item',
+    }
+  }
 
-  for (const [k, v] of Object.entries(PRODUCE_CATALOG_MAP)) {
-    if (norm.includes(k) || k.includes(norm)) return v
+  // 2. Fuzzy substring match (e.g. "honey", "basil", "squash", "eggplant")
+  const match = EXHAUSTIVE_INTERESTS_CATALOG.find(
+    i => norm.includes(i.name.toLowerCase()) || 
+         i.name.toLowerCase().includes(norm) ||
+         norm.includes(i.id.replace(/[_-]/g, ' ')) ||
+         i.id.replace(/[_-]/g, ' ').includes(norm)
+  )
+  if (match) {
+    return {
+      displayCategory: match.displayCategory,
+      image: resolveImageUrl(match.image),
+      unit: match.unit || 'item',
+    }
   }
 
   return {
@@ -306,26 +316,26 @@ export default function ProduceDemandPage() {
 
       // ── Format Buyer Produce Demand list ─────────────────────────
       const buyersList: BuyerProduceDemand[] = []
-      for (const [prodName, zMap] of buyerMap.entries()) {
+      buyerMap.forEach((zMap, prodName) => {
         const allBuyers = new Set<string>()
         const zipDetails: { zip: string; buyers: number; city?: string; state?: string }[] = []
 
-        for (const [z, info] of zMap.entries()) {
-          for (const b of info.buyers) allBuyers.add(b)
+        zMap.forEach((info, z) => {
+          info.buyers.forEach(b => allBuyers.add(b))
           zipDetails.push({
             zip: z,
             buyers: info.buyers.size,
             city: info.city,
             state: info.state,
           })
-        }
+        })
 
         zipDetails.sort((a, b) => b.buyers - a.buyers)
         const meta = resolveProduceMeta(prodName)
 
         buyersList.push({
           id: prodName.replace(/\s+/g, '_'),
-          name: prodName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          name: prodName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
           category: meta.displayCategory.toLowerCase(),
           displayCategory: meta.displayCategory,
           image: meta.image,
@@ -334,33 +344,33 @@ export default function ProduceDemandPage() {
           zipDetails,
           unit: meta.unit,
         })
-      }
+      })
 
       buyersList.sort((a, b) => b.buyersCount - a.buyersCount)
       setBuyerDemands(buyersList)
 
       // ── Format Seller Produce Supply list ────────────────────────
       const sellersList: SellerProduceSupply[] = []
-      for (const [prodName, zMap] of sellerMap.entries()) {
+      sellerMap.forEach((zMap, prodName) => {
         const allSellers = new Set<string>()
         const zipDetails: { zip: string; sellers: number; city?: string; state?: string }[] = []
 
-        for (const [z, info] of zMap.entries()) {
-          for (const s of info.sellers) allSellers.add(s)
+        zMap.forEach((info, z) => {
+          info.sellers.forEach(s => allSellers.add(s))
           zipDetails.push({
             zip: z,
             sellers: info.sellers.size,
             city: info.city,
             state: info.state,
           })
-        }
+        })
 
         zipDetails.sort((a, b) => b.sellers - a.sellers)
         const meta = resolveProduceMeta(prodName)
 
         sellersList.push({
           id: prodName.replace(/\s+/g, '_'),
-          name: prodName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          name: prodName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
           category: meta.displayCategory.toLowerCase(),
           displayCategory: meta.displayCategory,
           image: meta.image,
@@ -369,7 +379,7 @@ export default function ProduceDemandPage() {
           zipDetails,
           unit: meta.unit,
         })
-      }
+      })
 
       sellersList.sort((a, b) => b.sellersCount - a.sellersCount)
       setSellerSupplies(sellersList)
