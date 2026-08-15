@@ -21,7 +21,7 @@ export interface RemainderProduceItem {
   adHook: string
 }
 
-// Core algorithm with Maximal Greedy Disjoint Partitioning (minP up to minP + 4)
+// O(N^2) Greedy Cluster Packing Algorithm using Bitmask Vectors
 export function findProduceClustersBitmask({
   buyerDemands,
   minProduceInput,
@@ -42,9 +42,9 @@ export function findProduceClustersBitmask({
 } {
   const minP = Math.max(1, Number(minProduceInput) || 1)
   const minZ = Math.max(1, Number(minZipInput) || 1)
-  const maxP = Math.min(8, Math.max(minP, minP + 4)) // Search from minP up to minP + 4 (up to 8 items)
+  const maxBundleSize = Math.min(8, Math.max(minP, minP + 4)) // up to 6-8 crops per bundle
 
-  // 1. Collect all unique ZIP codes and build index map
+  // 1. Index all unique ZIPs
   const allZipsSet = new Set<string>()
   for (const b of buyerDemands) {
     for (const zd of b.zipDetails) {
@@ -55,7 +55,6 @@ export function findProduceClustersBitmask({
   const zipToIndex = new Map<string, number>()
   allZips.forEach((z, i) => zipToIndex.set(z, i))
 
-  // Fast Brian Kernighan popcount on BigInt
   function popcount(mask: bigint): number {
     let count = 0
     let m = mask
@@ -66,7 +65,6 @@ export function findProduceClustersBitmask({
     return count
   }
 
-  // Convert a BigInt mask back to sorted array of ZIP strings
   function maskToZips(mask: bigint): string[] {
     const result: string[] = []
     let m = mask
@@ -95,149 +93,91 @@ export function findProduceClustersBitmask({
 
   const vectors: ProduceVec[] = []
   for (const b of buyerDemands) {
-    if (b.zipDetails.length >= minZ) {
-      let mask = 0n
-      const zbMap = new Map<string, number>()
-      let totalB = 0
-      for (const zd of b.zipDetails) {
-        const idx = zipToIndex.get(zd.zip)
-        if (idx !== undefined) {
-          mask |= 1n << BigInt(idx)
-          zbMap.set(zd.zip, zd.buyers)
-          totalB += zd.buyers
-        }
-      }
-      const zCount = popcount(mask)
-      if (zCount >= minZ) {
-        vectors.push({
-          id: b.id || b.name.toLowerCase().replace(/\s+/g, '_'),
-          name: b.name,
-          displayCategory: b.displayCategory,
-          image: b.image,
-          zipMask: mask,
-          zipBuyers: zbMap,
-          zipCount: zCount,
-          totalBuyers: totalB,
-        })
+    let mask = 0n
+    const zbMap = new Map<string, number>()
+    let totalB = 0
+    for (const zd of b.zipDetails) {
+      const idx = zipToIndex.get(zd.zip)
+      if (idx !== undefined) {
+        mask |= 1n << BigInt(idx)
+        zbMap.set(zd.zip, zd.buyers)
+        totalB += zd.buyers
       }
     }
-  }
-
-  // Sort candidate vectors by zipCount DESC
-  vectors.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
-
-  interface Itemset {
-    indices: number[]
-    mask: bigint
-    count: number
-    level: number
-    totalBuyers: number
-    score: number
-  }
-
-  const allCandidateItemsets: Itemset[] = []
-
-  // Single-item level if minP === 1
-  if (minP === 1) {
-    for (let i = 0; i < vectors.length; i++) {
-      allCandidateItemsets.push({
-        indices: [i],
-        mask: vectors[i].zipMask,
-        count: vectors[i].zipCount,
-        level: 1,
-        totalBuyers: vectors[i].totalBuyers,
-        score: 1 * 10_000_000 + vectors[i].zipCount * 10_000 + vectors[i].totalBuyers,
+    const zCount = popcount(mask)
+    if (zCount >= minZ) {
+      vectors.push({
+        id: b.id || b.name.toLowerCase().replace(/\s+/g, '_'),
+        name: b.name,
+        displayCategory: b.displayCategory,
+        image: b.image,
+        zipMask: mask,
+        zipBuyers: zbMap,
+        zipCount: zCount,
+        totalBuyers: totalB,
       })
     }
   }
 
-  // Generate Level 2 (Pairs)
-  let currentLevel: Itemset[] = []
-  for (let i = 0; i < vectors.length; i++) {
-    for (let j = i + 1; j < vectors.length; j++) {
-      const pairMask = vectors[i].zipMask & vectors[j].zipMask
-      const count = popcount(pairMask)
-      if (count >= minZ) {
-        let totalB = 0
-        const zips = maskToZips(pairMask)
-        for (const z of zips) {
-          totalB += (vectors[i].zipBuyers.get(z) || 1) + (vectors[j].zipBuyers.get(z) || 1)
-        }
-        // Score: Strongly weight bundle size first (level * 10M), then shared ZIPs (count * 10K), then total buyers
-        const score = 2 * 10_000_000 + count * 10_000 + totalB
-        currentLevel.push({ indices: [i, j], mask: pairMask, count, level: 2, totalBuyers: totalB, score })
-      }
-    }
-  }
+  // Sort vectors by zipCount DESC, totalBuyers DESC so highest demand crops seed first
+  vectors.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
 
-  currentLevel.sort((a, b) => b.score - a.score)
-  if (currentLevel.length > 50) currentLevel = currentLevel.slice(0, 50)
-
-  if (minP <= 2) {
-    allCandidateItemsets.push(...currentLevel)
-  }
-
-  // Extend up to maxP (minP + 4)
-  for (let level = 3; level <= maxP; level++) {
-    if (currentLevel.length === 0) break
-    const nextCandidates: Itemset[] = []
-    const nextSeen = new Set<string>()
-
-    for (const parent of currentLevel) {
-      const lastIdx = parent.indices[parent.indices.length - 1]
-      for (let k = lastIdx + 1; k < vectors.length; k++) {
-        const nextMask = parent.mask & vectors[k].zipMask
-        const count = popcount(nextMask)
-        if (count >= minZ) {
-          const nextIndices = [...parent.indices, k]
-          const key = nextIndices.join(',')
-          if (!nextSeen.has(key)) {
-            nextSeen.add(key)
-            let totalB = 0
-            const zips = maskToZips(nextMask)
-            for (const z of zips) {
-              for (const idx of nextIndices) {
-                totalB += vectors[idx].zipBuyers.get(z) || 1
-              }
-            }
-            const score = level * 10_000_000 + count * 10_000 + totalB
-            const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, level, totalBuyers: totalB, score }
-            nextCandidates.push(nextItemset)
-          }
-        }
-      }
-    }
-
-    nextCandidates.sort((a, b) => b.score - a.score)
-    currentLevel = nextCandidates.slice(0, 50)
-
-    if (level >= minP) {
-      allCandidateItemsets.push(...currentLevel)
-    }
-  }
-
-  // Sort ALL candidates: Largest bundles first (Level DESC), then most shared ZIPs DESC, then buyers DESC
-  allCandidateItemsets.sort((a, b) => b.score - a.score)
-
-  // 3. GREEDY DISJOINT PARTITIONING (Picks Largest Qualifying Bundles First)
+  // 3. O(N^2) Sequential Cluster Grouping
   const uniqueClusters: MultiProduceCluster[] = []
-  const coveredProduceNames = new Set<string>()
+  const assigned = new Uint8Array(vectors.length) // 0 = unassigned, 1 = assigned
 
-  for (const itemset of allCandidateItemsets) {
-    const prodItems = itemset.indices.map(idx => vectors[idx])
-    const prodNames = prodItems.map(p => p.name)
+  for (let i = 0; i < vectors.length; i++) {
+    if (assigned[i]) continue
 
-    // Ensure completely unique produce membership across bundles
-    const isDisjoint = prodNames.every(name => !coveredProduceNames.has(name))
-    if (isDisjoint) {
-      prodNames.forEach(name => coveredProduceNames.add(name))
-      const commonZips = maskToZips(itemset.mask)
+    const clusterIndices = [i]
+    let clusterMask = vectors[i].zipMask
+
+    // If minP === 1, each qualifying vector can be its own cluster
+    if (minP === 1) {
+      assigned[i] = 1
+      const commonZips = maskToZips(clusterMask)
+      const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+      const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${vectors[i].name}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
+      uniqueClusters.push({
+        id: vectors[i].name.toLowerCase().replace(/\s+/g, '_'),
+        produces: [{ name: vectors[i].name, displayCategory: vectors[i].displayCategory, image: vectors[i].image }],
+        produceNames: [vectors[i].name],
+        zips: commonZips,
+        zipCount: commonZips.length,
+        totalBuyers: vectors[i].totalBuyers,
+        adHook,
+      })
+      continue
+    }
+
+    // Scan remaining unassigned items to grow this cluster
+    for (let j = i + 1; j < vectors.length; j++) {
+      if (assigned[j]) continue
+      if (clusterIndices.length >= maxBundleSize) break
+
+      const testMask = clusterMask & vectors[j].zipMask
+      if (popcount(testMask) >= minZ) {
+        clusterIndices.push(j)
+        clusterMask = testMask
+      }
+    }
+
+    // If we gathered at least minProduce items in this cluster
+    if (clusterIndices.length >= minP) {
+      for (const idx of clusterIndices) {
+        assigned[idx] = 1
+      }
+
+      const commonZips = maskToZips(clusterMask)
+      const prodItems = clusterIndices.map(idx => vectors[idx])
+      const prodNames = prodItems.map(p => p.name)
       let totalB = 0
       for (const item of prodItems) {
         for (const z of commonZips) {
           totalB += item.zipBuyers.get(z) || 1
         }
       }
+
       const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
       const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
       const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
@@ -254,10 +194,12 @@ export function findProduceClustersBitmask({
     }
   }
 
-  // 4. REMAINDER PRODUCE & ZIP EXTRACTION (Crops not absorbed into any multi-produce bundle)
+  // 4. Remainder Produce: crops not bundled in any cluster
+  const coveredProduce = new Set(uniqueClusters.flatMap(c => c.produceNames))
   const remainderProduces: RemainderProduceItem[] = []
+
   for (const b of buyerDemands) {
-    if (!coveredProduceNames.has(b.name) && b.zipDetails.length > 0) {
+    if (!coveredProduce.has(b.name) && b.zipDetails.length > 0) {
       const zips = b.zipDetails.map(zd => zd.zip).sort()
       const totalBuyers = b.zipDetails.reduce((acc, zd) => acc + zd.buyers, 0)
       const previewZips = zips.slice(0, 3).join(', ') + (zips.length > 3 ? ` + ${zips.length - 3} more` : '')
@@ -277,6 +219,7 @@ export function findProduceClustersBitmask({
   }
 
   remainderProduces.sort((a, b) => b.totalBuyers - a.totalBuyers || b.zipCount - a.zipCount)
+  uniqueClusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
 
   return {
     uniqueClusters,
@@ -284,116 +227,52 @@ export function findProduceClustersBitmask({
   }
 }
 
-describe('BigInt Bitmask Unique Disjoint Cluster Finder & Remainder Engine', () => {
-  it('discovers maximal 5-produce and 4-produce clusters when minProduceInput is set to 2', () => {
+describe('O(N^2) Sequential Bitmask Cluster Grouping & Remainder Engine', () => {
+  it('bundles all combineable crops into unique multi-crop bundles without missing pairs', () => {
     const mockDemands = [
-      {
-        name: 'Strawberries',
-        displayCategory: 'Fruit',
-        image: '/strawberries.png',
-        zipDetails: [
-          { zip: '28203', buyers: 20 },
-          { zip: '30022', buyers: 15 },
-          { zip: '30341', buyers: 10 },
-          { zip: '45036', buyers: 8 },
-          { zip: '48047', buyers: 7 },
-        ],
-      },
-      {
-        name: 'Cherries',
-        displayCategory: 'Fruit',
-        image: '/cherries.png',
-        zipDetails: [
-          { zip: '28203', buyers: 18 },
-          { zip: '30022', buyers: 12 },
-          { zip: '30341', buyers: 9 },
-          { zip: '45036', buyers: 7 },
-          { zip: '48047', buyers: 6 },
-        ],
-      },
-      {
-        name: 'Peaches',
-        displayCategory: 'Fruit',
-        image: '/peaches.png',
-        zipDetails: [
-          { zip: '28203', buyers: 14 },
-          { zip: '30022', buyers: 11 },
-          { zip: '30341', buyers: 8 },
-          { zip: '45036', buyers: 6 },
-          { zip: '48047', buyers: 5 },
-        ],
-      },
-      {
-        name: 'Apples',
-        displayCategory: 'Fruit',
-        image: '/apples.png',
-        zipDetails: [
-          { zip: '28203', buyers: 15 },
-          { zip: '30022', buyers: 10 },
-          { zip: '30341', buyers: 7 },
-          { zip: '45036', buyers: 5 },
-          { zip: '48047', buyers: 4 },
-        ],
-      },
-      {
-        name: 'Blueberries',
-        displayCategory: 'Fruit',
-        image: '/blueberries.png',
-        zipDetails: [
-          { zip: '28203', buyers: 12 },
-          { zip: '30022', buyers: 8 },
-          { zip: '30341', buyers: 6 },
-          { zip: '45036', buyers: 4 },
-          { zip: '48047', buyers: 3 },
-        ],
-      },
-      {
-        name: 'Meyer Lemons',
-        displayCategory: 'Citrus',
-        image: '/lemons.png',
-        zipDetails: [
-          { zip: '95120', buyers: 25 },
-          { zip: '95125', buyers: 18 },
-        ],
-      },
-      {
-        name: 'Hass Avocados',
-        displayCategory: 'Fruits',
-        image: '/avocados.png',
-        zipDetails: [
-          { zip: '95120', buyers: 20 },
-          { zip: '95125', buyers: 15 },
-        ],
-      },
+      // Cluster 1: 5 crops in 15 ZIPs
+      { name: 'Blueberries', displayCategory: 'Fruit', image: '/1.png', zipDetails: [{ zip: '30094', buyers: 10 }, { zip: '30253', buyers: 10 }, { zip: '48174', buyers: 10 }] },
+      { name: 'Avocados', displayCategory: 'Fruit', image: '/2.png', zipDetails: [{ zip: '30094', buyers: 10 }, { zip: '30253', buyers: 10 }, { zip: '48174', buyers: 10 }] },
+      { name: 'Bell Peppers', displayCategory: 'Vegetables', image: '/3.png', zipDetails: [{ zip: '30094', buyers: 10 }, { zip: '30253', buyers: 10 }, { zip: '48174', buyers: 10 }] },
+      { name: 'Pears', displayCategory: 'Fruit', image: '/4.png', zipDetails: [{ zip: '30094', buyers: 10 }, { zip: '30253', buyers: 10 }, { zip: '48174', buyers: 10 }] },
+      { name: 'Zucchini', displayCategory: 'Vegetables', image: '/5.png', zipDetails: [{ zip: '30094', buyers: 10 }, { zip: '30253', buyers: 10 }, { zip: '48174', buyers: 10 }] },
+
+      // Cluster 2: Cucumbers and Basil and Lemons in multiple ZIPs
+      { name: 'Cucumbers', displayCategory: 'Vegetables', image: '/6.png', zipDetails: [{ zip: '28203', buyers: 5 }, { zip: '30022', buyers: 5 }] },
+      { name: 'Basil', displayCategory: 'Herbs', image: '/7.png', zipDetails: [{ zip: '28203', buyers: 5 }, { zip: '30022', buyers: 5 }] },
+      { name: 'Lemons', displayCategory: 'Citrus', image: '/8.png', zipDetails: [{ zip: '28203', buyers: 5 }, { zip: '30022', buyers: 5 }] },
+
+      // Remainder: Solo crop
+      { name: 'Rare Passionfruit', displayCategory: 'Fruit', image: '/9.png', zipDetails: [{ zip: '99999', buyers: 1 }] },
     ]
 
-    // minProduceInput = 2, minZipInput = 2
     const result = findProduceClustersBitmask({
       buyerDemands: mockDemands,
       minProduceInput: 2,
       minZipInput: 2,
     })
 
-    // Expect the 5-item bundle (Strawberries, Cherries, Peaches, Apples, Blueberries) to be formed, NOT broken into small pairs!
-    const largeCluster = result.uniqueClusters.find(c => c.produceNames.length === 5)
-    expect(largeCluster).toBeDefined()
-    expect(largeCluster?.produceNames).toEqual(expect.arrayContaining(['Strawberries', 'Cherries', 'Peaches', 'Apples', 'Blueberries']))
-
-    // Expect Lemons + Avocados to form a 2-item bundle
-    const lemonAvoCluster = result.uniqueClusters.find(c => c.produceNames.length === 2)
-    expect(lemonAvoCluster).toBeDefined()
-    expect(lemonAvoCluster?.produceNames).toEqual(expect.arrayContaining(['Meyer Lemons', 'Hass Avocados']))
-
-    // Total clusters formed is 2 maximal bundles covering 7 crops with fewest ads!
+    // Expect at least 2 clusters: Cluster 1 (5 items) AND Cluster 2 (Cucumbers + Basil + Lemons)
     expect(result.uniqueClusters.length).toBe(2)
+
+    const cucumberCluster = result.uniqueClusters.find(c => c.produceNames.includes('Cucumbers'))
+    expect(cucumberCluster).toBeDefined()
+    expect(cucumberCluster?.produceNames).toContain('Basil')
+    expect(cucumberCluster?.produceNames).toContain('Lemons')
+
+    // Cucumbers, Basil, Lemons must NOT be in remainder!
+    expect(result.remainderProduces.find(r => r.name === 'Cucumbers')).toBeUndefined()
+    expect(result.remainderProduces.find(r => r.name === 'Basil')).toBeUndefined()
+    expect(result.remainderProduces.find(r => r.name === 'Lemons')).toBeUndefined()
+    expect(result.remainderProduces.find(r => r.name === 'Rare Passionfruit')).toBeDefined()
   })
 
-  it('benchmark test: executes minP..minP+4 search across 100 produce items and 50 ZIPs in < 15ms', () => {
+  it('benchmark: executes O(N^2) cluster search across 100 crops and 50 ZIPs in < 10ms', () => {
     const largeCatalog: any[] = []
     const allZips = Array.from({ length: 50 }, (_, i) => `951${(10 + i).toString().padStart(2, '0')}`)
 
     for (let i = 0; i < 100; i++) {
-      const zipSubset = allZips.filter((_, idx) => (idx + i) % 3 === 0)
+      const zipSubset = allZips.filter((_, idx) => (idx + i) % 4 === 0)
       largeCatalog.push({
         name: `Produce Item ${i}`,
         displayCategory: 'Category',
@@ -406,12 +285,12 @@ describe('BigInt Bitmask Unique Disjoint Cluster Finder & Remainder Engine', () 
     const result = findProduceClustersBitmask({
       buyerDemands: largeCatalog,
       minProduceInput: 2,
-      minZipInput: 3,
+      minZipInput: 2,
     })
     const t1 = performance.now()
     const durationMs = t1 - t0
 
-    expect(durationMs).toBeLessThan(25)
+    expect(durationMs).toBeLessThan(10) // Ultra fast (<10ms)
     expect(result.uniqueClusters.length).toBeGreaterThan(0)
   })
 })

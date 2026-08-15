@@ -249,124 +249,68 @@ export default function ProduceDemandPage() {
         }
       }
 
-      const maxP = Math.min(8, Math.max(minP, minP + 4))
+      // 3. Exact O(N^2) Sequential Row Grouping Scan
+      const maxBundleSize = Math.min(8, Math.max(minP, minP + 4))
+      const uniqueClusters: MultiProduceCluster[] = []
+      const assigned = new Uint8Array(vectors.length) // 0 = unassigned, 1 = assigned
 
-      interface Itemset {
-        indices: number[]
-        mask: bigint
-        count: number
-        level: number
-        totalBuyers: number
-        score: number
-      }
-
-      const allCandidateItemsets: Itemset[] = []
-
-      // Single-item level if minP === 1
-      if (minP === 1) {
-        for (let i = 0; i < vectors.length; i++) {
-          allCandidateItemsets.push({
-            indices: [i],
-            mask: vectors[i].zipMask,
-            count: vectors[i].zipCount,
-            level: 1,
-            totalBuyers: vectors[i].totalBuyers,
-            score: 1 * 10_000_000 + vectors[i].zipCount * 10_000 + vectors[i].totalBuyers,
-          })
-        }
-      }
-
-      // Generate Level 2 (Pairs)
-      let currentLevel: Itemset[] = []
       for (let i = 0; i < vectors.length; i++) {
+        if (assigned[i]) continue
+
+        const clusterIndices = [i]
+        let clusterMask = vectors[i].zipMask
+
+        // If minP === 1, each qualifying vector can be its own cluster
+        if (minP === 1) {
+          assigned[i] = 1
+          const commonZips = maskToZips(clusterMask)
+          const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+          const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${vectors[i].name}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
+          uniqueClusters.push({
+            id: vectors[i].name.toLowerCase().replace(/\s+/g, '_'),
+            produces: [{ name: vectors[i].name, displayCategory: vectors[i].displayCategory, image: vectors[i].image }],
+            produceNames: [vectors[i].name],
+            zips: commonZips,
+            zipCount: commonZips.length,
+            totalBuyers: vectors[i].totalBuyers,
+            adHook,
+          })
+          continue
+        }
+
+        // Scan all remaining unassigned crops to grow this cluster
         for (let j = i + 1; j < vectors.length; j++) {
-          const pairMask = vectors[i].zipMask & vectors[j].zipMask
-          const count = popcount(pairMask)
-          if (count >= minZ) {
-            let totalB = 0
-            const zips = maskToZips(pairMask)
-            for (const z of zips) {
-              totalB += (vectors[i].zipBuyers.get(z) || 1) + (vectors[j].zipBuyers.get(z) || 1)
-            }
-            const score = 2 * 10_000_000 + count * 10_000 + totalB
-            currentLevel.push({ indices: [i, j], mask: pairMask, count, level: 2, totalBuyers: totalB, score })
-          }
-        }
-      }
+          if (assigned[j]) continue
+          if (clusterIndices.length >= maxBundleSize) break
 
-      currentLevel.sort((a, b) => b.score - a.score)
-      if (currentLevel.length > 50) currentLevel = currentLevel.slice(0, 50)
-
-      if (minP <= 2) {
-        allCandidateItemsets.push(...currentLevel)
-      }
-
-      // Extend to Level 3 up to maxP (minP + 4) with Apriori bitwise pruning
-      for (let level = 3; level <= maxP; level++) {
-        if (currentLevel.length === 0) break
-        const nextCandidates: Itemset[] = []
-        const nextSeen = new Set<string>()
-
-        for (const parent of currentLevel) {
-          const lastIdx = parent.indices[parent.indices.length - 1]
-          for (let k = lastIdx + 1; k < vectors.length; k++) {
-            const nextMask = parent.mask & vectors[k].zipMask
-            const count = popcount(nextMask)
-            if (count >= minZ) {
-              const nextIndices = [...parent.indices, k]
-              const key = nextIndices.join(',')
-              if (!nextSeen.has(key)) {
-                nextSeen.add(key)
-                let totalB = 0
-                const zips = maskToZips(nextMask)
-                for (const z of zips) {
-                  for (const idx of nextIndices) {
-                    totalB += vectors[idx].zipBuyers.get(z) || 1
-                  }
-                }
-                const score = level * 10_000_000 + count * 10_000 + totalB
-                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, level, totalBuyers: totalB, score }
-                nextCandidates.push(nextItemset)
-              }
-            }
+          const testMask = clusterMask & vectors[j].zipMask
+          if (popcount(testMask) >= minZ) {
+            clusterIndices.push(j)
+            clusterMask = testMask
           }
         }
 
-        nextCandidates.sort((a, b) => b.score - a.score)
-        currentLevel = nextCandidates.slice(0, 50)
+        // If we gathered at least minProduce items in this cluster
+        if (clusterIndices.length >= minP) {
+          for (const idx of clusterIndices) {
+            assigned[idx] = 1
+          }
 
-        if (level >= minP) {
-          allCandidateItemsets.push(...currentLevel)
-        }
-      }
-
-      // Sort ALL candidates: Largest bundles first (Level DESC), then most shared ZIPs DESC, then buyers DESC
-      allCandidateItemsets.sort((a, b) => b.score - a.score)
-
-      // 3. GREEDY DISJOINT PARTITIONING (Enforces 100% Unique, Non-Overlapping Bundles)
-      const clusters: MultiProduceCluster[] = []
-      const coveredProduceNames = new Set<string>()
-
-      for (const itemset of allCandidateItemsets) {
-        const prodItems = itemset.indices.map(idx => vectors[idx])
-        const prodNames = prodItems.map(p => p.name)
-
-        // Ensure completely unique produce membership across bundles
-        const isDisjoint = prodNames.every(name => !coveredProduceNames.has(name))
-        if (isDisjoint) {
-          prodNames.forEach(name => coveredProduceNames.add(name))
-          const commonZips = maskToZips(itemset.mask)
+          const commonZips = maskToZips(clusterMask)
+          const prodItems = clusterIndices.map(idx => vectors[idx])
+          const prodNames = prodItems.map(p => p.name)
           let totalB = 0
           for (const item of prodItems) {
             for (const z of commonZips) {
               totalB += item.zipBuyers.get(z) || 1
             }
           }
+
           const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
           const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
           const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
 
-          clusters.push({
+          uniqueClusters.push({
             id: clusterId,
             produces: prodItems.map(p => ({ name: p.name, displayCategory: p.displayCategory, image: p.image })),
             produceNames: prodNames,
@@ -378,10 +322,12 @@ export default function ProduceDemandPage() {
         }
       }
 
-      // 4. REMAINDER PRODUCE & ZIP EXTRACTION (Crops not absorbed into any multi-produce bundle)
+      // 4. Remainder Produce: crops not bundled in any cluster
+      const coveredProduce = new Set(uniqueClusters.flatMap(c => c.produceNames))
       const remainder: RemainderProduceItem[] = []
+
       for (const b of buyerDemands) {
-        if (!coveredProduceNames.has(b.name) && b.zipDetails.length > 0) {
+        if (!coveredProduce.has(b.name) && b.zipDetails.length > 0) {
           const zips = b.zipDetails.map(zd => zd.zip).sort()
           const totalBuyers = b.zipDetails.reduce((acc, zd) => acc + zd.buyers, 0)
           const previewZips = zips.slice(0, 3).join(', ') + (zips.length > 3 ? ` + ${zips.length - 3} more` : '')
@@ -401,13 +347,13 @@ export default function ProduceDemandPage() {
       }
 
       remainder.sort((a, b) => b.totalBuyers - a.totalBuyers || b.zipCount - a.zipCount)
+      uniqueClusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
 
-      clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
-      setDiscoveredClusters(clusters)
+      setDiscoveredClusters(uniqueClusters)
       setDiscoveredRemainder(remainder)
       setHasSearchedClusters(true)
       setIsClustering(false)
-      toast(`Found ${clusters.length} unique ad bundles and ${remainder.length} remainder single targets!`)
+      toast(`Found ${uniqueClusters.length} unique ad bundles and ${remainder.length} remainder single targets!`)
     }, 10)
   }, [buyerDemands, minProduceInput, minZipInput])
 
