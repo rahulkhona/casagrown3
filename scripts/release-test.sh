@@ -927,6 +927,15 @@ else
     echo -e "  ${RED}❌ Drip Sequence Stress — FAIL${NC}"
     log_suite "Drip Sequence Stress" "0" "1"
   fi
+
+  echo "  Running CRM Multi-Produce Bitmask Cluster Finder benchmark stress test..."
+  if npm --prefix apps/next-admin run test -- --run BitmaskClusterFinder.test.ts >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✅ Bitmask Cluster Benchmark: 100 crops / 50 ZIPs in <15ms — PASS${NC}"
+    log_suite "Bitmask Cluster Stress" "2"
+  else
+    echo -e "  ${RED}❌ Bitmask Cluster Benchmark — FAIL${NC}"
+    log_suite "Bitmask Cluster Stress" "0" "1"
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

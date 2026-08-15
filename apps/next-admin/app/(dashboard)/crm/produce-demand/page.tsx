@@ -311,6 +311,12 @@ export default function ProduceDemandPage() {
         }
       }
 
+      // Sort Level 2 by ZIP count DESC and cap to top 50 strongest candidate pairs
+      currentLevel.sort((a, b) => b.count - a.count)
+      if (currentLevel.length > 50) {
+        currentLevel = currentLevel.slice(0, 50)
+      }
+
       // Record Level 2 if minP <= 2
       if (minP <= 2) {
         for (const itemset of currentLevel) {
@@ -318,10 +324,10 @@ export default function ProduceDemandPage() {
         }
       }
 
-      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning
+      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning (capped at top 50 per level)
       for (let level = 3; level <= 5; level++) {
         if (currentLevel.length === 0) break
-        const nextLevel: Itemset[] = []
+        const nextCandidates: Itemset[] = []
         const nextSeen = new Set<string>()
 
         for (const parent of currentLevel) {
@@ -335,15 +341,21 @@ export default function ProduceDemandPage() {
               if (!nextSeen.has(key)) {
                 nextSeen.add(key)
                 const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count }
-                nextLevel.push(nextItemset)
-                if (level >= minP) {
-                  addCluster(nextItemset)
-                }
+                nextCandidates.push(nextItemset)
               }
             }
           }
         }
-        currentLevel = nextLevel
+
+        // Sort next level candidates by shared ZIP count and retain top 50
+        nextCandidates.sort((a, b) => b.count - a.count)
+        currentLevel = nextCandidates.slice(0, 50)
+
+        if (level >= minP) {
+          for (const itemset of currentLevel) {
+            addCluster(itemset)
+          }
+        }
       }
 
       clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
