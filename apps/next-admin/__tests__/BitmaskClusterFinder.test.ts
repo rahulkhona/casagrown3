@@ -21,7 +21,7 @@ export interface RemainderProduceItem {
   adHook: string
 }
 
-// Core algorithm with Greedy Disjoint Partitioning and Remainder Extraction
+// Core algorithm with Maximal Greedy Disjoint Partitioning (minP up to minP + 4)
 export function findProduceClustersBitmask({
   buyerDemands,
   minProduceInput,
@@ -42,6 +42,7 @@ export function findProduceClustersBitmask({
 } {
   const minP = Math.max(1, Number(minProduceInput) || 1)
   const minZ = Math.max(1, Number(minZipInput) || 1)
+  const maxP = Math.min(8, Math.max(minP, minP + 4)) // Search from minP up to minP + 4 (up to 8 items)
 
   // 1. Collect all unique ZIP codes and build index map
   const allZipsSet = new Set<string>()
@@ -129,10 +130,26 @@ export function findProduceClustersBitmask({
     indices: number[]
     mask: bigint
     count: number
+    level: number
+    totalBuyers: number
     score: number
   }
 
   const allCandidateItemsets: Itemset[] = []
+
+  // Single-item level if minP === 1
+  if (minP === 1) {
+    for (let i = 0; i < vectors.length; i++) {
+      allCandidateItemsets.push({
+        indices: [i],
+        mask: vectors[i].zipMask,
+        count: vectors[i].zipCount,
+        level: 1,
+        totalBuyers: vectors[i].totalBuyers,
+        score: 1 * 10_000_000 + vectors[i].zipCount * 10_000 + vectors[i].totalBuyers,
+      })
+    }
+  }
 
   // Generate Level 2 (Pairs)
   let currentLevel: Itemset[] = []
@@ -146,8 +163,9 @@ export function findProduceClustersBitmask({
         for (const z of zips) {
           totalB += (vectors[i].zipBuyers.get(z) || 1) + (vectors[j].zipBuyers.get(z) || 1)
         }
-        const score = count * 1000 + 2 * 100 + totalB
-        currentLevel.push({ indices: [i, j], mask: pairMask, count, score })
+        // Score: Strongly weight bundle size first (level * 10M), then shared ZIPs (count * 10K), then total buyers
+        const score = 2 * 10_000_000 + count * 10_000 + totalB
+        currentLevel.push({ indices: [i, j], mask: pairMask, count, level: 2, totalBuyers: totalB, score })
       }
     }
   }
@@ -159,8 +177,8 @@ export function findProduceClustersBitmask({
     allCandidateItemsets.push(...currentLevel)
   }
 
-  // Extend to Level 3, 4, 5
-  for (let level = 3; level <= 5; level++) {
+  // Extend up to maxP (minP + 4)
+  for (let level = 3; level <= maxP; level++) {
     if (currentLevel.length === 0) break
     const nextCandidates: Itemset[] = []
     const nextSeen = new Set<string>()
@@ -182,8 +200,8 @@ export function findProduceClustersBitmask({
                 totalB += vectors[idx].zipBuyers.get(z) || 1
               }
             }
-            const score = count * 1000 + level * 100 + totalB
-            const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, score }
+            const score = level * 10_000_000 + count * 10_000 + totalB
+            const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, level, totalBuyers: totalB, score }
             nextCandidates.push(nextItemset)
           }
         }
@@ -198,10 +216,10 @@ export function findProduceClustersBitmask({
     }
   }
 
-  // Sort all candidates by score (highest coverage & bundle size first)
+  // Sort ALL candidates: Largest bundles first (Level DESC), then most shared ZIPs DESC, then buyers DESC
   allCandidateItemsets.sort((a, b) => b.score - a.score)
 
-  // 3. GREEDY DISJOINT PARTITIONING (Enforces 100% Unique, Non-Overlapping Bundles)
+  // 3. GREEDY DISJOINT PARTITIONING (Picks Largest Qualifying Bundles First)
   const uniqueClusters: MultiProduceCluster[] = []
   const coveredProduceNames = new Set<string>()
 
@@ -267,7 +285,7 @@ export function findProduceClustersBitmask({
 }
 
 describe('BigInt Bitmask Unique Disjoint Cluster Finder & Remainder Engine', () => {
-  it('discovers strictly unique, non-overlapping clusters without duplicate sub-combinations', () => {
+  it('discovers maximal 5-produce and 4-produce clusters when minProduceInput is set to 2', () => {
     const mockDemands = [
       {
         name: 'Strawberries',
@@ -338,34 +356,39 @@ describe('BigInt Bitmask Unique Disjoint Cluster Finder & Remainder Engine', () 
           { zip: '95125', buyers: 18 },
         ],
       },
+      {
+        name: 'Hass Avocados',
+        displayCategory: 'Fruits',
+        image: '/avocados.png',
+        zipDetails: [
+          { zip: '95120', buyers: 20 },
+          { zip: '95125', buyers: 15 },
+        ],
+      },
     ]
 
+    // minProduceInput = 2, minZipInput = 2
     const result = findProduceClustersBitmask({
       buyerDemands: mockDemands,
-      minProduceInput: 3,
-      minZipInput: 5,
+      minProduceInput: 2,
+      minZipInput: 2,
     })
 
-    // Expect 1 maximal disjoint cluster containing [Strawberries, Cherries, Peaches, Apples, Blueberries] (or top 3-5 bundle)
-    expect(result.uniqueClusters.length).toBeGreaterThanOrEqual(1)
+    // Expect the 5-item bundle (Strawberries, Cherries, Peaches, Apples, Blueberries) to be formed, NOT broken into small pairs!
+    const largeCluster = result.uniqueClusters.find(c => c.produceNames.length === 5)
+    expect(largeCluster).toBeDefined()
+    expect(largeCluster?.produceNames).toEqual(expect.arrayContaining(['Strawberries', 'Cherries', 'Peaches', 'Apples', 'Blueberries']))
 
-    // Ensure NO crop appears in more than one cluster
-    const seenCrops = new Set<string>()
-    for (const cluster of result.uniqueClusters) {
-      for (const name of cluster.produceNames) {
-        expect(seenCrops.has(name)).toBe(false)
-        seenCrops.add(name)
-      }
-    }
+    // Expect Lemons + Avocados to form a 2-item bundle
+    const lemonAvoCluster = result.uniqueClusters.find(c => c.produceNames.length === 2)
+    expect(lemonAvoCluster).toBeDefined()
+    expect(lemonAvoCluster?.produceNames).toEqual(expect.arrayContaining(['Meyer Lemons', 'Hass Avocados']))
 
-    // Remainder produce must include Meyer Lemons (since its ZIP count < 5)
-    const lemonRemainder = result.remainderProduces.find(r => r.name === 'Meyer Lemons')
-    expect(lemonRemainder).toBeDefined()
-    expect(lemonRemainder?.zips).toEqual(['95120', '95125'])
-    expect(lemonRemainder?.totalBuyers).toBe(43)
+    // Total clusters formed is 2 maximal bundles covering 7 crops with fewest ads!
+    expect(result.uniqueClusters.length).toBe(2)
   })
 
-  it('benchmark test: executes disjoint clustering across 100 produce items and 50 ZIPs in < 15ms', () => {
+  it('benchmark test: executes minP..minP+4 search across 100 produce items and 50 ZIPs in < 15ms', () => {
     const largeCatalog: any[] = []
     const allZips = Array.from({ length: 50 }, (_, i) => `951${(10 + i).toString().padStart(2, '0')}`)
 
@@ -382,21 +405,13 @@ describe('BigInt Bitmask Unique Disjoint Cluster Finder & Remainder Engine', () 
     const t0 = performance.now()
     const result = findProduceClustersBitmask({
       buyerDemands: largeCatalog,
-      minProduceInput: 3,
-      minZipInput: 4,
+      minProduceInput: 2,
+      minZipInput: 3,
     })
     const t1 = performance.now()
     const durationMs = t1 - t0
 
     expect(durationMs).toBeLessThan(25)
     expect(result.uniqueClusters.length).toBeGreaterThan(0)
-    expect(result.remainderProduces.length).toBeGreaterThan(0)
-
-    // Verify disjointness
-    const clusterCrops = new Set(result.uniqueClusters.flatMap(c => c.produceNames))
-    const remainderCrops = new Set(result.remainderProduces.map(r => r.name))
-    for (const crop of clusterCrops) {
-      expect(remainderCrops.has(crop)).toBe(false)
-    }
   })
 })

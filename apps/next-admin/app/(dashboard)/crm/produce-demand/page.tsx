@@ -249,14 +249,32 @@ export default function ProduceDemandPage() {
         }
       }
 
+      const maxP = Math.min(8, Math.max(minP, minP + 4))
+
       interface Itemset {
         indices: number[]
         mask: bigint
         count: number
+        level: number
+        totalBuyers: number
         score: number
       }
 
       const allCandidateItemsets: Itemset[] = []
+
+      // Single-item level if minP === 1
+      if (minP === 1) {
+        for (let i = 0; i < vectors.length; i++) {
+          allCandidateItemsets.push({
+            indices: [i],
+            mask: vectors[i].zipMask,
+            count: vectors[i].zipCount,
+            level: 1,
+            totalBuyers: vectors[i].totalBuyers,
+            score: 1 * 10_000_000 + vectors[i].zipCount * 10_000 + vectors[i].totalBuyers,
+          })
+        }
+      }
 
       // Generate Level 2 (Pairs)
       let currentLevel: Itemset[] = []
@@ -270,8 +288,8 @@ export default function ProduceDemandPage() {
             for (const z of zips) {
               totalB += (vectors[i].zipBuyers.get(z) || 1) + (vectors[j].zipBuyers.get(z) || 1)
             }
-            const score = count * 1000 + 2 * 100 + totalB
-            currentLevel.push({ indices: [i, j], mask: pairMask, count, score })
+            const score = 2 * 10_000_000 + count * 10_000 + totalB
+            currentLevel.push({ indices: [i, j], mask: pairMask, count, level: 2, totalBuyers: totalB, score })
           }
         }
       }
@@ -283,8 +301,8 @@ export default function ProduceDemandPage() {
         allCandidateItemsets.push(...currentLevel)
       }
 
-      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning
-      for (let level = 3; level <= 5; level++) {
+      // Extend to Level 3 up to maxP (minP + 4) with Apriori bitwise pruning
+      for (let level = 3; level <= maxP; level++) {
         if (currentLevel.length === 0) break
         const nextCandidates: Itemset[] = []
         const nextSeen = new Set<string>()
@@ -306,8 +324,8 @@ export default function ProduceDemandPage() {
                     totalB += vectors[idx].zipBuyers.get(z) || 1
                   }
                 }
-                const score = count * 1000 + level * 100 + totalB
-                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, score }
+                const score = level * 10_000_000 + count * 10_000 + totalB
+                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, level, totalBuyers: totalB, score }
                 nextCandidates.push(nextItemset)
               }
             }
@@ -322,7 +340,7 @@ export default function ProduceDemandPage() {
         }
       }
 
-      // Sort all candidates by score (highest coverage & bundle size first)
+      // Sort ALL candidates: Largest bundles first (Level DESC), then most shared ZIPs DESC, then buyers DESC
       allCandidateItemsets.sort((a, b) => b.score - a.score)
 
       // 3. GREEDY DISJOINT PARTITIONING (Enforces 100% Unique, Non-Overlapping Bundles)
