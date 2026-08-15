@@ -152,96 +152,206 @@ export default function ProduceDemandPage() {
     toast(`Copied ${label} (${text}) to clipboard!`)
   }
 
-  // On-demand cluster finder algorithm
+  // Fast BigInt Bitmask Vector cluster finder algorithm
   const runFindClusters = useCallback(() => {
     setIsClustering(true)
     const minP = Math.max(1, Number(minProduceInput) || 1)
     const minZ = Math.max(1, Number(minZipInput) || 1)
 
-    // Build produce to Set<zip> map from buyerDemands
-    const pMap: { name: string; displayCategory: string; image: string; zips: Set<string>; zipBuyers: Map<string, number> }[] = []
-    
-    for (const b of buyerDemands) {
-      if (b.zipDetails.length >= minZ) {
-        const zSet = new Set<string>()
-        const zbMap = new Map<string, number>()
+    // Schedule on next tick so UI spinner renders immediately without hitching
+    setTimeout(() => {
+      // 1. Collect all unique ZIP codes and build index map
+      const allZipsSet = new Set<string>()
+      for (const b of buyerDemands) {
         for (const zd of b.zipDetails) {
-          zSet.add(zd.zip)
-          zbMap.set(zd.zip, zd.buyers)
+          if (zd.zip) allZipsSet.add(zd.zip)
         }
-        pMap.push({
-          name: b.name,
-          displayCategory: b.displayCategory,
-          image: b.image,
-          zips: zSet,
-          zipBuyers: zbMap,
-        })
       }
-    }
+      const allZips = Array.from(allZipsSet).sort()
+      const zipToIndex = new Map<string, number>()
+      allZips.forEach((z, i) => zipToIndex.set(z, i))
 
-    const clusters: MultiProduceCluster[] = []
-    const seenClusterIds = new Set<string>()
-
-    // Helper: intersect array of Set<string>
-    const intersectZips = (sets: Set<string>[]): string[] => {
-      if (sets.length === 0) return []
-      let result = Array.from(sets[0])
-      for (let i = 1; i < sets.length; i++) {
-        const nextSet = sets[i]
-        result = result.filter(z => nextSet.has(z))
-        if (result.length === 0) break
+      // Fast Brian Kernighan popcount on BigInt
+      function popcount(mask: bigint): number {
+        let count = 0
+        let m = mask
+        while (m > 0n) {
+          m &= (m - 1n)
+          count++
+        }
+        return count
       }
-      return result.sort()
-    }
 
-    // Combinations recursive search (capped at size 5)
-    function combine(start: number, current: typeof pMap) {
-      if (current.length >= minP) {
-        const commonZips = intersectZips(current.map(c => c.zips))
-        if (commonZips.length >= minZ) {
-          const prodNames = current.map(c => c.name)
-          const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
+      // Convert a BigInt mask back to sorted array of ZIP strings
+      function maskToZips(mask: bigint): string[] {
+        const result: string[] = []
+        let m = mask
+        let bit = 0
+        while (m > 0n) {
+          if ((m & 1n) === 1n) {
+            result.push(allZips[bit])
+          }
+          m >>= 1n
+          bit++
+        }
+        return result.sort()
+      }
 
-          if (!seenClusterIds.has(clusterId)) {
-            seenClusterIds.add(clusterId)
+      // 2. Build Produce Bitmask Vectors
+      interface ProduceVec {
+        name: string
+        displayCategory: string
+        image: string
+        zipMask: bigint
+        zipBuyers: Map<string, number>
+        zipCount: number
+        totalBuyers: number
+      }
 
-            let totalB = 0
-            for (const item of current) {
-              for (const z of commonZips) {
-                totalB += item.zipBuyers.get(z) || 1
-              }
+      const vectors: ProduceVec[] = []
+      for (const b of buyerDemands) {
+        if (b.zipDetails.length >= minZ) {
+          let mask = 0n
+          const zbMap = new Map<string, number>()
+          let totalB = 0
+          for (const zd of b.zipDetails) {
+            const idx = zipToIndex.get(zd.zip)
+            if (idx !== undefined) {
+              mask |= (1n << BigInt(idx))
+              zbMap.set(zd.zip, zd.buyers)
+              totalB += zd.buyers
             }
-
-            const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
-            const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
-
-            clusters.push({
-              id: clusterId,
-              produces: current.map(c => ({ name: c.name, displayCategory: c.displayCategory, image: c.image })),
-              produceNames: prodNames,
-              zips: commonZips,
-              zipCount: commonZips.length,
+          }
+          const zCount = popcount(mask)
+          if (zCount >= minZ) {
+            vectors.push({
+              name: b.name,
+              displayCategory: b.displayCategory,
+              image: b.image,
+              zipMask: mask,
+              zipBuyers: zbMap,
+              zipCount: zCount,
               totalBuyers: totalB,
-              adHook,
             })
           }
         }
       }
 
-      if (current.length >= 5) return
+      const clusters: MultiProduceCluster[] = []
+      const seenClusterIds = new Set<string>()
 
-      for (let i = start; i < pMap.length; i++) {
-        combine(i + 1, [...current, pMap[i]])
+      // Sort candidate vectors by zipCount DESC so most widely demanded crops are evaluated first
+      vectors.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
+
+      // Single item clusters if minP === 1
+      if (minP === 1) {
+        for (const v of vectors) {
+          const commonZips = maskToZips(v.zipMask)
+          const clusterId = v.name.toLowerCase().replace(/\s+/g, '_')
+          seenClusterIds.add(clusterId)
+          const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+          clusters.push({
+            id: clusterId,
+            produces: [{ name: v.name, displayCategory: v.displayCategory, image: v.image }],
+            produceNames: [v.name],
+            zips: commonZips,
+            zipCount: commonZips.length,
+            totalBuyers: v.totalBuyers,
+            adHook: `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${v.name}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`,
+          })
+        }
       }
-    }
 
-    combine(0, [])
+      // Candidate-pruned bitmask search for Multi-Produce Bundles (Level 2 to Level 5)
+      interface Itemset {
+        indices: number[]
+        mask: bigint
+        count: number
+      }
 
-    clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
-    setDiscoveredClusters(clusters)
-    setHasSearchedClusters(true)
-    setIsClustering(false)
-    toast(`Found ${clusters.length} ad target clusters with ≥${minP} items across ≥${minZ} ZIPs!`)
+      function addCluster(itemset: Itemset) {
+        const prodItems = itemset.indices.map(idx => vectors[idx])
+        const prodNames = prodItems.map(p => p.name)
+        const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
+        if (seenClusterIds.has(clusterId)) return
+        seenClusterIds.add(clusterId)
+
+        const commonZips = maskToZips(itemset.mask)
+        let totalB = 0
+        for (const item of prodItems) {
+          for (const z of commonZips) {
+            totalB += item.zipBuyers.get(z) || 1
+          }
+        }
+
+        const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+        const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
+
+        clusters.push({
+          id: clusterId,
+          produces: prodItems.map(p => ({ name: p.name, displayCategory: p.displayCategory, image: p.image })),
+          produceNames: prodNames,
+          zips: commonZips,
+          zipCount: commonZips.length,
+          totalBuyers: totalB,
+          adHook,
+        })
+      }
+
+      let currentLevel: Itemset[] = []
+
+      // Generate Level 2 (Pairs) using fast O(N^2) pairwise bitwise AND
+      for (let i = 0; i < vectors.length; i++) {
+        for (let j = i + 1; j < vectors.length; j++) {
+          const pairMask = vectors[i].zipMask & vectors[j].zipMask
+          const count = popcount(pairMask)
+          if (count >= minZ) {
+            currentLevel.push({ indices: [i, j], mask: pairMask, count })
+          }
+        }
+      }
+
+      // Record Level 2 if minP <= 2
+      if (minP <= 2) {
+        for (const itemset of currentLevel) {
+          addCluster(itemset)
+        }
+      }
+
+      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning
+      for (let level = 3; level <= 5; level++) {
+        if (currentLevel.length === 0) break
+        const nextLevel: Itemset[] = []
+        const nextSeen = new Set<string>()
+
+        for (const parent of currentLevel) {
+          const lastIdx = parent.indices[parent.indices.length - 1]
+          for (let k = lastIdx + 1; k < vectors.length; k++) {
+            const nextMask = parent.mask & vectors[k].zipMask
+            const count = popcount(nextMask)
+            if (count >= minZ) {
+              const nextIndices = [...parent.indices, k]
+              const key = nextIndices.join(',')
+              if (!nextSeen.has(key)) {
+                nextSeen.add(key)
+                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count }
+                nextLevel.push(nextItemset)
+                if (level >= minP) {
+                  addCluster(nextItemset)
+                }
+              }
+            }
+          }
+        }
+        currentLevel = nextLevel
+      }
+
+      clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
+      setDiscoveredClusters(clusters)
+      setHasSearchedClusters(true)
+      setIsClustering(false)
+      toast(`Found ${clusters.length} ad target clusters with ≥${minP} items across ≥${minZ} ZIPs!`)
+    }, 10)
   }, [buyerDemands, minProduceInput, minZipInput])
 
   // ── LIVE DATABASE FETCH ──────────────────────────────────────────
