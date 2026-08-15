@@ -11,7 +11,10 @@ CREATE TABLE IF NOT EXISTS marketing_ad_creatives (
     'seller_multi_produce', 
     'buyer_single_produce', 
     'buyer_multi_produce', 
-    'game_promo'
+    'seller_demand',
+    'buyer_wishlist',
+    'game_promo',
+    'custom_post'
   )),
   
   -- Catalog Associations
