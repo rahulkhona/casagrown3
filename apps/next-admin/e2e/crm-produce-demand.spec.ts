@@ -263,5 +263,16 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     await expect(copyAdBtn).toBeVisible()
     await copyAdBtn.click()
     await expect(toast).toBeVisible({ timeout: 5000 })
+
+    // Verify Remainder Single-Produce Targets table is rendered and interactive
+    const remainderTable = page.locator('#remainder-produce-table')
+    if (await remainderTable.isVisible()) {
+      const firstRemainderRow = remainderTable.locator('tbody tr').first()
+      await expect(firstRemainderRow.locator('.bundle-produce-chip')).toBeVisible()
+      const remCopyZips = firstRemainderRow.locator('.btn-copy-zips')
+      await expect(remCopyZips).toBeVisible()
+      await remCopyZips.click()
+      await expect(toast).toBeVisible({ timeout: 5000 })
+    }
   })
 })

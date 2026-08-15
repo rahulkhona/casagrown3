@@ -22,6 +22,17 @@ export type MultiProduceCluster = {
   adHook: string
 }
 
+export type RemainderProduceItem = {
+  id: string
+  name: string
+  displayCategory: string
+  image: string
+  zips: string[]
+  zipCount: number
+  totalBuyers: number
+  adHook: string
+}
+
 export type BuyerProduceDemand = {
   id: string
   name: string
@@ -126,6 +137,7 @@ export default function ProduceDemandPage() {
   const [hasSearchedClusters, setHasSearchedClusters] = useState(false)
   const [isClustering, setIsClustering] = useState(false)
   const [discoveredClusters, setDiscoveredClusters] = useState<MultiProduceCluster[]>([])
+  const [discoveredRemainder, setDiscoveredRemainder] = useState<RemainderProduceItem[]>([])
   const [clusterSort, setClusterSort] = useState<{ key: 'zipCount' | 'totalBuyers' | 'produceCount'; dir: SortDirection }>({
     key: 'zipCount',
     dir: 'desc',
@@ -237,94 +249,41 @@ export default function ProduceDemandPage() {
         }
       }
 
-      const clusters: MultiProduceCluster[] = []
-      const seenClusterIds = new Set<string>()
-
-      // Sort candidate vectors by zipCount DESC so most widely demanded crops are evaluated first
-      vectors.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
-
-      // Single item clusters if minP === 1
-      if (minP === 1) {
-        for (const v of vectors) {
-          const commonZips = maskToZips(v.zipMask)
-          const clusterId = v.name.toLowerCase().replace(/\s+/g, '_')
-          seenClusterIds.add(clusterId)
-          const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
-          clusters.push({
-            id: clusterId,
-            produces: [{ name: v.name, displayCategory: v.displayCategory, image: v.image }],
-            produceNames: [v.name],
-            zips: commonZips,
-            zipCount: commonZips.length,
-            totalBuyers: v.totalBuyers,
-            adHook: `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${v.name}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`,
-          })
-        }
-      }
-
-      // Candidate-pruned bitmask search for Multi-Produce Bundles (Level 2 to Level 5)
       interface Itemset {
         indices: number[]
         mask: bigint
         count: number
+        score: number
       }
 
-      function addCluster(itemset: Itemset) {
-        const prodItems = itemset.indices.map(idx => vectors[idx])
-        const prodNames = prodItems.map(p => p.name)
-        const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
-        if (seenClusterIds.has(clusterId)) return
-        seenClusterIds.add(clusterId)
+      const allCandidateItemsets: Itemset[] = []
 
-        const commonZips = maskToZips(itemset.mask)
-        let totalB = 0
-        for (const item of prodItems) {
-          for (const z of commonZips) {
-            totalB += item.zipBuyers.get(z) || 1
-          }
-        }
-
-        const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
-        const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
-
-        clusters.push({
-          id: clusterId,
-          produces: prodItems.map(p => ({ name: p.name, displayCategory: p.displayCategory, image: p.image })),
-          produceNames: prodNames,
-          zips: commonZips,
-          zipCount: commonZips.length,
-          totalBuyers: totalB,
-          adHook,
-        })
-      }
-
+      // Generate Level 2 (Pairs)
       let currentLevel: Itemset[] = []
-
-      // Generate Level 2 (Pairs) using fast O(N^2) pairwise bitwise AND
       for (let i = 0; i < vectors.length; i++) {
         for (let j = i + 1; j < vectors.length; j++) {
           const pairMask = vectors[i].zipMask & vectors[j].zipMask
           const count = popcount(pairMask)
           if (count >= minZ) {
-            currentLevel.push({ indices: [i, j], mask: pairMask, count })
+            let totalB = 0
+            const zips = maskToZips(pairMask)
+            for (const z of zips) {
+              totalB += (vectors[i].zipBuyers.get(z) || 1) + (vectors[j].zipBuyers.get(z) || 1)
+            }
+            const score = count * 1000 + 2 * 100 + totalB
+            currentLevel.push({ indices: [i, j], mask: pairMask, count, score })
           }
         }
       }
 
-      // Sort Level 2 by ZIP count DESC and cap to top 50 strongest candidate pairs
-      currentLevel.sort((a, b) => b.count - a.count)
-      if (currentLevel.length > 50) {
-        currentLevel = currentLevel.slice(0, 50)
-      }
+      currentLevel.sort((a, b) => b.score - a.score)
+      if (currentLevel.length > 50) currentLevel = currentLevel.slice(0, 50)
 
-      // Record Level 2 if minP <= 2
       if (minP <= 2) {
-        for (const itemset of currentLevel) {
-          addCluster(itemset)
-        }
+        allCandidateItemsets.push(...currentLevel)
       }
 
-      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning (capped at top 50 per level)
+      // Extend to Level 3, 4, 5 with Apriori Branch-and-Bound bitwise pruning
       for (let level = 3; level <= 5; level++) {
         if (currentLevel.length === 0) break
         const nextCandidates: Itemset[] = []
@@ -340,29 +299,97 @@ export default function ProduceDemandPage() {
               const key = nextIndices.join(',')
               if (!nextSeen.has(key)) {
                 nextSeen.add(key)
-                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count }
+                let totalB = 0
+                const zips = maskToZips(nextMask)
+                for (const z of zips) {
+                  for (const idx of nextIndices) {
+                    totalB += vectors[idx].zipBuyers.get(z) || 1
+                  }
+                }
+                const score = count * 1000 + level * 100 + totalB
+                const nextItemset: Itemset = { indices: nextIndices, mask: nextMask, count, score }
                 nextCandidates.push(nextItemset)
               }
             }
           }
         }
 
-        // Sort next level candidates by shared ZIP count and retain top 50
-        nextCandidates.sort((a, b) => b.count - a.count)
+        nextCandidates.sort((a, b) => b.score - a.score)
         currentLevel = nextCandidates.slice(0, 50)
 
         if (level >= minP) {
-          for (const itemset of currentLevel) {
-            addCluster(itemset)
-          }
+          allCandidateItemsets.push(...currentLevel)
         }
       }
 
+      // Sort all candidates by score (highest coverage & bundle size first)
+      allCandidateItemsets.sort((a, b) => b.score - a.score)
+
+      // 3. GREEDY DISJOINT PARTITIONING (Enforces 100% Unique, Non-Overlapping Bundles)
+      const clusters: MultiProduceCluster[] = []
+      const coveredProduceNames = new Set<string>()
+
+      for (const itemset of allCandidateItemsets) {
+        const prodItems = itemset.indices.map(idx => vectors[idx])
+        const prodNames = prodItems.map(p => p.name)
+
+        // Ensure completely unique produce membership across bundles
+        const isDisjoint = prodNames.every(name => !coveredProduceNames.has(name))
+        if (isDisjoint) {
+          prodNames.forEach(name => coveredProduceNames.add(name))
+          const commonZips = maskToZips(itemset.mask)
+          let totalB = 0
+          for (const item of prodItems) {
+            for (const z of commonZips) {
+              totalB += item.zipBuyers.get(z) || 1
+            }
+          }
+          const clusterId = prodNames.slice().sort().join('_').toLowerCase().replace(/\s+/g, '_')
+          const previewZips = commonZips.slice(0, 3).join(', ') + (commonZips.length > 3 ? ` + ${commonZips.length - 3} more` : '')
+          const adHook = `Attention local gardeners! Neighbors in ${previewZips} are actively looking to buy fresh ${prodNames.join(', ')}. Have surplus in your yard or garden? Turn your harvest into income on CasaGrown!`
+
+          clusters.push({
+            id: clusterId,
+            produces: prodItems.map(p => ({ name: p.name, displayCategory: p.displayCategory, image: p.image })),
+            produceNames: prodNames,
+            zips: commonZips,
+            zipCount: commonZips.length,
+            totalBuyers: totalB,
+            adHook,
+          })
+        }
+      }
+
+      // 4. REMAINDER PRODUCE & ZIP EXTRACTION (Crops not absorbed into any multi-produce bundle)
+      const remainder: RemainderProduceItem[] = []
+      for (const b of buyerDemands) {
+        if (!coveredProduceNames.has(b.name) && b.zipDetails.length > 0) {
+          const zips = b.zipDetails.map(zd => zd.zip).sort()
+          const totalBuyers = b.zipDetails.reduce((acc, zd) => acc + zd.buyers, 0)
+          const previewZips = zips.slice(0, 3).join(', ') + (zips.length > 3 ? ` + ${zips.length - 3} more` : '')
+          const adHook = `Attention local gardeners! Neighbors in ${previewZips} are looking to buy fresh homegrown ${b.name}. Have extra harvest in your garden? Sell to your neighbors easily on CasaGrown!`
+
+          remainder.push({
+            id: b.id || b.name.toLowerCase().replace(/\s+/g, '_'),
+            name: b.name,
+            displayCategory: b.displayCategory,
+            image: b.image,
+            zips,
+            zipCount: zips.length,
+            totalBuyers,
+            adHook,
+          })
+        }
+      }
+
+      remainder.sort((a, b) => b.totalBuyers - a.totalBuyers || b.zipCount - a.zipCount)
+
       clusters.sort((a, b) => b.zipCount - a.zipCount || b.totalBuyers - a.totalBuyers)
       setDiscoveredClusters(clusters)
+      setDiscoveredRemainder(remainder)
       setHasSearchedClusters(true)
       setIsClustering(false)
-      toast(`Found ${clusters.length} ad target clusters with ≥${minP} items across ≥${minZ} ZIPs!`)
+      toast(`Found ${clusters.length} unique ad bundles and ${remainder.length} remainder single targets!`)
     }, 10)
   }, [buyerDemands, minProduceInput, minZipInput])
 
@@ -820,7 +847,7 @@ export default function ProduceDemandPage() {
             className={`mode-btn ${viewMode === 'clusters' ? 'active' : ''}`}
             onClick={() => setViewMode('clusters')}
           >
-            📦 (d) Multi-Produce Ad Bundles {discoveredClusters.length > 0 ? `(${discoveredClusters.length})` : ''}
+            📦 (d) Multi-Produce Ad Bundles {discoveredClusters.length > 0 ? `(${discoveredClusters.length} bundles, ${discoveredRemainder.length} single)` : ''}
           </button>
         </div>
 
@@ -1622,6 +1649,158 @@ export default function ProduceDemandPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Remainder Single-Produce Ad Targets Section */}
+          {hasSearchedClusters && discoveredRemainder.length > 0 && (
+            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '2px dashed #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🌱 Remainder Single-Produce Ad Targets</span>
+                    <span style={{ fontSize: '11px', background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                      {discoveredRemainder.length} Unbundled Crops
+                    </span>
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+                    These produce items were not absorbed into any multi-produce bundle. Launch dedicated single-crop ads or social posts for each to achieve 100% catalog demand coverage with zero waste.
+                  </p>
+                </div>
+              </div>
+
+              <div className="crm-table-wrap">
+                <table id="remainder-produce-table" className="crm-table sortable-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '25%' }}>Produce Item</th>
+                      <th style={{ width: '25%' }}>Target ZIP Codes</th>
+                      <th style={{ width: '15%' }}>Total Demand</th>
+                      <th style={{ width: '35%' }}>Single-Crop Ad Copy &amp; Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {discoveredRemainder.map(rem => {
+                      const zipListStr = rem.zips.join(', ')
+                      return (
+                        <tr key={rem.id}>
+                          <td>
+                            <div className="bundle-chips-wrap">
+                              <div className="bundle-produce-chip">
+                                <img src={rem.image} alt={rem.name} className="bundle-produce-thumb" />
+                                <div>
+                                  <span className="bundle-produce-name">{rem.name}</span>
+                                  <span className="bundle-produce-cat">{rem.displayCategory}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="zip-count-pill" style={{ background: '#ecfdf5', color: '#065f46' }}>
+                              {rem.zipCount} Active ZIPs
+                            </span>
+                            <div className="zip-pills-wrap" style={{ marginTop: 6 }}>
+                              {rem.zips.slice(0, 5).map(z => (
+                                <span key={z} className="zip-pill"><strong>{z}</strong></span>
+                              ))}
+                              {rem.zips.length > 5 && (
+                                <span className="zip-pill" style={{ background: '#f3f4f6' }}>
+                                  +{rem.zips.length - 5} more
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="count-cell buyer-color">
+                              <span className="count-num">{rem.totalBuyers}</span>
+                              <span className="count-sub">total buyers</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="ad-box-wrap">
+                              <p className="ad-hook-text">"{rem.adHook}"</p>
+                              <div className="ad-btn-row">
+                                <button
+                                  className="btn-copy-zips"
+                                  onClick={() => copyToClipboard(zipListStr, `${rem.name} ZIPs (${rem.zipCount} ZIPs)`)}
+                                  title="Copy all target ZIPs for Meta Ads"
+                                >
+                                  📋 Copy {rem.zipCount} ZIPs
+                                </button>
+                                <button
+                                  className="btn-copy-ad"
+                                  onClick={() => copyToClipboard(rem.adHook, `${rem.name} Ad Copy`)}
+                                  title="Copy pre-formatted single-crop Meta ad copy"
+                                >
+                                  ✨ Copy Ad Copy
+                                </button>
+                                <button
+                                  onClick={() => setVideoModal({
+                                    isOpen: true,
+                                    initialPublishType: 'paid_ad',
+                                    contextType: 'seller_single_produce',
+                                    produceIds: [rem.id],
+                                    produceNames: [rem.name],
+                                    produceImages: [rem.image],
+                                    topZips: rem.zips,
+                                    metricsSummary: `${rem.totalBuyers} total buyers across ${rem.zipCount} ZIPs (${rem.zips.slice(0, 3).join(', ')})`,
+                                  })}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '4px 8px',
+                                    background: '#16A34A',
+                                    color: '#FFFFFF',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title="Launch single-crop Paid Meta Ad"
+                                >
+                                  📢 Create Ad
+                                </button>
+                                <button
+                                  onClick={() => setVideoModal({
+                                    isOpen: true,
+                                    initialPublishType: 'organic_post',
+                                    contextType: 'seller_single_produce',
+                                    produceIds: [rem.id],
+                                    produceNames: [rem.name],
+                                    produceImages: [rem.image],
+                                    topZips: rem.zips,
+                                    metricsSummary: `${rem.totalBuyers} total buyers across ${rem.zipCount} ZIPs (${rem.zips.slice(0, 3).join(', ')})`,
+                                  })}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '4px 8px',
+                                    background: '#2563EB',
+                                    color: '#FFFFFF',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title="Publish single-crop Facebook post"
+                                >
+                                  📘 Create Post
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
