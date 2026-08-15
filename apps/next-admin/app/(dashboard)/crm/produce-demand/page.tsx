@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../../next-market/lib/interestCatalog'
+import { extractBaseProduce } from '../../../../../next-market/lib/produceCatalog'
+import ProduceAdPostCreatorModal, { AdPostModalContext } from '../../../../components/ProduceAdPostCreatorModal'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
@@ -29,7 +31,7 @@ export type BuyerProduceDemand = {
   buyersCount: number
   zipCount: number
   zipDetails: { zip: string; buyers: number; city?: string; state?: string }[]
-  unit: string
+  unit?: string
 }
 
 export type SellerProduceSupply = {
@@ -41,7 +43,7 @@ export type SellerProduceSupply = {
   sellersCount: number
   zipCount: number
   zipDetails: { zip: string; sellers: number; city?: string; state?: string }[]
-  unit: string
+  unit?: string
 }
 
 export type ProduceZipOverlap = {
@@ -76,39 +78,13 @@ function resolveImageUrl(url?: string): string {
 }
 
 function resolveProduceMeta(produceName: string) {
-  const norm = produceName.trim().toLowerCase().replace(/[_-]/g, ' ')
-  
-  // 1. Exact match by name or id
-  const exact = EXHAUSTIVE_INTERESTS_CATALOG.find(
-    i => i.name.toLowerCase() === norm || i.id.toLowerCase().replace(/[_-]/g, ' ') === norm
-  )
-  if (exact) {
-    return {
-      displayCategory: exact.displayCategory,
-      image: resolveImageUrl(exact.image),
-      unit: exact.unit || 'item',
-    }
-  }
-
-  // 2. Fuzzy substring match (e.g. "honey", "basil", "squash", "eggplant")
-  const match = EXHAUSTIVE_INTERESTS_CATALOG.find(
-    i => norm.includes(i.name.toLowerCase()) || 
-         i.name.toLowerCase().includes(norm) ||
-         norm.includes(i.id.replace(/[_-]/g, ' ')) ||
-         i.id.replace(/[_-]/g, ' ').includes(norm)
-  )
-  if (match) {
-    return {
-      displayCategory: match.displayCategory,
-      image: resolveImageUrl(match.image),
-      unit: match.unit || 'item',
-    }
-  }
-
+  const base = extractBaseProduce(produceName)
   return {
-    displayCategory: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
-    unit: 'item',
+    baseId: base.id,
+    baseName: base.name,
+    displayCategory: base.displayCategory,
+    image: resolveImageUrl(base.image),
+    unit: base.unit || 'item',
   }
 }
 
@@ -153,6 +129,17 @@ export default function ProduceDemandPage() {
   const [clusterSort, setClusterSort] = useState<{ key: 'zipCount' | 'totalBuyers' | 'produceCount'; dir: SortDirection }>({
     key: 'zipCount',
     dir: 'desc',
+  })
+
+  // In-place Ad & Post Studio Modal State
+  const [videoModal, setVideoModal] = useState<AdPostModalContext>({
+    isOpen: false,
+    contextType: 'buyer_single_produce',
+    produceIds: [],
+    produceNames: [],
+    produceImages: [],
+    topZips: [],
+    metricsSummary: '',
   })
 
   const toast = (msg: string) => {
@@ -309,11 +296,13 @@ export default function ProduceDemandPage() {
       }
 
       // ── Process Buyer Demand ─────────────────────────────────────
-      // Map: produce_name -> Map: zip -> { buyers: Set<buyer_id>, city, state }
+      // Map: canonical_base_name -> Map: zip -> { buyers: Set<buyer_id>, city, state }
       const buyerMap = new Map<string, Map<string, { buyers: Set<string>; city?: string; state?: string }>>()
 
       const recordBuyerInterest = (produce: string, zip: string, buyerId: string, city?: string, state?: string) => {
-        const prodKey = produce.trim().toLowerCase()
+        if (!produce || !zip) return
+        const meta = resolveProduceMeta(produce)
+        const prodKey = meta.baseName // Group by canonical Base Produce Name (e.g. "Lemons", "Avocados", "Figs")
         const cleanZip = zip.trim()
         if (!prodKey || !cleanZip) return
 
@@ -348,7 +337,9 @@ export default function ProduceDemandPage() {
       const sellerMap = new Map<string, Map<string, { sellers: Set<string>; city?: string; state?: string }>>()
 
       const recordSellerSupply = (produce: string, zip: string, sellerId: string, city?: string, state?: string) => {
-        const prodKey = produce.trim().toLowerCase()
+        if (!produce || !zip) return
+        const meta = resolveProduceMeta(produce)
+        const prodKey = meta.baseName // Group by canonical Base Produce Name (e.g. "Lemons", "Avocados", "Figs")
         const cleanZip = zip.trim()
         if (!prodKey || !cleanZip) return
 
@@ -390,6 +381,7 @@ export default function ProduceDemandPage() {
           }
         }
       }
+
       // ── Format Buyer Produce Demand list ─────────────────────────
       const buyersList: BuyerProduceDemand[] = []
       buyerMap.forEach((zMap, prodName) => {
@@ -410,8 +402,8 @@ export default function ProduceDemandPage() {
         const meta = resolveProduceMeta(prodName)
 
         buyersList.push({
-          id: prodName.replace(/\s+/g, '_'),
-          name: prodName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          id: meta.baseId,
+          name: meta.baseName,
           category: meta.displayCategory.toLowerCase(),
           displayCategory: meta.displayCategory,
           image: meta.image,
@@ -445,8 +437,8 @@ export default function ProduceDemandPage() {
         const meta = resolveProduceMeta(prodName)
 
         sellersList.push({
-          id: prodName.replace(/\s+/g, '_'),
-          name: prodName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          id: meta.baseId,
+          name: meta.baseName,
           category: meta.displayCategory.toLowerCase(),
           displayCategory: meta.displayCategory,
           image: meta.image,
@@ -511,7 +503,7 @@ export default function ProduceDemandPage() {
             totalActivity: bz.buyers + sItem.count,
             buyerSellerRatio: ratio,
             marketState: state,
-            unit: b.unit,
+            unit: b.unit || 'item',
           })
         }
       }
@@ -624,9 +616,11 @@ export default function ProduceDemandPage() {
               Live database queries across all buyer interests, CRM leads, and seller listings per ZIP code nationwide.
             </p>
           </div>
-          <button className="btn-refresh" onClick={fetchDemandAndSupplyData} disabled={loading}>
-            {loading ? 'Refreshing…' : '🔄 Refresh Live Data'}
-          </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn-refresh" onClick={fetchDemandAndSupplyData} disabled={loading}>
+              {loading ? 'Refreshing…' : '🔄 Refresh Live Data'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -852,6 +846,64 @@ export default function ProduceDemandPage() {
                             >
                               📋 Copy ZIPs
                             </button>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'paid_ad',
+                                contextType: 'seller_single_produce',
+                                produceIds: [item.id],
+                                produceNames: [item.name],
+                                produceImages: [item.image],
+                                topZips: item.zipDetails.map(z => z.zip),
+                                metricsSummary: `${item.buyersCount} active buyers waiting across ${item.zipCount} ZIP codes (${item.zipDetails.slice(0, 3).map(z => z.city || z.zip).join(', ')})`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#16A34A',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Launch targeted Paid Meta Ad campaign"
+                            >
+                              📢 Create Ad
+                            </button>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'organic_post',
+                                contextType: 'seller_single_produce',
+                                produceIds: [item.id],
+                                produceNames: [item.name],
+                                produceImages: [item.image],
+                                topZips: item.zipDetails.map(z => z.zip),
+                                metricsSummary: `${item.buyersCount} active buyers waiting across ${item.zipCount} ZIP codes (${item.zipDetails.slice(0, 3).map(z => z.city || z.zip).join(', ')})`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#2563EB',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Publish organic Facebook post"
+                            >
+                              📘 Create Post
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -963,6 +1015,64 @@ export default function ProduceDemandPage() {
                               title="Copy all ZIPs to clipboard"
                             >
                               📋 Copy ZIPs
+                            </button>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'paid_ad',
+                                contextType: 'buyer_single_produce',
+                                produceIds: [item.id],
+                                produceNames: [item.name],
+                                produceImages: [item.image],
+                                topZips: item.zipDetails.map(z => z.zip),
+                                metricsSummary: `${item.sellersCount} active sellers with harvest ready across ${item.zipCount} ZIP codes (${item.zipDetails.slice(0, 3).map(z => z.city || z.zip).join(', ')})`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#16A34A',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Launch targeted Paid Meta Ad campaign"
+                            >
+                              📢 Create Ad
+                            </button>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'organic_post',
+                                contextType: 'buyer_single_produce',
+                                produceIds: [item.id],
+                                produceNames: [item.name],
+                                produceImages: [item.image],
+                                topZips: item.zipDetails.map(z => z.zip),
+                                metricsSummary: `${item.sellersCount} active sellers with harvest ready across ${item.zipCount} ZIP codes (${item.zipDetails.slice(0, 3).map(z => z.city || z.zip).join(', ')})`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#2563EB',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Publish organic Facebook post"
+                            >
+                              📘 Create Post
                             </button>
                           </div>
                         </td>
@@ -1098,6 +1208,66 @@ export default function ProduceDemandPage() {
                           >
                             📋 Copy ZIP {item.zip}
                           </button>
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'paid_ad',
+                                contextType: item.marketState === 'BUYER_DEFICIT' ? 'seller_single_produce' : 'buyer_single_produce',
+                                produceIds: [item.produceId],
+                                produceNames: [item.produceName],
+                                produceImages: [item.image],
+                                topZips: [item.zip],
+                                metricsSummary: `${item.buyersCount} buyers vs ${item.sellersCount} sellers in ${item.zip} (${item.city}${item.state ? `, ${item.state}` : ''}) — ${item.marketState.replace('_', ' ')}`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '3px 7px',
+                                background: '#16A34A',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Launch targeted Paid Meta Ad campaign"
+                            >
+                              📢 Create Ad
+                            </button>
+                            <button
+                              onClick={() => setVideoModal({
+                                isOpen: true,
+                                initialPublishType: 'organic_post',
+                                contextType: item.marketState === 'BUYER_DEFICIT' ? 'seller_single_produce' : 'buyer_single_produce',
+                                produceIds: [item.produceId],
+                                produceNames: [item.produceName],
+                                produceImages: [item.image],
+                                topZips: [item.zip],
+                                metricsSummary: `${item.buyersCount} buyers vs ${item.sellersCount} sellers in ${item.zip} (${item.city}${item.state ? `, ${item.state}` : ''}) — ${item.marketState.replace('_', ' ')}`,
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '3px 7px',
+                                background: '#2563EB',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Publish organic Facebook post"
+                            >
+                              📘 Create Post
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1261,6 +1431,64 @@ export default function ProduceDemandPage() {
                                 title="Copy pre-formatted Meta ad copy"
                               >
                                 ✨ Copy Ad Copy
+                              </button>
+                              <button
+                                onClick={() => setVideoModal({
+                                  isOpen: true,
+                                  initialPublishType: 'paid_ad',
+                                  contextType: 'seller_multi_produce',
+                                  produceIds: cluster.produces.map(p => p.name.toLowerCase().replace(/\s+/g, '_')),
+                                  produceNames: cluster.produceNames,
+                                  produceImages: cluster.produces.map(p => p.image),
+                                  topZips: cluster.zips,
+                                  metricsSummary: `${cluster.totalBuyers} total buyers across ${cluster.zipCount} shared ZIPs (${cluster.zips.slice(0, 3).join(', ')})`,
+                                })}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '4px 8px',
+                                  background: '#16A34A',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Launch bundled Paid Meta Ad"
+                              >
+                                📢 Create Ad
+                              </button>
+                              <button
+                                onClick={() => setVideoModal({
+                                  isOpen: true,
+                                  initialPublishType: 'organic_post',
+                                  contextType: 'seller_multi_produce',
+                                  produceIds: cluster.produces.map(p => p.name.toLowerCase().replace(/\s+/g, '_')),
+                                  produceNames: cluster.produceNames,
+                                  produceImages: cluster.produces.map(p => p.image),
+                                  topZips: cluster.zips,
+                                  metricsSummary: `${cluster.totalBuyers} total buyers across ${cluster.zipCount} shared ZIPs (${cluster.zips.slice(0, 3).join(', ')})`,
+                                })}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '4px 8px',
+                                  background: '#2563EB',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Publish bundled Facebook post"
+                              >
+                                📘 Create Post
                               </button>
                             </div>
                           </div>
@@ -1893,6 +2121,12 @@ export default function ProduceDemandPage() {
           background: #e0e7ff;
         }
       `}</style>
+
+      {/* In-place Ad & Post Campaign Creator Dialog */}
+      <ProduceAdPostCreatorModal
+        modalContext={videoModal}
+        onClose={() => setVideoModal((prev: AdPostModalContext) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   )
 }

@@ -78,12 +78,12 @@ describe('DemandPage (Shared Buyer Wishlist)', () => {
 
     expect(screen.getByText(/Would you be interested in sharing or selling any of these items to Rahul\?/i)).toBeInTheDocument()
     expect(screen.getByText('Strawberries')).toBeInTheDocument()
-    expect(screen.getByText('Hass Avocados')).toBeInTheDocument()
+    expect(screen.getByText('Avocados')).toBeInTheDocument()
 
     const links = screen.getAllByRole('link')
     const produceLinks = links.filter((l) => l.getAttribute('href')?.includes('/create-listing'))
     expect(produceLinks.length).toBeGreaterThanOrEqual(2)
     expect(produceLinks[0].getAttribute('href')).toContain('/create-listing?produce=Strawberries')
-    expect(produceLinks[1].getAttribute('href')).toContain('/create-listing?produce=Hass%20Avocados')
+    expect(produceLinks[1].getAttribute('href')).toContain('/create-listing?produce=Avocados')
   })
 })

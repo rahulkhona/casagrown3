@@ -104,18 +104,18 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
   })
 
   test('TC-INT-09: Shared Buyer Demand Landing Page (/demand)', async ({ page }) => {
-    await page.goto('/demand?items=Strawberries,Hass+Avocados&name=Rahul&location=San+Jose&mode=sell')
+    await page.goto('/demand?items=Strawberries,Avocados&name=Rahul&location=San+Jose&mode=sell')
 
     // Verify Header Banner
     await expect(page.locator('h1')).toContainText('Would you be interested in sharing or selling any of these items to Rahul?')
 
     // Verify Crop Cards
     await expect(page.getByRole('heading', { name: 'Strawberries' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Hass Avocados' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Avocados' })).toBeVisible()
 
     // Verify List Item Now CTA Buttons link to /create-listing with pre-filled produce
     const strawberriesCta = page.locator('a[href*="/create-listing?produce=Strawberries"]')
-    const avocadosCta = page.locator('a[href*="/create-listing?produce=Hass%20Avocados"]')
+    const avocadosCta = page.locator('a[href*="/create-listing?produce=Avocados"]')
 
     await expect(strawberriesCta).toBeVisible()
     await expect(avocadosCta).toBeVisible()

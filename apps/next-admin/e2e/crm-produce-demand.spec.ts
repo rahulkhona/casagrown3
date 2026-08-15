@@ -132,9 +132,9 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     const searchInput = page.locator('.search-input')
     await expect(searchInput).toBeVisible()
 
-    // Search for "Meyer Lemons"
-    await searchInput.fill('Meyer Lemons')
-    await expect(page.locator('#buyer-demand-table tbody tr').first()).toContainText('Meyer Lemons')
+    // Search for "Lemons"
+    await searchInput.fill('Lemons')
+    await expect(page.locator('#buyer-demand-table tbody tr').first()).toContainText('Lemons')
     await expect(page.locator('#buyer-demand-table tbody')).not.toContainText('Heirloom Tomatoes')
 
     // Search by out-of-state ZIP code "10001" (New York)
@@ -146,7 +146,7 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     await expect(clearBtn).toBeVisible()
     await clearBtn.click()
     await expect(searchInput).toHaveValue('')
-    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Heirloom Tomatoes')
+    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Oranges')
   })
 
   test('category filter isolates produce categories accurately', async ({ page }) => {
@@ -155,17 +155,17 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
 
     // Filter by Citrus
     await categorySelect.selectOption('CITRUS')
-    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Meyer Lemons')
-    await expect(page.locator('#buyer-demand-table tbody')).not.toContainText('Heirloom Tomatoes')
+    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Lemons')
+    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Oranges')
 
-    // Filter by Herbs
-    await categorySelect.selectOption('HERBS')
-    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Fresh Sweet Basil')
-    await expect(page.locator('#buyer-demand-table tbody')).not.toContainText('Meyer Lemons')
+    // Filter by Vegetables
+    await categorySelect.selectOption('VEGETABLES')
+    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Tomatoes')
+    await expect(page.locator('#buyer-demand-table tbody')).not.toContainText('Lemons')
 
     // Reset to All
     await categorySelect.selectOption('ALL')
-    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Heirloom Tomatoes')
+    await expect(page.locator('#buyer-demand-table tbody')).toContainText('Oranges')
   })
 
   test('Table (a) Buyer Demand columns are interactive and sortable', async ({ page }) => {

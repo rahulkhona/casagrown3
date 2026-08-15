@@ -116,6 +116,8 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: 'Audiences', path: '/crm/audiences' },
       { label: 'Audience Functions', path: '/crm/audience-functions' },
       { label: 'Produce Demand & Supply', path: '/crm/produce-demand' },
+      { label: '🎮 Games Marketing', path: '/crm/games-marketing' },
+      { label: '🎬 Ad Studio & Creatives', path: '/crm/ad-studio' },
       { label: 'Assets', path: '/crm/assets' },
     ]
   },

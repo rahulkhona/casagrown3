@@ -20,7 +20,8 @@ export async function POST(request: Request) {
   try {
 
     const body = await request.json()
-    const { destination_url, campaign_id, label, sequence_id, node_id } = body
+    const destination_url = body.destination_url || body.target_url
+    const { campaign_id, label, sequence_id, node_id } = body
 
     if (!destination_url) {
       return NextResponse.json({ error: 'destination_url is required' }, { status: 400 })
@@ -57,10 +58,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Build the short URL using the market domain
-    const marketDomain = process.env.NODE_ENV === 'development'
-      ? 'http://localhost:3000'
-      : 'https://casagrown.com'
+    // Build the short URL (using https://casagrown.com so Meta platforms render it as clickable)
+    const marketDomain = process.env.SHORT_LINK_DOMAIN || 'https://casagrown.com'
 
     return NextResponse.json({
       token: data.token,
