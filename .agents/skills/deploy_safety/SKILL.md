@@ -49,3 +49,6 @@ Before performing any deployment operation, the AI agent MUST perform the follow
 ### 4. Frontend & Branch Deployment Protocol
 - Vercel deployments trigger automatically on `git push origin main`.
 - Verify clean local build (`npx next build`) and full test suite pass before pushing to `main`.
+- When operating inside a Git worktree or feature branch:
+  - **Preferred**: Push directly via refspec `git push origin <current-branch>:main` (avoids changing the checked-out branch).
+  - **Alternative**: If checking out `main` locally (`git checkout main`), always switch back to the worktree branch (`git checkout <feature-branch>`) immediately after pushing.
