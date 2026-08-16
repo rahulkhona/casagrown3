@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../../next-market/lib/interestCatalog'
 import { extractBaseProduce } from '../../../../../next-market/lib/produceCatalog'
 import ProduceAdPostCreatorModal, { AdPostModalContext } from '../../../../components/ProduceAdPostCreatorModal'
+import { isProduceInSeason, HarvestWindow, DEFAULT_HARVEST_WINDOWS } from '../../../../lib/produceSeasonality'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
@@ -115,7 +116,14 @@ export default function ProduceDemandPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [minCountFilter, setMinCountFilter] = useState<number>(0)
+  const [seasonalityFilter, setSeasonalityFilter] = useState<'ALL' | 'IN_SEASON'>('ALL')
+  const [harvestWindows, setHarvestWindows] = useState<HarvestWindow[]>(DEFAULT_HARVEST_WINDOWS)
   const [toastMessage, setToastMessage] = useState('')
+
+  const currentMonth = useMemo(() => new Date().getMonth() + 1, [])
+  const currentMonthName = useMemo(() => {
+    return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date())
+  }, [])
 
   // Sort states for all 3 tables
   const [buyerSort, setBuyerSort] = useState<{ key: BuyerSortKey; dir: SortDirection }>({
@@ -172,9 +180,13 @@ export default function ProduceDemandPage() {
 
     // Schedule on next tick so UI spinner renders immediately without hitching
     setTimeout(() => {
-      // 1. Collect all unique ZIP codes and build index map
+      // 1. Collect all unique ZIP codes and build index map from target demands
+      const targetDemands = seasonalityFilter === 'IN_SEASON'
+        ? buyerDemands.filter(b => isProduceInSeason(b.name, b.zipDetails, currentMonth, harvestWindows))
+        : buyerDemands
+
       const allZipsSet = new Set<string>()
-      for (const b of buyerDemands) {
+      for (const b of targetDemands) {
         for (const zd of b.zipDetails) {
           if (zd.zip) allZipsSet.add(zd.zip)
         }
@@ -326,7 +338,7 @@ export default function ProduceDemandPage() {
       const coveredProduce = new Set(uniqueClusters.flatMap(c => c.produceNames))
       const remainder: RemainderProduceItem[] = []
 
-      for (const b of buyerDemands) {
+      for (const b of targetDemands) {
         if (!coveredProduce.has(b.name) && b.zipDetails.length > 0) {
           const zips = b.zipDetails.map(zd => zd.zip).sort()
           const totalBuyers = b.zipDetails.reduce((acc, zd) => acc + zd.buyers, 0)
@@ -355,7 +367,7 @@ export default function ProduceDemandPage() {
       setIsClustering(false)
       toast(`Found ${uniqueClusters.length} unique ad bundles and ${remainder.length} remainder single targets!`)
     }, 10)
-  }, [buyerDemands, minProduceInput, minZipInput])
+  }, [buyerDemands, minProduceInput, minZipInput, seasonalityFilter, currentMonth, harvestWindows])
 
   // ── LIVE DATABASE FETCH ──────────────────────────────────────────
   const fetchDemandAndSupplyData = useCallback(async () => {
@@ -376,16 +388,23 @@ export default function ProduceDemandPage() {
         profiles = json.profiles || []
         marketProducts = json.marketProducts || []
         marketBooths = json.marketBooths || []
+        if (json.harvestWindows && json.harvestWindows.length > 0) {
+          setHarvestWindows(json.harvestWindows)
+        }
       } else {
         // Fallback to direct client
         const { data: d1 } = await supabase.from('crm_produce_interests').select('produce_name, interest_type, zipcodes, lead_id, user_id, status').eq('status', 'active')
         const { data: d2 } = await supabase.from('profiles').select('id, zip_code, city, state')
         const { data: d3 } = await supabase.from('market_products').select('name, category, seller_id').eq('is_active', true)
         const { data: d4 } = await supabase.from('market_booths').select('seller_id, booth_zip, pickup_zip, city, state').eq('status', 'active')
+        const { data: d5 } = await supabase.from('produce_seasonal_harvest_windows').select('produce_name, state_code, harvest_start_month, harvest_end_month, pre_season_month')
         crmInterests = d1 || []
         profiles = d2 || []
         marketProducts = d3 || []
         marketBooths = d4 || []
+        if (d5 && d5.length > 0) {
+          setHarvestWindows(d5)
+        }
       }
 
       const profileMap = new Map<string, { zip: string; city: string; state: string }>()
@@ -642,8 +661,9 @@ export default function ProduceDemandPage() {
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || item.buyersCount >= minCountFilter
+        const matchesSeason = seasonalityFilter === 'ALL' || isProduceInSeason(item.name, item.zipDetails, currentMonth, harvestWindows)
 
-        return matchesSearch && matchesCat && matchesCount
+        return matchesSearch && matchesCat && matchesCount && matchesSeason
       })
       .sort((a, b) => {
         let valA = a[buyerSort.key]
@@ -653,7 +673,7 @@ export default function ProduceDemandPage() {
         }
         return buyerSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
-  }, [buyerDemands, searchQuery, categoryFilter, minCountFilter, buyerSort])
+  }, [buyerDemands, searchQuery, categoryFilter, minCountFilter, seasonalityFilter, harvestWindows, currentMonth, buyerSort])
 
   // Filtered & Sorted Table (b): Seller Supply
   const filteredSellerSupplies = useMemo(() => {
@@ -672,8 +692,9 @@ export default function ProduceDemandPage() {
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || item.sellersCount >= minCountFilter
+        const matchesSeason = seasonalityFilter === 'ALL' || isProduceInSeason(item.name, item.zipDetails, currentMonth, harvestWindows)
 
-        return matchesSearch && matchesCat && matchesCount
+        return matchesSearch && matchesCat && matchesCount && matchesSeason
       })
       .sort((a, b) => {
         let valA = a[sellerSort.key]
@@ -683,7 +704,7 @@ export default function ProduceDemandPage() {
         }
         return sellerSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
-  }, [sellerSupplies, searchQuery, categoryFilter, minCountFilter, sellerSort])
+  }, [sellerSupplies, searchQuery, categoryFilter, minCountFilter, seasonalityFilter, harvestWindows, currentMonth, sellerSort])
 
   // Filtered & Sorted Table (c): Overlap Pairs
   const filteredOverlaps = useMemo(() => {
@@ -699,8 +720,9 @@ export default function ProduceDemandPage() {
 
         const matchesCat = categoryFilter === 'ALL' || item.displayCategory.toUpperCase() === categoryFilter.toUpperCase()
         const matchesCount = minCountFilter === 0 || (item.buyersCount >= minCountFilter || item.sellersCount >= minCountFilter)
+        const matchesSeason = seasonalityFilter === 'ALL' || isProduceInSeason(item.produceName, [{ zip: item.zip, state: item.state }], currentMonth, harvestWindows)
 
-        return matchesSearch && matchesCat && matchesCount
+        return matchesSearch && matchesCat && matchesCount && matchesSeason
       })
       .sort((a, b) => {
         let valA = a[overlapSort.key]
@@ -710,7 +732,7 @@ export default function ProduceDemandPage() {
         }
         return overlapSort.dir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number)
       })
-  }, [overlapList, searchQuery, categoryFilter, minCountFilter, overlapSort])
+  }, [overlapList, searchQuery, categoryFilter, minCountFilter, seasonalityFilter, harvestWindows, currentMonth, overlapSort])
 
   // Aggregate Stats
   const totalBuyers = useMemo(() => buyerDemands.reduce((acc, i) => acc + i.buyersCount, 0), [buyerDemands])
@@ -731,7 +753,7 @@ export default function ProduceDemandPage() {
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <a
-              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(buyerDemands.slice(0, 4).map(b => b.name).join(',') || 'Meyer Lemons,Heirloom Tomatoes,Haas Avocados')}`}
+              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(filteredBuyerDemands.slice(0, 4).map(b => b.name).join(',') || 'Heirloom Tomatoes,Organic Zucchini,Fresh Sweet Basil')}`}
               className="btn-create-ad"
               style={{
                 background: 'linear-gradient(135deg, #15803D 0%, #16A34A 100%)',
@@ -876,6 +898,51 @@ export default function ProduceDemandPage() {
             <option value={20}>20+ People</option>
             <option value={40}>40+ People</option>
           </select>
+
+          {/* Seasonality In-Season / All Toggle */}
+          <div className="seasonality-filter-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#F1F5F9', padding: '3px 4px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+            <button
+              id="filter-season-all"
+              data-testid="filter-season-all"
+              type="button"
+              onClick={() => setSeasonalityFilter('ALL')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '11px',
+                fontWeight: seasonalityFilter === 'ALL' ? 700 : 500,
+                background: seasonalityFilter === 'ALL' ? '#FFFFFF' : 'transparent',
+                color: seasonalityFilter === 'ALL' ? '#0F172A' : '#64748B',
+                boxShadow: seasonalityFilter === 'ALL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              🌐 All Produce
+            </button>
+            <button
+              id="filter-season-in-season"
+              data-testid="filter-season-in-season"
+              type="button"
+              onClick={() => setSeasonalityFilter('IN_SEASON')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '11px',
+                fontWeight: seasonalityFilter === 'IN_SEASON' ? 700 : 500,
+                background: seasonalityFilter === 'IN_SEASON' ? '#15803D' : 'transparent',
+                color: seasonalityFilter === 'IN_SEASON' ? '#FFFFFF' : '#64748B',
+                boxShadow: seasonalityFilter === 'IN_SEASON' ? '0 1px 3px rgba(21,128,61,0.2)' : 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>🌱 In-Season ({currentMonthName})</span>
+            </button>
+          </div>
         </div>
       </div>
 

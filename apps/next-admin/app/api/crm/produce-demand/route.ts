@@ -73,6 +73,11 @@ export async function GET() {
       .select('owner_id, booth_zip, pickup_zip, booth_city, booth_state')
       .eq('status', 'active')
 
+    // 4. Fetch Seasonal Harvest Windows
+    const { data: harvestWindows } = await supabase
+      .from('produce_seasonal_harvest_windows')
+      .select('produce_name, state_code, harvest_start_month, harvest_end_month, pre_season_month')
+
     // Use fallback seed if local database is empty
     if (!crmInterests || crmInterests.length === 0) {
       crmInterests = FALLBACK_SEED_INTERESTS as any
@@ -86,6 +91,7 @@ export async function GET() {
       profiles: profiles || [],
       marketProducts: marketProducts || [],
       marketBooths: marketBooths || [],
+      harvestWindows: harvestWindows || [],
     })
   } catch (err: any) {
     console.error('[API /api/crm/produce-demand] Error, using fallback seed:', err)
@@ -94,6 +100,7 @@ export async function GET() {
       profiles: FALLBACK_PROFILES,
       marketProducts: [],
       marketBooths: [],
+      harvestWindows: [],
     })
   }
 }

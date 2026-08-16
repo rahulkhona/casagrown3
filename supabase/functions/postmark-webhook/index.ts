@@ -76,16 +76,17 @@ Deno.serve(async (req: Request) => {
     }
 
     case "Open": {
+      const now = new Date().toISOString();
       if (sendId) {
         await supabase
           .from("crm_campaign_sends")
-          .update({ opened_at: new Date().toISOString() })
+          .update({ opened_at: now, delivered_at: now })
           .eq("id", sendId)
           .is("opened_at", null);
       } else {
         await supabase
           .from("crm_campaign_sends")
-          .update({ opened_at: new Date().toISOString() })
+          .update({ opened_at: now, delivered_at: now })
           .eq("email", recipient)
           .is("opened_at", null)
           .order("sent_at", { ascending: false })
@@ -97,16 +98,17 @@ Deno.serve(async (req: Request) => {
     case "Click": {
       // Postmark Click event — fires when a tracked link in the email is clicked.
       // Complementary to our /r/[token] branded short-link tracking.
+      const now = new Date().toISOString();
       if (sendId) {
         await supabase
           .from("crm_campaign_sends")
-          .update({ clicked_at: new Date().toISOString() })
+          .update({ clicked_at: now, delivered_at: now })
           .eq("id", sendId)
           .is("clicked_at", null);
       } else {
         await supabase
           .from("crm_campaign_sends")
-          .update({ clicked_at: new Date().toISOString() })
+          .update({ clicked_at: now, delivered_at: now })
           .eq("email", recipient)
           .is("clicked_at", null)
           .order("sent_at", { ascending: false })

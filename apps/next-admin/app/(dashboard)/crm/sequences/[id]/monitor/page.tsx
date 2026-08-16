@@ -115,9 +115,12 @@ export default function SequenceMonitorPage() {
     }
   }
 
+  // Helper to determine delivery (delivered_at, or inferred from open/click engagement)
+  const isDelivered = (s: any) => Boolean(s.delivered_at || s.opened_at || s.clicked_at)
+
   // Aggregate stats
   const totalSent = sends.filter(s => s.sent_at && !s.error).length
-  const totalDelivered = sends.filter(s => s.delivered_at).length
+  const totalDelivered = sends.filter(isDelivered).length
   const totalOpened = sends.filter(s => s.opened_at).length
   const totalClicked = sends.filter(s => s.clicked_at).length
   const totalBounced = sends.filter(s => s.bounced_at).length
@@ -181,7 +184,7 @@ export default function SequenceMonitorPage() {
       hourlyMap.set(key, bucket)
     }
     if (s.sent_at && !s.error) bucket.sent++
-    if (s.delivered_at) bucket.delivered++
+    if (isDelivered(s)) bucket.delivered++
     if (s.opened_at) bucket.opened++
     if (s.clicked_at) bucket.clicked++
     if (s.bounced_at) bucket.bounced++
@@ -264,10 +267,10 @@ export default function SequenceMonitorPage() {
                   <td style={{ padding: '6px 0', fontWeight: 600 }}>📧 Email</td>
                   <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalEmailSends}</td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: '#2563eb' }}>
-                    {sends.filter(s => s.email && s.delivered_at).length}
+                    {sends.filter(s => s.email && isDelivered(s)).length}
                   </td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalEmailSends > 0 && sends.filter(s => s.email && s.delivered_at).length / totalEmailSends < 0.8 ? '#dc2626' : '#16a34a' }}>
-                    {pct(sends.filter(s => s.email && s.delivered_at).length, totalEmailSends)}
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalEmailSends > 0 && sends.filter(s => s.email && isDelivered(s)).length / totalEmailSends < 0.8 ? '#dc2626' : '#16a34a' }}>
+                    {pct(sends.filter(s => s.email && isDelivered(s)).length, totalEmailSends)}
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.email && s.unsubscribed_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
                     {sends.filter(s => s.email && s.unsubscribed_at).length}
@@ -283,10 +286,10 @@ export default function SequenceMonitorPage() {
                   <td style={{ padding: '6px 0', fontWeight: 600 }}>💬 SMS</td>
                   <td style={{ textAlign: 'center', padding: '6px 8px' }}>{totalSmsSends}</td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700, color: '#2563eb' }}>
-                    {sends.filter(s => s.phone && !s.email && s.delivered_at).length}
+                    {sends.filter(s => s.phone && !s.email && isDelivered(s)).length}
                   </td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalSmsSends > 0 && sends.filter(s => s.phone && !s.email && s.delivered_at).length / totalSmsSends < 0.8 ? '#dc2626' : '#16a34a' }}>
-                    {pct(sends.filter(s => s.phone && !s.email && s.delivered_at).length, totalSmsSends)}
+                  <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600, color: totalSmsSends > 0 && sends.filter(s => s.phone && !s.email && isDelivered(s)).length / totalSmsSends < 0.8 ? '#dc2626' : '#16a34a' }}>
+                    {pct(sends.filter(s => s.phone && !s.email && isDelivered(s)).length, totalSmsSends)}
                   </td>
                   <td style={{ textAlign: 'center', padding: '6px 8px', color: sends.filter(s => s.phone && !s.email && s.unsubscribed_at).length > 0 ? '#dc2626' : '#9ca3af' }}>
                     {sends.filter(s => s.phone && !s.email && s.unsubscribed_at).length}
@@ -456,7 +459,7 @@ export default function SequenceMonitorPage() {
                     {s.sent_at ? `✅ ${new Date(s.sent_at).toLocaleTimeString()}` : '—'}
                   </td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '0.75rem' }}>
-                    {s.delivered_at ? `✅ ${new Date(s.delivered_at).toLocaleTimeString()}` : '—'}
+                    {isDelivered(s) ? `✅ ${new Date(s.delivered_at || s.opened_at || s.clicked_at).toLocaleTimeString()}` : '—'}
                   </td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '0.75rem' }}>
                     {s.opened_at ? `👁️ ${new Date(s.opened_at).toLocaleTimeString()}` : '—'}
