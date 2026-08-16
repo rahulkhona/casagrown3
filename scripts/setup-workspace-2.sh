@@ -3,7 +3,7 @@
 # CasaGrown — Complete Workspace Setup Script v2
 #
 # Bootstraps local .env files across all 10 apps, root level, and Supabase
-# edge functions for new workspaces and git worktrees.
+# edge functions for new workspaces and git worktrees, with safe local defaults.
 # ═══════════════════════════════════════════════════════════════════════════
 set -eo pipefail
 
@@ -27,18 +27,30 @@ APPS=(
 DEFAULT_SUPABASE_URL="http://127.0.0.1:54321"
 DEFAULT_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
 DEFAULT_PUBLISHABLE_KEY="sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
+DEFAULT_SERVICE_ROLE="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
 DEFAULT_STRIPE_PUBLISHABLE_KEY="pk_test_51T3j6EFG43ORjkf8GLvcYdcBiQtrBLcffUK5vZt7dsiUNjrw4ToV5FDyPEAfAo8hmJcKNghFIcbaKlEeYssogHzY00nc48DMs5"
+DEFAULT_GEMINI_KEY=""
+
+# Find parent workspace for credential copying
+PARENT_DIR=""
+for candidate in "$ROOT_DIR/../casagrown3" "$ROOT_DIR/../casagrown" "/Users/rkhona/development/quarantine_bot/casagrown3"; do
+  if [ -d "$candidate" ] && [ "$candidate" != "$ROOT_DIR" ]; then
+    PARENT_DIR="$candidate"
+    break
+  fi
+done
 
 echo -e "\033[1;36mBootstrapping CasaGrown Workspace Environment (v2)...\033[0m"
+if [ -n "$PARENT_DIR" ]; then
+  echo -e "  \033[0;34mFound parent credential workspace at: $PARENT_DIR\033[0m"
+fi
 
 # 1. Setup Root .env
 ROOT_ENV="$ROOT_DIR/.env"
 if [ ! -f "$ROOT_ENV" ]; then
-  # Check if parent workspace casagrown3 has a root .env we can copy from
-  PARENT_ENV="$ROOT_DIR/../casagrown3/.env"
-  if [ -f "$PARENT_ENV" ]; then
-    echo -e "  \033[0;32m✓ Copying root .env from parent workspace ($PARENT_ENV)\033[0m"
-    cp "$PARENT_ENV" "$ROOT_ENV"
+  if [ -n "$PARENT_DIR" ] && [ -f "$PARENT_DIR/.env" ]; then
+    echo -e "  \033[0;32m✓ Copying root .env from parent workspace\033[0m"
+    cp "$PARENT_DIR/.env" "$ROOT_ENV"
   else
     echo -e "  \033[0;33mCreating root .env with default local values\033[0m"
     cat <<EOF > "$ROOT_ENV"
@@ -50,6 +62,7 @@ STRIPE_SECRET_KEY=sk_test_placeholder
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$DEFAULT_STRIPE_PUBLISHABLE_KEY
 NEXT_PUBLIC_ENABLE_PHONE_VERIFICATION="true"
 NEXT_PUBLIC_ENABLE_SOCIAL_LOGIN="true"
+GEMINI_API_KEY=$DEFAULT_GEMINI_KEY
 EOF
   fi
 else
@@ -60,7 +73,7 @@ fi
 for path in "${APPS[@]}"; do
   ENV_FILE="$ROOT_DIR/$path/.env"
   ENV_LOCAL_FILE="$ROOT_DIR/$path/.env.local"
-  PARENT_APP_ENV_LOCAL="$ROOT_DIR/../casagrown3/$path/.env.local"
+  PARENT_APP_ENV_LOCAL="$PARENT_DIR/$path/.env.local"
 
   if [ ! -d "$ROOT_DIR/$path" ]; then
     echo -e "  \033[0;30mSkipping $path (directory not found)\033[0m"
@@ -87,7 +100,7 @@ EOF
   fi
 
   if [ ! -f "$ENV_LOCAL_FILE" ]; then
-    if [ -f "$PARENT_APP_ENV_LOCAL" ]; then
+    if [ -n "$PARENT_DIR" ] && [ -f "$PARENT_APP_ENV_LOCAL" ]; then
       echo -e "  \033[0;32m✓ Copying $path/.env.local from parent workspace\033[0m"
       cp "$PARENT_APP_ENV_LOCAL" "$ENV_LOCAL_FILE"
     else
@@ -99,15 +112,22 @@ EOF
   else
     echo -e "  \033[0;32m✓ $path/.env.local already exists\033[0m"
   fi
+
+  # For next-admin, ensure GEMINI_API_KEY standard key is set
+  if [ "$path" = "apps/next-admin" ]; then
+    if ! grep -q "^GEMINI_API_KEY=" "$ENV_LOCAL_FILE" 2>/dev/null; then
+      echo "GEMINI_API_KEY=$DEFAULT_GEMINI_KEY" >> "$ENV_LOCAL_FILE"
+      echo -e "  \033[0;32m✓ Added standard GEMINI_API_KEY to $path/.env.local\033[0m"
+    fi
+  fi
 done
 
 # 3. Setup Supabase Edge Functions local env
 EDGE_ENV="$ROOT_DIR/supabase/.env.local"
 if [ ! -f "$EDGE_ENV" ]; then
-  PARENT_EDGE_ENV="$ROOT_DIR/../casagrown3/supabase/.env.local"
-  if [ -f "$PARENT_EDGE_ENV" ]; then
+  if [ -n "$PARENT_DIR" ] && [ -f "$PARENT_DIR/supabase/.env.local" ]; then
     echo -e "  \033[0;32m✓ Copying supabase/.env.local from parent workspace\033[0m"
-    cp "$PARENT_EDGE_ENV" "$EDGE_ENV"
+    cp "$PARENT_DIR/supabase/.env.local" "$EDGE_ENV"
   else
     echo -e "  \033[0;33mCreating supabase/.env.local with placeholder defaults\033[0m"
     cat <<EOF > "$EDGE_ENV"
@@ -117,6 +137,17 @@ EOF
   fi
 else
   echo -e "  \033[0;32m✓ supabase/.env.local already exists\033[0m"
+fi
+
+# 4. Setup supabase/functions/.env
+FUNCTIONS_ENV="$ROOT_DIR/supabase/functions/.env"
+if [ ! -f "$FUNCTIONS_ENV" ]; then
+  if [ -n "$PARENT_DIR" ] && [ -f "$PARENT_DIR/supabase/functions/.env" ]; then
+    echo -e "  \033[0;32m✓ Copying supabase/functions/.env from parent workspace\033[0m"
+    cp "$PARENT_DIR/supabase/functions/.env" "$FUNCTIONS_ENV"
+  fi
+else
+  echo -e "  \033[0;32m✓ supabase/functions/.env already exists\033[0m"
 fi
 
 echo -e "\n\033[1;32mWorkspace bootstrap complete! Run 'yarn install' and './scripts/release-test.sh' to verify.\033[0m"

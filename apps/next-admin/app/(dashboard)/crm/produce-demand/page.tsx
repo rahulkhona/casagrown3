@@ -729,9 +729,29 @@ export default function ProduceDemandPage() {
               Live database queries across all buyer interests, CRM leads, and seller listings per ZIP code nationwide.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a
+              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(buyerDemands.slice(0, 4).map(b => b.name).join(',') || 'Meyer Lemons,Heirloom Tomatoes,Haas Avocados')}`}
+              className="btn-create-ad"
+              style={{
+                background: 'linear-gradient(135deg, #15803D 0%, #16A34A 100%)',
+                color: '#FFFFFF',
+                textDecoration: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 4px rgba(21, 128, 61, 0.2)',
+              }}
+            >
+              <span>✨</span>
+              <span>AI Creative Studio</span>
+            </a>
             <button className="btn-refresh" onClick={fetchDemandAndSupplyData} disabled={loading}>
-              {loading ? 'Refreshing…' : '🔄 Refresh Live Data'}
+              {loading ? 'Refreshing…' : '🔄 Refresh Data'}
             </button>
           </div>
         </div>
@@ -959,6 +979,27 @@ export default function ProduceDemandPage() {
                             >
                               📋 Copy ZIPs
                             </button>
+                            <a
+                              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(item.name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#0F172A',
+                                color: '#FFFFFF',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Open AI Creative Studio for this produce"
+                            >
+                              ✨ AI Studio
+                            </a>
                             <button
                               onClick={() => setVideoModal({
                                 isOpen: true,
@@ -1129,6 +1170,27 @@ export default function ProduceDemandPage() {
                             >
                               📋 Copy ZIPs
                             </button>
+                            <a
+                              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(item.name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '4px 8px',
+                                background: '#0F172A',
+                                color: '#FFFFFF',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Open AI Creative Studio for this produce"
+                            >
+                              ✨ AI Studio
+                            </a>
                             <button
                               onClick={() => setVideoModal({
                                 isOpen: true,
@@ -1322,6 +1384,27 @@ export default function ProduceDemandPage() {
                             📋 Copy ZIP {item.zip}
                           </button>
                           <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                            <a
+                              href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(item.produceName)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '3px 7px',
+                                background: '#0F172A',
+                                color: '#FFFFFF',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Open AI Creative Studio"
+                            >
+                              ✨ AI Studio
+                            </a>
                             <button
                               onClick={() => setVideoModal({
                                 isOpen: true,
@@ -1545,6 +1628,27 @@ export default function ProduceDemandPage() {
                               >
                                 ✨ Copy Ad Copy
                               </button>
+                              <a
+                                href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(cluster.produceNames.join(','))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '4px 8px',
+                                  background: '#0F172A',
+                                  color: '#FFFFFF',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Open AI Creative Studio for this bundle"
+                              >
+                                ✨ AI Studio
+                              </a>
                               <button
                                 onClick={() => setVideoModal({
                                   isOpen: true,
@@ -1696,6 +1800,27 @@ export default function ProduceDemandPage() {
                                 >
                                   ✨ Copy Ad Copy
                                 </button>
+                                <a
+                                  href={`/crm/creative-studio?source=produce-demand&produce=${encodeURIComponent(rem.name)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '4px 8px',
+                                    background: '#0F172A',
+                                    color: '#FFFFFF',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title="Open AI Creative Studio for this crop"
+                                >
+                                  ✨ AI Studio
+                                </a>
                                 <button
                                   onClick={() => setVideoModal({
                                     isOpen: true,

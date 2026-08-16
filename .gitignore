@@ -103,5 +103,7 @@ scratch/
 apps/expo-market/google-services.json
 apps/expo-market/GoogleService-Info.plist
 
-# Local builds
+# Local builds & data cache
 apps/expo-market/build/
+apps/next-admin/data/
+**/data/*.json

@@ -64,8 +64,17 @@ export default function ProduceAdPostCreatorModal({
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null)
   const [selectedSavedVideoTitle, setSelectedSavedVideoTitle] = useState<string>('')
   const [savedVideos, setSavedVideos] = useState<Array<{ id: string; title: string; preview_video_url: string; aspect_ratio?: string; created_at?: string }>>([])
+  const [savedPhotos, setSavedPhotos] = useState<Array<{ id: string; title: string; imageUrl: string; produceName?: string }>>([])
   const [carouselActiveIdx, setCarouselActiveIdx] = useState(0)
   const [showPhotoGallery, setShowPhotoGallery] = useState(false)
+  const [showAiPhotoDrawer, setShowAiPhotoDrawer] = useState(false)
+  const [aiPhotoPrompt, setAiPhotoPrompt] = useState(
+    produceNames.length > 0
+      ? `Sunlit rustic wooden farm table with fresh ripe ${produceNames.join(' and ')}, morning dew droplets`
+      : 'Sunlit rustic wooden farm table with fresh organic garden harvest'
+  )
+  const [isGeneratingAiPhotos, setIsGeneratingAiPhotos] = useState(false)
+  const [generatedCandidatePhotos, setGeneratedCandidatePhotos] = useState<Array<{ id: string; title: string; imageUrl: string }>>([])
 
   // Copywriting & Messaging
   const [headline, setHeadline] = useState('')
@@ -195,13 +204,35 @@ export default function ProduceAdPostCreatorModal({
         })
         .catch(() => {})
 
-      // Fetch saved videos library
-      fetch('/api/crm/ad-studio')
+      // Fetch saved videos library from Creative Studio & CRM
+      fetch('/api/creative-studio/assets?type=video')
         .then(res => res.json())
         .then(data => {
-          if (data.creatives) {
-            const vids = data.creatives.filter((c: any) => Boolean(c.preview_video_url))
+          if (data?.assets && Array.isArray(data.assets)) {
+            const vids = data.assets.map((a: any) => ({
+              id: a.id,
+              title: a.title,
+              preview_video_url: a.mediaUrl || a.thumbnailUrl,
+              aspect_ratio: a.aspectRatio || '9:16',
+              created_at: a.savedAt,
+            }))
             setSavedVideos(vids)
+          }
+        })
+        .catch(() => {})
+
+      // Fetch saved photos library from Creative Studio
+      fetch('/api/creative-studio/assets?type=photo')
+        .then(res => res.json())
+        .then(data => {
+          if (data?.assets && Array.isArray(data.assets)) {
+            const photos = data.assets.map((a: any) => ({
+              id: a.id,
+              title: a.title,
+              imageUrl: a.mediaUrl || a.thumbnailUrl,
+              produceName: a.produceList?.[0] || 'Saved Produce',
+            }))
+            setSavedPhotos(photos)
           }
         })
         .catch(() => {})
@@ -922,17 +953,82 @@ export default function ProduceAdPostCreatorModal({
                       }}
                     >
                       <span>🖼️</span>
-                      <span>{showPhotoGallery ? 'Hide Photo Gallery' : 'Browse Catalog & Saved Photos'}</span>
+                      <span>{showPhotoGallery ? 'Hide Catalog' : 'Catalog Photos'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPhotoGallery(!showPhotoGallery)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        background: showPhotoGallery ? '#EFF6FF' : '#FFFFFF',
+                        color: showPhotoGallery ? '#2563EB' : '#475569',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span>🖼️</span>
+                      <span>{showPhotoGallery ? 'Hide Photo Library' : 'Choose from Saved & Catalog Photos'}</span>
                     </button>
                   </div>
 
                   {/* Photo Gallery Picker Drawer */}
                   {showPhotoGallery && (
                     <div style={{ marginTop: '12px', padding: '12px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
-                        Click any photo below to add it to your collage:
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Click any photo below to add it to your collage:</span>
+                        {savedPhotos.length > 0 && (
+                          <span style={{ color: '#16A34A', fontWeight: 800 }}>💾 {savedPhotos.length} Saved from Studio</span>
+                        )}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: '8px', maxHeight: '180px', overflowY: 'auto', padding: '2px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: '8px', maxHeight: '200px', overflowY: 'auto', padding: '2px' }}>
+                        {/* Saved Photos from Creative Studio First */}
+                        {savedPhotos.map((item) => {
+                          const isAlreadySelected = selectedPhotos.includes(item.imageUrl)
+                          return (
+                            <div
+                              key={`saved-${item.id}`}
+                              onClick={() => {
+                                if (isAlreadySelected) {
+                                  setSelectedPhotos(prev => prev.filter(p => p !== item.imageUrl))
+                                } else {
+                                  setSelectedPhotos(prev => [...prev, item.imageUrl].slice(0, 6))
+                                }
+                              }}
+                              style={{
+                                position: 'relative',
+                                height: '64px',
+                                borderRadius: '8px',
+                                overflow: 'hidden',
+                                cursor: 'pointer',
+                                border: isAlreadySelected ? '2px solid #16A34A' : '1px solid #86EFAC',
+                                opacity: isAlreadySelected ? 0.9 : 1,
+                              }}
+                              title={`Saved: ${item.title}`}
+                            >
+                              <img src={item.imageUrl} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <div style={{ position: 'absolute', top: '2px', left: '2px', background: '#15803D', color: '#FFFFFF', borderRadius: '4px', fontSize: '7px', padding: '1px 3px', fontWeight: 800 }}>
+                                💾 Saved
+                              </div>
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#FFFFFF', fontSize: '8px', padding: '2px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.title}
+                              </div>
+                              {isAlreadySelected && (
+                                <div style={{ position: 'absolute', top: '2px', right: '2px', background: '#16A34A', color: '#FFFFFF', borderRadius: '50%', width: '14px', height: '14px', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                                  ✓
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {/* Standard Catalog Photos */}
                         {EXHAUSTIVE_INTERESTS_CATALOG.filter(c => Boolean(c.image)).map((item) => {
                           const isAlreadySelected = selectedPhotos.includes(item.image)
                           return (
@@ -1087,10 +1183,22 @@ export default function ProduceAdPostCreatorModal({
                                 onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
                               >
                                 <div style={{ position: 'relative', height: '90px', background: '#0F172A', borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <video
-                                    src={vid.preview_video_url}
-                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                  />
+                                  {vid.preview_video_url && (vid.preview_video_url.endsWith('.mp4') || vid.preview_video_url.endsWith('.mov') || vid.preview_video_url.endsWith('.webm')) ? (
+                                    <video
+                                      src={vid.preview_video_url}
+                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                      muted
+                                    />
+                                  ) : (
+                                    <img
+                                      src={vid.preview_video_url}
+                                      alt={vid.title}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                  )}
+                                  <div style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(21, 128, 61, 0.9)', color: '#FFFFFF', fontSize: '8px', fontWeight: 800, padding: '1px 4px', borderRadius: '3px' }}>
+                                    🎬 Motion Video
+                                  </div>
                                   <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: '#FFFFFF', fontSize: '9px', fontWeight: 700, padding: '1px 4px', borderRadius: '3px' }}>
                                     {vid.aspect_ratio || '9:16'}
                                   </div>
@@ -2286,7 +2394,11 @@ export default function ProduceAdPostCreatorModal({
                   {mediaMode === 'video' ? (
                     <div style={{ position: 'relative', width: '100%', height: '260px', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {uploadedVideoUrl ? (
-                        <video src={uploadedVideoUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        uploadedVideoUrl.endsWith('.mp4') || uploadedVideoUrl.endsWith('.mov') || uploadedVideoUrl.endsWith('.webm') ? (
+                          <video src={uploadedVideoUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <img src={uploadedVideoUrl} alt="Video Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        )
                       ) : (
                         <div style={{ textAlign: 'center', color: '#94A3B8' }}>
                           <div style={{ fontSize: '32px', marginBottom: '4px' }}>📹</div>
@@ -2379,11 +2491,19 @@ export default function ProduceAdPostCreatorModal({
                   }}
                 >
                   {/* Background Image / Video */}
-                  <img
-                    src={selectedPhotos[0]}
-                    alt="Story bg"
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
-                  />
+                  {mediaMode === 'video' && uploadedVideoUrl ? (
+                    uploadedVideoUrl.endsWith('.mp4') || uploadedVideoUrl.endsWith('.mov') || uploadedVideoUrl.endsWith('.webm') ? (
+                      <video src={uploadedVideoUrl} autoPlay loop muted playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <img src={uploadedVideoUrl} alt="Story bg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
+                    )
+                  ) : (
+                    <img
+                      src={selectedPhotos[0]}
+                      alt="Story bg"
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                    />
+                  )}
 
                   {/* Story Top Progress & Account */}
                   <div style={{ position: 'relative', zIndex: 2 }}>
