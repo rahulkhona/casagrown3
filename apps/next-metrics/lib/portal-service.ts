@@ -365,27 +365,50 @@ export async function fetchStateOfBusiness(
     ? Number(((disputedOrRefunded / totalOrders) * 100).toFixed(1))
     : 0
 
-  // Produce Interests (Buy vs Sell)
+  // Produce Interests (Buy vs Sell) - Exact Database Counts
   let buyInterestsCount = 0
   let sellInterestsCount = 0
   const produceItemMap: Record<string, InterestedProduceItem> = {}
 
-  let crmInterestsQuery = supabase.from('crm_produce_interests').select('interest_type, produce_name, zipcodes, home_address')
+  let buyQuery = supabase
+    .from('crm_produce_interests')
+    .select('id', { count: 'exact', head: true })
+    .eq('interest_type', 'buy')
+    .eq('status', 'active')
+
+  let sellQuery = supabase
+    .from('crm_produce_interests')
+    .select('id', { count: 'exact', head: true })
+    .eq('interest_type', 'sell')
+    .eq('status', 'active')
+
+  let crmInterestsQuery = supabase
+    .from('crm_produce_interests')
+    .select('interest_type, produce_name, zipcodes, home_address')
+    .eq('status', 'active')
+    .limit(50000)
+
   if (geoFilter.zip_code) {
+    buyQuery = buyQuery.contains('zipcodes', [geoFilter.zip_code])
+    sellQuery = sellQuery.contains('zipcodes', [geoFilter.zip_code])
     crmInterestsQuery = crmInterestsQuery.contains('zipcodes', [geoFilter.zip_code])
   }
   if (geoFilter.state_code) {
     crmInterestsQuery = crmInterestsQuery.ilike('home_address', `%${geoFilter.state_code}%`)
   }
 
-  const { data: crmInterests } = await crmInterestsQuery
+  const [{ count: buyCount }, { count: sellCount }, { data: crmInterests }] = await Promise.all([
+    buyQuery,
+    sellQuery,
+    crmInterestsQuery,
+  ])
+
+  buyInterestsCount = buyCount || 0
+  sellInterestsCount = sellCount || 0
 
   if (crmInterests && crmInterests.length > 0) {
     crmInterests.forEach(item => {
       const type = item.interest_type === 'sell' ? 'sell' : 'buy'
-      if (type === 'buy') buyInterestsCount++
-      else sellInterestsCount++
-
       const name = item.produce_name ? item.produce_name.trim() : 'Unknown'
       const key = name.toLowerCase()
       if (!produceItemMap[key]) {
@@ -395,9 +418,9 @@ export async function fetchStateOfBusiness(
       else produceItemMap[key].sellCount++
       produceItemMap[key].total++
     })
-  } else {
-    // Check legacy produce_interests if crm_produce_interests is empty
-    const { data: legacyInterests } = await supabase.from('produce_interests').select('produce_name')
+  } else if (buyInterestsCount === 0 && sellInterestsCount === 0) {
+    // Check legacy produce_interests if crm_produce_interests is completely empty
+    const { data: legacyInterests } = await supabase.from('produce_interests').select('produce_name').limit(50000)
     if (legacyInterests && legacyInterests.length > 0) {
       buyInterestsCount = legacyInterests.length
       legacyInterests.forEach(item => {
@@ -539,6 +562,8 @@ export async function fetchProduceInterestsByZipcode(
   let crmQuery = supabase
     .from('crm_produce_interests')
     .select('interest_type, produce_name, zipcodes, home_address')
+    .eq('status', 'active')
+    .limit(50000)
 
   if (geoFilter.state_code) {
     crmQuery = crmQuery.ilike('home_address', `%${geoFilter.state_code}%`)
@@ -799,7 +824,11 @@ export async function fetchBusinessTrends(
   })
 
   // Produce Interests Trend (Geo-Filtered)
-  let crmTrendQuery = supabase.from('crm_produce_interests').select('created_at, interest_type, zipcodes, home_address')
+  let crmTrendQuery = supabase
+    .from('crm_produce_interests')
+    .select('created_at, interest_type, zipcodes, home_address')
+    .eq('status', 'active')
+    .limit(50000)
   if (geoFilter.zip_code) {
     crmTrendQuery = crmTrendQuery.contains('zipcodes', [geoFilter.zip_code])
   }

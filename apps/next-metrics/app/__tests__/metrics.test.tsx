@@ -158,6 +158,16 @@ describe('Portal Service', () => {
     expect(data).toHaveProperty('totalInvites')
   })
 
+  it('fetchProduceInterestsByZipcode supports querying up to 50,000 produce interest records', async () => {
+    const { fetchProduceInterestsByZipcode } = await import('../../lib/portal-service')
+    const data = await fetchProduceInterestsByZipcode({})
+    expect(data).toHaveProperty('rows')
+    expect(data).toHaveProperty('totalZipcodes')
+    expect(data).toHaveProperty('totalItems')
+    expect(data).toHaveProperty('topBuyerZipcodes')
+    expect(data).toHaveProperty('topSellerZipcodes')
+  })
+
   it('fetchBusinessTrends includes interestTrend and shareTrend histograms', async () => {
     const { fetchBusinessTrends } = await import('../../lib/portal-service')
     const data = await fetchBusinessTrends({ start: '2026-07-20', end: '2026-07-27' }, 'daily', {})

@@ -589,10 +589,10 @@ Deno.test('sendMarketingSms: uses From (marketing phone number) in Twilio API ca
 
   assertEquals(result.success, true)
   assertExists(capturedBody, 'Twilio API should have been called')
-  assertEquals(capturedBody!.get('From'), '+15005550006', 'Must use From number')
-  assertEquals(capturedBody!.get('MessagingServiceSid'), null, 'Must NOT set MessagingServiceSid')
-  assertEquals(capturedBody!.get('To'), '+15005550005')
-  assertEquals(capturedBody!.get('Body'), 'Spring market is live!')
+  assertEquals((capturedBody as any)?.get('From'), '+15005550006', 'Must use From number')
+  assertEquals((capturedBody as any)?.get('MessagingServiceSid'), null, 'Must NOT set MessagingServiceSid')
+  assertEquals((capturedBody as any)?.get('To'), '+15005550005')
+  assertEquals((capturedBody as any)?.get('Body'), 'Spring market is live!')
 
   globalThis.fetch = originalFetch
   Deno.env.delete('TWILIO_ACCOUNT_SID')
@@ -602,7 +602,7 @@ Deno.test('sendMarketingSms: uses From (marketing phone number) in Twilio API ca
 })
 
 Deno.test('sendMarketingSms: uses MessagingServiceSid (not From) in Twilio API call', async () => {
-  let capturedBody: URLSearchParams | null = null
+  let capturedBody: any = null
 
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
@@ -622,10 +622,10 @@ Deno.test('sendMarketingSms: uses MessagingServiceSid (not From) in Twilio API c
 
   assertEquals(result.success, true)
   assertExists(capturedBody, 'Twilio API should have been called')
-  assertEquals(capturedBody!.get('MessagingServiceSid'), 'MGtest123', 'Must use MessagingServiceSid')
-  assertEquals(capturedBody!.get('From'), null, 'Must NOT set From when using MessagingServiceSid')
-  assertEquals(capturedBody!.get('To'), '+15005550006')
-  assertEquals(capturedBody!.get('Body'), 'Spring market is live!')
+  assertEquals((capturedBody as any)?.get('MessagingServiceSid'), 'MGtest123', 'Must use MessagingServiceSid')
+  assertEquals((capturedBody as any)?.get('From'), null, 'Must NOT set From when using MessagingServiceSid')
+  assertEquals((capturedBody as any)?.get('To'), '+15005550006')
+  assertEquals((capturedBody as any)?.get('Body'), 'Spring market is live!')
 
   globalThis.fetch = originalFetch
   Deno.env.delete('TWILIO_ACCOUNT_SID')
@@ -682,4 +682,109 @@ Deno.test('sendMarketingSms: network failure returns success:false', async () =>
   Deno.env.delete('TWILIO_ACCOUNT_SID')
   Deno.env.delete('TWILIO_AUTH_TOKEN')
   Deno.env.delete('TWILIO_MARKETING_MESSAGING_SERVICE_SID')
+})
+
+Deno.test('estimate-nutrition-loss: persists buyer questionnaire metadata (neighbor_buying_comfort, store_types, etc.)', async () => {
+  const testEmail = 'deno_nutrition_metadata_test@casagrown.local'
+  const payload = {
+    produce: ['Spinach', 'Broccoli'],
+    skip_ai: true,
+    prefetched_result: {
+      summary: 'Test summary',
+      items: []
+    },
+    lead: {
+      name: 'Nutrition Survey Tester',
+      email: testEmail,
+      phone: '4085551234',
+      zipcode: '95125',
+      marketingConsent: true,
+      neighbor_buying_comfort: 'very_open',
+      store_types: ['Farmers Market or Local Stand', 'Specialty & Organic Grocer'],
+      fulfillment_modes: ['In-Store Shopping', 'Curbside Pickup'],
+      buying_frequency: '1week',
+    }
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/estimate-nutrition-loss`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  assertEquals(res.status, 200)
+  const leadRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+  const leads = await leadRes.json()
+  assertEquals(leads.length > 0, true)
+  const lead = leads[0]
+  assertEquals(lead.metadata?.neighbor_buying_comfort, 'very_open')
+  assertEquals(Array.isArray(lead.metadata?.store_types), true)
+  assertEquals(lead.metadata?.store_types.includes('Farmers Market or Local Stand'), true)
+  assertEquals(lead.metadata?.fulfillment_modes.includes('In-Store Shopping'), true)
+  assertEquals(lead.metadata?.buying_frequency, '1week')
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+})
+
+Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_comfort, excess_handling, garden_size)', async () => {
+  const testEmail = 'deno_earnings_metadata_test@casagrown.local'
+  const payload = {
+    zipcode: '95125',
+    size: 'Large Backyard Garden',
+    plants: ['Tomatoes', 'Peppers'],
+    trees: ['Lemon Tree'],
+    selling_comfort: 'Very comfortable — I want to earn extra income!',
+    excess_handling: 'Give it away to friends & neighbors',
+    skip_ai: true,
+    prefetched_result: {
+      excess_produce: 'Test excess',
+      estimated_annual_earnings: 500,
+      analogies: ['a'],
+      reasoning: 'test'
+    },
+    lead: {
+      name: 'Seller Survey Tester',
+      email: testEmail,
+      phone: '4085559876',
+      zipcode: '95125',
+      marketingConsent: true,
+    }
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/estimate-earnings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  assertEquals(res.status, 200)
+  const leadRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
+  const leads = await leadRes.json()
+  assertEquals(leads.length > 0, true)
+  const lead = leads[0]
+  assertEquals(lead.metadata?.garden_size, 'Large Backyard Garden')
+  assertEquals(lead.metadata?.selling_comfort, 'Very comfortable — I want to earn extra income!')
+  assertEquals(lead.metadata?.excess_handling, 'Give it away to friends & neighbors')
+
+  // Cleanup
+  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+    method: 'DELETE',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  })
 })

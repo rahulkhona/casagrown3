@@ -27,7 +27,7 @@ const IMAGE_API_KEY = process.env.IMAGE_GEN_KEY || process.env.GEMINI_API_KEY ||
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
 async function callGeminiImageModel(prompt: string, aspectRatio: string): Promise<string | null> {
-  if (!IMAGE_API_KEY) return null
+  if (!IMAGE_API_KEY || process.env.AI_MOCK === 'true') return null
 
   const candidateModels = [
     'nano-banana-pro-preview',

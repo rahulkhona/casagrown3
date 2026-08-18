@@ -51,6 +51,8 @@ Deno.serve(async (req: Request) => {
       garden_size: payload.size,
       plants: payload.plants || [],
       trees: payload.trees || [],
+      selling_comfort: payload.selling_comfort || null,
+      excess_handling: payload.excess_handling || null,
       latitude: payload.latitude,
       longitude: payload.longitude
     }),

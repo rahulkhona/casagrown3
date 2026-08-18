@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       preference_pickup,
       preference_delivery,
       radius_miles,
-      home_address,
+      home_address: rawHomeAddress,
       accepts_email,
       accepts_sms,
       accepts_push,
@@ -37,7 +37,15 @@ export async function POST(req: Request) {
       source_url,
       first_touch_source,
       signup_referrer_id,
+      store_types,
+      fulfillment_modes,
+      buying_frequency,
+      neighbor_buying_comfort,
+      selling_comfort,
+      excess_handling,
     } = body
+
+    let home_address = rawHomeAddress
 
     // 1. Validate zipcodes array format (must contain valid 5-digit US zipcodes)
     if (!zipcodes || !Array.isArray(zipcodes) || zipcodes.length === 0) {
@@ -68,15 +76,15 @@ export async function POST(req: Request) {
     let finalLng = body.longitude ?? null
 
     if ((finalLat == null || finalLng == null) && userId) {
-      const { data: profileLoc } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('home_location')
+        .select('home_address, latitude, longitude')
         .eq('id', userId)
         .maybeSingle()
-        
-      if (profileLoc?.home_location?.coordinates) {
-        finalLng = profileLoc.home_location.coordinates[0]
-        finalLat = profileLoc.home_location.coordinates[1]
+      if (profile) {
+        if (!home_address && profile.home_address) home_address = profile.home_address
+        if (finalLat == null && profile.latitude != null) finalLat = profile.latitude
+        if (finalLng == null && profile.longitude != null) finalLng = profile.longitude
       }
     }
 
@@ -121,6 +129,12 @@ export async function POST(req: Request) {
             interest_count: interests?.length || 0,
             first_touch_source: effectiveFirstTouch,
             referrer_id: signup_referrer_id || null,
+            ...(store_types ? { store_types } : {}),
+            ...(fulfillment_modes ? { fulfillment_modes } : {}),
+            ...(buying_frequency ? { buying_frequency } : {}),
+            ...(neighbor_buying_comfort ? { neighbor_buying_comfort } : {}),
+            ...(selling_comfort ? { selling_comfort } : {}),
+            ...(excess_handling ? { excess_handling } : {}),
           },
         },
         { onConflict: 'email' }
