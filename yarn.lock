@@ -18860,6 +18860,9 @@ __metadata:
     tree-kill: "npm:^1.2.2"
     vercel: "npm:latest"
     vitest: "npm:^2.1.1"
+    wink-distance: "npm:^2.0.2"
+    wink-eng-lite-web-model: "npm:^1.8.1"
+    wink-nlp: "npm:^2.4.0"
   languageName: unknown
   linkType: soft
 
