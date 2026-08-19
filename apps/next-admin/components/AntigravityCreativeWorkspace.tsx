@@ -176,7 +176,9 @@ export default function AntigravityCreativeWorkspace({
 
     // 4. Saved User Assets
     for (const asset of savedLibraryAssets) {
-      const url = asset.mediaUrl || asset.media_url || asset.thumbnailUrl || asset.thumbnail_url
+      const mediaUrl = asset.mediaUrl || asset.media_url || ''
+      const thumbUrl = asset.thumbnailUrl || asset.thumbnail_url || ''
+      const url = mediaUrl || thumbUrl
       if (!url) continue
       const isVideo = asset.type === 'video' || url.endsWith('.webm') || url.endsWith('.mp4')
       items.unshift({
@@ -186,7 +188,8 @@ export default function AntigravityCreativeWorkspace({
         description: asset.description || '',
         category: 'saved',
         displayCategory: isVideo ? '🎬 Saved Motion Video' : '📸 Saved Photo Asset',
-        imageUrl: url,
+        imageUrl: isVideo ? (thumbUrl || mediaUrl) : url,
+        videoUrl: isVideo ? mediaUrl : undefined,
         style: isVideo ? 'Saved Video' : 'Saved Photo',
         type: isVideo ? 'video' : 'photo',
         durationSeconds: asset.durationSeconds || asset.duration_seconds || 15,
@@ -783,7 +786,8 @@ export default function AntigravityCreativeWorkspace({
 
   // ── 5. BUILD PAN & ZOOM VIDEO WITH SELECTED PHOTOS ─────────────────
   const handleBuildVideoFromSelectedPhotos = () => {
-    const chosenPhotos = photoCandidates.filter(p => selectedPhotoIds.includes(p.id))
+    // photoCandidates has newest photos at index 0. Reverse so the video flows chronologically (oldest -> newest)
+    const chosenPhotos = photoCandidates.filter(p => selectedPhotoIds.includes(p.id)).reverse()
     if (chosenPhotos.length === 0) {
       showToast('⚠️ Please select at least 1 photo to build a video.')
       return
@@ -970,7 +974,7 @@ export default function AntigravityCreativeWorkspace({
       })
 
       encoder.configure({
-        codec: 'avc1.42001E', // H.264 Baseline Level 3.0
+        codec: 'avc1.4D0028', // H.264 Main Profile Level 4.0 — supports up to 1080p
         width: w,
         height: h,
         bitrate: 4_000_000, // 4 Mbps — good quality for social media
@@ -1163,37 +1167,27 @@ export default function AntigravityCreativeWorkspace({
   }
 
   // ── 7. EXPORT VIDEO FILE ───────────────────────────────────────────
-  const handleExportVideoFile = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const handleExportVideoFile = async () => {
     setIsExportingVideo(true)
+    showToast(`🎥 Rendering ${totalVideoDuration}s MP4 file...`)
 
     try {
-      const stream = canvas.captureStream(30)
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' })
-      const chunks: Blob[] = []
-
-      recorder.ondataavailable = e => {
-        if (e.data.size > 0) chunks.push(e.data)
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' })
-        const url = URL.createObjectURL(blob)
+      const videoBlob = await renderStoryboardToBlob(scenes, totalVideoDuration, aspectRatio)
+      if (videoBlob) {
+        const url = URL.createObjectURL(videoBlob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${storyboardTitle.replace(/\s+/g, '_')}_MotionAd.webm`
+        a.download = `${storyboardTitle.replace(/\s+/g, '_')}_MotionAd.mp4`
         a.click()
-        setIsExportingVideo(false)
-        showToast('🎉 Video downloaded successfully!')
+        URL.revokeObjectURL(url)
+        showToast('🎉 MP4 Video downloaded successfully!')
+      } else {
+        showToast('❌ Failed to render MP4 video')
       }
-
-      recorder.start()
-      setTimeout(() => {
-        recorder.stop()
-      }, totalVideoDuration * 1000)
     } catch (e) {
       console.error('Export error:', e)
+      showToast('❌ Error during video export')
+    } finally {
       setIsExportingVideo(false)
     }
   }
@@ -2637,7 +2631,7 @@ export default function AntigravityCreativeWorkspace({
                         style={{ position: 'relative', width: '100%', height: '140px', background: '#0F172A', cursor: item.type === 'video' ? 'pointer' : 'default' }}
                         onClick={() => {
                           if (item.type === 'video') {
-                            setPreviewVideo({ url: item.imageUrl, title: item.title })
+                            setPreviewVideo({ url: item.videoUrl || item.imageUrl, title: item.title })
                           }
                         }}
                       >
@@ -2707,7 +2701,7 @@ export default function AntigravityCreativeWorkspace({
                         {item.type === 'video' ? (
                           <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                             <button
-                              onClick={() => setPreviewVideo({ url: item.imageUrl, title: item.title })}
+                              onClick={() => setPreviewVideo({ url: item.videoUrl || item.imageUrl, title: item.title })}
                               style={{
                                 flex: 1,
                                 padding: '6px 8px',
@@ -2730,7 +2724,7 @@ export default function AntigravityCreativeWorkspace({
                                   initialPublishType: 'paid_ad',
                                   initialMediaMode: 'video',
                                   prefilledHeadline: item.title,
-                                  prefilledMediaUrl: item.imageUrl,
+                                  prefilledMediaUrl: item.videoUrl || item.imageUrl,
                                   produceNames: [item.produceName],
                                 })
                                 setShowLibraryModal(false)

@@ -101,8 +101,8 @@ export async function GET(req: NextRequest) {
               title: row.name || row.description || (isVideo ? 'Saved Motion Video' : 'Saved Photo'),
               description: row.description || '',
               produceList: produceTags,
-              mediaUrl: publicUrl || row.content || '',
-              thumbnailUrl: publicUrl || row.content || '',
+              mediaUrl: publicUrl || '',
+              thumbnailUrl: row.content || publicUrl || '',
               storagePath: row.storage_path,
               durationSeconds: isVideo ? 15 : undefined,
               aspectRatio: '9:16',
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
           description: description || null,
           type: type === 'video' ? 'video' : 'image',
           storage_path: effectiveStoragePath,
-          content: finalMediaUrl,
+          content: type === 'video' ? finalThumbnailUrl : finalMediaUrl,
           tags: ['creative-studio', type, ...(Array.isArray(produceList) ? produceList : [])],
         })
       } catch (crmErr) {
