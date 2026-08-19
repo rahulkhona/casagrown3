@@ -134,7 +134,7 @@ interface ImageTask {
   fallbackKey: string
 }
 
-async function parsePromptWithGemini(userPrompt: string, produceContext: string[]): Promise<ImageTask[]> {
+async function parsePromptWithGemini(userPrompt: string, produceContext: string[], aspectRatio: string = "4:5"): Promise<ImageTask[]> {
   if (!GEMINI_API_KEY || !userPrompt.trim()) {
     return produceContext.map((produce) => ({
       title: `${produce} (Organic Harvest)`,
@@ -154,7 +154,7 @@ CRITICAL RULES:
 2. If the user requests non-produce images (e.g. "group of neighbors saying I want"), create a separate dedicated image task for that scene exactly as described. Do NOT replace it with a produce image.
 3. If the user specifies ordering (e.g. "this should be the first image"), arrange the tasks array accordingly.
 4. Do NOT add props, containers, or settings that the user did not ask for.
-5. Append only minimal photography quality modifiers (e.g. "photorealistic, natural lighting, 8k") to the user's scene description. The user's description is the prompt — you are only adding technical quality tags.
+5. Append the following technical modifiers to the end of each image prompt: "photorealistic, natural lighting, ${aspectRatio} aspect ratio, 8k". The aspect ratio is important — compose the scene to fit the ${aspectRatio} frame (${aspectRatio === "9:16" ? "tall vertical portrait" : aspectRatio === "16:9" ? "wide horizontal landscape" : aspectRatio === "1:1" ? "square" : "vertical portrait"}).
 
 Return ONLY valid JSON with this exact schema:
 {
@@ -162,7 +162,7 @@ Return ONLY valid JSON with this exact schema:
     {
       "title": "Short descriptive title (max 5 words)",
       "produceName": "Produce name or subject name",
-      "prompt": "The user's exact scene description for this item, with photorealistic quality, natural lighting, 8k appended",
+      "prompt": "The user's exact scene description for this item, composed for ${aspectRatio} aspect ratio, photorealistic, natural lighting, 8k",
       "tags": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
       "fallbackKey": "lemons" | "tomatoes" | "avocado" | "basil" | "wanted" | "neighbors"
     }
@@ -318,7 +318,7 @@ serve(async (req) => {
     }
 
     // ── MODE 1: PROMPT-DRIVEN PHOTO BATCH GENERATION ──
-    const tasks = await parsePromptWithGemini(customPrompt, produceArray)
+    const tasks = await parsePromptWithGemini(customPrompt, produceArray, aspectRatio)
     const targetTasks = customPrompt && customPrompt.trim() ? tasks : (count ? tasks.slice(0, Number(count)) : tasks)
 
     const photoPromises = targetTasks.map(async (task, i) => {
