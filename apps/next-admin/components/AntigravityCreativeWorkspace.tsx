@@ -1,3 +1,5 @@
+'use client'
+import { classifyCreativeIntent } from '@/lib/creative-intent-classifier'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { MotionStoryboardScene, MotionVideoStoryboardResponse } from '../app/api/creative-studio/storyboard/route'
 import { GeneratedProducePhoto } from '../app/api/creative-studio/photos/route'
@@ -514,14 +516,17 @@ export default function AntigravityCreativeWorkspace({
         setAspectRatio('16:9')
       }
 
-      // Determine user intent: photo generation vs video storyboard creation vs feedback
-      const hasPhotoKeyword = /image|photo|picture|candidate|generate.*(image|photo|picture)|draw|render|shot/i.test(textToSend)
-      const hasVideoKeyword = /video|storyboard|pan|zoom|motion|reel|commercial|animation/i.test(textToSend)
+      // Determine user intent using wink-NLP POS tagging + fuzzy matching.
+      // This replaces fragile regex — handles negation, verb-object pairs,
+      // typos, and context (can't build storyboard without existing photos).
+      const { intent: classifiedIntent, reason: intentReason } = classifyCreativeIntent(
+        textToSend,
+        photoCandidates.length > 0
+      )
+      console.debug('[CreativeIntent]', intentReason)
+      const isVideoIntent = classifiedIntent === 'video'
+      const isRefineIntent = classifiedIntent === 'refine'
 
-      // Photo generation intent takes precedence if the user asks for images/photos,
-      // or if no photo candidates exist in the workspace yet. Only treat as pure video intent
-      // when user explicitly requests storyboard/video without asking for new photos.
-      const isVideoIntent = hasVideoKeyword && !hasPhotoKeyword && photoCandidates.length > 0
 
       if (isVideoIntent) {
         setProcessingStep('🎬 Composing dynamic pan & zoom motion camera trajectories...')
