@@ -2432,6 +2432,30 @@ export default function AntigravityCreativeWorkspace({
                   </button>
 
                   <button
+                    onClick={() => {
+                      setScenes([])
+                      setSelectedPhotoIds([])
+                      setActiveTab('studio')
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      background: '#FEF2F2',
+                      color: '#B91C1C',
+                      border: '1px solid #FECACA',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>🗑️</span>
+                    <span>Clear Sequence</span>
+                  </button>
+
+                  <button
                     onClick={handleExportVideoFile}
                     disabled={isExportingVideo}
                     style={{
@@ -2449,7 +2473,7 @@ export default function AntigravityCreativeWorkspace({
                     }}
                   >
                     <span>📥</span>
-                    <span>{isExportingVideo ? 'Exporting WebM…' : 'Export Video File'}</span>
+                    <span>{isExportingVideo ? 'Exporting MP4…' : 'Export MP4'}</span>
                   </button>
 
                   <button
