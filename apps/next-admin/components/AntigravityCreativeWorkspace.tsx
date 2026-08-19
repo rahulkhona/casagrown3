@@ -1,5 +1,5 @@
 'use client'
-import { classifyCreativeIntent } from '@/lib/creative-intent-classifier'
+import { classifyCreativeIntent } from '../lib/creative-intent-classifier'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { MotionStoryboardScene, MotionVideoStoryboardResponse } from '../app/api/creative-studio/storyboard/route'
 import { GeneratedProducePhoto } from '../app/api/creative-studio/photos/route'
