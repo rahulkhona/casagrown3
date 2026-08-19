@@ -92,7 +92,7 @@ async function generateImage(
           const fileName = `creative-studio/${safePrefix}_${Date.now()}.${ext}`
 
           const { error: uploadErr } = await supabase.storage
-            .from("produce-images")
+            .from("marketing-assets")
             .upload(fileName, bytes, {
               contentType: mimeType,
               upsert: true,
@@ -100,7 +100,7 @@ async function generateImage(
 
           if (!uploadErr) {
             const { data: publicUrlData } = supabase.storage
-              .from("produce-images")
+              .from("marketing-assets")
               .getPublicUrl(fileName)
             console.log(`[generate-produce-photos] ${model} success: ${publicUrlData.publicUrl}`)
             return { url: publicUrlData.publicUrl, source: "ai_generated" }
