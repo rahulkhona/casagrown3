@@ -83,62 +83,73 @@ serve(async (req) => {
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
     const cropName = CROPS[dayOfYear % CROPS.length]
 
-    // 3. Call Google Imagen 3 API (or Gemini ImageGen)
+    // 3. Call Gemini Image Generation API
+    // NOTE: imagen-3.0-generate-002:generateImages is a Vertex AI enterprise endpoint (404 on standard keys).
+    // Use gemini-3.1-flash-image via generateContent with responseModalities: ['IMAGE'].
     const prompt = `Photorealistic top-down studio photography of fresh organic ${cropName} harvested from a garden, vibrant natural colors, bright morning sunlight, 4k ultra detailed, professional produce catalog photo.`
-    
+
     let imageUrl: string | null = null
 
+    const IMAGE_GEN_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image']
+
     if (GEMINI_API_KEY && !forceFailure) {
-      try {
-        const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${GEMINI_API_KEY}`
-        const apiRes = await fetch(imagenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: prompt,
-            config: {
-              numberOfImages: 1,
-              aspectRatio: "1:1",
-              outputMimeType: "image/jpeg",
-            },
-          }),
-        })
-
-        if (apiRes.ok) {
-          const apiData = await apiRes.json()
-          const base64Bytes = apiData.generatedImages?.[0]?.image?.imageBytes
-          if (base64Bytes) {
-            // Convert base64 to Uint8Array and upload to Supabase Storage
-            const binStr = atob(base64Bytes)
-            const bytes = new Uint8Array(binStr.length)
-            for (let i = 0; i < binStr.length; i++) {
-              bytes[i] = binStr.charCodeAt(i)
+      for (const model of IMAGE_GEN_MODELS) {
+        try {
+          const apiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+              }),
             }
+          )
 
-            const fileName = `jigsaw_${todayStr}_${Date.now()}.jpg`
-            const { data: uploadData, error: uploadErr } = await supabase.storage
-              .from("produce-images")
-              .upload(`jigsaw_pool/${fileName}`, bytes, {
-                contentType: "image/jpeg",
-                upsert: true,
-              })
+          if (apiRes.ok) {
+            const apiData = await apiRes.json()
+            const parts = apiData?.candidates?.[0]?.content?.parts || []
+            const imagePart = parts.find((p: any) => p.inlineData?.data)
+            if (imagePart?.inlineData?.data) {
+              const mimeType = imagePart.inlineData.mimeType || "image/png"
+              const ext = mimeType === "image/jpeg" ? "jpg" : "png"
 
-            if (!uploadErr && uploadData) {
-              const { data: publicUrlData } = supabase.storage
+              // Convert base64 to Uint8Array and upload to Supabase Storage
+              const binStr = atob(imagePart.inlineData.data)
+              const bytes = new Uint8Array(binStr.length)
+              for (let i = 0; i < binStr.length; i++) {
+                bytes[i] = binStr.charCodeAt(i)
+              }
+
+              const fileName = `jigsaw_${todayStr}_${Date.now()}.${ext}`
+              const { data: uploadData, error: uploadErr } = await supabase.storage
                 .from("produce-images")
-                .getPublicUrl(`jigsaw_pool/${fileName}`)
-              imageUrl = publicUrlData.publicUrl
+                .upload(`jigsaw_pool/${fileName}`, bytes, {
+                  contentType: mimeType,
+                  upsert: true,
+                })
+
+              if (!uploadErr && uploadData) {
+                const { data: publicUrlData } = supabase.storage
+                  .from("produce-images")
+                  .getPublicUrl(`jigsaw_pool/${fileName}`)
+                imageUrl = publicUrlData.publicUrl
+                console.log(`Jigsaw image generated via ${model}: ${imageUrl}`)
+                break // Success — stop trying other models
+              }
+            } else {
+              console.warn(`${model} returned OK but no image data`)
             }
+          } else {
+            const errText = await apiRes.text()
+            console.error(`${model} API Error:`, apiRes.status, errText.substring(0, 200))
+            await supabase.rpc("log_jigsaw_generation_failure", { p_reason: `${model} returned HTTP ${apiRes.status}: ${errText.substring(0, 300)}` })
           }
-        } else {
-          const errText = await apiRes.text()
-          console.error("Imagen 3 API Error:", errText)
-          // Trigger support alert email RPC
-          await supabase.rpc("log_jigsaw_generation_failure", { p_reason: `Imagen 3 API returned HTTP ${apiRes.status}: ${errText}` })
+        } catch (err: any) {
+          console.error(`${model} Fetch Exception:`, err)
+          await supabase.rpc("log_jigsaw_generation_failure", { p_reason: `${model} exception: ${err?.message || "Fetch exception"}` })
         }
-      } catch (err: any) {
-        console.error("Imagen 3 API Fetch Exception:", err)
-        await supabase.rpc("log_jigsaw_generation_failure", { p_reason: err?.message || "Fetch exception" })
       }
     }
 

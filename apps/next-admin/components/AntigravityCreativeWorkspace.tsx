@@ -515,7 +515,13 @@ export default function AntigravityCreativeWorkspace({
       }
 
       // Determine user intent: photo generation vs video storyboard creation vs feedback
-      const isVideoIntent = /video|pan|zoom|motion|storyboard|reel|commercial/i.test(textToSend)
+      const hasPhotoKeyword = /image|photo|picture|candidate|generate.*(image|photo|picture)|draw|render|shot/i.test(textToSend)
+      const hasVideoKeyword = /video|storyboard|pan|zoom|motion|reel|commercial|animation/i.test(textToSend)
+
+      // Photo generation intent takes precedence if the user asks for images/photos,
+      // or if no photo candidates exist in the workspace yet. Only treat as pure video intent
+      // when user explicitly requests storyboard/video without asking for new photos.
+      const isVideoIntent = hasVideoKeyword && !hasPhotoKeyword && photoCandidates.length > 0
 
       if (isVideoIntent) {
         setProcessingStep('🎬 Composing dynamic pan & zoom motion camera trajectories...')

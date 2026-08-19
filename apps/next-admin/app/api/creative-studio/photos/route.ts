@@ -23,53 +23,55 @@ interface ImageTask {
   fallbackKey: string
 }
 
-const IMAGE_API_KEY = process.env.IMAGE_GEN_KEY || process.env.GEMINI_API_KEY || ''
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
+const IMAGE_API_KEY = process.env.IMAGE_GEN_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
+
+// Image generation model chain: gemini-3.1-flash-image → gemini-3.1-flash-lite-image
+// NOTE: imagen-3.0-generate-002 is a Vertex AI enterprise endpoint (404 on standard Gemini API keys).
+// The correct models for generateContent-based image generation are the gemini-3.1-*-image family.
+const IMAGE_GEN_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image']
 
 async function callImagen3Model(prompt: string, aspectRatio: string = '4:5'): Promise<string | null> {
-  if (!IMAGE_API_KEY || process.env.AI_MOCK === 'true') return null
+  const apiKey = process.env.IMAGE_GEN_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
+  if (!apiKey || process.env.AI_MOCK === 'true') return null
 
-  // Map requested aspect ratio to Imagen 3 supported formats: '1:1' | '9:16' | '16:9' | '3:4' | '4:3'
-  const validAspectRatio =
-    aspectRatio === '9:16' ? '9:16' :
-    aspectRatio === '16:9' ? '16:9' :
-    aspectRatio === '1:1' ? '1:1' :
-    aspectRatio === '4:5' ? '3:4' : '3:4'
+  for (const model of IMAGE_GEN_MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+        }),
+      })
 
-  try {
-    const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${IMAGE_API_KEY}`
-    const res = await fetch(imagenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          aspectRatio: validAspectRatio,
-          outputMimeType: 'image/jpeg',
-        },
-      }),
-    })
-
-    if (res.ok) {
-      const data = await res.json()
-      const base64Bytes = data.generatedImages?.[0]?.image?.imageBytes
-      if (base64Bytes) {
-        return `data:image/jpeg;base64,${base64Bytes}`
+      if (res.ok) {
+        const data = await res.json()
+        const parts = data?.candidates?.[0]?.content?.parts || []
+        const imagePart = parts.find((p: any) => p.inlineData?.data)
+        if (imagePart?.inlineData?.data) {
+          const mimeType = imagePart.inlineData.mimeType || 'image/png'
+          return `data:${mimeType};base64,${imagePart.inlineData.data}`
+        }
+        console.warn(`[Image Gen] ${model} returned OK but no image data`)
+      } else {
+        const errText = await res.text()
+        console.error(`[Image Gen] ${model} error:`, res.status, errText.substring(0, 200))
       }
-    } else {
-      const errText = await res.text()
-      console.error('[Imagen 3 API Error]:', res.status, errText)
+    } catch (err) {
+      console.error(`[Image Gen] ${model} exception:`, err)
     }
-  } catch (err) {
-    console.error('[Imagen 3 API Exception]:', err)
   }
 
+  console.error('[Image Gen] All models failed — no image generated')
   return null
 }
 
 async function parsePromptWithGemini(userPrompt: string, produceContext: string[]): Promise<ImageTask[]> {
-  if (!GEMINI_API_KEY || !userPrompt.trim()) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || process.env.GOOGLE_GENAI_API_KEY || ''
+  if (!apiKey || !userPrompt.trim()) {
     // Fallback default tasks if Gemini is unavailable
     return produceContext.map((produce) => ({
       title: `${produce} (Organic Harvest)`,
@@ -83,7 +85,11 @@ async function parsePromptWithGemini(userPrompt: string, produceContext: string[
   try {
     const systemPrompt = `You are an expert AI commercial advertising photography director.
 Analyze the user's prompt and active produce list, then decompose it into an array of distinct image generation tasks.
-FAITHFULLY follow the user's explicit scene setting (e.g. tree full of fruit, vines in backyard garden, plants, containers, harvest trays, community signs, people). DO NOT force containers or crates unless the user explicitly requested them.
+FAITHFULLY follow the user's explicit instructions:
+- If the user asks for produce images (e.g. tree full of fruit, vines, plants in garden soil), create an image task for each requested produce item.
+- If the user asks for additional non-produce images (e.g. "several neighbors saying I Want", "community members smiling", "farm stand banner", "buyers in front of garden"), ALWAYS create separate image tasks for each of those requested images.
+- If the user specifies an order (e.g. "This should be the first image"), arrange the tasks array in that exact requested sequence.
+- DO NOT force containers or crates unless the user explicitly requested them.
 Return ONLY valid JSON with this exact schema:
 {
   "tasks": [
@@ -98,7 +104,7 @@ Return ONLY valid JSON with this exact schema:
 }`
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,7 +224,7 @@ export async function POST(req: NextRequest) {
     // ── MODE 1: PROMPT-DRIVEN PHOTO BATCH GENERATION ──
     // Decompose prompt with Gemini to generate distinct tailored tasks
     const tasks = await parsePromptWithGemini(customPrompt, produceArray)
-    const targetTasks = count ? tasks.slice(0, Number(count)) : tasks
+    const targetTasks = customPrompt && customPrompt.trim() ? tasks : (count ? tasks.slice(0, Number(count)) : tasks)
 
     const photoPromises = targetTasks.map(async (task, i) => {
       const aiUrl = await callImagen3Model(task.prompt, aspectRatio)
