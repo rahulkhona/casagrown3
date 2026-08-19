@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import ProduceAdPostCreatorModal, { ProduceAdPostModalContext } from '../../../../components/ProduceAdPostCreatorModal'
-import GameAdPostCreatorModal, { GameAdPostModalContext } from '../../../../components/GameAdPostCreatorModal'
+import ProduceAdPostCreatorModal, { AdPostModalContext } from '../../../../components/ProduceAdPostCreatorModal'
+import GameAdPostCreatorModal, { GameModalContext } from '../../../../components/GameAdPostCreatorModal'
 import CustomAdPostCreatorModal, { CustomModalContext } from '../../../../components/CustomAdPostCreatorModal'
 
 interface CreativeRecord {
@@ -27,6 +27,8 @@ interface CreativeRecord {
   conversions: number
   spend: number
   bandit_weight: number
+  headline?: string
+  primary_copy?: string
   created_at: string
   updated_at: string
 }
@@ -43,11 +45,11 @@ export default function AdStudioCreativeLibraryPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // Modals for Re-Launching / Creating
-  const [produceModalContext, setProduceModalContext] = useState<ProduceAdPostModalContext>({
+  const [produceModalContext, setProduceModalContext] = useState<AdPostModalContext>({
     isOpen: false,
     initialPublishType: 'paid_ad',
   })
-  const [gameModalContext, setGameModalContext] = useState<GameAdPostModalContext>({
+  const [gameModalContext, setGameModalContext] = useState<GameModalContext>({
     isOpen: false,
     initialPublishType: 'paid_ad',
   })

@@ -9009,6 +9009,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/dom-webcodecs@npm:^0.1.6":
+  version: 0.1.19
+  resolution: "@types/dom-webcodecs@npm:0.1.19"
+  checksum: 10/196724993dbde852e20e7d22699c6818ddb646b8b689d1d71c5d9f52e3493b08828c2f83c20b77601db0a1f1c91d181acd5834b609b0755e3e0fdfd928a1f053
+  languageName: node
+  linkType: hard
+
 "@types/estree@npm:1.0.8, @types/estree@npm:^1.0.0":
   version: 1.0.8
   resolution: "@types/estree@npm:1.0.8"
@@ -9290,6 +9297,13 @@ __metadata:
   version: 0.0.6
   resolution: "@types/use-sync-external-store@npm:0.0.6"
   checksum: 10/a95ce330668501ad9b1c5b7f2b14872ad201e552a0e567787b8f1588b22c7040c7c3d80f142cbb9f92d13c4ea41c46af57a20f2af4edf27f224d352abcfe4049
+  languageName: node
+  linkType: hard
+
+"@types/wicg-file-system-access@npm:^2020.9.5":
+  version: 2020.9.8
+  resolution: "@types/wicg-file-system-access@npm:2020.9.8"
+  checksum: 10/907e88adb8dc88e307e7e99ff7b734f872cbf509a4155f7600fe61a3d6b16b7dc9594e75a174571a58b5559545719c053a98890b4c1b93d5ade916b21b2af290
   languageName: node
   linkType: hard
 
@@ -18717,6 +18731,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mp4-muxer@npm:^5.2.2":
+  version: 5.2.2
+  resolution: "mp4-muxer@npm:5.2.2"
+  dependencies:
+    "@types/dom-webcodecs": "npm:^0.1.6"
+    "@types/wicg-file-system-access": "npm:^2020.9.5"
+  checksum: 10/2eada6482de844379046cfa07cdc2b63fa248ff0d8a39447d22806f8aec2f5f23a6d6b53988268e08d83df598a54e357643a3598ce611038bc0101d30333c23f
+  languageName: node
+  linkType: hard
+
 "mri@npm:1.2.0":
   version: 1.2.0
   resolution: "mri@npm:1.2.0"
@@ -18845,6 +18869,7 @@ __metadata:
     "@types/mustache": "npm:^4.2.5"
     "@types/node": "npm:^20.14.1"
     "@xyflow/react": "npm:^12.10.2"
+    mp4-muxer: "npm:^5.2.2"
     mustache: "npm:^4.2.0"
     next: "npm:16.1.1"
     next-compose-plugins: "npm:^2.2.1"

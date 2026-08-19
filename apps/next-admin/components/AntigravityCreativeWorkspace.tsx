@@ -3,8 +3,9 @@ import { classifyCreativeIntent } from '../lib/creative-intent-classifier'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { MotionStoryboardScene, MotionVideoStoryboardResponse } from '../app/api/creative-studio/storyboard/route'
 import { GeneratedProducePhoto } from '../app/api/creative-studio/photos/route'
-import ProduceAdPostCreatorModal, { ProduceAdPostModalContext } from './ProduceAdPostCreatorModal'
+import ProduceAdPostCreatorModal, { AdPostModalContext as ProduceAdPostModalContext } from './ProduceAdPostCreatorModal'
 import { EXHAUSTIVE_INTERESTS_CATALOG, getInterestImage } from '../../next-market/lib/interestCatalog'
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
 
 export interface ChatMessage {
   id: string
@@ -888,13 +889,19 @@ export default function AntigravityCreativeWorkspace({
     showToast(`▶️ Playing your ${scenes.length}-scene Pan & Zoom video!`)
   }
 
-  // ── HEADLESS OFFSCREEN VIDEO STITCHER ──────────────────────────────
+  // ── HEADLESS OFFSCREEN VIDEO STITCHER (H.264 MP4 via WebCodecs + mp4-muxer) ──
   const renderStoryboardToBlob = async (
     targetScenes: MotionStoryboardScene[],
     duration: number,
     targetAspect: '1:1' | '4:5' | '9:16' | '16:9'
   ): Promise<Blob | null> => {
-    if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return null
+    if (typeof window === 'undefined') return null
+
+    // Check WebCodecs support
+    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+      console.warn('[VideoStitcher] WebCodecs not supported in this browser')
+      return null
+    }
 
     const w = targetAspect === '16:9' ? 1280 : targetAspect === '9:16' ? 720 : targetAspect === '1:1' ? 720 : 720
     const h = targetAspect === '16:9' ? 720 : targetAspect === '9:16' ? 1280 : targetAspect === '1:1' ? 720 : 900
@@ -905,158 +912,190 @@ export default function AntigravityCreativeWorkspace({
     const ctx = offCanvas.getContext('2d')
     if (!ctx) return null
 
-    // Preload images
+    // Preload images as blobs to avoid CORS-tainted canvas
     const loadedImages: HTMLImageElement[] = await Promise.all(
       targetScenes.map(
         scene =>
-          new Promise<HTMLImageElement>(resolve => {
-            const img = new Image()
-            img.crossOrigin = 'anonymous'
-            img.onload = () => resolve(img)
-            img.onerror = () => {
+          new Promise<HTMLImageElement>(async (resolve) => {
+            try {
+              const response = await fetch(scene.imageUrl)
+              const blob = await response.blob()
+              const objectUrl = URL.createObjectURL(blob)
+              const img = new Image()
+              img.onload = () => resolve(img)
+              img.onerror = () => {
+                URL.revokeObjectURL(objectUrl)
+                const fallback = new Image()
+                fallback.onload = () => resolve(fallback)
+                fallback.onerror = () => resolve(fallback)
+                fallback.src = getInterestImage(scene.produceFocus)
+              }
+              img.src = objectUrl
+            } catch {
               const fallback = new Image()
-              fallback.crossOrigin = 'anonymous'
               fallback.onload = () => resolve(fallback)
-              fallback.onerror = () => resolve(img)
+              fallback.onerror = () => resolve(fallback)
               fallback.src = getInterestImage(scene.produceFocus)
             }
-            img.src = scene.imageUrl
           })
       )
     )
 
-    return new Promise<Blob | null>(resolve => {
-      try {
-        const stream = offCanvas.captureStream(30)
-        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9'
-          : MediaRecorder.isTypeSupported('video/mp4')
-          ? 'video/mp4'
-          : 'video/webm'
-        const recorder = new MediaRecorder(stream, { mimeType })
-        const chunks: Blob[] = []
+    try {
+      const fps = 30
+      const totalFrames = Math.max(1, Math.round(duration * fps))
 
-        recorder.ondataavailable = e => {
-          if (e.data && e.data.size > 0) chunks.push(e.data)
-        }
+      // Set up mp4-muxer
+      const target = new ArrayBufferTarget()
+      const muxer = new Muxer({
+        target,
+        video: {
+          codec: 'avc',
+          width: w,
+          height: h,
+        },
+        fastStart: 'in-memory',
+      })
 
-        recorder.onstop = () => {
-          if (chunks.length > 0) {
-            resolve(new Blob(chunks, { type: mimeType }))
-          } else {
-            resolve(null)
+      // Set up VideoEncoder
+      let encodedFrameCount = 0
+      const encoder = new VideoEncoder({
+        output: (chunk, meta) => {
+          muxer.addVideoChunk(chunk, meta)
+          encodedFrameCount++
+        },
+        error: (err) => {
+          console.error('[VideoStitcher] Encoder error:', err)
+        },
+      })
+
+      encoder.configure({
+        codec: 'avc1.42001E', // H.264 Baseline Level 3.0
+        width: w,
+        height: h,
+        bitrate: 4_000_000, // 4 Mbps — good quality for social media
+        framerate: fps,
+      })
+
+      // Render each frame synchronously and encode
+      for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+        const currentTimeSec = frameIdx / fps
+        let accumulated = 0
+        let activeIndex = 0
+        let timeInScene = 0
+
+        for (let i = 0; i < targetScenes.length; i++) {
+          const sceneDur = targetScenes[i].durationSeconds || 3.5
+          if (currentTimeSec >= accumulated && currentTimeSec < accumulated + sceneDur) {
+            activeIndex = i
+            timeInScene = currentTimeSec - accumulated
+            break
+          }
+          accumulated += sceneDur
+          if (i === targetScenes.length - 1) {
+            activeIndex = i
+            timeInScene = sceneDur
           }
         }
 
-        const fps = 30
-        const totalFrames = Math.max(1, Math.round(duration * fps))
-        let currentFrame = 0
-        let isRecordingStopped = false
+        const activeScene = targetScenes[activeIndex]
+        const sceneDuration = activeScene.durationSeconds || 3.5
+        const sceneProgress = Math.min(Math.max(timeInScene / sceneDuration, 0), 1)
+        const img = loadedImages[activeIndex]
 
-        recorder.start()
+        // Clear frame
+        ctx.fillStyle = '#0F172A'
+        ctx.fillRect(0, 0, w, h)
 
-        const frameInterval = setInterval(() => {
-          if (currentFrame >= totalFrames || isRecordingStopped) {
-            clearInterval(frameInterval)
-            if (!isRecordingStopped) {
-              isRecordingStopped = true
-              recorder.stop()
-            }
-            return
-          }
+        // Draw scene image with Ken Burns motion
+        if (img && img.complete && img.naturalWidth > 0) {
+          let scale = 1.0
+          let tx = 0
+          let ty = 0
 
-          const currentTimeSec = currentFrame / fps
-          let accumulated = 0
-          let activeIndex = 0
-          let timeInScene = 0
-
-          for (let i = 0; i < targetScenes.length; i++) {
-            const sceneDur = targetScenes[i].durationSeconds || 3.5
-            if (currentTimeSec >= accumulated && currentTimeSec < accumulated + sceneDur) {
-              activeIndex = i
-              timeInScene = currentTimeSec - accumulated
+          switch (activeScene.motionType) {
+            case 'push_in':
+              scale = 1.0 + sceneProgress * 0.18
               break
-            }
-            accumulated += sceneDur
-            if (i === targetScenes.length - 1) {
-              activeIndex = i
-              timeInScene = sceneDur
-            }
+            case 'zoom_out':
+              scale = 1.2 - sceneProgress * 0.18
+              break
+            case 'pan_horizontal':
+              scale = 1.15
+              tx = (sceneProgress - 0.5) * (w * 0.12)
+              break
+            case 'diagonal_sweep':
+              scale = 1.12 + sceneProgress * 0.08
+              tx = (sceneProgress - 0.5) * (w * 0.08)
+              ty = (sceneProgress - 0.5) * (h * 0.08)
+              break
+            default:
+              scale = 1.05 + sceneProgress * 0.1
           }
 
-          const activeScene = targetScenes[activeIndex]
-          const sceneDuration = activeScene.durationSeconds || 3.5
-          const sceneProgress = Math.min(Math.max(timeInScene / sceneDuration, 0), 1)
-          const img = loadedImages[activeIndex]
+          ctx.save()
+          ctx.translate(w / 2 + tx, h / 2 + ty)
 
-          // Render Frame
-          ctx.fillStyle = '#0F172A'
-          ctx.fillRect(0, 0, w, h)
+          const imgAspect = img.naturalWidth / img.naturalHeight
+          const canvasAspect = w / h
+          let drawW = w * scale
+          let drawH = h * scale
 
-          if (img && img.complete && img.naturalWidth > 0) {
-            let scale = 1.0
-            let tx = 0
-            let ty = 0
-
-            switch (activeScene.motionType) {
-              case 'push_in':
-                scale = 1.0 + sceneProgress * 0.18
-                break
-              case 'zoom_out':
-                scale = 1.2 - sceneProgress * 0.18
-                break
-              case 'pan_horizontal':
-                scale = 1.15
-                tx = (sceneProgress - 0.5) * (w * 0.12)
-                break
-              case 'diagonal_sweep':
-                scale = 1.12 + sceneProgress * 0.08
-                tx = (sceneProgress - 0.5) * (w * 0.08)
-                ty = (sceneProgress - 0.5) * (h * 0.08)
-                break
-              default:
-                scale = 1.05 + sceneProgress * 0.1
-            }
-
-            ctx.save()
-            ctx.translate(w / 2 + tx, h / 2 + ty)
-
-            const imgAspect = img.naturalWidth / img.naturalHeight
-            const canvasAspect = w / h
-            let drawW = w * scale
-            let drawH = h * scale
-
-            if (imgAspect > canvasAspect) {
-              drawW = h * imgAspect * scale
-              drawH = h * scale
-            } else {
-              drawW = w * scale
-              drawH = (w / imgAspect) * scale
-            }
-
-            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
-            ctx.restore()
+          if (imgAspect > canvasAspect) {
+            drawW = h * imgAspect * scale
+            drawH = h * scale
+          } else {
+            drawW = w * scale
+            drawH = (w / imgAspect) * scale
           }
 
-          // Render Text Overlays if present
-          if (activeScene.headlineOverlay) {
-            ctx.save()
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
-            ctx.fillRect(20, h - 140, w - 40, 90)
-            ctx.fillStyle = '#FFFFFF'
-            ctx.font = 'bold 24px system-ui, sans-serif'
-            ctx.textAlign = 'center'
-            ctx.fillText(activeScene.headlineOverlay, w / 2, h - 88)
-            ctx.restore()
-          }
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+          ctx.restore()
+        }
 
-          currentFrame++
-        }, 1000 / fps)
-      } catch (err) {
-        console.error('Headless render error:', err)
-        resolve(null)
+        // Render text overlays
+        if (activeScene.headlineOverlay) {
+          ctx.save()
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+          ctx.fillRect(20, h - 140, w - 40, 90)
+          ctx.fillStyle = '#FFFFFF'
+          ctx.font = 'bold 24px system-ui, sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText(activeScene.headlineOverlay, w / 2, h - 88)
+          ctx.restore()
+        }
+
+        // Create VideoFrame from canvas and encode
+        const timestamp = frameIdx * (1_000_000 / fps) // microseconds
+        const frame = new VideoFrame(offCanvas, { timestamp })
+        const isKeyFrame = frameIdx % (fps * 2) === 0 // keyframe every 2 seconds
+        encoder.encode(frame, { keyFrame: isKeyFrame })
+        frame.close()
       }
-    })
+
+      // Flush encoder and finalize MP4
+      await encoder.flush()
+      encoder.close()
+      muxer.finalize()
+
+      const mp4Buffer = target.buffer
+      if (!mp4Buffer || mp4Buffer.byteLength === 0) {
+        console.error('[VideoStitcher] Empty MP4 buffer')
+        return null
+      }
+
+      console.log(`[VideoStitcher] Generated MP4: ${(mp4Buffer.byteLength / 1024 / 1024).toFixed(1)}MB, ${encodedFrameCount} frames`)
+
+      // Clean up object URLs
+      loadedImages.forEach(img => {
+        if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src)
+      })
+
+      return new Blob([mp4Buffer], { type: 'video/mp4' })
+    } catch (err) {
+      console.error('[VideoStitcher] Error:', err)
+      return null
+    }
   }
 
   // ── 6. SAVE VIDEO TO LIBRARY ───────────────────────────────────────
@@ -1079,7 +1118,7 @@ export default function AntigravityCreativeWorkspace({
         formData.append('durationSeconds', String(totalVideoDuration))
         formData.append('aspectRatio', aspectRatio)
         formData.append('thumbnailUrl', scenes[0]?.imageUrl || '')
-        formData.append('file', videoBlob, `${storyboardTitle.replace(/\s+/g, '_')}_MotionAd.webm`)
+        formData.append('file', videoBlob, `${storyboardTitle.replace(/\s+/g, '_')}_MotionAd.mp4`)
 
         const res = await fetch('/api/creative-studio/assets', {
           method: 'POST',
