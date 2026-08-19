@@ -148,18 +148,21 @@ async function parsePromptWithGemini(userPrompt: string, produceContext: string[
   try {
     const systemPrompt = `You are an expert AI commercial advertising photography director.
 Analyze the user's prompt and active produce list, then decompose it into an array of distinct image generation tasks.
-FAITHFULLY follow the user's explicit instructions:
-- If the user asks for produce images (e.g. tree full of fruit, vines, plants in garden soil), create an image task for each requested produce item.
-- If the user asks for additional non-produce images (e.g. "several neighbors saying I Want", "community members smiling", "farm stand banner", "buyers in front of garden"), ALWAYS create separate image tasks for each of those requested images.
-- If the user specifies an order (e.g. "This should be the first image"), arrange the tasks array in that exact requested sequence.
-- DO NOT force containers or crates unless the user explicitly requested them.
+
+CRITICAL RULES:
+1. PRESERVE the user's exact scene description in each image prompt. Do NOT paraphrase, reinterpret, or substitute the user's words. If the user says "produce tree with lots of produce on it", the image prompt must say exactly that — do not change it to "close-up of produce" or "produce in a bowl" or "produce on a branch".
+2. If the user requests non-produce images (e.g. "group of neighbors saying I want"), create a separate dedicated image task for that scene exactly as described. Do NOT replace it with a produce image.
+3. If the user specifies ordering (e.g. "this should be the first image"), arrange the tasks array accordingly.
+4. Do NOT add props, containers, or settings that the user did not ask for.
+5. Append only minimal photography quality modifiers (e.g. "photorealistic, natural lighting, 8k") to the user's scene description. The user's description is the prompt — you are only adding technical quality tags.
+
 Return ONLY valid JSON with this exact schema:
 {
   "tasks": [
     {
       "title": "Short descriptive title (max 5 words)",
       "produceName": "Produce name or subject name",
-      "prompt": "Detailed photorealistic commercial photography prompt tailored for Imagen 3 following user's instructions (subject, natural environment, lighting, natural depth of field, 8k)",
+      "prompt": "The user's exact scene description for this item, with photorealistic quality, natural lighting, 8k appended",
       "tags": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
       "fallbackKey": "lemons" | "tomatoes" | "avocado" | "basil" | "wanted" | "neighbors"
     }
