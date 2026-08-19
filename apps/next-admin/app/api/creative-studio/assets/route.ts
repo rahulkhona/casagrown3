@@ -61,8 +61,71 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const filterType = searchParams.get('type') // 'photo' | 'video' | null
 
-    const assets = loadAssetsFromDisk()
-    const filtered = filterType ? assets.filter(a => a.type === filterType) : assets
+    const diskAssets = loadAssetsFromDisk()
+    const supabase = getSupabase()
+
+    let dbAssets: SavedAsset[] = []
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('crm_assets')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (!error && Array.isArray(data)) {
+          dbAssets = data.map(row => {
+            let publicUrl = ''
+            if (row.storage_path) {
+              const { data: urlData } = supabase.storage
+                .from('marketing-assets')
+                .getPublicUrl(row.storage_path)
+              publicUrl = urlData?.publicUrl || ''
+            }
+
+            const storageStr = (row.storage_path || '').toLowerCase()
+            const isVideo =
+              row.type === 'video' ||
+              (row.tags && row.tags.includes('video')) ||
+              storageStr.endsWith('.webm') ||
+              storageStr.endsWith('.mp4') ||
+              storageStr.endsWith('.mov')
+
+            const produceTags = (row.tags || []).filter(
+              (t: string) => t !== 'creative-studio' && t !== 'video' && t !== 'image' && t !== 'photo'
+            )
+
+            return {
+              id: row.id,
+              type: isVideo ? 'video' : 'photo',
+              title: row.name || row.description || (isVideo ? 'Saved Motion Video' : 'Saved Photo'),
+              description: row.description || '',
+              produceList: produceTags,
+              mediaUrl: publicUrl || row.content || '',
+              thumbnailUrl: publicUrl || row.content || '',
+              storagePath: row.storage_path,
+              durationSeconds: isVideo ? 15 : undefined,
+              aspectRatio: '9:16',
+              savedAt: row.created_at || new Date().toISOString(),
+            }
+          })
+        }
+      } catch (dbErr) {
+        console.error('[Assets API] Error fetching from Supabase crm_assets:', dbErr)
+      }
+    }
+
+    // Merge DB assets with disk assets (deduplicating by mediaUrl/id)
+    const allMap = new Map<string, SavedAsset>()
+    for (const asset of [...dbAssets, ...diskAssets]) {
+      const key = asset.storagePath || asset.mediaUrl || asset.id
+      if (key && !allMap.has(key)) {
+        allMap.set(key, asset)
+      }
+    }
+
+    const merged = Array.from(allMap.values())
+    const filtered = filterType ? merged.filter(a => a.type === filterType) : merged
 
     return NextResponse.json({ assets: filtered })
   } catch (err: any) {
@@ -196,6 +259,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const effectiveStoragePath = storagePath || `creative-studio/${type}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
+
     // Also sync to Supabase crm_assets table if available
     if (supabase) {
       try {
@@ -203,12 +268,12 @@ export async function POST(req: NextRequest) {
           name: title,
           description: description || null,
           type: type === 'video' ? 'video' : 'image',
-          storage_path: storagePath || null,
+          storage_path: effectiveStoragePath,
           content: finalMediaUrl,
           tags: ['creative-studio', type, ...(Array.isArray(produceList) ? produceList : [])],
         })
       } catch (crmErr) {
-        // Non-blocking if table not accessible
+        console.error('[Assets API] Failed to insert into crm_assets:', crmErr)
       }
     }
 

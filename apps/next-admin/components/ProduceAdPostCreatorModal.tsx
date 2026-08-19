@@ -76,6 +76,24 @@ export default function ProduceAdPostCreatorModal({
   const [isGeneratingAiPhotos, setIsGeneratingAiPhotos] = useState(false)
   const [generatedCandidatePhotos, setGeneratedCandidatePhotos] = useState<Array<{ id: string; title: string; imageUrl: string }>>([])
 
+  const loadSavedVideos = () => {
+    fetch('/api/creative-studio/assets?type=video')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.assets && Array.isArray(data.assets)) {
+          const vids = data.assets.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            preview_video_url: a.mediaUrl || a.thumbnailUrl,
+            aspect_ratio: a.aspectRatio || '9:16',
+            created_at: a.savedAt,
+          }))
+          setSavedVideos(vids)
+        }
+      })
+      .catch(() => {})
+  }
+
   // Copywriting & Messaging
   const [headline, setHeadline] = useState('')
   const [primaryText, setPrimaryText] = useState('')
@@ -204,22 +222,7 @@ export default function ProduceAdPostCreatorModal({
         })
         .catch(() => {})
 
-      // Fetch saved videos library from Creative Studio & CRM
-      fetch('/api/creative-studio/assets?type=video')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.assets && Array.isArray(data.assets)) {
-            const vids = data.assets.map((a: any) => ({
-              id: a.id,
-              title: a.title,
-              preview_video_url: a.mediaUrl || a.thumbnailUrl,
-              aspect_ratio: a.aspectRatio || '9:16',
-              created_at: a.savedAt,
-            }))
-            setSavedVideos(vids)
-          }
-        })
-        .catch(() => {})
+      loadSavedVideos()
 
       // Fetch saved photos library from Creative Studio
       fetch('/api/creative-studio/assets?type=photo')
@@ -241,6 +244,15 @@ export default function ProduceAdPostCreatorModal({
       setUrlPreset(defaultUrl)
       setCustomUrl('')
       setCallToAction(isSel ? 'List Your Harvest' : 'Shop Local Harvest')
+
+      if (ctx.initialMediaMode === 'video' || ctx.prefilledMediaUrl) {
+        setMediaMode('video')
+        setVideoSourceMode('saved_library')
+        if (ctx.prefilledMediaUrl) {
+          setUploadedVideoUrl(ctx.prefilledMediaUrl)
+          setSelectedSavedVideoTitle(ctx.prefilledHeadline || ctx.prefilledTitle || 'Selected Motion Video')
+        }
+      }
 
       // Populate default photos from catalog
       const matchedImages = produceNames.map((p: string) => {
@@ -1090,7 +1102,10 @@ export default function ProduceAdPostCreatorModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setVideoSourceMode('saved_library')}
+                      onClick={() => {
+                        setVideoSourceMode('saved_library')
+                        loadSavedVideos()
+                      }}
                       style={{
                         padding: '5px 12px',
                         borderRadius: '6px',

@@ -17,10 +17,10 @@ Deno.serve(async (req: Request) => {
       return {
         nutrition_produce: produceList,
         nutrition_produce_sorted: [...produceList].sort().join(','),
-        neighbor_buying_comfort: payload.lead?.neighbor_buying_comfort || null,
-        store_types: payload.lead?.store_types || [],
-        fulfillment_modes: payload.lead?.fulfillment_modes || [],
-        buying_frequency: payload.lead?.buying_frequency || null,
+        neighbor_buying_comfort: payload.neighbor_buying_comfort || payload.lead?.neighbor_buying_comfort || null,
+        store_types: payload.store_types || payload.lead?.store_types || [],
+        fulfillment_modes: payload.fulfillment_modes || payload.lead?.fulfillment_modes || [],
+        buying_frequency: payload.buying_frequency || payload.lead?.buying_frequency || null,
       };
     },
     getCacheQuery: async (supabaseAdmin, payload) => {

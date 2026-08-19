@@ -96,6 +96,7 @@ export default function AntigravityCreativeWorkspace({
   const [librarySearchQuery, setLibrarySearchQuery] = useState('')
   const [libraryCategoryFilter, setLibraryCategoryFilter] = useState<'all' | 'community' | 'citrus' | 'vegetables' | 'fruits' | 'herbs' | 'saved'>('all')
   const [savedLibraryAssets, setSavedLibraryAssets] = useState<any[]>([])
+  const [previewVideo, setPreviewVideo] = useState<{ url: string; title: string } | null>(null)
 
   // Load saved assets on mount and when modal opens
   useEffect(() => {
@@ -119,6 +120,8 @@ export default function AntigravityCreativeWorkspace({
       displayCategory: string
       imageUrl: string
       style: string
+      type?: 'video' | 'photo'
+      durationSeconds?: number
     }> = []
 
     // 1. Community & Demand Cards
@@ -172,15 +175,18 @@ export default function AntigravityCreativeWorkspace({
     for (const asset of savedLibraryAssets) {
       const url = asset.mediaUrl || asset.media_url || asset.thumbnailUrl || asset.thumbnail_url
       if (!url) continue
+      const isVideo = asset.type === 'video' || url.endsWith('.webm') || url.endsWith('.mp4')
       items.unshift({
         id: `cat-saved-${asset.id}`,
-        title: asset.title || 'Saved Asset',
+        title: asset.title || (isVideo ? 'Saved Motion Video' : 'Saved Photo'),
         produceName: asset.produceList?.[0] || asset.produce_list?.[0] || 'Saved Asset',
         description: asset.description || '',
         category: 'saved',
-        displayCategory: asset.type === 'video' ? '🎬 Saved Motion Video' : '📸 Saved Photo Asset',
+        displayCategory: isVideo ? '🎬 Saved Motion Video' : '📸 Saved Photo Asset',
         imageUrl: url,
-        style: asset.type === 'video' ? 'Saved Video' : 'Saved Photo',
+        style: isVideo ? 'Saved Video' : 'Saved Photo',
+        type: isVideo ? 'video' : 'photo',
+        durationSeconds: asset.durationSeconds || asset.duration_seconds || 15,
       })
     }
 
@@ -1698,11 +1704,32 @@ export default function AntigravityCreativeWorkspace({
                   <p style={{ fontSize: '13px', color: '#64748B', margin: '0 0 20px 0', lineHeight: 1.5 }}>
                     Type your request in the chat dock on the left (e.g. <em>&ldquo;Generate 1 photo for each produce in containers plus a Wanted Now card&rdquo;</em>), or add photos from your library or device below.
                   </p>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      id="btn-1click-generate-photos"
+                      onClick={() => handleSendMessage(`Generate 4 commercial high-definition photo candidates for ${selectedProduce.slice(0, 4).join(', ')} in generous market harvest crates`)}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#15803D',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(21, 128, 61, 0.3)',
+                      }}
+                    >
+                      <span>✨</span>
+                      <span>Generate Photos for {selectedProduce.slice(0, 2).join(', ')}...</span>
+                    </button>
                     <button
                       onClick={() => setShowLibraryModal(true)}
                       style={{
-                        padding: '8px 16px',
+                        padding: '10px 16px',
                         background: '#EFF6FF',
                         color: '#1D4ED8',
                         border: '1px solid #BFDBFE',
@@ -1721,7 +1748,7 @@ export default function AntigravityCreativeWorkspace({
                     <button
                       onClick={() => fileUploadInputRef.current?.click()}
                       style={{
-                        padding: '8px 16px',
+                        padding: '10px 16px',
                         background: '#F1F5F9',
                         color: '#334155',
                         border: '1px solid #CBD5E1',
@@ -2556,21 +2583,58 @@ export default function AntigravityCreativeWorkspace({
                         boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
                       }}
                     >
-                      <div style={{ position: 'relative', width: '100%', height: '140px', background: '#0F172A' }}>
-                        <img
-                          src={item.imageUrl}
-                          alt={item.title}
-                          onError={e => {
-                            e.currentTarget.src = getInterestImage(item.produceName)
-                          }}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
+                      <div 
+                        style={{ position: 'relative', width: '100%', height: '140px', background: '#0F172A', cursor: item.type === 'video' ? 'pointer' : 'default' }}
+                        onClick={() => {
+                          if (item.type === 'video') {
+                            setPreviewVideo({ url: item.imageUrl, title: item.title })
+                          }
+                        }}
+                      >
+                        {item.type === 'video' ? (
+                          <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img
+                              src={item.imageUrl}
+                              alt={item.title}
+                              onError={e => {
+                                e.currentTarget.src = getInterestImage(item.produceName)
+                              }}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: 'rgba(21, 128, 61, 0.9)',
+                                color: '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '18px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                              }}
+                            >
+                              ▶
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.title}
+                            onError={e => {
+                              e.currentTarget.src = getInterestImage(item.produceName)
+                            }}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        )}
                         <span
                           style={{
                             position: 'absolute',
                             top: '6px',
                             left: '6px',
-                            background: 'rgba(15,23,42,0.82)',
+                            background: item.type === 'video' ? 'rgba(21, 128, 61, 0.92)' : 'rgba(15,23,42,0.82)',
                             color: '#FFFFFF',
                             fontSize: '9px',
                             fontWeight: 700,
@@ -2578,7 +2642,7 @@ export default function AntigravityCreativeWorkspace({
                             borderRadius: '4px',
                           }}
                         >
-                          {item.style}
+                          {item.type === 'video' ? `🎬 Video (${item.durationSeconds || 15}s)` : item.style}
                         </span>
                       </div>
                       <div style={{ padding: '10px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -2590,33 +2654,161 @@ export default function AntigravityCreativeWorkspace({
                             🏷️ {item.produceName}
                           </span>
                         </div>
-                        <button
-                          onClick={() => {
-                            handleAddPhotoFromLibrary(item)
-                            setShowLibraryModal(false)
-                          }}
-                          style={{
-                            marginTop: '8px',
-                            padding: '6px 10px',
-                            background: '#15803D',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            width: '100%',
-                            textAlign: 'center',
-                            boxShadow: '0 2px 4px rgba(21,128,61,0.2)',
-                          }}
-                        >
-                          + Add to Active Video
-                        </button>
+                        {item.type === 'video' ? (
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                            <button
+                              onClick={() => setPreviewVideo({ url: item.imageUrl, title: item.title })}
+                              style={{
+                                flex: 1,
+                                padding: '6px 8px',
+                                background: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                              }}
+                            >
+                              ▶️ Play
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAdModalContext({
+                                  isOpen: true,
+                                  initialPublishType: 'paid_ad',
+                                  initialMediaMode: 'video',
+                                  prefilledHeadline: item.title,
+                                  prefilledMediaUrl: item.imageUrl,
+                                  produceNames: [item.produceName],
+                                })
+                                setShowLibraryModal(false)
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '6px 8px',
+                                background: '#15803D',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                boxShadow: '0 2px 4px rgba(21,128,61,0.2)',
+                              }}
+                            >
+                              🚀 Ad Creator
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              handleAddPhotoFromLibrary(item)
+                              setShowLibraryModal(false)
+                            }}
+                            style={{
+                              marginTop: '8px',
+                              padding: '6px 10px',
+                              background: '#15803D',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              width: '100%',
+                              textAlign: 'center',
+                              boxShadow: '0 2px 4px rgba(21,128,61,0.2)',
+                            }}
+                          >
+                            + Add to Active Video
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── VIDEO PREVIEW PLAYER MODAL ─── */}
+      {previewVideo && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+          }}
+          onClick={() => setPreviewVideo(null)}
+        >
+          <div
+            style={{
+              background: '#0F172A',
+              borderRadius: '16px',
+              maxWidth: '520px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid #334155',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#F8FAFC' }}>
+                🎬 {previewVideo.title}
+              </h4>
+              <button
+                onClick={() => setPreviewVideo(null)}
+                style={{ background: '#1E293B', border: 'none', color: '#94A3B8', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div style={{ background: '#000000', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', maxHeight: '70vh' }}>
+              <video
+                src={previewVideo.url}
+                controls
+                autoPlay
+                style={{ width: '100%', maxHeight: '65vh', objectFit: 'contain' }}
+              />
+            </div>
+            <div style={{ padding: '14px 18px', background: '#0F172A', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #1E293B' }}>
+              <button
+                onClick={() => {
+                  setAdModalContext({
+                    isOpen: true,
+                    initialPublishType: 'paid_ad',
+                    initialMediaMode: 'video',
+                    prefilledHeadline: previewVideo.title,
+                    prefilledMediaUrl: previewVideo.url,
+                  })
+                  setPreviewVideo(null)
+                  setShowLibraryModal(false)
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#15803D',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                🚀 Launch in Ad Creator
+              </button>
             </div>
           </div>
         </div>

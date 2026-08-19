@@ -26,51 +26,43 @@ interface ImageTask {
 const IMAGE_API_KEY = process.env.IMAGE_GEN_KEY || process.env.GEMINI_API_KEY || ''
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
-async function callGeminiImageModel(prompt: string, aspectRatio: string): Promise<string | null> {
+async function callImagen3Model(prompt: string, aspectRatio: string = '4:5'): Promise<string | null> {
   if (!IMAGE_API_KEY || process.env.AI_MOCK === 'true') return null
 
-  const candidateModels = [
-    'nano-banana-pro-preview',
-    'gemini-2.5-flash-image',
-  ]
+  // Map requested aspect ratio to Imagen 3 supported formats: '1:1' | '9:16' | '16:9' | '3:4' | '4:3'
+  const validAspectRatio =
+    aspectRatio === '9:16' ? '9:16' :
+    aspectRatio === '16:9' ? '16:9' :
+    aspectRatio === '1:1' ? '1:1' :
+    aspectRatio === '4:5' ? '3:4' : '3:4'
 
-  const ratioSpec = aspectRatio === '9:16'
-    ? 'full vertical 9:16 portrait composition, formatted for 9:16 mobile full-screen Instagram Reels and Stories'
-    : aspectRatio === '16:9'
-    ? 'widescreen 16:9 landscape composition'
-    : aspectRatio === '1:1'
-    ? 'square 1:1 format composition'
-    : 'standard 4:5 vertical feed composition'
+  try {
+    const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${IMAGE_API_KEY}`
+    const res = await fetch(imagenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          aspectRatio: validAspectRatio,
+          outputMimeType: 'image/jpeg',
+        },
+      }),
+    })
 
-  const enhancedPrompt = `${prompt}, ${ratioSpec}`
-
-  for (const model of candidateModels) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${IMAGE_API_KEY}`
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: enhancedPrompt }] }],
-          generationConfig: {
-            responseModalities: ['IMAGE', 'TEXT']
-          }
-        }),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const parts = data.candidates?.[0]?.content?.parts || []
-        for (const part of parts) {
-          if (part.inlineData?.data) {
-            const mime = part.inlineData.mimeType || 'image/jpeg'
-            return `data:${mime};base64,${part.inlineData.data}`
-          }
-        }
+    if (res.ok) {
+      const data = await res.json()
+      const base64Bytes = data.generatedImages?.[0]?.image?.imageBytes
+      if (base64Bytes) {
+        return `data:image/jpeg;base64,${base64Bytes}`
       }
-    } catch (err) {
-      console.warn(`[Photos API] Model ${model} failed, trying next:`, err)
+    } else {
+      const errText = await res.text()
+      console.error('[Imagen 3 API Error]:', res.status, errText)
     }
+  } catch (err) {
+    console.error('[Imagen 3 API Exception]:', err)
   }
 
   return null
@@ -79,11 +71,11 @@ async function callGeminiImageModel(prompt: string, aspectRatio: string): Promis
 async function parsePromptWithGemini(userPrompt: string, produceContext: string[]): Promise<ImageTask[]> {
   if (!GEMINI_API_KEY || !userPrompt.trim()) {
     // Fallback default tasks if Gemini is unavailable
-    return produceContext.map((produce, i) => ({
-      title: `${produce} (Harvest Crate)`,
+    return produceContext.map((produce) => ({
+      title: `${produce} (Organic Harvest)`,
       produceName: produce,
-      prompt: `Commercial advertising photo of generous quantity of ripe ${produce} in rustic wooden harvest crate, bright morning sunlight, 8k`,
-      tags: [produce.toLowerCase(), 'produce', 'crate', 'harvest'],
+      prompt: `Commercial advertising photograph of fresh ripe ${produce} growing naturally on vibrant plant with morning dew droplets, bright natural sunlight, 8k ultra detailed`,
+      tags: [produce.toLowerCase(), 'produce', 'fresh', 'garden'],
       fallbackKey: produce.toLowerCase(),
     }))
   }
@@ -91,14 +83,14 @@ async function parsePromptWithGemini(userPrompt: string, produceContext: string[
   try {
     const systemPrompt = `You are an expert AI commercial advertising photography director.
 Analyze the user's prompt and active produce list, then decompose it into an array of distinct image generation tasks.
-Extract every requested image (e.g. groups of people, community signs, "I Want" demand cards, produce in containers).
+FAITHFULLY follow the user's explicit scene setting (e.g. tree full of fruit, vines in backyard garden, plants, containers, harvest trays, community signs, people). DO NOT force containers or crates unless the user explicitly requested them.
 Return ONLY valid JSON with this exact schema:
 {
   "tasks": [
     {
       "title": "Short descriptive title (max 5 words)",
       "produceName": "Produce name or subject name",
-      "prompt": "Detailed photorealistic commercial photography prompt tailored for image generation models (include subject, container/framing, contrast, morning sunlight, 8k)",
+      "prompt": "Detailed photorealistic commercial photography prompt tailored for Imagen 3 following user's instructions (subject, natural environment, lighting, natural depth of field, 8k)",
       "tags": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
       "fallbackKey": "lemons" | "tomatoes" | "avocado" | "basil" | "wanted" | "neighbors"
     }
@@ -106,7 +98,7 @@ Return ONLY valid JSON with this exact schema:
 }`
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,11 +131,11 @@ Return ONLY valid JSON with this exact schema:
   }
 
   // Fallback to standard produce list
-  return produceContext.map((produce, i) => ({
-    title: `${produce} (Harvest Crate)`,
+  return produceContext.map((produce) => ({
+    title: `${produce} (Organic Harvest)`,
     produceName: produce,
-    prompt: `Commercial advertising photo of generous quantity of ripe ${produce} in rustic wooden harvest crate, bright morning sunlight, 8k`,
-    tags: [produce.toLowerCase(), 'produce', 'crate', 'harvest'],
+    prompt: `Commercial advertising photograph of fresh ripe ${produce} growing naturally on vibrant plant with morning dew droplets, bright natural sunlight, 8k ultra detailed`,
+    tags: [produce.toLowerCase(), 'produce', 'fresh', 'garden'],
     fallbackKey: produce.toLowerCase(),
   }))
 }
@@ -169,8 +161,8 @@ export async function POST(req: NextRequest) {
     // ── MODE 3: REFINE SPECIFIC SINGLE PHOTO CANDIDATE ──
     if (mode === 'refine_single_photo') {
       const { targetPhotoId, produceName = 'Meyer Lemons', feedbackText = '', styleOption = 'crate_collection' } = body
-      const cleanPrompt = `Refined commercial advertising photo of generous quantity of ripe ${produceName}: ${feedbackText}, in rustic wooden harvest container, morning sunlight, 8k`
-      const aiUrl = await callGeminiImageModel(cleanPrompt, aspectRatio)
+      const cleanPrompt = `Refined commercial advertising photo of generous quantity of fresh ripe ${produceName}: ${feedbackText}, morning sunlight, 8k ultra detailed`
+      const aiUrl = await callImagen3Model(cleanPrompt, aspectRatio)
       const fallbackUrl = getInterestImage(produceName)
 
       const refinedPhoto: GeneratedProducePhoto = {
@@ -229,7 +221,7 @@ export async function POST(req: NextRequest) {
     const targetTasks = count ? tasks.slice(0, Number(count)) : tasks
 
     const photoPromises = targetTasks.map(async (task, i) => {
-      const aiUrl = await callGeminiImageModel(task.prompt, aspectRatio)
+      const aiUrl = await callImagen3Model(task.prompt, aspectRatio)
       const fallbackUrl = getInterestImage(task.produceName || task.fallbackKey)
 
       return {

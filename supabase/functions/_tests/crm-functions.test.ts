@@ -717,6 +717,7 @@ Deno.test('estimate-nutrition-loss: persists buyer questionnaire metadata (neigh
   })
 
   assertEquals(res.status, 200)
+  await res.json()
   const leadRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
@@ -730,10 +731,11 @@ Deno.test('estimate-nutrition-loss: persists buyer questionnaire metadata (neigh
   assertEquals(lead.metadata?.buying_frequency, '1week')
 
   // Cleanup
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+  const cleanupRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     method: 'DELETE',
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
+  await cleanupRes.text()
 })
 
 Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_comfort, excess_handling, garden_size)', async () => {
@@ -772,6 +774,7 @@ Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_co
   })
 
   assertEquals(res.status, 200)
+  await res.json()
   const leadRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
@@ -783,8 +786,9 @@ Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_co
   assertEquals(lead.metadata?.excess_handling, 'Give it away to friends & neighbors')
 
   // Cleanup
-  await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
+  const cleanupRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {
     method: 'DELETE',
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
   })
+  await cleanupRes.text()
 })

@@ -48,11 +48,11 @@ Deno.serve(async (req: Request) => {
       return [...new Set([...plants, ...trees])].filter(Boolean).join(', ');
     },
     buildMetadata: (payload) => ({
-      garden_size: payload.size,
-      plants: payload.plants || [],
-      trees: payload.trees || [],
-      selling_comfort: payload.selling_comfort || null,
-      excess_handling: payload.excess_handling || null,
+      garden_size: payload.size || payload.lead?.garden_size || null,
+      plants: payload.plants || payload.lead?.plants || [],
+      trees: payload.trees || payload.lead?.trees || [],
+      selling_comfort: payload.selling_comfort || payload.lead?.selling_comfort || null,
+      excess_handling: payload.excess_handling || payload.lead?.excess_handling || null,
       latitude: payload.latitude,
       longitude: payload.longitude
     }),
