@@ -291,22 +291,20 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     const buyerTable = page.locator('#buyer-demand-table')
     await expect(buyerTable).toBeVisible()
 
+    // Auto-wait for data to load and assert varieties in unfiltered mode
+    await expect(buyerTable.locator('tbody')).not.toContainText('Loading live database records')
+    await expect(buyerTable.locator('tbody')).toContainText('Tomatoes')
+    await expect(buyerTable.locator('tbody')).toContainText('Lemons')
+
     const allRowsCount = await buyerTable.locator('tbody tr').count()
     expect(allRowsCount).toBeGreaterThan(0)
 
-    // Verify all varieties appear in unfiltered mode
-    const allTableText = await buyerTable.textContent()
-    expect(allTableText).toContain('Tomatoes')
-    expect(allTableText).toContain('Lemons')
-
     // 2. Toggle In-Season Only
     await btnInSeason.click()
-    await page.waitForTimeout(300)
 
     // Current month is August (8): Tomatoes & Basil are in-season, Lemons (winter citrus Nov-Apr) should be filtered out
-    const inSeasonTableText = await buyerTable.textContent()
-    expect(inSeasonTableText).toContain('Tomatoes')
-    expect(inSeasonTableText).not.toContain('Lemons')
+    await expect(buyerTable.locator('tbody')).toContainText('Tomatoes')
+    await expect(buyerTable.locator('tbody')).not.toContainText('Lemons')
 
     const inSeasonRowsCount = await buyerTable.locator('tbody tr').count()
     expect(inSeasonRowsCount).toBeLessThan(allRowsCount)
@@ -316,22 +314,20 @@ test.describe('CRM — Produce Demand & Supply Radar Page', () => {
     const sellerTable = page.locator('#seller-supply-table')
     await expect(sellerTable).toBeVisible()
 
-    const sellerTableText = await sellerTable.textContent()
-    expect(sellerTableText).toContain('Tomatoes')
-    expect(sellerTableText).not.toContain('Lemons')
+    await expect(sellerTable.locator('tbody')).not.toContainText('Loading live database records')
+    await expect(sellerTable.locator('tbody')).toContainText('Tomatoes')
+    await expect(sellerTable.locator('tbody')).not.toContainText('Lemons')
 
     // 4. Toggle back to All Produce
     await btnAll.click()
-    await page.waitForTimeout(300)
 
     // Switch back to Buyer Demand view
     await page.locator('button:has-text("(a) Buyer Demand")').click()
     await expect(buyerTable).toBeVisible()
 
     // Verify all produce items are restored
-    const restoredBuyerText = await buyerTable.textContent()
-    expect(restoredBuyerText).toContain('Tomatoes')
-    expect(restoredBuyerText).toContain('Lemons')
+    await expect(buyerTable.locator('tbody')).toContainText('Tomatoes')
+    await expect(buyerTable.locator('tbody')).toContainText('Lemons')
 
     const restoredRowsCount = await buyerTable.locator('tbody tr').count()
     expect(restoredRowsCount).toBe(allRowsCount)

@@ -47,15 +47,27 @@ Deno.serve(async (req: Request) => {
       const trees = (payload.trees || []).map((t: string) => t.replace(/\s*\([xX]?\d+\)/g, '').trim());
       return [...new Set([...plants, ...trees])].filter(Boolean).join(', ');
     },
-    buildMetadata: (payload) => ({
-      garden_size: payload.size || payload.lead?.garden_size || null,
-      plants: payload.plants || payload.lead?.plants || [],
-      trees: payload.trees || payload.lead?.trees || [],
-      selling_comfort: payload.selling_comfort || payload.lead?.selling_comfort || null,
-      excess_handling: payload.excess_handling || payload.lead?.excess_handling || null,
-      latitude: payload.latitude,
-      longitude: payload.longitude
-    }),
+    buildMetadata: (payload, existingLead) => {
+      const newPlants = [...(payload.plants || [])].sort().join(',');
+      const newTrees = [...(payload.trees || [])].sort().join(',');
+      const oldPlants = [...(existingLead?.metadata?.plants || [])].sort().join(',');
+      const oldTrees = [...(existingLead?.metadata?.trees || [])].sort().join(',');
+      const newZip = payload.zipcode || payload.lead?.zipcode || '';
+      const oldZip = existingLead?.metadata?.zipcode || '';
+      const inputsChanged = newPlants !== oldPlants || newTrees !== oldTrees || newZip !== oldZip;
+
+      return {
+        garden_size: payload.size || payload.lead?.garden_size || null,
+        plants: payload.plants || payload.lead?.plants || [],
+        trees: payload.trees || payload.lead?.trees || [],
+        zipcode: newZip,
+        ...(existingLead && inputsChanged ? { ai_estimate_result: null } : {}),
+        selling_comfort: payload.selling_comfort || payload.lead?.selling_comfort || null,
+        excess_handling: payload.excess_handling || payload.lead?.excess_handling || null,
+        latitude: payload.latitude,
+        longitude: payload.longitude
+      };
+    },
     mergeAiResult: (payload, aiResult) => {
       const plants = payload.plants || [];
       const trees = payload.trees || [];

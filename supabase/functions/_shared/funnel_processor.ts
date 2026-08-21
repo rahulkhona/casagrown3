@@ -128,7 +128,7 @@ export const CORS = {
 export type IngestionConfig = {
   formVersion: string;
   extractInterests: (payload: any) => string;
-  buildMetadata: (payload: any) => Record<string, any>;
+  buildMetadata: (payload: any, existingLead?: any) => Record<string, any>;
   hasBackyard: boolean;
   resultKey: string;
   getAiPrompt: (payload: any) => string;
@@ -175,7 +175,7 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
 
           const metadata = { 
             ...existingLead.metadata,
-            ...config.buildMetadata(payload),
+            ...config.buildMetadata(payload, existingLead),
             referrer: payload.lead?.referrer || existingLead.metadata?.referrer,
             ...(skip_ai && prefetched_result ? { [config.resultKey]: prefetched_result } : {})
           };
@@ -206,7 +206,7 @@ export async function handleLeadIngestion(req: Request, config: IngestionConfig)
         } else {
           // Insert new
           const metadata = { 
-            ...config.buildMetadata(payload),
+            ...config.buildMetadata(payload, null),
             referrer: payload.lead?.referrer,
             ...(skip_ai && prefetched_result ? { [config.resultKey]: prefetched_result } : {})
           };

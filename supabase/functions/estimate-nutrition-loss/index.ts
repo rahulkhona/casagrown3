@@ -12,11 +12,15 @@ Deno.serve(async (req: Request) => {
     hasBackyard: false,
     resultKey: 'ai_nutrition_result',
     extractInterests: (payload) => (payload.produce || []).join(', '),
-    buildMetadata: (payload) => {
+    buildMetadata: (payload, existingLead) => {
       const produceList = payload.produce || [];
+      const newSorted = [...produceList].sort().join(',');
+      const oldSorted = existingLead?.metadata?.nutrition_produce_sorted;
+
       return {
         nutrition_produce: produceList,
-        nutrition_produce_sorted: [...produceList].sort().join(','),
+        nutrition_produce_sorted: newSorted,
+        ...(existingLead && newSorted !== oldSorted ? { ai_nutrition_result: null } : {}),
         neighbor_buying_comfort: payload.neighbor_buying_comfort || payload.lead?.neighbor_buying_comfort || null,
         store_types: payload.store_types || payload.lead?.store_types || [],
         fulfillment_modes: payload.fulfillment_modes || payload.lead?.fulfillment_modes || [],

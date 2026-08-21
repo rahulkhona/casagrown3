@@ -6,6 +6,8 @@ import { useFilters } from '../layout'
 import { BarChart, DonutChart, formatNumber } from '../../../lib/charts'
 
 const WIZARDS = [
+  { slug: '/list_bulk', label: 'Bulk Produce Lead Magnet (/list_bulk)' },
+  { slug: '/list-bulk', label: 'Bulk Produce Alias (/list-bulk)' },
   { slug: '/create-listing', label: 'Listing Creation Wizard (/create-listing)' },
   { slug: '/create-listing-simple', label: 'Simple Listing Wizard (/create-listing-simple)' },
   { slug: '/create-listing-wizard', label: 'Standard Listing Wizard (/create-listing-wizard)' },

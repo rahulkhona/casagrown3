@@ -7,6 +7,7 @@ interface AddressInputProps {
   value: AddressFields
   /** Always emits structured AddressFields */
   onChange: (val: AddressFields) => void
+  onBlur?: (field: keyof AddressFields) => void
   placeholderStreet?: string
   /** Show privacy note below the input */
   showPrivacyNote?: boolean
@@ -15,45 +16,54 @@ interface AddressInputProps {
 export default function AddressInput({
   value,
   onChange,
+  onBlur,
   placeholderStreet,
   showPrivacyNote = false,
 }: AddressInputProps) {
+  const safeValue = value || { street: '', city: '', state: '', zip: '' }
   const update = (field: keyof AddressFields, val: string) => {
-    onChange({ ...value, [field]: val })
+    onChange({ ...safeValue, [field]: val })
+  }
+  const handleBlur = (field: keyof AddressFields) => {
+    if (onBlur) onBlur(field)
   }
 
   return (
     <div className={styles.addressInputContainer}>
       <input
         className={styles.input}
-        value={value.street}
+        value={safeValue.street || ''}
         onChange={e => update('street', e.target.value)}
+        onBlur={() => handleBlur('street')}
         placeholder={placeholderStreet || 'Street Address'}
       />
       <div className={styles.row}>
         <input
           className={styles.input}
           style={{ flex: 2 }}
-          value={value.city}
+          value={safeValue.city || ''}
           onChange={e => update('city', e.target.value)}
+          onBlur={() => handleBlur('city')}
           placeholder="City"
         />
         <input
           className={styles.input}
           style={{ flex: 1 }}
-          value={value.state}
+          value={safeValue.state || ''}
           onChange={e => {
             const v = e.target.value.slice(0, 2).toUpperCase()
             update('state', v)
           }}
+          onBlur={() => handleBlur('state')}
           placeholder="ST"
           maxLength={2}
         />
         <input
           className={styles.input}
           style={{ flex: 1 }}
-          value={value.zip}
+          value={safeValue.zip || ''}
           onChange={e => update('zip', e.target.value)}
+          onBlur={() => handleBlur('zip')}
           placeholder="ZIP"
         />
       </div>

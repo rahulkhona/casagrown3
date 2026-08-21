@@ -1704,6 +1704,7 @@ export default function CampaignMessageEditor({
 
                       <div style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#6b7280', textTransform: 'uppercase', marginTop: 8, marginBottom: 4 }}>Marketing Pages</div>
                       {[
+                        { url: `${baseUrl}/list_bulk`, label: 'Bulk Produce Lead Magnet', slug: '/list_bulk' },
                         { url: `${baseUrl}/growbot`, label: 'GrowBot AI Chat', slug: '/growbot' },
                         { url: `${baseUrl}/sell`, label: 'Seller Calculator', slug: '/sell' },
                         { url: `${baseUrl}/create-listing-multi-arm`, label: 'Bandit Listing Flow', slug: '/create-listing-multi-arm' },
@@ -2252,6 +2253,7 @@ export default function CampaignMessageEditor({
                     })
 
                     referencesList.push(
+                      { label: '🧺 Bulk Produce Lead Magnet', type: 'Core Page', url: `${baseUrl}/list_bulk` },
                       { label: '🎮 Daily Garden Games Hub', type: 'Core Page', url: `${baseUrl}/games` },
                       { label: '🌱 Produce Market Feed', type: 'Core Page', url: `${baseUrl}/market` },
                       { label: '🤖 GrowBot AI Chat', type: 'Core Page', url: `${baseUrl}/growbot` },

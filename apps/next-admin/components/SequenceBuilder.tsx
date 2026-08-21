@@ -509,6 +509,7 @@ export default function SequenceBuilder({ sequenceId }: { sequenceId: string }) 
         optGroup: 'Attribution & Sources',
         values: [
           { name: '', label: 'Any/Unknown' },
+          { name: 'list_bulk', label: 'Core: Bulk Produce Listing (/list_bulk)' },
           { name: 'sell', label: 'Core: Seller Onboarding (/sell)' },
           { name: 'check-nutrition-loss', label: 'Core: Nutrition Drop (/check-nutrition-loss)' },
           ...landingPages.map(lp => ({ name: lp.slug, label: `Landing Page: ${lp.title}` }))

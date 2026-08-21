@@ -66,6 +66,7 @@ const UTM_MEDIUMS = [
 ]
 
 const BASE_URLS = [
+  { value: 'https://casagrown.com/list_bulk', label: '🧺 /list_bulk — Bulk Produce Lead Magnet' },
   { value: 'https://casagrown.com/games', label: '🎮 /games — Daily Garden Games Hub' },
   { value: 'https://casagrown.com/market', label: '🌱 /market — Produce Market Feed' },
   { value: 'https://casagrown.com/growbot', label: '/growbot — GrowBot AI Chat' },

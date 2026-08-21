@@ -1056,6 +1056,37 @@ export default function CustomAdPostCreatorModal({
                 </button>
               </div>
 
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Bulk Listing (/list_bulk)', url: 'https://casagrown.com/list_bulk' },
+                  { label: 'Seller (/create-listing)', url: 'https://casagrown.com/create-listing' },
+                  { label: 'Buyer Wishlist (/interest)', url: 'https://casagrown.com/interest' },
+                  { label: 'Home (/)', url: 'https://casagrown.com' },
+                ].map(p => (
+                  <button
+                    key={p.url}
+                    type="button"
+                    onClick={() => {
+                      setUrlPreset(p.url)
+                      setCustomUrl('')
+                      setShortUrl('')
+                    }}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: (customUrl || urlPreset) === p.url ? '2px solid #7C3AED' : '1px solid #CBD5E1',
+                      background: (customUrl || urlPreset) === p.url ? '#FAF5FF' : '#FFFFFF',
+                      color: (customUrl || urlPreset) === p.url ? '#6D28D9' : '#475569',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '3px' }}>
@@ -1064,7 +1095,10 @@ export default function CustomAdPostCreatorModal({
                   <input
                     type="text"
                     value={customUrl || urlPreset}
-                    onChange={e => setCustomUrl(e.target.value)}
+                    onChange={e => {
+                      setCustomUrl(e.target.value)
+                      setShortUrl('')
+                    }}
                     placeholder="https://casagrown.com"
                     style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px', boxSizing: 'border-box' }}
                   />
