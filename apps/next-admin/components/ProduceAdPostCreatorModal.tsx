@@ -243,7 +243,7 @@ export default function ProduceAdPostCreatorModal({
       const defaultUrl = isSel ? 'https://casagrown.com/create-listing' : 'https://casagrown.com/market'
       setUrlPreset(defaultUrl)
       setCustomUrl('')
-      setCallToAction(isSel ? 'List Your Harvest' : 'Shop Local Harvest')
+      setCallToAction(isSel ? 'LEARN_MORE' : 'SIGN_UP')
 
       if (ctx.initialMediaMode === 'video' || ctx.prefilledMediaUrl) {
         setMediaMode('video')
@@ -352,17 +352,17 @@ export default function ProduceAdPostCreatorModal({
         {
           headline: `Neighbors ${zipStr} are searching for backyard ${pNames} right now! 🍋`,
           text: `Real buyers on CasaGrown are actively requesting fresh, homegrown ${pNames} ${zipStr}.\n\nDon't let your overloaded tree drop to the lawn and go to waste. Verified neighbors are waiting for porch pickup today.\n\n📸 Snap a photo & list in 60 seconds\n💵 Keep 100% of your earnings — Zero fees\n🤝 Direct contactless porch pickups from nearby families`,
-          cta: 'List Your Harvest',
+          cta: 'LEARN_MORE',
         },
         {
           headline: `Got extra ${pNames}? Families on your block want to buy your harvest today! 🌿`,
           text: `We have active buyer requests for homegrown ${pNames} waiting ${primaryZip}.\n\nTurn your yard's overflow into cash this afternoon instead of letting it spoil. Local families would rather buy tree-ripened fruit from you than supermarket produce.\n\n✨ Free to list in under 1 minute\n📍 Buyers walk or drive right to your porch\n🌱 100% zero food waste in our community`,
-          cta: 'Claim Your Buyers',
+          cta: 'SIGN_UP',
         },
         {
           headline: `Overloaded ${pNames} tree? Local buyers are waiting on CasaGrown! 🌳`,
           text: `Local households nearby are looking for pesticide-free ${pNames} picked straight from the branch.\n\nList your surplus on CasaGrown in 60 seconds and fulfill active neighbor requests before the harvest season ends!`,
-          cta: 'List in 60 Seconds',
+          cta: 'LEARN_MORE',
         }
       ]
       setCopyVariations(variations)
@@ -374,17 +374,17 @@ export default function ProduceAdPostCreatorModal({
         {
           headline: `Craving fresh backyard ${pNames}? Request it from local growers ${zipStr}! 🥑`,
           text: `Tired of tasteless, cold-storage produce from the grocery store? Tell neighbors on CasaGrown that you're looking for fresh, sun-ripened ${pNames}.\n\nWhen local gardeners with overloaded trees in your ZIP code harvest, you'll be the first to get notified for fresh porch pickup!\n\n🌿 100% pesticide-free homegrown harvest\n🔔 Get instant notifications when neighbors list\n🤝 Connect directly with gardeners down your street`,
-          cta: 'Request Local Harvest',
+          cta: 'SIGN_UP',
         },
         {
           headline: `Want tree-ripened ${pNames} from backyard trees ${primaryZip}? 🧺`,
           text: `Backyard trees across ${zipStr} grow the sweetest ${pNames}, but most goes to waste on lawns.\n\nAdd ${pNames} to your CasaGrown neighborhood wishlist in 30 seconds so local growers know there is demand and notify you when their fruit is ripe!\n\n✨ Free to join neighborhood wishlist\n📍 Walking-distance contactless porch pickups\n🌱 Help stop neighborhood food waste`,
-          cta: 'Join Harvest Wishlist',
+          cta: 'SUBSCRIBE',
         },
         {
           headline: `Get notified when neighbors harvest fresh ${pNames} ${primaryZip}! ☀️`,
           text: `Looking for chemical-free, tree-ripened ${pNames} grown right in your community?\n\nExpress your interest on CasaGrown today and encourage local growers with overloaded trees to share their harvest with you!`,
-          cta: 'Get Harvest Alerts',
+          cta: 'LEARN_MORE',
         }
       ]
       setCopyVariations(variations)
@@ -1345,13 +1345,12 @@ export default function ProduceAdPostCreatorModal({
                     onChange={e => setCallToAction(e.target.value)}
                     style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px', background: '#FFFFFF', fontWeight: 600 }}
                   >
-                    <option value="List Your Harvest">List Your Harvest (Seller)</option>
-                    <option value="Request Local Harvest">Request Local Harvest (Buyer Wishlist)</option>
-                    <option value="Join Harvest Wishlist">Join Harvest Wishlist</option>
-                    <option value="Get Harvest Alerts">Get Harvest Alerts</option>
-                    <option value="Explore Near You">Explore Near You</option>
-                    <option value="Sign Up">Sign Up</option>
-                    <option value="Learn More">Learn More</option>
+                    <option value="LEARN_MORE">Learn More</option>
+                    <option value="SIGN_UP">Sign Up</option>
+                    <option value="SHOP_NOW">Shop Now</option>
+                    <option value="SUBSCRIBE">Subscribe</option>
+                    <option value="APPLY_NOW">Apply Now</option>
+                    <option value="CONTACT_US">Contact Us</option>
                   </select>
                 </div>
               )}
@@ -2410,11 +2409,7 @@ export default function ProduceAdPostCreatorModal({
                   {mediaMode === 'video' ? (
                     <div style={{ position: 'relative', width: '100%', height: '260px', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {uploadedVideoUrl ? (
-                        uploadedVideoUrl.endsWith('.mp4') || uploadedVideoUrl.endsWith('.mov') || uploadedVideoUrl.endsWith('.webm') ? (
-                          <video src={uploadedVideoUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <img src={uploadedVideoUrl} alt="Video Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        )
+                        <video src={uploadedVideoUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <div style={{ textAlign: 'center', color: '#94A3B8' }}>
                           <div style={{ fontSize: '32px', marginBottom: '4px' }}>📹</div>
@@ -2473,7 +2468,7 @@ export default function ProduceAdPostCreatorModal({
                           cursor: 'pointer',
                         }}
                       >
-                        {callToAction}
+                        {callToAction.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </button>
                     </div>
                   )}
@@ -2508,11 +2503,7 @@ export default function ProduceAdPostCreatorModal({
                 >
                   {/* Background Image / Video */}
                   {mediaMode === 'video' && uploadedVideoUrl ? (
-                    uploadedVideoUrl.endsWith('.mp4') || uploadedVideoUrl.endsWith('.mov') || uploadedVideoUrl.endsWith('.webm') ? (
-                      <video src={uploadedVideoUrl} autoPlay loop muted playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <img src={uploadedVideoUrl} alt="Story bg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
-                    )
+                    <video src={uploadedVideoUrl} autoPlay loop muted playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <img
                       src={selectedPhotos[0]}
@@ -2557,7 +2548,7 @@ export default function ProduceAdPostCreatorModal({
                         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
                       }}
                     >
-                      👆 {callToAction}
+                      👆 {callToAction.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </button>
                   </div>
                 </div>
