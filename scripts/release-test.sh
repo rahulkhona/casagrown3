@@ -355,7 +355,7 @@ fi
 
 # 5c: Provider & compliance tests
 echo "  Running provider & compliance tests..."
-PROVIDER_OUTPUT=$(cd supabase && SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" deno test --allow-env --allow-net --allow-run --no-check \
+PROVIDER_OUTPUT=$(cd supabase && unset http_proxy https_proxy && SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" deno test --allow-env --allow-net --allow-run --no-check \
   functions/_shared/tremendous.test.ts \
   functions/_shared/reloadly.test.ts \
   functions/_provider-tests/giftcard-cache.test.ts \

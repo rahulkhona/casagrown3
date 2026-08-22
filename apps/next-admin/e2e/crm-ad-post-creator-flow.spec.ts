@@ -60,7 +60,17 @@ test.describe('Exhaustive Meta Ads & Organic Post Creation E2E Suite', () => {
     const videoModeBtn = modal.locator('button:has-text("Video MP4")')
     const photoModeBtn = modal.locator('button:has-text("Photos / Collage")')
     await videoModeBtn.click()
+
+    // Upload a dummy video file to test Client-Side upload / preview path
+    const videoUploadInput = modal.locator('#ad-video-upload')
+    if (await videoUploadInput.count() > 0) {
+      await videoUploadInput.setInputFiles('e2e/test-video.mp4')
+      // Wait for it to appear in UI
+      await expect(modal.locator('text=/test-video.mp4/i').first()).toBeVisible({ timeout: 5000 })
+    }
+
     await photoModeBtn.click()
+    await videoModeBtn.click()
 
     // ── SECTION 2: AI Copy, Headline & Creatives ──
     // Click Generate AI Copy Variations

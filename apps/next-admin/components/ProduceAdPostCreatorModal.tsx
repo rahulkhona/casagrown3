@@ -5,6 +5,7 @@ import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../next-market/lib/interestCata
 import MetaSettingsModal from './MetaSettingsModal'
 import { getZipTimezone, getOptimalSlotsForDay, computeSlotDateTime } from '../lib/socialPostingSlots'
 import { resolveSmartAdSet, MetaAdSetRecord, MatchResult } from '../lib/adSetMatching'
+import { createClient } from '../lib/supabase'
 
 export type AdPostModalContext = {
   isOpen: boolean
@@ -513,11 +514,42 @@ export default function ProduceAdPostCreatorModal({
         },
       }
 
-      // 1. Persist to internal CRM database & upload video if present
+      // 1. Upload video directly to Supabase from the client to bypass Vercel 4.5MB limits
+      let finalVideoUrl = payload.preview_video_url
+      if (uploadedVideoFile && mediaMode === 'video') {
+        const fileExt = uploadedVideoFile.name.split('.').pop()
+        const fileName = `manual_vid_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        
+        const supabase = createClient()
+        
+        // Try uploading to 'marketing_assets'
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('marketing_assets')
+          .upload(`ad-videos/${fileName}`, uploadedVideoFile, {
+            cacheControl: '3600',
+            upsert: false
+          })
+          
+        if (uploadError) {
+          console.error('Client-side video upload failed:', uploadError)
+          // Fallback to sending via API if client-side fails (e.g. RLS policies)
+          // For <4.5MB it might still work.
+        } else if (uploadData) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('marketing_assets')
+            .getPublicUrl(`ad-videos/${fileName}`)
+          finalVideoUrl = publicUrl
+          payload.preview_video_url = publicUrl
+        }
+      }
+
+      // 2. Persist to internal CRM database
       const formData = new FormData()
       formData.append('action', 'create_campaign_post')
       formData.append('campaignPayload', JSON.stringify(payload))
-      if (uploadedVideoFile && mediaMode === 'video') {
+      
+      // Only append file if client-side upload failed and we still want to try the fallback
+      if (uploadedVideoFile && mediaMode === 'video' && (!finalVideoUrl || finalVideoUrl === uploadedVideoUrl)) {
         formData.append('videoFile', uploadedVideoFile)
       }
 
@@ -532,16 +564,16 @@ export default function ProduceAdPostCreatorModal({
 
       // 2. If Paid Meta Ad, deploy to Meta Marketing API (Campaign -> Ad Set -> Creative -> Ad)
       if (publishType === 'paid_ad') {
-        // Fetch saved settings first
-        const settingsRes = await fetch('/api/crm/meta-settings')
-        const settingsData = await settingsRes.json().catch(() => ({}))
+        // Fetch saved settings first from localStorage
+        const localSettingsStr = typeof window !== 'undefined' ? localStorage.getItem('casagrown_meta_settings') : null
+        const settingsData = localSettingsStr ? JSON.parse(localSettingsStr) : {}
         
         const metaRes = await fetch('/api/crm/meta-ads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             campaign: payload,
-            settings: settingsData?.settings || {} 
+            settings: settingsData 
           }),
         })
         const metaData = await metaRes.json()

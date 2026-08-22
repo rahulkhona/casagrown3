@@ -52,11 +52,16 @@ export default function MetaSettingsModal({
   const loadSettings = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/crm/meta-settings')
-      if (res.ok) {
-        const data = await res.json()
-        if (data.settings) {
-          setSettings(prev => ({ ...prev, ...data.settings }))
+      const local = localStorage.getItem('casagrown_meta_settings')
+      if (local) {
+        setSettings(prev => ({ ...prev, ...JSON.parse(local) }))
+      } else {
+        const res = await fetch('/api/crm/meta-settings')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.settings) {
+            setSettings(prev => ({ ...prev, ...data.settings }))
+          }
         }
       }
     } catch (err) {
@@ -75,6 +80,7 @@ export default function MetaSettingsModal({
         body: JSON.stringify({ settings }),
       })
       if (res.ok) {
+        localStorage.setItem('casagrown_meta_settings', JSON.stringify(settings))
         setSaveSuccess(true)
         if (onSaved) onSaved(settings)
         setTimeout(() => {

@@ -205,12 +205,14 @@ test.describe('Image Sizing in WYSIWYG Editor', () => {
     await page.waitForTimeout(500)
 
     await page.click('[data-testid="img-size-small"]', { force: true })
-    await page.waitForTimeout(600)
-
-    // The implementation sets both style.width and the HTML width attribute
-    const width = await img.evaluate((el: HTMLImageElement) => el.style.width || el.getAttribute('width') || '')
-    expect(width).toMatch(/200/)
-    console.log('[IMG-07] ✅ Small preset applied:', width)
+    
+    // Auto-retry until the image size takes effect
+    await expect(async () => {
+      const width = await img.evaluate((el: HTMLImageElement) => el.style.width || el.getAttribute('width') || '')
+      expect(width).toMatch(/200/)
+    }).toPass({ timeout: 5000 })
+    
+    console.log('[IMG-07] ✅ Small preset applied')
   })
 
   test('IMG-08: "Full Width" preset applies 100% width', async ({ page }) => {
