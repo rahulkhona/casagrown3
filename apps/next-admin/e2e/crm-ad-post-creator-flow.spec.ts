@@ -97,6 +97,13 @@ test.describe('Exhaustive Meta Ads & Organic Post Creation E2E Suite', () => {
       await shortenLinkBtn.click()
     }
 
+    // Verify Meta Action Button Dropdown contains standard CTAs
+    const ctaSelect = modal.locator('select').filter({ hasText: 'Learn More' }).first()
+    if (await ctaSelect.count() > 0) {
+      await expect(ctaSelect.locator('option[value="LEARN_MORE"]')).toHaveCount(1)
+      await expect(ctaSelect.locator('option[value="SIGN_UP"]')).toHaveCount(1)
+    }
+
     // ── SECTION 4: Meta Campaign & Smart Ad Set Configuration ──
     // Assert 3 Ad Set Selector buttons
     const smartAutoBtn = modal.locator('button:has-text("Smart Auto")')
