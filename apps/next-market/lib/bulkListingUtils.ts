@@ -280,7 +280,9 @@ export function createRowFromProduceName(produceName: string, idPrefix: string =
     isSelected: false,
     name: displayName,
     category: matchedCatalogItem?.category || base?.category || 'produce',
-    description: displayName ? `Fresh homegrown ${displayName}` : '',
+    description: displayName
+      ? `Fresh homegrown ${displayName.replace(/^fresh\s+/i, '')}`
+      : '',
     quantity: '',
     unit,
     priceUsd: '',

@@ -59,9 +59,10 @@ export default function BulkListingClient() {
   const [uploadTargetRowId, setUploadTargetRowId] = useState<string | null>(null)
 
   // ── Fulfillment State ──
-  const [offersDelivery, setOffersDelivery] = useState(true)
+  const [offersDelivery, setOffersDelivery] = useState(false)
   const [offersPickup, setOffersPickup] = useState(false)
   const [zipcode, setZipcode] = useState('')
+  const [zipInput, setZipInput] = useState('')
   const [deliveryMode, setDeliveryMode] = useState<'zipcode' | 'address_radius'>('zipcode')
   const [deliveryBaseAddr, setDeliveryBaseAddr] = useState<AddressFields>(EMPTY_ADDRESS)
   const [deliveryRadius, setDeliveryRadius] = useState(5)
@@ -80,6 +81,40 @@ export default function BulkListingClient() {
   const [geolocatingDelivery, setGeolocatingDelivery] = useState(false)
   const [geolocatingPickup, setGeolocatingPickup] = useState(false)
   const [existingBoothId, setExistingBoothId] = useState<string | null>(null)
+
+  const handleAddZipTag = (val: string) => {
+    const clean = val.trim().replace(/[^0-9]/g, '')
+    if (clean.length === 5 && !deliveryZipcodes.includes(clean)) {
+      const updated = [...deliveryZipcodes, clean]
+      setDeliveryZipcodes(updated)
+      if (!zipcode) setZipcode(clean)
+      setZipInput('')
+      trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', true)
+    }
+  }
+
+  const handleRemoveZipTag = (zipToRemove: string) => {
+    const updated = deliveryZipcodes.filter(z => z !== zipToRemove)
+    setDeliveryZipcodes(updated)
+    setZipcode(updated[0] || '')
+    trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', updated.length > 0)
+  }
+
+  const handlePasteZips = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text')
+    const matches = text.match(/\b\d{5}\b/g)
+    if (matches && matches.length > 0) {
+      e.preventDefault()
+      const uniqueNew = matches.filter(z => !deliveryZipcodes.includes(z))
+      if (uniqueNew.length > 0) {
+        const updated = [...deliveryZipcodes, ...uniqueNew]
+        setDeliveryZipcodes(updated)
+        if (!zipcode) setZipcode(updated[0])
+        setZipInput('')
+        trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', true)
+      }
+    }
+  }
 
   // ── Multi-Step Publish Modal State (matching /sell) ──
   const [publishModalOpen, setPublishModalOpen] = useState(false)
@@ -127,7 +162,13 @@ export default function BulkListingClient() {
 
     const rawParam = searchParams.get('produce') || searchParams.get('items')
     const rawZip = searchParams.get('zipcode') || searchParams.get('zip')
-    if (rawZip) setZipcode(rawZip)
+    if (rawZip) {
+      const cleanZip = rawZip.trim().replace(/[^0-9]/g, '')
+      setZipcode(cleanZip)
+      if (cleanZip.length === 5) {
+        setDeliveryZipcodes(prev => (prev.includes(cleanZip) ? prev : [...prev, cleanZip]))
+      }
+    }
 
     const parsedNames = parseProduceParams(rawParam)
 
@@ -177,52 +218,26 @@ export default function BulkListingClient() {
   useEffect(() => {
     async function loadLocationOrBooth() {
       if (user?.id) {
-        // Fetch existing booth
+        // Fetch existing default booth ID only (do NOT pre-select delivery/pickup or prefill default pickup address)
         try {
-          const { data: booth } = await supabase
+          const { data: userBooths } = await supabase
             .from('market_booths')
-            .select('*')
+            .select('id, booth_zip, delivery_zipcodes, is_default')
             .eq('owner_id', user.id)
-            .maybeSingle()
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
 
+          const booth = userBooths?.[0]
           if (booth) {
             setExistingBoothId(booth.id)
-            if (booth.offers_delivery !== undefined) setOffersDelivery(booth.offers_delivery)
-            if (booth.offers_pickup !== undefined) setOffersPickup(booth.offers_pickup)
-            if (booth.booth_zip) {
-              setZipcode(booth.booth_zip)
-            } else if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
-              setZipcode(booth.delivery_zipcodes[0])
-            }
-            if (booth.delivery_zipcodes) setDeliveryZipcodes(booth.delivery_zipcodes)
-            if (booth.delivery_base_address || booth.booth_address) {
-              setDeliveryMode('address_radius')
-              const rawAddr = booth.delivery_base_address || booth.booth_address || ''
-              const parts = rawAddr.split(',').map((s: string) => s.trim())
-              if (parts.length >= 3) {
-                const street = parts.slice(0, -2).join(', ').trim()
-                const city = parts[parts.length - 2].trim()
-                const stateZip = parts[parts.length - 1].trim().split(/\s+/)
-                setDeliveryBaseAddr({
-                  street,
-                  city,
-                  state: stateZip[0] || '',
-                  zip: stateZip.slice(1).join(' ').trim() || booth.booth_zip || '',
-                })
-              }
-            }
-            if (booth.pickup_address) {
-              const parts = booth.pickup_address.split(',').map((s: string) => s.trim())
-              if (parts.length >= 3) {
-                const street = parts.slice(0, -2).join(', ').trim()
-                const city = parts[parts.length - 2].trim()
-                const stateZip = parts[parts.length - 1].trim().split(/\s+/)
-                setPickupAddr({
-                  street,
-                  city,
-                  state: stateZip[0] || '',
-                  zip: stateZip.slice(1).join(' ').trim() || '',
-                })
+            if (!zipcode) {
+              if (booth.delivery_zipcodes && booth.delivery_zipcodes.length > 0) {
+                setZipcode(booth.delivery_zipcodes[0])
+                setDeliveryZipcodes(booth.delivery_zipcodes)
+              } else if (booth.booth_zip) {
+                setZipcode(booth.booth_zip)
+                setDeliveryZipcodes([booth.booth_zip])
               }
             }
             return
@@ -517,7 +532,7 @@ export default function BulkListingClient() {
 
     if (offersDelivery) {
       if (deliveryMode === 'zipcode') {
-        const hasZip = /^\d{5}$/.test(zipcode.trim())
+        const hasZip = deliveryZipcodes.length > 0 || /^\d{5}$/.test(zipInput.trim())
         if (!hasZip) return false
       } else if (deliveryMode === 'address_radius') {
         const hasBaseAddr = isAddressComplete(deliveryBaseAddr)
@@ -532,17 +547,17 @@ export default function BulkListingClient() {
     }
 
     return true
-  }, [offersDelivery, offersPickup, deliveryMode, zipcode, deliveryBaseAddr, deliveryRadius, pickupAddr])
+  }, [offersDelivery, offersPickup, deliveryMode, deliveryZipcodes, zipInput, deliveryBaseAddr, deliveryRadius, pickupAddr])
 
   const publishButtonHint = useMemo(() => {
     if (validFilledRows.length === 0) {
       return 'Fill in price & quantity for at least 1 item'
     }
     if (!offersDelivery && !offersPickup) {
-      return '⚠️ Please select at least 1 fulfillment option (Delivery or Pickup)'
+      return '⚠️ Please select at least 1 fulfillment option (Delivery, Pickup, or Both)'
     }
-    if (offersDelivery && deliveryMode === 'zipcode' && !/^\d{5}$/.test(zipcode.trim())) {
-      return '⚠️ Please enter a 5-digit delivery ZIP code below'
+    if (offersDelivery && deliveryMode === 'zipcode' && deliveryZipcodes.length === 0 && !/^\d{5}$/.test(zipInput.trim())) {
+      return '⚠️ Please enter at least one 5-digit delivery ZIP code below'
     }
     if (offersDelivery && deliveryMode === 'address_radius' && !isAddressComplete(deliveryBaseAddr)) {
       return '⚠️ Please enter your complete home/farm address for delivery radius below'
@@ -551,7 +566,7 @@ export default function BulkListingClient() {
       return '⚠️ Please enter your complete pickup address below'
     }
     return 'Free to list • Instant seller booth setup'
-  }, [validFilledRows.length, offersDelivery, offersPickup, deliveryMode, zipcode, deliveryBaseAddr, pickupAddr])
+  }, [validFilledRows.length, offersDelivery, offersPickup, deliveryMode, deliveryZipcodes, zipInput, deliveryBaseAddr, pickupAddr])
 
   const handleOAuthLogin = async (provider: 'google' | 'apple') => {
     saveDraftToStorage()
@@ -638,25 +653,38 @@ export default function BulkListingClient() {
   const handlePublishClick = async () => {
     setGlobalError('')
 
+    // Auto-commit any valid 5-digit ZIP currently in zipInput
+    let currentZipcodes = [...deliveryZipcodes]
+    if (zipInput.trim().length === 5 && /^\d{5}$/.test(zipInput.trim()) && !currentZipcodes.includes(zipInput.trim())) {
+      currentZipcodes.push(zipInput.trim())
+      setDeliveryZipcodes(currentZipcodes)
+      if (!zipcode) setZipcode(zipInput.trim())
+      setZipInput('')
+    }
+
     // ── FIRE ANALYTICS EVENTS FOR ALL FIELDS ──
     trackEvent('button_click', PAGE_SLUG, { action: 'publish_intent' })
     trackFieldInteract(PAGE_SLUG, 1, 'offers_delivery', offersDelivery)
     trackFieldInteract(PAGE_SLUG, 1, 'offers_pickup', offersPickup)
     if (offersDelivery) {
+      trackFieldInteract(PAGE_SLUG, 1, 'delivery_mode', !!deliveryMode)
       if (deliveryMode === 'zipcode') {
-        trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcode', !!zipcode.trim())
+        trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', currentZipcodes.length > 0 || !!zipcode.trim())
       } else {
         trackFieldInteract(PAGE_SLUG, 1, 'delivery_base_street', !!deliveryBaseAddr.street.trim())
         trackFieldInteract(PAGE_SLUG, 1, 'delivery_base_city', !!deliveryBaseAddr.city.trim())
         trackFieldInteract(PAGE_SLUG, 1, 'delivery_base_state', !!deliveryBaseAddr.state.trim())
         trackFieldInteract(PAGE_SLUG, 1, 'delivery_base_zip', !!deliveryBaseAddr.zip.trim())
+        trackFieldInteract(PAGE_SLUG, 1, 'delivery_radius', !!deliveryRadius)
       }
+      trackFieldInteract(PAGE_SLUG, 1, 'delivery_preset', !!deliveryPreset)
     }
     if (offersPickup) {
       trackFieldInteract(PAGE_SLUG, 1, 'pickup_street', !!pickupAddr.street.trim())
       trackFieldInteract(PAGE_SLUG, 1, 'pickup_city', !!pickupAddr.city.trim())
       trackFieldInteract(PAGE_SLUG, 1, 'pickup_state', !!pickupAddr.state.trim())
       trackFieldInteract(PAGE_SLUG, 1, 'pickup_zip', !!pickupAddr.zip.trim())
+      trackFieldInteract(PAGE_SLUG, 1, 'pickup_preset', !!pickupPreset)
     }
     produceRows.forEach((r, idx) => {
       trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_name`, !!r.name.trim())
@@ -683,12 +711,12 @@ export default function BulkListingClient() {
     }
 
     if (!offersDelivery && !offersPickup) {
-      setGlobalError('Please select at least one fulfillment option (Delivery or Pickup).')
+      setGlobalError('Please select at least one fulfillment option (Delivery, Pickup, or Both).')
       return
     }
 
-    if (offersDelivery && deliveryMode === 'zipcode' && !/^\d{5}$/.test(zipcode.trim())) {
-      setGlobalError('Please enter a valid 5-digit delivery ZIP code.')
+    if (offersDelivery && deliveryMode === 'zipcode' && currentZipcodes.length === 0) {
+      setGlobalError('Please enter at least one valid 5-digit delivery ZIP code.')
       return
     }
 
@@ -828,15 +856,17 @@ export default function BulkListingClient() {
           : getWindowsForPreset(pickupPreset)
 
       if (!targetBoothId) {
-        // Check if user already has any booth first
-        const { data: existingBooth } = await supabase
+        // Find existing default or primary booth for this user
+        const { data: userBooths } = await supabase
           .from('market_booths')
-          .select('id')
+          .select('id, is_default, booth_zip')
           .eq('owner_id', userId)
-          .maybeSingle()
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-        if (existingBooth?.id) {
-          targetBoothId = existingBooth.id
+        if (userBooths && userBooths.length > 0) {
+          targetBoothId = userBooths[0]!.id
         }
       }
 
@@ -859,12 +889,12 @@ export default function BulkListingClient() {
             p_pickup_address: pickupStr,
             p_offers_delivery: offersDelivery,
             p_offers_pickup: offersPickup,
-            p_delivery_radius_miles: deliveryRadius,
-            p_delivery_zipcodes: deliveryZipcodes.length > 0 ? deliveryZipcodes : [finalZip],
+            p_delivery_radius_miles: offersDelivery ? deliveryRadius : null,
+            p_delivery_zipcodes: offersDelivery && deliveryZipcodes.length > 0 ? deliveryZipcodes : (finalZip ? [finalZip] : []),
             p_is_default: true,
           })
           if (!rpcErr && rpcData) {
-            targetBoothId = typeof rpcData === 'string' ? rpcData : (rpcData as any).id || rpcData
+            targetBoothId = typeof rpcData === 'string' ? rpcData : (rpcData as any)?.id || rpcData
           }
         } catch (rpcEx) {
           console.warn('create_stand RPC warning:', rpcEx)
@@ -878,48 +908,78 @@ export default function BulkListingClient() {
               name: standName,
               offers_delivery: offersDelivery,
               offers_pickup: offersPickup,
-              delivery_radius_miles: deliveryRadius,
-              delivery_zipcodes: deliveryZipcodes.length > 0 ? deliveryZipcodes : [finalZip],
+              delivery_radius_miles: offersDelivery ? deliveryRadius : null,
+              delivery_zipcodes: offersDelivery && deliveryZipcodes.length > 0 ? deliveryZipcodes : (finalZip ? [finalZip] : []),
               pickup_address: pickupStr,
-              weekly_delivery_windows: deliveryWindows,
-              weekly_pickup_windows: pickupWindows,
+              weekly_delivery_windows: offersDelivery ? deliveryWindows : null,
+              weekly_pickup_windows: offersPickup ? pickupWindows : null,
+              status: 'active',
+              is_active: true,
+              is_default: true,
             })
             .select('id')
             .single()
 
-          if (boothErr) {
+          if (newBooth?.id) {
+            targetBoothId = newBooth.id
+          } else {
             console.warn('Booth direct insert warning:', boothErr)
-            const { data: fallbackBooth } = await supabase
+            const { data: fallbackBooths } = await supabase
               .from('market_booths')
               .select('id')
               .eq('owner_id', userId)
-              .maybeSingle()
-            if (fallbackBooth?.id) {
-              targetBoothId = fallbackBooth.id
+              .order('is_default', { ascending: false })
+              .order('created_at', { ascending: false })
+              .limit(1)
+            if (fallbackBooths && fallbackBooths.length > 0) {
+              targetBoothId = fallbackBooths[0]!.id
             }
-          } else if (newBooth?.id) {
-            targetBoothId = newBooth.id
           }
         }
       }
 
-      if (targetBoothId) {
-        // Update existing booth with active fulfillment settings
-        await supabase
-          .from('market_booths')
-          .update({
-            offers_delivery: offersDelivery,
-            offers_pickup: offersPickup,
-            delivery_radius_miles: deliveryRadius,
-            delivery_zipcodes: deliveryZipcodes.length > 0 ? deliveryZipcodes : [finalZip],
-            pickup_address: pickupStr,
-            weekly_delivery_windows: deliveryWindows,
-            weekly_pickup_windows: pickupWindows,
-          })
-          .eq('id', targetBoothId)
+      if (!targetBoothId) {
+        throw new Error('Could not create or resolve seller stand. Please try again.')
       }
 
-      // 2. Batch Upload Photos & Insert Products
+      // Update existing booth with active fulfillment settings and active status
+      await supabase
+        .from('market_booths')
+        .update({
+          offers_delivery: offersDelivery,
+          offers_pickup: offersPickup,
+          delivery_radius_miles: offersDelivery ? deliveryRadius : null,
+          delivery_zipcodes: offersDelivery && deliveryZipcodes.length > 0 ? deliveryZipcodes : (finalZip ? [finalZip] : []),
+          pickup_address: pickupStr,
+          weekly_delivery_windows: offersDelivery ? deliveryWindows : null,
+          weekly_pickup_windows: offersPickup ? pickupWindows : null,
+          status: 'active',
+          is_active: true,
+        })
+        .eq('id', targetBoothId)
+
+      // Format product-level fulfillment schedule windows matching the marketplace schema
+      const formatProductWindows = (windowsRecord: Record<string, string[]>) => {
+        const obj: Record<string, any[]> = {}
+        for (const [dateKey, slotIds] of Object.entries(windowsRecord)) {
+          if (Array.isArray(slotIds) && slotIds.length > 0) {
+            obj[dateKey] = slotIds.map(id => {
+              const [start] = id.split('-')
+              const startNum = parseInt(start, 10) || 8
+              return {
+                id,
+                start: `${startNum}:00`,
+                end: `${startNum + 2}:00`,
+              }
+            })
+          }
+        }
+        return Object.keys(obj).length > 0 ? obj : null
+      }
+
+      const formattedDeliveryWindows = offersDelivery ? formatProductWindows(deliveryWindows) : null
+      const formattedPickupWindows = offersPickup ? formatProductWindows(pickupWindows) : null
+      const activeWindowDates = dayOptions.map(d => d.date)
       const today = new Date()
       const marketDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
@@ -949,11 +1009,12 @@ export default function BulkListingClient() {
           photoUrl = row.customPhotoDataUrl
         }
 
-        const prodItem: any = {
+        const prodItem: Record<string, any> = {
           seller_id: userId,
+          booth_id: targetBoothId,
           market_date: marketDate,
           name: row.name.trim(),
-          description: row.description.trim() || `Fresh homegrown ${row.name.trim()}`,
+          description: row.description.trim() || `Fresh homegrown ${row.name.trim().replace(/^fresh\s+/i, '')}`,
           price_usd: parsedPrice,
           unit: row.unit || 'lb',
           inventory: parsedQty,
@@ -961,13 +1022,14 @@ export default function BulkListingClient() {
           photos: photoUrl ? [photoUrl] : [],
           is_active: true,
           is_draft: false,
+          is_deleted: false,
           harvested_at: new Date().toISOString(),
           delivery_radius_miles: offersDelivery ? deliveryRadius : null,
           pickup_address: pickupStr,
-          delivery_zipcodes: offersDelivery && deliveryZipcodes.length > 0 ? deliveryZipcodes : [finalZip],
-        }
-        if (targetBoothId) {
-          prodItem.booth_id = targetBoothId
+          delivery_zipcodes: offersDelivery ? (deliveryZipcodes.length > 0 ? deliveryZipcodes : (finalZip ? [finalZip] : [])) : null,
+          product_delivery_windows: formattedDeliveryWindows,
+          product_pickup_windows: formattedPickupWindows,
+          window_dates: activeWindowDates,
         }
 
         productsToInsert.push(prodItem)
@@ -979,8 +1041,13 @@ export default function BulkListingClient() {
         .select('id, name, description, photos')
 
       if (prodErr) {
-        console.error('Product insert error details:', prodErr)
-        throw prodErr
+        console.error('Product insert error details:', {
+          message: prodErr.message,
+          details: prodErr.details,
+          hint: prodErr.hint,
+          code: prodErr.code,
+        })
+        throw new Error(prodErr.message || 'Failed to create products in database')
       }
 
       // 3. Trigger Background Content Moderation (Asynchronous)
@@ -1042,13 +1109,8 @@ export default function BulkListingClient() {
 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('casagrown_bulk_listing_draft')
-      }
-
-      // 7. Redirect to Seller Booth Dashboard
-      if (targetBoothId) {
-        router.push(`/my-stands/${targetBoothId}`)
-      } else {
-        router.push('/my-booth')
+        // Full navigation with cache bypass to guarantee fresh stand load
+        window.location.href = `/my-stands/${targetBoothId}`
       }
     } catch (err: any) {
       console.error('Publish error message:', err?.message, 'details:', err?.details, 'hint:', err?.hint, err)
@@ -1342,7 +1404,21 @@ export default function BulkListingClient() {
 
           {/* ─── Fulfillment Options ─── */}
           <div className={styles.fulfillmentContainer}>
-            <h2 className={styles.sectionTitle}>🚚 Delivery & Pickup Options</h2>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>🚚 Delivery & Pickup Options</h2>
+              <span className={styles.fulfillmentRequiredBadge}>
+                Choose at least one (Delivery, Pickup, or Both) *
+              </span>
+            </div>
+
+            {!offersDelivery && !offersPickup && (
+              <div className={styles.fulfillmentWarning}>
+                <span>⚠️</span>
+                <span>
+                  Please select at least one fulfillment option below (<strong>Delivery</strong>, <strong>Pickup</strong>, or <strong>Both</strong>) so neighbors know how to receive your produce.
+                </span>
+              </div>
+            )}
 
             <div className={styles.fulfillmentGrid}>
               {/* Delivery Box */}
@@ -1351,7 +1427,13 @@ export default function BulkListingClient() {
               >
                 <div
                   className={styles.toggleCardHeader}
-                  onClick={() => setOffersDelivery(prev => !prev)}
+                  onClick={() => {
+                    setOffersDelivery(prev => {
+                      const next = !prev
+                      trackFieldInteract(PAGE_SLUG, 1, 'offers_delivery', next)
+                      return next
+                    })
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -1364,7 +1446,7 @@ export default function BulkListingClient() {
                       🚗 I can deliver to neighbors
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                      Deliver within your local area on your scheduled days
+                      Deliver within your local area or selected ZIP codes on your scheduled days
                     </div>
                   </div>
                 </div>
@@ -1375,26 +1457,38 @@ export default function BulkListingClient() {
                     <div className={styles.deliveryModeContainer}>
                       <label
                         className={`${styles.deliveryModeOption} ${deliveryMode === 'zipcode' ? styles.deliveryModeOptionActive : ''}`}
-                        onClick={() => setDeliveryMode('zipcode')}
+                        onClick={() => {
+                          setDeliveryMode('zipcode')
+                          trackFieldInteract(PAGE_SLUG, 1, 'delivery_mode', true)
+                        }}
                       >
                         <input
                           type="radio"
                           name="deliveryMode"
                           checked={deliveryMode === 'zipcode'}
-                          onChange={() => setDeliveryMode('zipcode')}
+                          onChange={() => {
+                            setDeliveryMode('zipcode')
+                            trackFieldInteract(PAGE_SLUG, 1, 'delivery_mode', true)
+                          }}
                           className={styles.deliveryModeRadio}
                         />
-                        Deliver by Zip Code
+                        Deliver by Zip Code(s)
                       </label>
                       <label
                         className={`${styles.deliveryModeOption} ${deliveryMode === 'address_radius' ? styles.deliveryModeOptionActive : ''}`}
-                        onClick={() => setDeliveryMode('address_radius')}
+                        onClick={() => {
+                          setDeliveryMode('address_radius')
+                          trackFieldInteract(PAGE_SLUG, 1, 'delivery_mode', true)
+                        }}
                       >
                         <input
                           type="radio"
                           name="deliveryMode"
                           checked={deliveryMode === 'address_radius'}
-                          onChange={() => setDeliveryMode('address_radius')}
+                          onChange={() => {
+                            setDeliveryMode('address_radius')
+                            trackFieldInteract(PAGE_SLUG, 1, 'delivery_mode', true)
+                          }}
                           className={styles.deliveryModeRadio}
                         />
                         Base Address + Delivery Radius
@@ -1402,17 +1496,58 @@ export default function BulkListingClient() {
                     </div>
 
                     {deliveryMode === 'zipcode' ? (
-                      <div className={styles.fieldGroup} style={{ maxWidth: 280, marginBottom: 16 }}>
-                        <label className={styles.fieldLabel}>Your Delivery Zip Code *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 94024"
-                          maxLength={5}
-                          value={zipcode}
-                          onChange={e => setZipcode(e.target.value.replace(/[^0-9]/g, ''))}
-                          onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcode', !!zipcode.trim())}
-                          className={styles.input}
-                        />
+                      <div className={styles.fieldGroup} style={{ marginBottom: 16 }}>
+                        <label className={styles.fieldLabel}>📮 Delivery Zip Code(s) *</label>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 6px' }}>
+                          Add one or multiple 5-digit ZIP codes where you deliver (press Enter, space, or comma to add).
+                        </p>
+                        <div className={styles.zipTagsContainer}>
+                          {deliveryZipcodes.map(zip => (
+                            <span key={zip} className={styles.zipTag}>
+                              {zip}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveZipTag(zip)}
+                                className={styles.zipTagRemove}
+                                aria-label={`Remove ${zip}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text"
+                            placeholder={deliveryZipcodes.length === 0 ? "e.g. 95125, 95112" : "Add another ZIP..."}
+                            value={zipInput}
+                            onChange={e => {
+                              const val = e.target.value
+                              if (val.includes(',') || val.includes(' ')) {
+                                const parts = val.split(/[,\s]+/).filter(Boolean)
+                                parts.forEach(p => handleAddZipTag(p))
+                                setZipInput('')
+                              } else {
+                                setZipInput(val.replace(/[^0-9]/g, ''))
+                              }
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                                e.preventDefault()
+                                if (zipInput.trim()) {
+                                  handleAddZipTag(zipInput)
+                                }
+                              }
+                            }}
+                            onBlur={() => {
+                              if (zipInput.trim()) {
+                                handleAddZipTag(zipInput)
+                              }
+                              trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', deliveryZipcodes.length > 0 || !!zipInput.trim())
+                            }}
+                            onPaste={handlePasteZips}
+                            className={styles.zipTagInput}
+                            maxLength={5}
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
@@ -1438,7 +1573,12 @@ export default function BulkListingClient() {
                           value={deliveryBaseAddr}
                           onChange={val => {
                             setDeliveryBaseAddr(val)
-                            if (val.zip && !zipcode) setZipcode(val.zip)
+                            if (val.zip && !zipcode) {
+                              setZipcode(val.zip)
+                              if (!deliveryZipcodes.includes(val.zip)) {
+                                setDeliveryZipcodes(prev => [...prev, val.zip])
+                              }
+                            }
                           }}
                           onBlur={(f) => trackFieldInteract(PAGE_SLUG, 1, `delivery_base_${f}`, !!deliveryBaseAddr[f]?.trim())}
                           placeholderStreet="Base Street Address for deliveries"
@@ -1455,7 +1595,11 @@ export default function BulkListingClient() {
                             min="1"
                             max="10"
                             value={deliveryRadius}
-                            onChange={e => setDeliveryRadius(parseInt(e.target.value, 10))}
+                            onChange={e => {
+                              const r = parseInt(e.target.value, 10)
+                              setDeliveryRadius(r)
+                              trackFieldInteract(PAGE_SLUG, 1, 'delivery_radius', true)
+                            }}
                             style={{ width: '100%', accentColor: '#16a34a' }}
                           />
                         </div>
@@ -1476,6 +1620,7 @@ export default function BulkListingClient() {
                               if (p.id !== 'custom') {
                                 setCustomDeliveryWindows(getWindowsForPreset(p.id))
                               }
+                              trackFieldInteract(PAGE_SLUG, 1, 'delivery_preset', true)
                             }}
                           >
                             <input
@@ -1547,7 +1692,13 @@ export default function BulkListingClient() {
               >
                 <div
                   className={styles.toggleCardHeader}
-                  onClick={() => setOffersPickup(prev => !prev)}
+                  onClick={() => {
+                    setOffersPickup(prev => {
+                      const next = !prev
+                      trackFieldInteract(PAGE_SLUG, 1, 'offers_pickup', next)
+                      return next
+                    })
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -1607,6 +1758,7 @@ export default function BulkListingClient() {
                               if (p.id !== 'custom') {
                                 setCustomPickupWindows(getWindowsForPreset(p.id))
                               }
+                              trackFieldInteract(PAGE_SLUG, 1, 'pickup_preset', true)
                             }}
                           >
                             <input
@@ -1670,6 +1822,37 @@ export default function BulkListingClient() {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Transparent Pricing & Platform Fees */}
+            <div className={styles.feeNoticeCard}>
+              <div className={styles.feeNoticeHeader}>
+                <div className={styles.feeNoticeTitleWrapper}>
+                  <span className={styles.feeNoticeIcon}>💳</span>
+                  <h3 className={styles.feeNoticeTitle}>Transparent Pricing & Seller Fees</h3>
+                </div>
+                <span className={styles.feeNoticeBadge}>No Hidden Fees</span>
+              </div>
+              <div className={styles.feeNoticeGrid}>
+                <div className={styles.feeNoticeItem}>
+                  <div className={styles.feeNoticeItemHeader}>
+                    <span className={styles.feeCheckmark}>✓</span>
+                    <span className={styles.feeItemTitle}>$0 Listing Fee</span>
+                  </div>
+                  <p className={styles.feeItemDescription}>
+                    Listing fresh produce is <strong>100% free</strong>. There are no monthly subscriptions, upfront setup costs, or recurring fees.
+                  </p>
+                </div>
+                <div className={styles.feeNoticeItem}>
+                  <div className={styles.feeNoticeItemHeader}>
+                    <span className={styles.feeCheckmark}>✓</span>
+                    <span className={styles.feeItemTitle}>10% Standard Platform Fee on Sale</span>
+                  </div>
+                  <p className={styles.feeItemDescription}>
+                    CasaGrown charges a 10% platform fee <em>only upon a successful sale</em>, which is <strong>all-inclusive of Stripe payment processing and credit card transaction fees</strong>. You keep 90% of your listed earnings.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1916,7 +2099,7 @@ export default function BulkListingClient() {
                     fontSize: '0.85rem',
                   }}
                 >
-                  <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>🧺</span>
                     <span>{validFilledRows.length} produce {validFilledRows.length === 1 ? 'item' : 'items'} ready to publish:</span>
                   </div>
@@ -1928,25 +2111,41 @@ export default function BulkListingClient() {
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          gap: 10,
                           color: '#334155',
                           padding: '4px 0',
                           borderBottom: ri < validFilledRows.length - 1 ? '1px dashed #e2e8f0' : 'none',
                         }}
                       >
-                        <span style={{ fontWeight: 600 }}>• {r.name}</span>
-                        <span style={{ fontWeight: 700, color: '#16a34a' }}>
+                        <span style={{ fontWeight: 600, wordBreak: 'break-word', flex: 1 }}>• {r.name}</span>
+                        <span style={{ fontWeight: 700, color: '#16a34a', whiteSpace: 'nowrap' }}>
                           {r.isFree ? 'Free' : `$${r.priceUsd}/${r.unit}`} ({r.quantity} available)
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ paddingTop: 8, borderTop: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#64748b', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ paddingTop: 10, borderTop: '1px solid #e2e8f0', fontSize: '0.82rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.45 }}>
                     {offersDelivery && (
-                      <div>🚗 <strong>Delivery:</strong> {deliveryMode === 'zipcode' ? `ZIP ${zipcode}` : `${deliveryRadius} miles around base address`}</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>🚗</span>
+                        <div style={{ flex: 1, wordBreak: 'break-word' }}>
+                          <strong style={{ color: '#0f172a' }}>Delivery:</strong>{' '}
+                          {deliveryMode === 'zipcode'
+                            ? `ZIP ${deliveryZipcodes.length > 0 ? deliveryZipcodes.join(', ') : zipcode || 'None specified'}`
+                            : `${deliveryRadius} miles around ${deliveryBaseAddr.street ? `${deliveryBaseAddr.street}, ${deliveryBaseAddr.city}` : 'base address'}`}
+                        </div>
+                      </div>
                     )}
                     {offersPickup && (
-                      <div>📍 <strong>Pickup:</strong> {formatFullAddress(pickupAddr) || 'Address provided'}</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>📍</span>
+                        <div style={{ flex: 1, wordBreak: 'break-word' }}>
+                          <strong style={{ color: '#0f172a' }}>Pickup:</strong>{' '}
+                          {isAddressComplete(pickupAddr) ? formatFullAddress(pickupAddr) : 'Address provided upon checkout'}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

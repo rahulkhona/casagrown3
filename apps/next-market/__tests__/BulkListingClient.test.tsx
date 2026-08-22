@@ -138,19 +138,60 @@ describe('BulkListingClient Component', () => {
     })
   })
 
-  it('toggles fulfillment delivery and pickup checkboxes', async () => {
+  it('renders transparent platform fee disclosure card', async () => {
     render(<BulkListingClient />)
 
+    expect(screen.getByText(/Transparent Pricing & Seller Fees/i)).toBeDefined()
+    expect(screen.getByText(/\$0 Listing Fee/i)).toBeDefined()
+    expect(screen.getByText(/10% Standard Platform Fee on Sale/i)).toBeDefined()
+  })
+
+  it('toggles fulfillment delivery and pickup checkboxes and shows required badge', async () => {
+    render(<BulkListingClient />)
+
+    expect(screen.getByText(/Choose at least one \(Delivery, Pickup, or Both\) \*/i)).toBeDefined()
     expect(screen.getByText(/I can deliver to neighbors/i)).toBeDefined()
     expect(screen.getByText(/Buyers can pick up from me/i)).toBeDefined()
 
-    const pickupCard = screen.getByText(/Buyers can pick up from me/i).closest('div')
-    if (pickupCard) {
-      fireEvent.click(pickupCard)
+    const deliveryCard = screen.getByText(/I can deliver to neighbors/i).closest('div')
+    if (deliveryCard) {
+      fireEvent.click(deliveryCard)
     }
+
+    expect(screen.getByText(/Deliver by Zip Code\(s\)/i)).toBeDefined()
   })
 
-  it('disables publish button when delivery ZIP code is missing', async () => {
+  it('supports adding and removing multiple delivery zip codes', async () => {
+    render(<BulkListingClient />)
+
+    // Enable delivery
+    const deliveryCard = screen.getByText(/I can deliver to neighbors/i).closest('div')
+    if (deliveryCard) {
+      fireEvent.click(deliveryCard)
+    }
+
+    const zipInput = screen.getByPlaceholderText(/e\.g\. 95125, 95112/i)
+    fireEvent.change(zipInput, { target: { value: '95125' } })
+    fireEvent.keyDown(zipInput, { key: 'Enter' })
+
+    expect(screen.getByText('95125')).toBeDefined()
+
+    // Add second zip
+    const nextZipInput = screen.getByPlaceholderText(/Add another ZIP\.\.\./i)
+    fireEvent.change(nextZipInput, { target: { value: '95112' } })
+    fireEvent.keyDown(nextZipInput, { key: 'Enter' })
+
+    expect(screen.getByText('95112')).toBeDefined()
+
+    // Remove first zip
+    const removeBtns = screen.getAllByRole('button', { name: /Remove 95125/i })
+    fireEvent.click(removeBtns[0]!)
+
+    expect(screen.queryByText('95125')).toBeNull()
+    expect(screen.getByText('95112')).toBeDefined()
+  })
+
+  it('disables publish button when no fulfillment option is selected', async () => {
     mockSearchParams = new URLSearchParams('produce=tomatoes')
     render(<BulkListingClient />)
 
@@ -161,12 +202,18 @@ describe('BulkListingClient Component', () => {
 
     const publishBtn = screen.getByRole('button', { name: /Publish 1 Selected Item to My Stand/i })
     expect((publishBtn as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByText(/Please enter a 5-digit delivery ZIP code below/i)).toBeDefined()
+    expect(screen.getByText(/Please select at least 1 fulfillment option \(Delivery, Pickup, or Both\)/i)).toBeDefined()
   })
 
-  it('enables publish button when valid 5-digit delivery ZIP is provided', async () => {
+  it('enables publish button when fulfillment option and valid data are provided', async () => {
     mockSearchParams = new URLSearchParams('produce=tomatoes&zipcode=95120')
     render(<BulkListingClient />)
+
+    // Enable delivery
+    const deliveryCard = screen.getByText(/I can deliver to neighbors/i).closest('div')
+    if (deliveryCard) {
+      fireEvent.click(deliveryCard)
+    }
 
     const priceInput = screen.getByPlaceholderText('0.00')
     const qtyInput = screen.getByPlaceholderText('e.g. 5')
@@ -180,6 +227,12 @@ describe('BulkListingClient Component', () => {
   it('opens auth modal on publish when user is unauthenticated', async () => {
     mockSearchParams = new URLSearchParams('produce=tomatoes&zipcode=95120')
     render(<BulkListingClient />)
+
+    // Enable delivery
+    const deliveryCard = screen.getByText(/I can deliver to neighbors/i).closest('div')
+    if (deliveryCard) {
+      fireEvent.click(deliveryCard)
+    }
 
     // Set price and quantity
     const priceInput = screen.getByPlaceholderText('0.00')

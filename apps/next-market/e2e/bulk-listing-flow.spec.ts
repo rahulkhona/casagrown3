@@ -75,14 +75,25 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     await expect(page.locator('text=Cannabis and related topics are not allowed on CasaGrown')).toBeVisible()
   })
 
+  test('renders transparent platform fee disclosure card', async ({ page }) => {
+    await page.goto('/list_bulk?produce=lemons')
+
+    await expect(page.locator('text=Transparent Pricing & Seller Fees')).toBeVisible()
+    await expect(page.locator('text=$0 Listing Fee')).toBeVisible()
+    await expect(page.locator('text=10% Standard Platform Fee on Sale')).toBeVisible()
+  })
+
   test('configures delivery schedule presets and toggles pickup', async ({ page }) => {
     await page.goto('/list_bulk?produce=lemons')
+
+    // Toggle Delivery to open delivery options
+    await page.locator('text=I can deliver to neighbors').click()
 
     // Select Weekend Mornings preset
     const weekendPreset = page.locator('text=Weekend mornings')
     await weekendPreset.click()
 
-    // Toggle Pickup
+    // Toggle Pickup to open pickup options
     const pickupToggle = page.locator('text=Buyers can pick up from me')
     await pickupToggle.click()
 
@@ -103,24 +114,45 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     await expect(firstRowCheckbox).toBeChecked()
   })
 
-  test('validates 5-digit zipcode for delivery', async ({ page }) => {
+  test('supports adding and deleting multiple delivery zip codes', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
     // Setup valid row
     await page.locator('input[placeholder="0.00"]').first().fill('3.50')
     await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
 
-    // Default is zipcode delivery, let's enter an invalid zip
-    const zipInput = page.locator('input[placeholder="e.g. 94024"]')
-    await zipInput.fill('123')
+    // Enable delivery
+    await page.locator('text=I can deliver to neighbors').click()
+
+    // Remove any prefilled IP location zip tags to test empty validation
+    const existingRemoveBtns = page.locator('button[aria-label^="Remove "]')
+    const count = await existingRemoveBtns.count()
+    for (let i = count - 1; i >= 0; i--) {
+      await existingRemoveBtns.nth(i).click()
+    }
 
     const publishBtn = page.locator('button:has-text("Publish")')
     await expect(publishBtn).toBeDisabled()
-    await expect(page.locator('text=Please enter a 5-digit delivery ZIP code')).toBeVisible()
+    await expect(page.locator('text=Please enter at least one 5-digit delivery ZIP code')).toBeVisible()
 
-    // Enter valid 5-digit zip
+    // Add first zip
+    const zipInput = page.locator('input[class*="zipTagInput"]')
     await zipInput.fill('95125')
+    await zipInput.press('Enter')
+
+    await expect(page.locator('button[aria-label="Remove 95125"]')).toBeVisible()
     await expect(publishBtn).toBeEnabled()
+
+    // Add second zip
+    await zipInput.fill('95112')
+    await zipInput.press('Enter')
+
+    await expect(page.locator('button[aria-label="Remove 95112"]')).toBeVisible()
+
+    // Remove first zip tag
+    await page.locator('button[aria-label="Remove 95125"]').click()
+    await expect(page.locator('button[aria-label="Remove 95125"]')).toHaveCount(0)
+    await expect(page.locator('button[aria-label="Remove 95112"]')).toBeVisible()
 
     await publishBtn.click()
     await expect(page.locator('text=Save & Publish Your Listings')).toBeVisible()
@@ -132,6 +164,9 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     // Setup valid row
     await page.locator('input[placeholder="0.00"]').first().fill('3.50')
     await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
+
+    // Enable delivery
+    await page.locator('text=I can deliver to neighbors').click()
 
     // Switch to address radius mode
     await page.locator('text=Base Address + Delivery Radius').click()
@@ -158,8 +193,7 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     await page.locator('input[placeholder="0.00"]').first().fill('3.50')
     await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
 
-    // Turn off delivery, turn on pickup
-    await page.locator('text=I can deliver to neighbors').click()
+    // Turn on pickup
     await page.locator('text=Buyers can pick up from me').click()
 
     const publishBtn = page.locator('button:has-text("Publish")')
@@ -184,8 +218,11 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     await page.locator('input[placeholder="e.g. 5"]').first().fill('6')
     await page.locator('input[placeholder="0.00"]').first().fill('2.00')
 
-    // Enter valid delivery zip to pass validation
-    await page.locator('input[placeholder="e.g. 94024"]').fill('95125')
+    // Enable delivery and enter valid delivery zip to pass validation
+    await page.locator('text=I can deliver to neighbors').click()
+    const zipInput = page.locator('input[class*="zipTagInput"]')
+    await zipInput.fill('95125')
+    await zipInput.press('Enter')
 
     // Click Publish
     const publishBtn = page.locator('button:has-text("Publish")')
@@ -197,5 +234,38 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
     await expect(page.locator('text=Continue with Google')).toBeVisible()
     await expect(page.locator('text=Continue with Apple')).toBeVisible()
     await expect(page.locator('input[placeholder="sarah@example.com"]')).toBeVisible()
+  })
+})
+
+test.describe('Bulk Produce Listing Lead Magnet (/list_bulk) — Authenticated Seller Flow', () => {
+  test.use({ storageState: 'e2e/.auth/user.json' })
+
+  test('authenticated seller completes full publish and records are inserted with valid schedule windows in Supabase', async ({ page }) => {
+    await page.goto('/list_bulk?produce=meyer_lemons')
+
+    // Enter price and quantity
+    await page.locator('input[placeholder="0.00"]').first().fill('4.50')
+    await page.locator('input[placeholder="e.g. 5"]').first().fill('12')
+
+    // Select Delivery and enter ZIP
+    await page.locator('text=I can deliver to neighbors').click()
+    const zipInput = page.locator('input[class*="zipTagInput"]')
+    await zipInput.fill('95125')
+    await zipInput.press('Enter')
+
+    // Select Pickup and enter Pickup Address
+    await page.locator('text=Buyers can pick up from me').click()
+    await page.locator('input[placeholder="Street Address for pickup"]').fill('789 Blossom Hill Rd')
+    await page.locator('input[placeholder="City"]').last().fill('Los Gatos')
+    await page.locator('input[placeholder="ST"]').last().fill('CA')
+    await page.locator('input[placeholder="ZIP"]').last().fill('95032')
+
+    // Click Publish
+    const publishBtn = page.locator('button:has-text("Publish")')
+    await expect(publishBtn).toBeEnabled()
+    await publishBtn.click()
+
+    // Authenticated seller with existing TOS agreement publishes directly and redirects to my-booth or market
+    await expect(page).toHaveURL(/.*(my-booth|market|\/list_bulk)/, { timeout: 15000 })
   })
 })

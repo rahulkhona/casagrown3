@@ -1062,6 +1062,8 @@ export async function fetchAttributions(
   })
 
   const MANDATORY_PAGES_WIZARDS = [
+    '/list_bulk',
+    '/list-bulk',
     '/sell',
     '/check-nutrition-loss',
     '/join',
@@ -1181,6 +1183,8 @@ export async function fetchAttributionTrends(
   })
 
   const MANDATORY_PAGES_WIZARDS = [
+    '/list_bulk',
+    '/list-bulk',
     '/sell',
     '/check-nutrition-loss',
     '/join',
@@ -1294,7 +1298,7 @@ export async function fetchTrafficTrends(
     date: v.visited_at?.split('T')[0] || dateRange.start,
   }))
 
-  const MANDATORY_ROUTES = ['/market', '/sell', '/join', '/p/[slug]', '/create-listing', '/create-listing-simple', '/check-nutrition-loss', '/claim']
+  const MANDATORY_ROUTES = ['/list_bulk', '/list-bulk', '/market', '/sell', '/join', '/p/[slug]', '/create-listing', '/create-listing-simple', '/check-nutrition-loss', '/claim']
 
   if (rawVisits.length === 0) {
     const dates = [dateRange.start, dateRange.end]
