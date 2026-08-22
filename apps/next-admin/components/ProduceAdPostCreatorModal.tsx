@@ -532,10 +532,17 @@ export default function ProduceAdPostCreatorModal({
 
       // 2. If Paid Meta Ad, deploy to Meta Marketing API (Campaign -> Ad Set -> Creative -> Ad)
       if (publishType === 'paid_ad') {
+        // Fetch saved settings first
+        const settingsRes = await fetch('/api/crm/meta-settings')
+        const settingsData = await settingsRes.json().catch(() => ({}))
+        
         const metaRes = await fetch('/api/crm/meta-ads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaign: payload }),
+          body: JSON.stringify({ 
+            campaign: payload,
+            settings: settingsData?.settings || {} 
+          }),
         })
         const metaData = await metaRes.json()
         setMetaResult(metaData)
