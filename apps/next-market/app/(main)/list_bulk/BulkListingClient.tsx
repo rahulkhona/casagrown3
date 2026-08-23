@@ -36,7 +36,11 @@ import {
   trackMetaLead,
 } from '../../../lib/crm-analytics'
 import CameraCapture, { CaptureResult } from '../../../components/CameraCapture'
+import SocialShareModal from '../../components/SocialShareModal'
+import { geocodeAddress } from '../../../lib/geocode'
+import { autoPostProductToCommunity } from '../../../../../packages/app/features/community-chat/auto-post-service'
 import styles from './bulk-listing.module.css'
+
 
 const PAGE_SLUG = '/list_bulk'
 
@@ -81,6 +85,9 @@ export default function BulkListingClient() {
   const [geolocatingDelivery, setGeolocatingDelivery] = useState(false)
   const [geolocatingPickup, setGeolocatingPickup] = useState(false)
   const [existingBoothId, setExistingBoothId] = useState<string | null>(null)
+  const [showSuccessShareModal, setShowSuccessShareModal] = useState(false)
+  const [successBoothId, setSuccessBoothId] = useState<string | null>(null)
+
 
   const handleAddZipTag = (val: string) => {
     const clean = val.trim().replace(/[^0-9]/g, '')
@@ -1050,8 +1057,12 @@ export default function BulkListingClient() {
         throw new Error(prodErr.message || 'Failed to create products in database')
       }
 
-      // 3. Trigger Background Content Moderation (Asynchronous)
+      // 3. Trigger Background Content Moderation & Auto-Post to Community
       if (createdProducts && createdProducts.length > 0) {
+        const boothAddrStr = formatFullAddress(deliveryBaseAddr)
+        const fallbackAddr = boothAddrStr || finalZip
+        const pickupStr = formatFullAddress(pickupAddr)
+
         for (const prod of createdProducts) {
           supabase.functions
             .invoke('moderate-listing', {
@@ -1064,6 +1075,20 @@ export default function BulkListingClient() {
               },
             })
             .catch((err: any) => console.warn('Background moderation error:', err))
+
+          // Auto-post to local /community feed
+          const rowInfo = validFilledRows.find(r => r.name.trim().toLowerCase() === prod.name.trim().toLowerCase())
+          autoPostProductToCommunity({
+            supabase,
+            userId,
+            productId: prod.id,
+            productName: prod.name,
+            priceUsd: rowInfo?.priceUsd || 0,
+            unit: rowInfo?.unit || 'each',
+            fallbackAddress: fallbackAddr,
+            secondaryFallbackAddress: pickupStr || null,
+            geocodeFn: geocodeAddress,
+          }).catch((err: any) => console.warn('[AutoPost] Bulk product auto-post warning:', err))
         }
       }
 
@@ -1109,9 +1134,12 @@ export default function BulkListingClient() {
 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('casagrown_bulk_listing_draft')
-        // Full navigation with cache bypass to guarantee fresh stand load
-        window.location.href = `/my-stands/${targetBoothId}`
       }
+
+      // Launch Social Sharing modal for the booth before navigation
+      setSuccessBoothId(targetBoothId)
+      setShowSuccessShareModal(true)
+      setIsSubmitting(false)
     } catch (err: any) {
       console.error('Publish error message:', err?.message, 'details:', err?.details, 'hint:', err?.hint, err)
       setGlobalError(err?.message || err?.details || 'An error occurred while publishing your listings. Please try again.')
@@ -2345,6 +2373,24 @@ export default function BulkListingClient() {
           </div>
         </>
       )}
+
+      {showSuccessShareModal && successBoothId && (
+        <SocialShareModal
+          isOpen={showSuccessShareModal}
+          onClose={() => {
+            setShowSuccessShareModal(false)
+            if (typeof window !== 'undefined') {
+              window.location.href = `/my-stands/${successBoothId}`
+            }
+          }}
+          title="Share Your Stand with Neighbors"
+          subtitle="Let your local neighborhood know your stand is live and open for orders!"
+          entityName="My Produce Stand"
+          shareUrl={typeof window !== 'undefined' ? `${window.location.origin}/market/booth/${successBoothId}` : `/market/booth/${successBoothId}`}
+          shareMessage="🌿 Fresh produce is available at my backyard stand! Browse & order on CasaGrown Market:"
+        />
+      )}
     </div>
   )
 }
+

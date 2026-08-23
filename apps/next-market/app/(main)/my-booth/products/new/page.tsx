@@ -21,6 +21,9 @@ import AddressInput from '../../../../components/AddressInput'
 import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressComplete, buildAddress } from '../../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
 import { decomposeAddress, parseTextFallback } from './nlp-parser-utils'
+import { autoPostProductToCommunity } from '../../../../../../../packages/app/features/community-chat/auto-post-service'
+
+
 
 // Compute the next upcoming market date from the schedule
 function getNextMarketDate(schedule: { dayOfWeek: number; dayName: string; openTime: string; closeTime: string }[]): {
@@ -1737,6 +1740,21 @@ function NewProductPageInner() {
       }).catch((modErr: any) => {
         console.warn('Moderation check failed (non-blocking):', modErr)
       })
+
+      // Auto-post to local /community feed
+      const boothAddrStr = formatFullAddress(boothBaseAddr) || (boothDefaults?.booth_address || null)
+      const fallbackAddr = boothAddrStr || (resolvedZipcodes && resolvedZipcodes.length > 0 ? resolvedZipcodes[0] : null)
+      autoPostProductToCommunity({
+        supabase,
+        userId: authUser.id,
+        productId: insertedProduct.id,
+        productName: insertedProduct.name || name.trim() || 'Product',
+        priceUsd: insertedProduct.price_usd || parseFloat(priceUsd || '0'),
+        unit: insertedProduct.unit || unit,
+        fallbackAddress: fallbackAddr,
+        secondaryFallbackAddress: resolvedPickupAddress,
+        geocodeFn: geocodeAddress,
+      }).catch(err => console.warn('[AutoPost] Failed auto-post:', err))
     }
 
     setValidating(false)

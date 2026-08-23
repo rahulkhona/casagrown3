@@ -265,7 +265,31 @@ test.describe('Bulk Produce Listing Lead Magnet (/list_bulk) — Authenticated S
     await expect(publishBtn).toBeEnabled()
     await publishBtn.click()
 
-    // Authenticated seller with existing TOS agreement publishes directly and redirects to my-booth or market
-    await expect(page).toHaveURL(/.*(my-booth|market|\/list_bulk)/, { timeout: 15000 })
+    // If TOS/Review modal is opened, check TOS checkbox and click publish
+    const reviewHeading = page.locator('text=Review & Confirm Your Stand').first()
+    if (await reviewHeading.isVisible({ timeout: 4000 }).catch(() => false)) {
+      const checkbox = page.locator('input[type="checkbox"]').first()
+      if (await checkbox.isVisible().catch(() => false)) {
+        await checkbox.check()
+      }
+      const finalBtn = page.locator('button:has-text("Complete Setup & Publish Stand")').first()
+      await finalBtn.click()
+    }
+
+    // Verify Social Share Modal pops up automatically for stand sharing
+    const shareModalHeading = page.locator('text=Share Your Stand with Neighbors').or(page.locator('text=CasaGrown Share')).first()
+    await expect(shareModalHeading).toBeVisible({ timeout: 15000 })
+
+    // Close the Social Share Modal to trigger final redirect
+    const closeBtn = page.locator('button[aria-label="Close"]').first()
+    if (await closeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await closeBtn.click()
+    } else {
+      await page.keyboard.press('Escape')
+    }
+
+    // Authenticated seller completes publish and redirects to stand page
+    await expect(page).toHaveURL(/.*(my-stands|my-booth|market|\/list_bulk)/, { timeout: 15000 })
   })
 })
+
