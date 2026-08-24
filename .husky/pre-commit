@@ -8,6 +8,28 @@ echo "🔍 Running pre-commit checks..."
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
+# ── 0. Check local .env changes and auto-encrypt to secrets/local-envs.enc (~<0.1s)
+CHECKSUM_FILE="secrets/.env.checksums"
+ENV_CHANGED=0
+
+if [ -f "$CHECKSUM_FILE" ]; then
+  if ! shasum -a 256 -c "$CHECKSUM_FILE" >/dev/null 2>&1; then
+    ENV_CHANGED=1
+  fi
+else
+  ENV_CHANGED=1
+fi
+
+if [ "$ENV_CHANGED" -eq 1 ]; then
+  echo "🔐 [0/3] Local .env changes detected — auto-encrypting to secrets/local-envs.enc..."
+  if ./scripts/encrypt-envs.sh; then
+    git add secrets/local-envs.enc "$CHECKSUM_FILE" 2>/dev/null || true
+    echo "✅ Encrypted environment backup staged successfully"
+  else
+    echo "⚠️ Warning: Could not auto-encrypt .env files"
+  fi
+fi
+
 # ── 1. Migration lint — check staged SQL files for missing COMMENT ON (~<1s)
 STAGED_SQL=$(git diff --cached --name-only --diff-filter=ACM -- 'supabase/migrations/*.sql' 2>/dev/null || true)
 if [ -n "$STAGED_SQL" ]; then

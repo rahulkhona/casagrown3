@@ -58,6 +58,12 @@ if [ -z "$PARENT_DIR" ]; then
   done
 fi
 
+# If no parent directory found but encrypted archive exists, unpack it directly
+if [ -z "$PARENT_DIR" ] && [ -f "$ROOT_DIR/secrets/local-envs.enc" ]; then
+  echo -e "  \033[0;34mNo parent worktree found. Decrypting environment from secrets/local-envs.enc...\033[0m"
+  "$ROOT_DIR/scripts/decrypt-envs.sh" || true
+fi
+
 echo -e "\033[1;36mBootstrapping CasaGrown Workspace Environment (v2)...\033[0m"
 if [ -n "$PARENT_DIR" ]; then
   echo -e "  \033[0;34mFound parent credential workspace at: $PARENT_DIR\033[0m"
