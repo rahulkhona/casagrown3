@@ -747,6 +747,7 @@ Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_co
     trees: ['Lemon Tree'],
     selling_comfort: 'Very comfortable — I want to earn extra income!',
     excess_handling: 'Give it away to friends & neighbors',
+    fulfillment_preferences: ['Deliver to buyers in your neighborhood', 'Let buyers pickup from your home'],
     skip_ai: true,
     prefetched_result: {
       excess_produce: 'Test excess',
@@ -784,6 +785,7 @@ Deno.test('estimate-earnings: persists seller questionnaire metadata (selling_co
   assertEquals(lead.metadata?.garden_size, 'Large Backyard Garden')
   assertEquals(lead.metadata?.selling_comfort, 'Very comfortable — I want to earn extra income!')
   assertEquals(lead.metadata?.excess_handling, 'Give it away to friends & neighbors')
+  assertEquals(lead.metadata?.fulfillment_preferences, ['Deliver to buyers in your neighborhood', 'Let buyers pickup from your home'])
 
   // Cleanup
   const cleanupRes = await fetch(`${SUPABASE_URL}/rest/v1/crm_leads?email=eq.${encodeURIComponent(testEmail)}`, {

@@ -64,6 +64,7 @@ Deno.serve(async (req: Request) => {
         ...(existingLead && inputsChanged ? { ai_estimate_result: null } : {}),
         selling_comfort: payload.selling_comfort || payload.lead?.selling_comfort || null,
         excess_handling: payload.excess_handling || payload.lead?.excess_handling || null,
+        fulfillment_preferences: payload.fulfillment_preferences || payload.lead?.fulfillment_preferences || [],
         latitude: payload.latitude,
         longitude: payload.longitude
       };
