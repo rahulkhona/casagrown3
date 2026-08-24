@@ -1,5 +1,6 @@
 import { assertEquals, assertExists } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 import { resolveBenchmark } from '../sync-produce-benchmarks/index.ts'
+import { handleSuggestPrice } from '../suggest-product-price/index.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'http://127.0.0.1:54321'
@@ -61,3 +62,40 @@ Deno.test({
     assertEquals(data.source, 'kroger')
   },
 })
+
+Deno.test({
+  name: 'suggest-product-price - resolves empirical benchmark via handleSuggestPrice handler',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+
+    // Seed benchmark in DB
+    await supabase.from('market_price_benchmarks').upsert({
+      produce_name: 'Strawberries',
+      zip_code: '90210',
+      avg_retail_price: 3.49,
+      suggested_price: 2.79,
+      unit: 'lb',
+      source: 'kroger',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'produce_name,zip_code' })
+
+    const req = new Request('http://localhost/suggest-product-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Strawberries', zip_code: '90210' }),
+    })
+
+    const res = await handleSuggestPrice(req)
+    assertEquals(res.status, 200)
+
+    const data = await res.json()
+    assertExists(data)
+    assertEquals(data.price_usd, 2.79)
+    assertEquals(data.source, 'kroger')
+  },
+})
+

@@ -104,7 +104,7 @@ async function fetchUSDAPrice(
   state: string = 'DEFAULT'
 ): Promise<{ wholesalePrice: number; unit: string } | null> {
   try {
-    const slugs = TERMINAL_SLUGS[state.toUpperCase()] || TERMINAL_SLUGS.DEFAULT
+    const slugs = (state ? TERMINAL_SLUGS[state.toUpperCase()] : undefined) || TERMINAL_SLUGS.DEFAULT || { fruit: '2337', veg: '2338' }
     const authHeader = btoa(`${apiKey}:`)
     const secName = encodeURIComponent('Report Details')
     
@@ -157,7 +157,7 @@ export async function resolveBenchmark(
   if (isMock) {
     const item = TOP_PRODUCE_ITEMS.find(
       i => i.name.toLowerCase() === produceName.toLowerCase()
-    ) || TOP_PRODUCE_ITEMS[0]
+    ) || TOP_PRODUCE_ITEMS[0] || { name: produceName, unit: 'lb', defaultRetail: 1.29, defaultWholesale: 0.60 }
 
     if (zipCode === '90210' || zipCode === '75001' || zipCode === '30301') {
       const retail = item.defaultRetail
