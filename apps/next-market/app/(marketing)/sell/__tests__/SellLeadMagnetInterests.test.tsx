@@ -60,9 +60,16 @@ async function navigateToLeadCapture() {
     expect(screen.getByText(/Very comfortable — I want to earn extra income!/i)).toBeDefined()
   })
   fireEvent.click(screen.getByText(/Very comfortable — I want to earn extra income!/i))
-  fireEvent.click(screen.getByText(/Calculate My Potential →/i))
+  fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
 
-  // Step 8: Lead Capture Form (1.5s calculation delay)
+  // Step 8: Fulfillment
+  await waitFor(() => {
+    expect(screen.getByText(/How would you prefer to get produce to neighbors\?/i)).toBeDefined()
+  })
+  fireEvent.click(screen.getByText(/Let buyers pickup from your home/i))
+  fireEvent.click(screen.getByRole('button', { name: /Calculate My Potential →/i }))
+
+  // Step 10: Lead Capture Form
   await waitFor(() => {
     expect(screen.getByPlaceholderText(/Jane Doe/i)).toBeDefined()
   }, { timeout: 3000 })

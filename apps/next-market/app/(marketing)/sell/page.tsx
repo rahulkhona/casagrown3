@@ -7,7 +7,7 @@ import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackM
 
 export default function SellLandingPage() {
 
-  const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'trees' | 'plants' | 'habits' | 'intent' | 'calculating' | 'lead-capture' | 'results' | 'queued'>('intro')
+  const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'trees' | 'plants' | 'habits' | 'intent' | 'fulfillment' | 'calculating' | 'lead-capture' | 'results' | 'queued'>('intro')
 
   const stepEnteredAt = React.useRef(Date.now())
   const prevStepRef = React.useRef<string>('intro')
@@ -23,6 +23,7 @@ export default function SellLandingPage() {
   const [treeQuantities, setTreeQuantities] = useState<Record<string, string | number>>({})
   const [excessHandling, setExcessHandling] = useState('')
   const [sellingComfort, setSellingComfort] = useState('')
+  const [fulfillmentPreferences, setFulfillmentPreferences] = useState<string[]>([])
   
   type CustomItem = { id: string, name: string, qty: string | number }
   const [customPlantsList, setCustomPlantsList] = useState<CustomItem[]>([])
@@ -40,6 +41,9 @@ export default function SellLandingPage() {
   const gardenSizeRef = React.useRef(gardenSize)
   const selectedPlantsRef = React.useRef(selectedPlants)
   const selectedTreesRef = React.useRef(selectedTrees)
+  const excessHandlingRef = React.useRef(excessHandling)
+  const sellingComfortRef = React.useRef(sellingComfort)
+  const fulfillmentPreferencesRef = React.useRef(fulfillmentPreferences)
   const nameRef = React.useRef(name)
   const emailRef = React.useRef(email)
   const phoneRef = React.useRef(phone)
@@ -53,27 +57,36 @@ export default function SellLandingPage() {
     gardenSizeRef.current = gardenSize
     selectedPlantsRef.current = selectedPlants
     selectedTreesRef.current = selectedTrees
+    excessHandlingRef.current = excessHandling
+    sellingComfortRef.current = sellingComfort
+    fulfillmentPreferencesRef.current = fulfillmentPreferences
     nameRef.current = name
     emailRef.current = email
     phoneRef.current = phone
-  }, [zipcode, gardenSize, selectedPlants, selectedTrees, name, email, phone])
+  }, [zipcode, gardenSize, selectedPlants, selectedTrees, excessHandling, sellingComfort, fulfillmentPreferences, name, email, phone])
 
   useEffect(() => {
     const stepIndexes: Record<string, number> = {
-      'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
-      'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+      'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
+      'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
     }
 
     if (step === 'zipcode') {
       trackFieldInteract('/sell', 2, 'next_button', false)
     } else if (step === 'size') {
       trackFieldInteract('/sell', 3, 'next_button', false)
-    } else if (step === 'plants') {
-      trackFieldInteract('/sell', 4, 'next_button', false)
     } else if (step === 'trees') {
+      trackFieldInteract('/sell', 4, 'next_button', false)
+    } else if (step === 'plants') {
       trackFieldInteract('/sell', 5, 'next_button', false)
-    } else if (step === 'lead-capture') {
+    } else if (step === 'habits') {
+      trackFieldInteract('/sell', 6, 'next_button', false)
+    } else if (step === 'intent') {
       trackFieldInteract('/sell', 7, 'next_button', false)
+    } else if (step === 'fulfillment') {
+      trackFieldInteract('/sell', 8, 'next_button', false)
+    } else if (step === 'lead-capture') {
+      trackFieldInteract('/sell', 10, 'next_button', false)
     }
 
     wentNext.current = false;
@@ -85,7 +98,7 @@ export default function SellLandingPage() {
     stepEnteredAt.current = Date.now()
     prevStepRef.current = step
 
-    trackEvent('wizard_step', '/sell', { step_index: stepIndexes[step] || 0, step_name: step })
+    trackEvent('wizard_step', '/sell', { form_version: 'v2_fulfillment', step_index: stepIndexes[step] || 0, step_name: step })
   }, [step])
 
   useEffect(() => {
@@ -96,10 +109,11 @@ export default function SellLandingPage() {
       const currentStep = stepRef.current
       if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
         const stepIndexes: Record<string, number> = {
-          'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
-          'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+          'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
+          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
         }
         trackEvent('wizard_abandon', '/sell', {
+          form_version: 'v2_fulfillment',
           last_step: stepIndexes[currentStep] || 0,
           last_step_name: currentStep,
           time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
@@ -109,14 +123,20 @@ export default function SellLandingPage() {
           trackFieldInteract('/sell', 2, 'zipcode', !!zipcodeRef.current.trim())
         } else if (currentStep === 'size') {
           trackFieldInteract('/sell', 3, 'garden_size', !!gardenSizeRef.current.trim())
-        } else if (currentStep === 'plants') {
-          trackFieldInteract('/sell', 4, 'selected_plants', selectedPlantsRef.current.length > 0)
         } else if (currentStep === 'trees') {
-          trackFieldInteract('/sell', 5, 'selected_trees', selectedTreesRef.current.length > 0)
+          trackFieldInteract('/sell', 4, 'selected_trees', selectedTreesRef.current.length > 0)
+        } else if (currentStep === 'plants') {
+          trackFieldInteract('/sell', 5, 'selected_plants', selectedPlantsRef.current.length > 0)
+        } else if (currentStep === 'habits') {
+          trackFieldInteract('/sell', 6, 'excess_handling', !!excessHandlingRef.current.trim())
+        } else if (currentStep === 'intent') {
+          trackFieldInteract('/sell', 7, 'selling_comfort', !!sellingComfortRef.current.trim())
+        } else if (currentStep === 'fulfillment') {
+          trackFieldInteract('/sell', 8, 'fulfillment_preferences', fulfillmentPreferencesRef.current.length > 0)
         } else if (currentStep === 'lead-capture') {
-          trackFieldInteract('/sell', 7, 'name', !!nameRef.current.trim())
-          trackFieldInteract('/sell', 7, 'email', !!emailRef.current.trim())
-          trackFieldInteract('/sell', 7, 'phone', !!phoneRef.current.trim())
+          trackFieldInteract('/sell', 10, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/sell', 10, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/sell', 10, 'phone', !!phoneRef.current.trim())
         }
       }
     }
@@ -131,10 +151,11 @@ export default function SellLandingPage() {
         if (duration < 0.5) return
 
         const stepIndexes: Record<string, number> = {
-          'intro': 1, 'zipcode': 2, 'size': 3, 'plants': 4, 'trees': 5,
-          'calculating': 6, 'lead-capture': 7, 'results': 8, 'queued': 9
+          'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
+          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
         }
         trackEvent('wizard_abandon', '/sell', {
+          form_version: 'v2_fulfillment',
           last_step: stepIndexes[currentStep] || 0,
           last_step_name: currentStep,
           time_on_step_secs: Math.round((Date.now() - stepEnteredAt.current) / 1000)
@@ -144,14 +165,20 @@ export default function SellLandingPage() {
           trackFieldInteract('/sell', 2, 'zipcode', !!zipcodeRef.current.trim())
         } else if (currentStep === 'size') {
           trackFieldInteract('/sell', 3, 'garden_size', !!gardenSizeRef.current.trim())
-        } else if (currentStep === 'plants') {
-          trackFieldInteract('/sell', 4, 'selected_plants', selectedPlantsRef.current.length > 0)
         } else if (currentStep === 'trees') {
-          trackFieldInteract('/sell', 5, 'selected_trees', selectedTreesRef.current.length > 0)
+          trackFieldInteract('/sell', 4, 'selected_trees', selectedTreesRef.current.length > 0)
+        } else if (currentStep === 'plants') {
+          trackFieldInteract('/sell', 5, 'selected_plants', selectedPlantsRef.current.length > 0)
+        } else if (currentStep === 'habits') {
+          trackFieldInteract('/sell', 6, 'excess_handling', !!excessHandlingRef.current.trim())
+        } else if (currentStep === 'intent') {
+          trackFieldInteract('/sell', 7, 'selling_comfort', !!sellingComfortRef.current.trim())
+        } else if (currentStep === 'fulfillment') {
+          trackFieldInteract('/sell', 8, 'fulfillment_preferences', fulfillmentPreferencesRef.current.length > 0)
         } else if (currentStep === 'lead-capture') {
-          trackFieldInteract('/sell', 7, 'name', !!nameRef.current.trim())
-          trackFieldInteract('/sell', 7, 'email', !!emailRef.current.trim())
-          trackFieldInteract('/sell', 7, 'phone', !!phoneRef.current.trim())
+          trackFieldInteract('/sell', 10, 'name', !!nameRef.current.trim())
+          trackFieldInteract('/sell', 10, 'email', !!emailRef.current.trim())
+          trackFieldInteract('/sell', 10, 'phone', !!phoneRef.current.trim())
         }
       }
     }
@@ -184,6 +211,8 @@ export default function SellLandingPage() {
         customTreesList,
         excessHandling,
         sellingComfort,
+        fulfillmentPreferences,
+        form_version: 'v2_fulfillment',
         name: extraData?.name || name,
         phone: extraData?.phone || phone,
         marketingConsent: extraData?.marketingConsent ?? marketingConsent,
@@ -245,6 +274,7 @@ export default function SellLandingPage() {
             if (draft.customTreesList) setCustomTreesList(draft.customTreesList);
             if (draft.excessHandling) setExcessHandling(draft.excessHandling);
             if (draft.sellingComfort) setSellingComfort(draft.sellingComfort);
+            if (draft.fulfillmentPreferences) setFulfillmentPreferences(draft.fulfillmentPreferences);
 
             const supabase = createClient();
             let resumed = false;
@@ -314,6 +344,8 @@ export default function SellLandingPage() {
                   trees: finalTrees,
                   excess_handling: draft.excessHandling,
                   selling_comfort: draft.sellingComfort,
+                  fulfillment_preferences: draft.fulfillmentPreferences || [],
+                  form_version: 'v2_fulfillment',
                   lead: { name: uName, email: uEmail, phone: draft.phone, marketingConsent: draft.marketingConsent }
                 };
 
@@ -389,7 +421,7 @@ export default function SellLandingPage() {
   }
 
   const handleCalculate = async () => {
-    trackFieldInteract('/sell', 4, 'next_button', true)
+    trackFieldInteract('/sell', 8, 'next_button', true)
     wentNext.current = true
     setStep('lead-capture')
   }
@@ -407,7 +439,7 @@ export default function SellLandingPage() {
     
     setIsLoading(true)
     setErrorMsg('')
-    trackFieldInteract('/sell', 7, 'next_button', true)
+    trackFieldInteract('/sell', 10, 'next_button', true)
     
     try {
       const supabase = createClient()
@@ -459,6 +491,8 @@ export default function SellLandingPage() {
           trees: finalTrees,
           excess_handling: excessHandling,
           selling_comfort: sellingComfort,
+          fulfillment_preferences: fulfillmentPreferences,
+          form_version: 'v2_fulfillment',
           lead: { 
             name, 
             email, 
@@ -714,7 +748,7 @@ export default function SellLandingPage() {
                   {errorMsg && <div className="form-error-banner" style={{ marginBottom: 16 }}>{errorMsg}</div>}
                   <button 
                     onClick={() => {
-                      trackFieldInteract('/sell', 4, 'next_button', true)
+                      trackFieldInteract('/sell', 5, 'next_button', true)
                       wentNext.current = true
                       setStep('habits')
                     }} 
@@ -750,6 +784,7 @@ export default function SellLandingPage() {
                   <button 
                     disabled={!excessHandling}
                     onClick={() => {
+                      trackFieldInteract('/sell', 6, 'next_button', true)
                       wentNext.current = true
                       setStep('intent')
                     }} 
@@ -784,6 +819,44 @@ export default function SellLandingPage() {
                   </div>
                   <button 
                     disabled={!sellingComfort}
+                    onClick={() => {
+                      trackFieldInteract('/sell', 7, 'next_button', true)
+                      wentNext.current = true
+                      setStep('fulfillment')
+                    }} 
+                    className="btn-action"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+
+              {step === 'fulfillment' && (
+                <div className="fade-in-up">
+                  <h2 className="form-heading">How would you prefer to get produce to neighbors?</h2>
+                  <p className="form-subheading">Select all that apply.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                    {[
+                      'Let buyers pickup from your home',
+                      'Let buyers pickup from a nearby landmark',
+                      'Deliver to buyers in your neighborhood',
+                      'Deliver to buyers in your zipcode'
+                    ].map(opt => (
+                      <label key={opt} className="checkbox-wrap" style={{ margin: 0 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={fulfillmentPreferences.includes(opt)}
+                          onChange={() => {
+                            toggleSelection(opt, fulfillmentPreferences, setFulfillmentPreferences)
+                            trackFieldInteract('/sell', 8, 'fulfillment_preferences', true)
+                          }}
+                        />
+                        <span className="checkbox-text">{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button 
+                    disabled={fulfillmentPreferences.length === 0}
                     onClick={handleCalculate} 
                     className="btn-action"
                   >
@@ -866,7 +939,7 @@ export default function SellLandingPage() {
                   )}
                   <button 
                     onClick={() => {
-                      trackFieldInteract('/sell', 5, 'next_button', true)
+                      trackFieldInteract('/sell', 4, 'next_button', true)
                       wentNext.current = true
                       setStep('plants')
                     }} 
@@ -900,7 +973,7 @@ export default function SellLandingPage() {
                         placeholder="Jane Doe" 
                         value={name}
                         onChange={e => { setName(e.target.value); setErrorMsg('') }}
-                        onBlur={() => trackFieldInteract('/sell', 7, 'name', !!name.trim())}
+                        onBlur={() => trackFieldInteract('/sell', 10, 'name', !!name.trim())}
                         autoFocus
                       />
                     </div>
@@ -912,7 +985,7 @@ export default function SellLandingPage() {
                         placeholder="(555) 555-5555" 
                         value={phone}
                         onChange={e => setPhone(e.target.value)}
-                        onBlur={() => trackFieldInteract('/sell', 7, 'phone', !!phone.trim())}
+                        onBlur={() => trackFieldInteract('/sell', 10, 'phone', !!phone.trim())}
                       />
                     </div>
 
@@ -1074,7 +1147,7 @@ export default function SellLandingPage() {
                             placeholder="hello@example.com" 
                             value={email} 
                             onChange={e => { setEmail(e.target.value); setErrorMsg('') }}
-                            onBlur={() => trackFieldInteract('/sell', 7, 'email', !!email.trim())}
+                            onBlur={() => trackFieldInteract('/sell', 10, 'email', !!email.trim())}
                           />
                         </div>
 

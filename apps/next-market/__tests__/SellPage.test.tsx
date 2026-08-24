@@ -37,7 +37,7 @@ describe('SellPage — earnings estimator funnel', () => {
     vi.clearAllMocks()
   })
 
-  // ── Step rendering ─────────────────────────────────────────────────────────
+  // ── Step rendering & Navigation ─────────────────────────────────────────────
 
   it('renders the intro step by default', () => {
     render(<SellPage />)
@@ -52,6 +52,81 @@ describe('SellPage — earnings estimator funnel', () => {
     await waitFor(() =>
       expect(screen.queryByText(/zip code/i)).toBeDefined()
     )
+  })
+
+  it('navigates through intent to fulfillment step and allows selecting fulfillment preferences', async () => {
+    mockInvoke.mockResolvedValueOnce({ data: { ai_estimate_result: AI_RESULT }, error: null })
+    render(<SellPage />)
+
+    // Step 1: Intro
+    fireEvent.click(screen.getByRole('button', { name: /Calculate My Backyard's Value/i }))
+
+    // Step 2: Zipcode
+    const zipInput = screen.getByPlaceholderText(/90210/i)
+    fireEvent.change(zipInput, { target: { value: '95125' } })
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 3: Size
+    const sizeRadio = screen.getByLabelText(/Large Backyard Garden/i)
+    fireEvent.click(sizeRadio)
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 4: Trees
+    const lemonsCheck = screen.getByLabelText(/Lemons/i)
+    fireEvent.click(lemonsCheck)
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 5: Plants
+    const tomatoesCheck = screen.getByLabelText(/Tomatoes/i)
+    fireEvent.click(tomatoesCheck)
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 6: Habits
+    const habitRadio = screen.getByLabelText(/Give it away to friends & neighbors/i)
+    fireEvent.click(habitRadio)
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 7: Intent
+    const intentRadio = screen.getByLabelText(/Very comfortable/i)
+    fireEvent.click(intentRadio)
+    fireEvent.click(screen.getByRole('button', { name: /Next →/i }))
+
+    // Step 8: Fulfillment Step
+    expect(screen.getByText(/How would you prefer to get produce to neighbors\?/i)).toBeDefined()
+    expect(screen.getByLabelText(/Let buyers pickup from your home/i)).toBeDefined()
+    expect(screen.getByLabelText(/Let buyers pickup from a nearby landmark/i)).toBeDefined()
+    expect(screen.getByLabelText(/Deliver to buyers in your neighborhood/i)).toBeDefined()
+    expect(screen.getByLabelText(/Deliver to buyers in your zipcode/i)).toBeDefined()
+
+    // Select options
+    const homePickupCheck = screen.getByLabelText(/Let buyers pickup from your home/i)
+    const neighborhoodDeliveryCheck = screen.getByLabelText(/Deliver to buyers in your neighborhood/i)
+    fireEvent.click(homePickupCheck)
+    fireEvent.click(neighborhoodDeliveryCheck)
+
+    // Advance to Step 10 (Lead capture)
+    fireEvent.click(screen.getByRole('button', { name: /Calculate My Potential →/i }))
+
+    // Step 10: Lead capture
+    expect(screen.getByText(/Where should we send your earnings estimate report\?/i)).toBeDefined()
+    const nameInput = screen.getByPlaceholderText(/Jane Doe/i)
+    const emailInput = screen.getByPlaceholderText(/hello@example.com/i)
+    fireEvent.change(nameInput, { target: { value: 'Jane Doe' } })
+    fireEvent.change(emailInput, { target: { value: 'jane@example.com' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue with email/i }))
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('estimate-earnings', expect.objectContaining({
+        body: expect.objectContaining({
+          form_version: 'v2_fulfillment',
+          fulfillment_preferences: expect.arrayContaining([
+            'Let buyers pickup from your home',
+            'Deliver to buyers in your neighborhood'
+          ])
+        })
+      }))
+    })
   })
 
   // ── Lead capture validation ────────────────────────────────────────────────
