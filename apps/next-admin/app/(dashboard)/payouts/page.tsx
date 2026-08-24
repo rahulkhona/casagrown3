@@ -163,25 +163,26 @@ export default function PayoutsPage() {
     setProcessing(true)
     setProcessResult(null)
     
-    let processed = 0
-    let failed = 0
-    
-    for (const id of Array.from(selectedIds)) {
-      try {
-        const { error } = await adminApi.rpc('cancel_redemption_with_refund', { 
+    const results = await Promise.allSettled(
+      Array.from(selectedIds).map(id =>
+        adminApi.rpc('cancel_redemption_with_refund', { 
           p_redemption_id: id, 
           p_reason: rejectReason 
         })
-        if (error) {
-          failed++
-          console.error('Failed to reject:', id, error)
-        } else {
-          processed++
-        }
-      } catch (err) {
+      )
+    )
+    
+    let processed = 0
+    let failed = 0
+    results.forEach((res, idx) => {
+      if (res.status === 'fulfilled' && !res.value?.error) {
+        processed++
+      } else {
         failed++
+        const err = res.status === 'fulfilled' ? res.value?.error : res.reason
+        console.error('Failed to reject:', Array.from(selectedIds)[idx], err)
       }
-    }
+    })
     
     setProcessResult({ success: processed, failed })
     setSelectedIds(new Set())

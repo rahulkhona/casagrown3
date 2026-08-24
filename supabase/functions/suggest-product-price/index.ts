@@ -12,7 +12,7 @@
  */
 
 import { fetchAiCompletion, cleanJsonText, CORS } from "../_shared/funnel_processor.ts";
-import { resolveBenchmark, TOP_PRODUCE_ITEMS } from "../sync-produce-benchmarks/index.ts";
+import { resolveBenchmark, TOP_PRODUCE_ITEMS, getKrogerToken } from "../sync-produce-benchmarks/index.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://127.0.0.1:54321";
@@ -23,27 +23,6 @@ const KROGER_CLIENT_SECRET = Deno.env.get("KROGER_CLIENT_SECRET") || "";
 const USDA_AMS_API_KEY = Deno.env.get("USDA_AMS_API_KEY") || "";
 
 const validUnits = ["each", "bunch", "dozen", "jar", "bag", "box", "basket", "lb", "oz"];
-
-async function getKrogerToken(): Promise<string | null> {
-  if (!KROGER_CLIENT_ID || !KROGER_CLIENT_SECRET) return null;
-  try {
-    const authHeader = btoa(`${KROGER_CLIENT_ID}:${KROGER_CLIENT_SECRET}`);
-    const resp = await fetch("https://api.kroger.com/v1/connect/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${authHeader}`,
-      },
-      body: "grant_type=client_credentials&scope=product.compact",
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    return data.access_token || null;
-  } catch (e) {
-    console.warn("[suggest-product-price] Kroger token error:", e);
-    return null;
-  }
-}
 
 export async function handleSuggestPrice(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
@@ -90,7 +69,7 @@ export async function handleSuggestPrice(req: Request): Promise<Response> {
 
     // ── Tier 2: Empirical Kroger / USDA AMS Benchmark Lookup ──
     try {
-      const krogerToken = isMock ? "mock_token" : await getKrogerToken();
+      const krogerToken = isMock ? "mock_token" : (KROGER_CLIENT_ID && KROGER_CLIENT_SECRET ? await getKrogerToken(KROGER_CLIENT_ID, KROGER_CLIENT_SECRET) : null);
       const benchmark = await resolveBenchmark(
         trimmedName,
         effectiveZip,

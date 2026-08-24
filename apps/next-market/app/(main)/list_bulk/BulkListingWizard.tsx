@@ -274,71 +274,73 @@ export default function BulkListingClient() {
         })
       }
 
-      // Now query database for accurate benchmark or market prices
-      for (const row of rowsToResolve) {
-        try {
-          // 1. Query cached Kroger / USDA benchmark price via RPC
-          const { data: benchmarkData } = await supabase.rpc('get_suggested_produce_price', {
-            p_produce_name: row.name,
-            p_zip_code: zipcode || '95120',
-          })
+      // Now query database for accurate benchmark or market prices in parallel
+      await Promise.all(
+        rowsToResolve.map(async (row) => {
+          try {
+            // 1. Query cached Kroger / USDA benchmark price via RPC
+            const { data: benchmarkData } = await supabase.rpc('get_suggested_produce_price', {
+              p_produce_name: row.name,
+              p_zip_code: zipcode || '95120',
+            })
 
-          if (benchmarkData && benchmarkData.found && benchmarkData.suggested_price) {
-            setProduceRows(prev =>
-              prev.map(r => (r.id === row.id ? { 
-                ...r, 
-                priceUsd: String(benchmarkData.suggested_price),
-                unit: benchmarkData.unit || r.unit
-              } : r))
-            )
-            continue
-          }
+            if (benchmarkData && benchmarkData.found && benchmarkData.suggested_price) {
+              setProduceRows(prev =>
+                prev.map(r => (r.id === row.id ? { 
+                  ...r, 
+                  priceUsd: String(benchmarkData.suggested_price),
+                  unit: benchmarkData.unit || r.unit
+                } : r))
+              )
+              return
+            }
 
-          // 2. Fallback: Query recent community marketplace products matching the name
-          const { data: matches } = await supabase
-            .from('market_products')
-            .select('price_usd, seller_id')
-            .ilike('name', `%${row.name}%`)
-            .limit(50)
+            // 2. Fallback: Query recent community marketplace products matching the name
+            const { data: matches } = await supabase
+              .from('market_products')
+              .select('price_usd, seller_id')
+              .ilike('name', `%${row.name}%`)
+              .limit(50)
 
-          if (matches && matches.length > 0) {
-            let pricesToAverage = matches
+            if (matches && matches.length > 0) {
+              let pricesToAverage = matches
 
-            // If we have a local zip, try to filter by local booths first
-            if (zipcode) {
-              const sellerIds = Array.from(new Set(matches.map((m: any) => m.seller_id)))
-              const { data: booths } = await supabase
-                .from('market_booths')
-                .select('owner_id, booth_zip, delivery_zipcodes')
-                .in('owner_id', sellerIds)
+              // If we have a local zip, try to filter by local booths first
+              if (zipcode) {
+                const sellerIds = Array.from(new Set(matches.map((m: any) => m.seller_id)))
+                const { data: booths } = await supabase
+                  .from('market_booths')
+                  .select('owner_id, booth_zip, delivery_zipcodes')
+                  .in('owner_id', sellerIds)
 
-              if (booths && booths.length > 0) {
-                const localMatches = matches.filter((m: any) => {
-                  const b = booths.find((booth: any) => booth.owner_id === m.seller_id)
-                  if (!b) return false
-                  return b.booth_zip === zipcode || (b.delivery_zipcodes && b.delivery_zipcodes.includes(zipcode))
-                })
+                if (booths && booths.length > 0) {
+                  const localMatches = matches.filter((m: any) => {
+                    const b = booths.find((booth: any) => booth.owner_id === m.seller_id)
+                    if (!b) return false
+                    return b.booth_zip === zipcode || (b.delivery_zipcodes && b.delivery_zipcodes.includes(zipcode))
+                  })
 
-                if (localMatches.length > 0) {
-                  pricesToAverage = localMatches
+                  if (localMatches.length > 0) {
+                    pricesToAverage = localMatches
+                  }
                 }
               }
-            }
 
-            // Calculate average
-            const sum = pricesToAverage.reduce((acc: number, curr: any) => acc + Number(curr.price_usd), 0)
-            const avg = sum / pricesToAverage.length
-            if (avg > 0) {
-              const finalPrice = avg.toFixed(2)
-              setProduceRows(prev =>
-                prev.map(r => (r.id === row.id ? { ...r, priceUsd: finalPrice } : r))
-              )
+              // Calculate average
+              const sum = pricesToAverage.reduce((acc: number, curr: any) => acc + Number(curr.price_usd), 0)
+              const avg = sum / pricesToAverage.length
+              if (avg > 0) {
+                const finalPrice = avg.toFixed(2)
+                setProduceRows(prev =>
+                  prev.map(r => (r.id === row.id ? { ...r, priceUsd: finalPrice } : r))
+                )
+              }
             }
+          } catch (e) {
+            console.warn('Error resolving price for', row.name, e)
           }
-        } catch (e) {
-          console.warn('Error resolving price for', row.name, e)
-        }
-      }
+        })
+      )
     }
 
     resolvePrices()

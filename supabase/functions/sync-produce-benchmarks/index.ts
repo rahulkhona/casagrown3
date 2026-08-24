@@ -38,7 +38,13 @@ const TERMINAL_SLUGS: Record<string, { fruit: string; veg: string }> = {
   DEFAULT: { fruit: '2337', veg: '2338' },
 }
 
-async function getKrogerToken(clientId: string, clientSecret: string): Promise<string | null> {
+let cachedKrogerToken: string | null = null
+let krogerTokenExpiresAt = 0
+
+export async function getKrogerToken(clientId: string, clientSecret: string): Promise<string | null> {
+  if (cachedKrogerToken && Date.now() < krogerTokenExpiresAt) {
+    return cachedKrogerToken
+  }
   try {
     const authHeader = btoa(`${clientId}:${clientSecret}`)
     const resp = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
@@ -51,7 +57,13 @@ async function getKrogerToken(clientId: string, clientSecret: string): Promise<s
     })
     if (!resp.ok) return null
     const data = await resp.json()
-    return data.access_token || null
+    if (data.access_token) {
+      cachedKrogerToken = data.access_token
+      const expiresInSec = typeof data.expires_in === 'number' ? data.expires_in : 1800
+      krogerTokenExpiresAt = Date.now() + Math.max(60, expiresInSec - 60) * 1000
+      return cachedKrogerToken
+    }
+    return null
   } catch (e) {
     console.warn('[KROGER] Token fetch error:', e)
     return null
@@ -108,15 +120,22 @@ async function fetchUSDAPrice(
     const authHeader = btoa(`${apiKey}:`)
     const secName = encodeURIComponent('Report Details')
     
-    // Try fruit report then veg report
-    for (const slug of [slugs.fruit, slugs.veg]) {
-      const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${slug}/${secName}?lastRepDate=true`
-      const resp = await fetch(url, {
-        headers: { Authorization: `Basic ${authHeader}`, Accept: 'application/json' },
+    // Fetch both fruit and veg reports concurrently
+    const reportResponses = await Promise.allSettled(
+      [slugs.fruit, slugs.veg].map(async (slug) => {
+        const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${slug}/${secName}?lastRepDate=true`
+        const resp = await fetch(url, {
+          headers: { Authorization: `Basic ${authHeader}`, Accept: 'application/json' },
+        })
+        if (!resp.ok) return []
+        const data = await resp.json()
+        return (data.results || []) as any[]
       })
-      if (!resp.ok) continue
-      const data = await resp.json()
-      const results = data.results || []
+    )
+
+    for (const res of reportResponses) {
+      if (res.status !== 'fulfilled') continue
+      const results = res.value
 
       for (const r of results) {
         const comm = (r.commodity || '').toLowerCase()
