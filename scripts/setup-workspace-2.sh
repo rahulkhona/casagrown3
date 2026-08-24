@@ -31,14 +31,32 @@ DEFAULT_SERVICE_ROLE="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 DEFAULT_STRIPE_PUBLISHABLE_KEY="pk_test_51T3j6EFG43ORjkf8GLvcYdcBiQtrBLcffUK5vZt7dsiUNjrw4ToV5FDyPEAfAo8hmJcKNghFIcbaKlEeYssogHzY00nc48DMs5"
 DEFAULT_GEMINI_KEY=""
 
-# Find parent workspace for credential copying
+# Find parent workspace for credential copying dynamically via git worktree list or fallback candidates
 PARENT_DIR=""
-for candidate in "$ROOT_DIR/../casagrown3" "$ROOT_DIR/../casagrown" "/Users/rkhona/development/quarantine_bot/casagrown3"; do
-  if [ -d "$candidate" ] && [ "$candidate" != "$ROOT_DIR" ]; then
-    PARENT_DIR="$candidate"
-    break
-  fi
-done
+if command -v git &>/dev/null; then
+  # Find the first worktree in git worktree list that isn't current ROOT_DIR
+  while IFS=' ' read -r wt_path _rest; do
+    if [ -d "$wt_path" ] && [ "$wt_path" != "$ROOT_DIR" ] && [ -f "$wt_path/.env" ]; then
+      PARENT_DIR="$wt_path"
+      break
+    fi
+  done < <(git worktree list 2>/dev/null || true)
+fi
+
+# Fallback candidates if git worktree list didn't yield a parent with .env
+if [ -z "$PARENT_DIR" ]; then
+  for candidate in \
+    "$ROOT_DIR/../casagrown-marketing-automation" \
+    "$ROOT_DIR/../casagrown3" \
+    "$ROOT_DIR/../casagrown" \
+    "/Users/rkhona/development/quarantine_bot/casagrown-marketing-automation" \
+    "/Users/rkhona/development/quarantine_bot/casagrown3"; do
+    if [ -d "$candidate" ] && [ "$candidate" != "$ROOT_DIR" ] && [ -f "$candidate/.env" ]; then
+      PARENT_DIR="$candidate"
+      break
+    fi
+  done
+fi
 
 echo -e "\033[1;36mBootstrapping CasaGrown Workspace Environment (v2)...\033[0m"
 if [ -n "$PARENT_DIR" ]; then
@@ -133,6 +151,9 @@ if [ ! -f "$EDGE_ENV" ]; then
     cat <<EOF > "$EDGE_ENV"
 STRIPE_SECRET_KEY="sk_test_placeholder"
 STRIPE_WEBHOOK_SECRET="whsec_placeholder"
+KROGER_CLIENT_ID=""
+KROGER_CLIENT_SECRET=""
+USDA_AMS_API_KEY=""
 EOF
   fi
 else
@@ -150,4 +171,15 @@ else
   echo -e "  \033[0;32m✓ supabase/functions/.env already exists\033[0m"
 fi
 
+# 5. Optional auto-installation of dependencies and Playwright browser
+if [ "$1" = "--install" ] || [ "$1" = "-i" ]; then
+  echo -e "\n\033[1;34mInstalling workspace dependencies (yarn install)...\033[0m"
+  yarn install
+  echo -e "\n\033[1;34mInstalling Playwright Chromium browser...\033[0m"
+  if [ -f "$ROOT_DIR/node_modules/.bin/playwright" ]; then
+    "$ROOT_DIR/node_modules/.bin/playwright" install chromium
+  fi
+fi
+
 echo -e "\n\033[1;32mWorkspace bootstrap complete! Run 'yarn install' and './scripts/release-test.sh' to verify.\033[0m"
+
