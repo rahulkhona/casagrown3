@@ -128,7 +128,17 @@
 
 @media (max-width: 640px) {
   .title {
-    font-size: 1.6rem;
+    font-size: 1.35rem;
+  }
+  .subtitle {
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+  .banner {
+    display: none;
+  }
+  .headerSection {
+    margin-bottom: 12px;
   }
 }
 

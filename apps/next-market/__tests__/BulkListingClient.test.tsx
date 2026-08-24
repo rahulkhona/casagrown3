@@ -37,6 +37,10 @@ const mockSupabase = {
       eq: vi.fn(() => ({
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       })),
+      ilike: vi.fn(() => ({
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      })),
+      in: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
     insert: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -47,6 +51,7 @@ const mockSupabase = {
       eq: vi.fn().mockResolvedValue({ data: null, error: null }),
     })),
   })),
+  rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   auth: {
     signInWithOAuth: vi.fn().mockResolvedValue({ error: null }),
     signInWithOtp: vi.fn().mockResolvedValue({ error: null }),

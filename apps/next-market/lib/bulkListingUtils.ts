@@ -14,6 +14,7 @@ export interface ProduceRowItem {
   stockImage: string
   customPhotoDataUrl: string | null
   catalogItemId: string | null
+  harvestedAt?: string | null
 }
 
 export const ALLOWED_UNITS = [
@@ -253,27 +254,103 @@ export function parseProduceParams(paramValue: string | string[] | null | undefi
 /**
  * Creates an interactive ProduceRowItem initialized from a produce name or catalog item.
  */
+/**
+ * Automated inference engine for standard supermarket and farmers market
+ * pricing and packaging units for any produce, herb, egg, or garden product.
+ */
+export function inferProduceUnitAndPrice(produceName: string): { unit: string; price: string } {
+  const norm = produceName.toLowerCase().replace(/[_-]/g, ' ').trim()
+
+  // 1. Eggs / Poultry
+  if (/\b(egg|eggs|dozen)\b/.test(norm)) {
+    if (/duck|goose/.test(norm)) return { unit: 'dozen', price: '8.00' }
+    if (/quail/.test(norm)) return { unit: 'dozen', price: '5.00' }
+    return { unit: 'dozen', price: '6.00' }
+  }
+
+  // 2. Bakery / Loaves
+  if (/\b(bread|loaf|sourdough|baguette|focaccia|brioche|cake)\b/.test(norm)) {
+    return { unit: 'loaf', price: '8.00' }
+  }
+
+  // 3. Honey / Preserves / Jams / Sauces
+  if (/\b(honey|honeycomb|jam|jelly|marmalade|preserve|preserves|syrup|sauce|butter|pesto|salsa)\b/.test(norm)) {
+    if (/comb/.test(norm)) return { unit: 'box', price: '15.00' }
+    return { unit: 'jar', price: '12.00' }
+  }
+
+  // 4. Flowers / Bouquets
+  if (/\b(flower|flowers|bouquet|sunflower|sunflowers|dahlia|dahlias|zinnia|zinnias|rose|roses|tulip|tulips)\b/.test(norm)) {
+    return { unit: 'bunch', price: '10.00' }
+  }
+
+  // 5. Herbs & Leafy Bunches
+  if (/\b(basil|mint|rosemary|thyme|parsley|cilantro|oregano|sage|chive|chives|dill|lavender|tarragon|lemongrass|kale|chard|collard|collards|scallion|scallions|green onion|green onions|carrot|carrots|beet|beets|radish|radishes|asparagus)\b/.test(norm)) {
+    return { unit: 'bunch', price: '2.00' }
+  }
+
+  // 6. Berries (Strawberries, Blueberries, Blackberries, Raspberries)
+  if (/\b(blueberry|blueberries|strawberry|strawberries|blackberry|blackberries|raspberry|raspberries|cranberry|cranberries|mulberry|mulberries|gooseberry|gooseberries|boysenberry|boysenberries|berry|berries|cherry|cherries)\b/.test(norm)) {
+    return { unit: 'lb', price: '5.00' }
+  }
+
+  // 7. Small Portioned / Microgreens / Dried Herbs / Teas
+  if (/\b(microgreen|microgreens|shoot|shoots|sprout|sprouts|tea|spice|seasoning|saffron)\b/.test(norm)) {
+    return { unit: 'oz', price: '3.00' }
+  }
+
+  // 8. Individual Unit Produce (Sold Per Piece / Each)
+  if (/\b(cucumber|cucumbers|avocado|avocados|bell pepper|bell peppers|pepper|peppers|lemon|lemons|lime|limes|grapefruit|grapefruits|watermelon|watermelons|cantaloupe|cantaloupes|melon|melons|honeydew|pumpkin|pumpkins|squash|eggplant|eggplants|cabbage|cabbages|cauliflower|cauliflowers|broccoli|lettuce|garlic|corn|sweet corn|mango|mangoes|papaya|papayas|pomegranate|pomegranates|persimmon|persimmons|passionfruit|guava|guavas|seedling|seedlings|sapling|saplings|plant|plants)\b/.test(norm)) {
+    if (/seedling/.test(norm)) return { unit: 'each', price: '4.00' }
+    if (/sapling|tree/.test(norm)) return { unit: 'each', price: '25.00' }
+    if (/watermelon|pumpkin/.test(norm)) return { unit: 'each', price: '5.00' }
+    if (/melon|cantaloupe|honeydew/.test(norm)) return { unit: 'each', price: '4.00' }
+    if (/lemon|lime|corn/.test(norm)) return { unit: 'each', price: '0.75' }
+    if (/cucumber|garlic/.test(norm)) return { unit: 'each', price: '1.00' }
+    if (/pepper|avocado|persimmon|passionfruit|guava/.test(norm)) return { unit: 'each', price: '1.50' }
+    return { unit: 'each', price: '2.00' }
+  }
+
+  // 9. Standard Bulk Pound Produce (Apples, Pears, Peaches, Citrus by lb, Potatoes, Tomatoes, etc.)
+  if (/\b(apple|apples|pear|pears|peach|peaches|nectarine|nectarines|plum|plums|grape|grapes|fig|figs|orange|oranges|tangerine|tangerines|mandarin|mandarins|tomato|tomatoes|potato|potatoes|sweet potato|sweet potatoes|onion|onions|zucchini|green bean|green beans|bean|beans|pea|peas|spinach|okra|kumquat|kumquats)\b/.test(norm)) {
+    if (/tomato|figs|spinach|beans|peas|okra|kumquat/.test(norm)) return { unit: 'lb', price: '3.50' }
+    if (/potato|onion/.test(norm)) return { unit: 'lb', price: '1.50' }
+    return { unit: 'lb', price: '2.50' }
+  }
+
+  // Default fallback for any unspecified produce
+  return { unit: 'lb', price: '3.00' }
+}
+
 export function createRowFromProduceName(produceName: string, idPrefix: string = 'row'): ProduceRowItem {
   const cleanName = produceName ? produceName.trim() : ''
   const displayName = cleanName
     ? cleanName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
     : ''
 
+  // 1. Direct or fuzzy catalog match
+  const searchKey = displayName.toLowerCase()
   const matchedCatalogItem = displayName
     ? EXHAUSTIVE_INTERESTS_CATALOG.find(
-        c => c.name.toLowerCase() === displayName.toLowerCase() || c.id.toLowerCase() === displayName.toLowerCase()
+        c => c.name.toLowerCase() === searchKey || 
+             c.id.toLowerCase() === searchKey ||
+             searchKey.includes(c.id.toLowerCase()) ||
+             c.name.toLowerCase().includes(searchKey)
       )
     : null
 
   const base = displayName ? extractBaseProduce(displayName) : null
+  const stockImg = displayName ? (matchedCatalogItem?.image || base?.image || '') : ''
 
-  const stockImg = displayName
-    ? (matchedCatalogItem?.image || base?.image || '')
-    : ''
+  // 2. Intelligent inference fallback
+  const inferred = inferProduceUnitAndPrice(displayName || cleanName)
 
-  const unit = matchedCatalogItem?.unit && ALLOWED_UNITS.includes(matchedCatalogItem.unit)
-    ? matchedCatalogItem.unit
-    : (base?.unit && ALLOWED_UNITS.includes(base.unit) ? base.unit : 'lb')
+  const rawUnit = matchedCatalogItem?.defaultUnit || matchedCatalogItem?.unit || base?.unit || inferred.unit
+  const unit = ALLOWED_UNITS.includes(rawUnit) ? rawUnit : inferred.unit
+
+  const defaultPrice = matchedCatalogItem?.defaultPrice 
+    ? matchedCatalogItem.defaultPrice.toFixed(2)
+    : inferred.price
 
   return {
     id: `${idPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -283,9 +360,9 @@ export function createRowFromProduceName(produceName: string, idPrefix: string =
     description: displayName
       ? `Fresh homegrown ${displayName.replace(/^fresh\s+/i, '')}`
       : '',
-    quantity: '',
+    quantity: '5', // Pre-fill with sensible default
     unit,
-    priceUsd: '',
+    priceUsd: defaultPrice,
     isFree: false,
     stockImage: stockImg,
     customPhotoDataUrl: null,

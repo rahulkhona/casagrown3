@@ -1,8 +1,7 @@
 import React, { Suspense } from 'react'
 import { Metadata } from 'next'
-import BulkListingClient from './BulkListingClient'
+import BulkListingWizard from './BulkListingWizard'
 import { parseProduceParams } from '../../../lib/bulkListingUtils'
-import { extractBaseProduce, getProduceImage } from '../../../lib/produceCatalog'
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -43,7 +42,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 export default function BulkListingPage() {
   return (
     <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}>Loading bulk listing form...</div>}>
-      <BulkListingClient />
+      <BulkListingWizard />
     </Suspense>
   )
 }

@@ -210,16 +210,135 @@ export default function BulkListingClient() {
     }
 
     if (parsedNames.length > 0) {
-      const rows = parsedNames.map((name, i) => createRowFromProduceName(name, `url_row_${i}`))
+      const rows = parsedNames.map((name, i) => {
+        const r = createRowFromProduceName(name, `url_row_${i}`)
+        return {
+          ...r,
+          isSelected: true,
+          quantity: '5',
+          priceUsd: '',
+        }
+      })
       setProduceRows(rows)
       rows.forEach((r, idx) => {
         trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_name_auto`, true)
+        trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_qty`, true)
+        trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_selected`, true)
       })
     } else {
       // Default when no produce param in URL: start with 0 rows
       setProduceRows([])
     }
   }, [searchParams])
+
+  // ── Async pricing resolver for URL pre-filled items ──
+  useEffect(() => {
+    if (produceRows.length === 0) return
+
+    async function resolvePrices() {
+      // Find rows that don't have a price yet
+      const rowsToResolve = produceRows.filter(r => !r.priceUsd)
+      if (rowsToResolve.length === 0) return
+
+      let changed = false
+      const updatedRows = produceRows.map((row, idx) => {
+        if (!row.priceUsd) {
+          // Determine fallback based on category
+          let resolvedPrice = '3.00' // Default fallback
+          if (row.category === 'eggs') resolvedPrice = '6.00'
+          else if (row.category === 'honey') resolvedPrice = '10.00'
+          else if (row.category === 'flowers') resolvedPrice = '8.00'
+          else if (row.category === 'plants') resolvedPrice = '7.00'
+          else if (row.category === 'seedlings') resolvedPrice = '4.00'
+          
+          changed = true
+          return {
+            ...row,
+            priceUsd: resolvedPrice,
+          }
+        }
+        return row
+      })
+
+      if (changed) {
+        setProduceRows(updatedRows)
+        // Fire price tracking events
+        updatedRows.forEach((r, idx) => {
+          if (r.priceUsd) {
+            trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_price`, true)
+          }
+        })
+      }
+
+      // Now query database for accurate benchmark or market prices
+      for (const row of rowsToResolve) {
+        try {
+          // 1. Query cached Kroger / USDA benchmark price via RPC
+          const { data: benchmarkData } = await supabase.rpc('get_suggested_produce_price', {
+            p_produce_name: row.name,
+            p_zip_code: zipcode || '95120',
+          })
+
+          if (benchmarkData && benchmarkData.found && benchmarkData.suggested_price) {
+            setProduceRows(prev =>
+              prev.map(r => (r.id === row.id ? { 
+                ...r, 
+                priceUsd: String(benchmarkData.suggested_price),
+                unit: benchmarkData.unit || r.unit
+              } : r))
+            )
+            continue
+          }
+
+          // 2. Fallback: Query recent community marketplace products matching the name
+          const { data: matches } = await supabase
+            .from('market_products')
+            .select('price_usd, seller_id')
+            .ilike('name', `%${row.name}%`)
+            .limit(50)
+
+          if (matches && matches.length > 0) {
+            let pricesToAverage = matches
+
+            // If we have a local zip, try to filter by local booths first
+            if (zipcode) {
+              const sellerIds = Array.from(new Set(matches.map((m: any) => m.seller_id)))
+              const { data: booths } = await supabase
+                .from('market_booths')
+                .select('owner_id, booth_zip, delivery_zipcodes')
+                .in('owner_id', sellerIds)
+
+              if (booths && booths.length > 0) {
+                const localMatches = matches.filter((m: any) => {
+                  const b = booths.find((booth: any) => booth.owner_id === m.seller_id)
+                  if (!b) return false
+                  return b.booth_zip === zipcode || (b.delivery_zipcodes && b.delivery_zipcodes.includes(zipcode))
+                })
+
+                if (localMatches.length > 0) {
+                  pricesToAverage = localMatches
+                }
+              }
+            }
+
+            // Calculate average
+            const sum = pricesToAverage.reduce((acc: number, curr: any) => acc + Number(curr.price_usd), 0)
+            const avg = sum / pricesToAverage.length
+            if (avg > 0) {
+              const finalPrice = avg.toFixed(2)
+              setProduceRows(prev =>
+                prev.map(r => (r.id === row.id ? { ...r, priceUsd: finalPrice } : r))
+              )
+            }
+          }
+        } catch (e) {
+          console.warn('Error resolving price for', row.name, e)
+        }
+      }
+    }
+
+    resolvePrices()
+  }, [produceRows.length, zipcode, supabase])
 
   // ── 2. Auto-Detect Location / Prefill Booth if Logged In ──
   useEffect(() => {

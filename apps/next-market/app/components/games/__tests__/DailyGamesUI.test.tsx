@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
-import { render, fireEvent, screen } from '@testing-library/react'
+import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import GameVictoryModal from '../GameVictoryModal'
 import WordleGardenCanvas from '../WordleGardenCanvas'
 import JigsawPuzzleCanvas from '../JigsawPuzzleCanvas'
@@ -21,10 +21,15 @@ vi.mock('../../../../lib/useQuickSetup', () => ({
 
 describe('Daily Games UI & User Interaction Test Suite', () => {
   beforeEach(() => {
+    cleanup()
     vi.clearAllMocks()
     if (typeof window !== 'undefined') {
       window.localStorage.clear()
     }
+  })
+
+  afterEach(() => {
+    cleanup()
   })
 
   describe('GameVictoryModal UI & Interactions', () => {

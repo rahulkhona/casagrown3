@@ -115,7 +115,9 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 function FocusLayoutContent({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const isFocusMode = searchParams?.get('focus') === 'true' || searchParams?.get('embed') === 'true'
+  const isListBulk = pathname === '/list_bulk' || pathname === '/list-bulk'
 
   // Capture referral/UTM params from URL on every page load
   useReferralCapture()
@@ -141,7 +143,8 @@ function FocusLayoutContent({ children }: { children: React.ReactNode }) {
       <CartProvider>
       <ErrorToastProvider userId={user?.id}>
         <AnalyticsTracker />
-        <Navbar />
+        {!isListBulk && <Navbar />}
+        {isListBulk && <div style={{ padding: '16px', borderBottom: '1px solid #eee', background: '#fff', textAlign: 'center' }}><strong style={{ color: '#047857', fontSize: 18 }}>CasaGrown</strong></div>}
         <main className="page-wrapper">
           <ErrorBoundary>
             <OnboardingGate>
@@ -150,7 +153,7 @@ function FocusLayoutContent({ children }: { children: React.ReactNode }) {
             </OnboardingGate>
           </ErrorBoundary>
         </main>
-        <BottomNav />
+        {!isListBulk && <BottomNav />}
         <RatingReminder />
         {isBanned && <BannedOverlay reason={banReason} />}
       </ErrorToastProvider>

@@ -3,293 +3,177 @@ import { test, expect } from './fixtures'
 // Run with clean guest state (unauthenticated)
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test.describe('Bulk Produce Listing Lead Magnet (/list_bulk)', () => {
-  test('renders empty state and headline when visited directly, and allows adding item', async ({ page }) => {
+test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
+  test('renders crop catalog grid and Add Custom Item button on direct visit', async ({ page }) => {
     await page.goto('/list_bulk')
 
-    await expect(page.locator('h1')).toContainText('List Your Backyard Harvest')
-    await expect(page.locator('text=No produce items added yet')).toBeVisible()
-
-    // Add first produce item
-    await page.locator('button:has-text("Add Produce Item")').click()
-    const nameInputs = page.locator('input[placeholder="e.g. Meyer Lemons"]')
-    await expect(nameInputs).toHaveCount(1)
-
-    // Delivery toggle should be present
-    const deliveryToggle = page.locator('text=I can deliver to neighbors')
-    await expect(deliveryToggle).toBeVisible()
+    await expect(page.locator('h1')).toContainText('Items you would like to sell')
+    await expect(page.locator('text=Add Custom Item')).toBeVisible()
+    await expect(page.locator('text=Sell My Items')).toBeVisible()
   })
 
   test('redirects from alias /list-bulk to /list_bulk preserving query parameters', async ({ page }) => {
     await page.goto('/list-bulk?produce=avocados,sweet_corn&utm_source=meta_ad')
     await expect(page).toHaveURL(/.*\/list_bulk\?produce=avocados%2Csweet_corn&utm_source=meta_ad/)
-    await expect(page.locator('input[value="Avocados"]')).toBeVisible()
-    await expect(page.locator('input[value="Sweet Corn"]')).toBeVisible()
+    await expect(page.locator('.wizard-step-1').getByText('Avocados', { exact: true })).toBeVisible()
+    await expect(page.locator('.wizard-step-1').getByText('Sweet Corn', { exact: true })).toBeVisible()
   })
 
-  test('pre-populates produce rows from URL search parameters', async ({ page }) => {
+  test('pre-populates produce crop cards from URL search parameters', async ({ page }) => {
     await page.goto('/list_bulk?produce=meyer_lemons,heirloom_tomatoes,fresh_basil&utm_source=facebook&utm_campaign=spring_harvest')
 
-    await expect(page.locator('input[value="Meyer Lemons"]')).toBeVisible()
-    await expect(page.locator('input[value="Heirloom Tomatoes"]')).toBeVisible()
-    await expect(page.locator('input[value="Fresh Basil"]')).toBeVisible()
+    await expect(page.locator('.wizard-step-1').getByText('Meyer Lemons', { exact: true })).toBeVisible()
+    await expect(page.locator('.wizard-step-1').getByText('Heirloom Tomatoes', { exact: true })).toBeVisible()
+    await expect(page.locator('.wizard-step-1').getByText('Fresh Basil', { exact: true })).toBeVisible()
   })
 
-  test('supports adding and deleting produce rows dynamically', async ({ page }) => {
-    await page.goto('/list_bulk?produce=tomatoes,lemons')
+  test('opens edit modal on crop card click, edits price, unit, quantity, harvest date, and saves', async ({ page }) => {
+    await page.goto('/list_bulk?produce=blueberries')
 
-    // Click Add Another Produce
-    const addBtn = page.locator('button:has-text("Add Another Produce")')
-    await addBtn.click()
+    // Click Blueberries card
+    await page.locator('.wizard-step-1').getByText('Blueberries', { exact: true }).click()
 
-    // 3 rows should exist now
-    const nameInputs = page.locator('input[placeholder="e.g. Meyer Lemons"]')
-    await expect(nameInputs).toHaveCount(3)
+    // Edit modal should open
+    await expect(page.locator('h3:has-text("Blueberries")')).toBeVisible()
 
-    // Type a name in the new row
-    await nameInputs.nth(2).fill('Rosemary')
-    await expect(nameInputs.nth(2)).toHaveValue('Rosemary')
+    // Edit quantity
+    const qtyInput = page.locator('input[type="number"]').nth(1)
+    await qtyInput.fill('10')
 
-    // Delete the first row
-    const deleteBtns = page.locator('button[title="Remove item"]')
-    await deleteBtns.first().click()
+    // Edit description
+    const descTextarea = page.locator('textarea')
+    await descTextarea.fill('Fresh organic blueberries picked yesterday!')
 
-    await expect(nameInputs).toHaveCount(2)
+    // Click Save Details
+    await page.locator('button:has-text("Save Details")').click()
+
+    // Modal should close
+    await expect(page.locator('h3:has-text("Blueberries")')).toHaveCount(0)
+    await expect(page.locator('button:has-text("Sell My Items (1 selected)")')).toBeVisible()
   })
 
-  test('toggles Free Giveaway status on item', async ({ page }) => {
-    await page.goto('/list_bulk?produce=lemons')
+  test('supports adding a custom crop item with name, unit, and price', async ({ page }) => {
+    await page.goto('/list_bulk')
 
-    const makeFreeCheckbox = page.locator('text=Make Free').first()
-    await makeFreeCheckbox.click()
+    // Click Add Custom Item card
+    await page.locator('text=Add Custom Item').click()
 
-    await expect(page.locator('text=FREE').first()).toBeVisible()
+    // Custom crop modal should open
+    await expect(page.locator('h3:has-text("Add New Item")')).toBeVisible()
+
+    // Fill in custom produce details
+    const nameInput = page.locator('input[placeholder="e.g. Meyer Lemons, Fresh Honey, Sourdough..."]')
+    await nameInput.fill('Fresh Dragonfruit')
+
+    const priceInput = page.locator('input[type="number"]').first()
+    await priceInput.fill('6.00')
+
+    // Click Save Details
+    await page.locator('button:has-text("Save Details")').click()
+
+    // Should appear in crop grid
+    await expect(page.locator('.wizard-step-1').getByText('Fresh Dragonfruit', { exact: true })).toBeVisible()
   })
 
-  test('blocks prohibited terms with inline content moderation error badge', async ({ page }) => {
-    await page.goto('/list_bulk?produce=lemons')
+  test('blocks prohibited terms with inline moderation error in modal', async ({ page }) => {
+    await page.goto('/list_bulk')
 
-    const firstNameInput = page.locator('input[placeholder="e.g. Meyer Lemons"]').first()
-    await firstNameInput.fill('Backyard Weed & Marijuana')
+    await page.locator('text=Add Custom Item').click()
+
+    const nameInput = page.locator('input[placeholder="e.g. Meyer Lemons, Fresh Honey, Sourdough..."]')
+    await nameInput.fill('Fresh Weed & Marijuana')
 
     await expect(page.locator('text=Cannabis and related topics are not allowed on CasaGrown')).toBeVisible()
+    await expect(page.locator('button:has-text("Save Details")')).toBeDisabled()
   })
 
-  test('renders transparent platform fee disclosure card', async ({ page }) => {
-    await page.goto('/list_bulk?produce=lemons')
-
-    await expect(page.locator('text=Transparent Pricing & Seller Fees')).toBeVisible()
-    await expect(page.locator('text=$0 Listing Fee')).toBeVisible()
-    await expect(page.locator('text=10% Standard Platform Fee on Sale')).toBeVisible()
-  })
-
-  test('configures delivery schedule presets and toggles pickup', async ({ page }) => {
-    await page.goto('/list_bulk?produce=lemons')
-
-    // Toggle Delivery to open delivery options
-    await page.locator('text=I can deliver to neighbors').click()
-
-    // Select Weekend Mornings preset
-    const weekendPreset = page.locator('text=Weekend mornings')
-    await weekendPreset.click()
-
-    // Toggle Pickup to open pickup options
-    const pickupToggle = page.locator('text=Buyers can pick up from me')
-    await pickupToggle.click()
-
-    await expect(page.locator('text=Pickup Address *')).toBeVisible()
-  })
-
-  test('auto-selects row when both quantity and price are entered', async ({ page }) => {
+  test('advances to Step 2, toggles delivery / pickup, and renders transparent pricing disclosure', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
-    const firstRowCheckbox = page.locator('input[type="checkbox"]').first()
-    await expect(firstRowCheckbox).not.toBeChecked()
+    // Select Tomatoes
+    await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
+    await page.locator('button:has-text("Save Details")').click()
 
-    // Fill price and quantity
-    await page.locator('input[placeholder="0.00"]').first().fill('3.50')
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
+    // Proceed to Step 2
+    await page.locator('button:has-text("Sell My Items")').click()
 
-    // Should be automatically selected
-    await expect(firstRowCheckbox).toBeChecked()
+    // Step 2 should be visible
+    await expect(page.locator('h2:has-text("How should buyers get this?")')).toBeVisible()
+    await expect(page.locator('text=I can deliver to neighbors')).toBeVisible()
+    await expect(page.locator('text=Buyers can pick up from me')).toBeVisible()
+    await expect(page.locator('text=Transparent Pricing:')).toBeVisible()
   })
 
-  test('supports adding and deleting multiple delivery zip codes', async ({ page }) => {
+  test('opens Terms of Service and Privacy Policy legal modals', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
-    // Setup valid row
-    await page.locator('input[placeholder="0.00"]').first().fill('3.50')
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
+    await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
+    await page.locator('button:has-text("Save Details")').click()
+    await page.locator('button:has-text("Sell My Items")').click()
 
-    // Enable delivery
-    await page.locator('text=I can deliver to neighbors').click()
+    // Click Terms of Service link
+    await page.locator('button:has-text("Terms of Service")').first().click()
+    await expect(page.locator('h3:has-text("Terms of Service")')).toBeVisible()
 
-    // Remove any prefilled IP location zip tags to test empty validation
-    const existingRemoveBtns = page.locator('button[aria-label^="Remove "]')
-    const count = await existingRemoveBtns.count()
-    for (let i = count - 1; i >= 0; i--) {
-      await existingRemoveBtns.nth(i).click()
-    }
+    // Close modal
+    await page.locator('button:has-text("✕")').click()
+    await expect(page.locator('h3:has-text("Terms of Service")')).toHaveCount(0)
 
-    const publishBtn = page.locator('button:has-text("Publish")')
-    await expect(publishBtn).toBeDisabled()
-    await expect(page.locator('text=Please enter at least one 5-digit delivery ZIP code')).toBeVisible()
-
-    // Add first zip
-    const zipInput = page.locator('input[class*="zipTagInput"]')
-    await zipInput.fill('95125')
-    await zipInput.press('Enter')
-
-    await expect(page.locator('button[aria-label="Remove 95125"]')).toBeVisible()
-    await expect(publishBtn).toBeEnabled()
-
-    // Add second zip
-    await zipInput.fill('95112')
-    await zipInput.press('Enter')
-
-    await expect(page.locator('button[aria-label="Remove 95112"]')).toBeVisible()
-
-    // Remove first zip tag
-    await page.locator('button[aria-label="Remove 95125"]').click()
-    await expect(page.locator('button[aria-label="Remove 95125"]')).toHaveCount(0)
-    await expect(page.locator('button[aria-label="Remove 95112"]')).toBeVisible()
-
-    await publishBtn.click()
-    await expect(page.locator('text=Save & Publish Your Listings')).toBeVisible()
+    // Click Privacy Policy link
+    await page.locator('button:has-text("Privacy Policy")').first().click()
+    await expect(page.locator('h3:has-text("Privacy Policy")')).toBeVisible()
+    await page.locator('button:has-text("✕")').click()
   })
 
-  test('validates complete address for address_radius delivery mode', async ({ page }) => {
+  test('renders guest authentication options (Google, Apple, OTP) on Step 2 for unauthenticated users', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
-    // Setup valid row
-    await page.locator('input[placeholder="0.00"]').first().fill('3.50')
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
+    await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
+    await page.locator('button:has-text("Save Details")').click()
+    await page.locator('button:has-text("Sell My Items")').click()
 
-    // Enable delivery
-    await page.locator('text=I can deliver to neighbors').click()
-
-    // Switch to address radius mode
-    await page.locator('text=Base Address + Delivery Radius').click()
-
-    const publishBtn = page.locator('button:has-text("Publish")')
-    await expect(publishBtn).toBeDisabled()
-    await expect(page.locator('text=Please enter your complete home/farm address')).toBeVisible()
-
-    // Fill address
-    await page.locator('input[placeholder="Base Street Address for deliveries"]').fill('123 Farm Ln')
-    await page.locator('input[placeholder="City"]').first().fill('San Jose')
-    await page.locator('input[placeholder="ST"]').first().fill('CA')
-    await page.locator('input[placeholder="ZIP"]').first().fill('95125')
-
-    await expect(publishBtn).toBeEnabled()
-    await publishBtn.click()
-    await expect(page.locator('text=Save & Publish Your Listings')).toBeVisible()
-  })
-
-  test('validates complete address for pickup fulfillment mode', async ({ page }) => {
-    await page.goto('/list_bulk?produce=tomatoes')
-
-    // Setup valid row
-    await page.locator('input[placeholder="0.00"]').first().fill('3.50')
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('10')
-
-    // Turn on pickup
-    await page.locator('text=Buyers can pick up from me').click()
-
-    const publishBtn = page.locator('button:has-text("Publish")')
-    await expect(publishBtn).toBeDisabled()
-    await expect(page.locator('text=Please enter your complete pickup address')).toBeVisible()
-
-    // Fill pickup address
-    await page.locator('input[placeholder="Street Address for pickup"]').fill('456 Market St')
-    await page.locator('input[placeholder="City"]').last().fill('San Jose')
-    await page.locator('input[placeholder="ST"]').last().fill('CA')
-    await page.locator('input[placeholder="ZIP"]').last().fill('95125')
-
-    await expect(publishBtn).toBeEnabled()
-    await publishBtn.click()
-    await expect(page.locator('text=Save & Publish Your Listings')).toBeVisible()
-  })
-
-  test('opens quick sign-in & TOS modal when guest clicks Publish', async ({ page }) => {
-    await page.goto('/list_bulk?produce=tomatoes')
-
-    // Enter quantity & price for first item to make it valid
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('6')
-    await page.locator('input[placeholder="0.00"]').first().fill('2.00')
-
-    // Enable delivery and enter valid delivery zip to pass validation
-    await page.locator('text=I can deliver to neighbors').click()
-    const zipInput = page.locator('input[class*="zipTagInput"]')
-    await zipInput.fill('95125')
-    await zipInput.press('Enter')
-
-    // Click Publish
-    const publishBtn = page.locator('button:has-text("Publish")')
-    await expect(publishBtn).toBeEnabled()
-    await publishBtn.click()
-
-    // Auth modal should open
-    await expect(page.locator('text=Save & Publish Your Listings')).toBeVisible()
+    await expect(page.locator('text=Sign in to publish your listings')).toBeVisible()
     await expect(page.locator('text=Continue with Google')).toBeVisible()
     await expect(page.locator('text=Continue with Apple')).toBeVisible()
-    await expect(page.locator('input[placeholder="sarah@example.com"]')).toBeVisible()
+    await expect(page.locator('input[placeholder="Email address"]')).toBeVisible()
+    await expect(page.locator('button:has-text("Get Code")')).toBeVisible()
   })
 })
 
-test.describe('Bulk Produce Listing Lead Magnet (/list_bulk) — Authenticated Seller Flow', () => {
+test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller Flow', () => {
   test.use({ storageState: 'e2e/.auth/user.json' })
 
-  test('authenticated seller completes full publish and records are inserted with valid schedule windows in Supabase', async ({ page }) => {
-    await page.goto('/list_bulk?produce=meyer_lemons')
+  test('authenticated seller completes 1-click publish and launches social share modal', async ({ page }) => {
+    await page.goto('/list_bulk?produce=meyer_lemons&zipcode=95120')
 
-    // Enter price and quantity
-    await page.locator('input[placeholder="0.00"]').first().fill('4.50')
-    await page.locator('input[placeholder="e.g. 5"]').first().fill('12')
+    // Select lemons and save
+    await page.locator('.wizard-step-1').getByText('Meyer Lemons', { exact: true }).click()
+    await page.locator('button:has-text("Save Details")').click()
 
-    // Select Delivery and enter ZIP
-    await page.locator('text=I can deliver to neighbors').click()
-    const zipInput = page.locator('input[class*="zipTagInput"]')
-    await zipInput.fill('95125')
-    await zipInput.press('Enter')
+    // Proceed to Step 2
+    await page.locator('button:has-text("Sell My Items")').click()
 
-    // Select Pickup and enter Pickup Address
+    // Verify account badge
+    await expect(page.locator('text=Signed in as')).toBeVisible()
+
+    // Enter stand name
+    const standNameInput = page.locator('input[placeholder="e.g. John\'s Farm Stand"]')
+    await standNameInput.fill('Blossom Hill Lemon Grove')
+
+    // Uncheck pickup so delivery-only 95120 is used
     await page.locator('text=Buyers can pick up from me').click()
-    await page.locator('input[placeholder="Street Address for pickup"]').fill('789 Blossom Hill Rd')
-    await page.locator('input[placeholder="City"]').last().fill('Los Gatos')
-    await page.locator('input[placeholder="ST"]').last().fill('CA')
-    await page.locator('input[placeholder="ZIP"]').last().fill('95032')
 
-    // Click Publish
-    const publishBtn = page.locator('button:has-text("Publish")')
+    // Accept TOS
+    const tosCheckbox = page.locator('#tos-checkbox')
+    await tosCheckbox.check()
+
+    // Click Publish button
+    const publishBtn = page.locator('button:has-text("Publish 1 Listing")')
     await expect(publishBtn).toBeEnabled()
     await publishBtn.click()
 
-    // If TOS/Review modal is opened, check TOS checkbox and click publish
-    const reviewHeading = page.locator('text=Review & Confirm Your Stand').first()
-    if (await reviewHeading.isVisible({ timeout: 4000 }).catch(() => false)) {
-      const checkbox = page.locator('input[type="checkbox"]').first()
-      if (await checkbox.isVisible().catch(() => false)) {
-        await checkbox.check()
-      }
-      const finalBtn = page.locator('button:has-text("Complete Setup & Publish Stand")').first()
-      await finalBtn.click()
-    }
-
-    // Verify Social Share Modal pops up automatically for stand sharing
-    const shareModalHeading = page.locator('text=Share Your Stand with Neighbors').or(page.locator('text=CasaGrown Share')).first()
-    await expect(shareModalHeading).toBeVisible({ timeout: 15000 })
-
-    // Close the Social Share Modal to trigger final redirect
-    const closeBtn = page.locator('button[aria-label="Close"]').first()
-    if (await closeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await closeBtn.click()
-    } else {
-      await page.keyboard.press('Escape')
-    }
-
-    // Authenticated seller completes publish and redirects to stand page
-    await expect(page).toHaveURL(/.*(my-stands|my-booth|market|\/list_bulk)/, { timeout: 15000 })
+    // Social Share Modal should pop up
+    const shareModal = page.locator('text=Share Your Stand with Neighbors').or(page.locator('text=CasaGrown Share')).or(page.locator('text=Your Stand is Live!'))
+    await expect(shareModal.first()).toBeVisible({ timeout: 15000 })
   })
 })
-
