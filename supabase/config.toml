@@ -884,3 +884,8 @@ enabled = true
 client_id = "env(GOOGLE_CLIENT_ID)"
 secret = "env(GOOGLE_CLIENT_SECRET)"
 skip_nonce_check = true
+
+[functions.sync-produce-benchmarks]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-produce-benchmarks/index.ts"
