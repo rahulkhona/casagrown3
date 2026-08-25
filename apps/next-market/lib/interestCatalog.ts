@@ -17,13 +17,14 @@ const BUCKET = `${SUPABASE_URL}/storage/v1/object/public/interest-images`
 export const EXHAUSTIVE_INTERESTS_CATALOG: InterestCatalogItem[] = [
 
   // ── CITRUS ──
-  { id: 'lemons',      name: 'Lemons',      category: 'produce', displayCategory: 'Citrus', image: '/products/meyer-lemons.png',      buyersCount: 68, sellersCount: 24, defaultPrice: 0.75, defaultUnit: 'each' },
-  { id: 'limes',       name: 'Limes',       category: 'produce', displayCategory: 'Citrus', image: '/products/persian-limes.png',     buyersCount: 52, sellersCount: 19, defaultPrice: 0.50, defaultUnit: 'each' },
+  { id: 'lemons',      name: 'Lemons',      category: 'produce', displayCategory: 'Citrus', image: '/products/meyer-lemons.png',      buyersCount: 68, sellersCount: 24, defaultPrice: 4.00, defaultUnit: 'dozen' },
+  { id: 'limes',       name: 'Limes',       category: 'produce', displayCategory: 'Citrus', image: '/products/persian-limes.png',     buyersCount: 52, sellersCount: 19, defaultPrice: 3.50, defaultUnit: 'dozen' },
   { id: 'oranges',     name: 'Oranges',     category: 'produce', displayCategory: 'Citrus', image: '/products/valencia-oranges.png',  buyersCount: 61, sellersCount: 22, defaultPrice: 2.00, defaultUnit: 'lb' },
   { id: 'grapefruit',  name: 'Grapefruit',  category: 'produce', displayCategory: 'Citrus', image: '/products/ruby-grapefruit.png',   buyersCount: 34, sellersCount: 11, defaultPrice: 1.50, defaultUnit: 'each' },
   { id: 'tangerines',  name: 'Tangerines',  category: 'produce', displayCategory: 'Citrus', image: `${BUCKET}/studio_tangerines.jpg`,  buyersCount: 41, sellersCount: 15, defaultPrice: 2.50, defaultUnit: 'lb' },
   { id: 'mandarins',   name: 'Mandarins',   category: 'produce', displayCategory: 'Citrus', image: `${BUCKET}/studio_mandarins.jpg`,   buyersCount: 45, sellersCount: 16, defaultPrice: 2.50, defaultUnit: 'lb' },
   { id: 'kumquats',    name: 'Kumquats',    category: 'produce', displayCategory: 'Citrus', image: `${BUCKET}/studio_kumquats.jpg`,    buyersCount: 18, sellersCount: 6,  defaultPrice: 4.00, defaultUnit: 'lb' },
+
 
   // ── VEGETABLES ──
   { id: 'heirloom_tomatoes', name: 'Tomatoes',        category: 'produce', displayCategory: 'Vegetables', image: '/products/heritage-tomatoes.png',         buyersCount: 84, sellersCount: 31, defaultPrice: 3.50, defaultUnit: 'lb' },
@@ -50,7 +51,7 @@ export const EXHAUSTIVE_INTERESTS_CATALOG: InterestCatalogItem[] = [
   { id: 'onions',            name: 'Onions',          category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_onions.jpg`,               buyersCount: 52, sellersCount: 18, defaultPrice: 1.50, defaultUnit: 'lb' },
   { id: 'scallions',         name: 'Scallions',       category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_scallions.jpg`,            buyersCount: 25, sellersCount: 8,  defaultPrice: 1.50, defaultUnit: 'bunch' },
   { id: 'garlic',            name: 'Garlic',          category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_garlic.jpg`,               buyersCount: 40, sellersCount: 14, defaultPrice: 1.00, defaultUnit: 'each' },
-  { id: 'sweet_corn',        name: 'Sweet Corn',      category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_sweet_corn.jpg`,           buyersCount: 45, sellersCount: 15, defaultPrice: 0.75, defaultUnit: 'each' },
+  { id: 'sweet_corn',        name: 'Sweet Corn',      category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_sweet_corn.jpg`,           buyersCount: 45, sellersCount: 15, defaultPrice: 6.00, defaultUnit: 'dozen' },
   { id: 'okra',              name: 'Okra',            category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_okra.jpg`,                 buyersCount: 16, sellersCount: 5,  defaultPrice: 3.50, defaultUnit: 'lb' },
   { id: 'pumpkins',          name: 'Pumpkins',        category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_pumpkins.jpg`,             buyersCount: 33, sellersCount: 11, defaultPrice: 5.00, defaultUnit: 'each' },
   { id: 'winter_squash',     name: 'Winter Squash',   category: 'produce', displayCategory: 'Vegetables', image: `${BUCKET}/studio_winter_squash.jpg`,        buyersCount: 20, sellersCount: 6,  defaultPrice: 1.50, defaultUnit: 'lb' },
@@ -61,7 +62,7 @@ export const EXHAUSTIVE_INTERESTS_CATALOG: InterestCatalogItem[] = [
   // ── FRUITS ──
   { id: 'avocados',          name: 'Avocados',        category: 'produce', displayCategory: 'Fruit', image: '/products/hass-avocado.jpg',    buyersCount: 55, sellersCount: 21, defaultPrice: 1.50, defaultUnit: 'each' },
   { id: 'figs',              name: 'Figs',            category: 'produce', displayCategory: 'Fruit', image: '/products/fresh-figs.jpg',      buyersCount: 38, sellersCount: 14, defaultPrice: 4.00, defaultUnit: 'lb' },
-  { id: 'persimmons',        name: 'Persimmons',      category: 'produce', displayCategory: 'Fruit', image: '/products/persimmons.jpg',      buyersCount: 34, sellersCount: 12, defaultPrice: 1.50, defaultUnit: 'each' },
+  { id: 'persimmons',        name: 'Persimmons',      category: 'produce', displayCategory: 'Fruit', image: '/products/persimmons.jpg',      buyersCount: 34, sellersCount: 12, defaultPrice: 3.50, defaultUnit: 'lb' },
   { id: 'pomegranates',      name: 'Pomegranates',    category: 'produce', displayCategory: 'Fruit', image: '/products/pomegranates.jpg',    buyersCount: 29, sellersCount: 9,  defaultPrice: 2.00, defaultUnit: 'each' },
   { id: 'peaches',           name: 'Peaches',         category: 'produce', displayCategory: 'Fruit', image: '/products/peaches.jpg',         buyersCount: 46, sellersCount: 17, defaultPrice: 2.50, defaultUnit: 'lb' },
   { id: 'nectarines',        name: 'Nectarines',      category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_nectarines.jpg`,    buyersCount: 38, sellersCount: 13, defaultPrice: 2.50, defaultUnit: 'lb' },
@@ -78,8 +79,9 @@ export const EXHAUSTIVE_INTERESTS_CATALOG: InterestCatalogItem[] = [
   { id: 'honeydew',          name: 'Honeydew',        category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_honeydew.jpg`,      buyersCount: 19, sellersCount: 6,  defaultPrice: 4.00, defaultUnit: 'each' },
   { id: 'grapes',            name: 'Grapes',          category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_grapes.jpg`,        buyersCount: 37, sellersCount: 12, defaultPrice: 3.00, defaultUnit: 'lb' },
   { id: 'mangoes',           name: 'Mangoes',         category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_mangoes.jpg`,       buyersCount: 40, sellersCount: 13, defaultPrice: 2.00, defaultUnit: 'each' },
-  { id: 'passionfruit',      name: 'Passionfruit',    category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_passionfruit.jpg`,  buyersCount: 22, sellersCount: 7,  defaultPrice: 1.50, defaultUnit: 'each' },
-  { id: 'guavas',            name: 'Guavas',          category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_guavas.jpg`,        buyersCount: 17, sellersCount: 5,  defaultPrice: 1.50, defaultUnit: 'each' },
+  { id: 'passionfruit',      name: 'Passionfruit',    category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_passionfruit.jpg`,  buyersCount: 22, sellersCount: 7,  defaultPrice: 5.00, defaultUnit: 'lb' },
+  { id: 'guavas',            name: 'Guavas',          category: 'produce', displayCategory: 'Fruit', image: `${BUCKET}/studio_guavas.jpg`,        buyersCount: 17, sellersCount: 5,  defaultPrice: 3.50, defaultUnit: 'lb' },
+
 
   // ── HERBS ──
   { id: 'basil',      name: 'Basil',       category: 'herbs', displayCategory: 'Herbs', image: '/products/fresh-basil.png',          buyersCount: 45, sellersCount: 17, defaultPrice: 2.00, defaultUnit: 'bunch' },

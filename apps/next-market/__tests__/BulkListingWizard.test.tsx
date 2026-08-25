@@ -302,10 +302,15 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     fireEvent.change(zipInput, { target: { value: '94024, 94022' } })
     expect(screen.getByDisplayValue('94024, 94022')).toBeDefined()
 
-    // 2. Edit Pickup Address
+    // 2. Enable Pickup checkbox and edit Pickup Address
+    const checkboxes = screen.getAllByRole('checkbox')
+    const pickupCheckbox = checkboxes[1]
+    fireEvent.click(pickupCheckbox)
+
     const streetInput = screen.getByPlaceholderText(/123 Apple Tree Ln/i)
     fireEvent.change(streetInput, { target: { value: '456 Garden Lane' } })
     expect(screen.getByDisplayValue('456 Garden Lane')).toBeDefined()
+
 
     const cityInput = screen.getByPlaceholderText(/^City$/i)
     fireEvent.change(cityInput, { target: { value: 'Los Altos' } })
@@ -396,7 +401,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
   // ──────────────────────────────────────────────────────────────────────────
 
   it('tests guest auth provider clicks (Google, Apple, and Email OTP verification)', async () => {
-    mockSearchParams = new URLSearchParams('produce=tomatoes')
+    mockSearchParams = new URLSearchParams('produce=tomatoes&zipcode=95120')
+
     render(<BulkListingWizard />)
 
     fireEvent.click(screen.getByText('Tomatoes'))
@@ -425,10 +431,11 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     )
 
     // 3. Test Email OTP flow
-    const nameInput = screen.getByPlaceholderText(/e\.g\. John's Farm Stand/i)
+    const nameInput = screen.getByPlaceholderText(/e\.g\. Sarah Jenkins/i)
     fireEvent.change(nameInput, { target: { value: 'Guest Seller' } })
 
-    const emailInput = screen.getByPlaceholderText(/Email address/i)
+    const emailInput = screen.getByPlaceholderText(/e\.g\. sarah@example\.com|Email address/i)
+
     fireEvent.change(emailInput, { target: { value: 'guest@example.com' } })
 
     const getCodeBtn = screen.getByText(/Get Code/i)
@@ -462,16 +469,11 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
 
     // Wait for Step 2 to mount completely
     await waitFor(() => {
-      expect(screen.getByText(/Complete Your Setup/i)).toBeDefined()
+      expect(screen.getByText(/Publish Your Listings/i)).toBeDefined()
       expect(screen.getByText(/Signed in as/i)).toBeDefined()
       expect(screen.getByText(/grower@casagrown\.com/i)).toBeDefined()
       expect(screen.getByText(/Sign out/i)).toBeDefined()
     })
-
-    // Edit Name input
-    const nameInput = screen.getByPlaceholderText(/e\.g\. John's Farm Stand/i)
-    fireEvent.change(nameInput, { target: { value: "Sunny Hill Gardens" } })
-    expect(screen.getByDisplayValue("Sunny Hill Gardens")).toBeDefined()
 
     // Accept TOS
     await waitFor(() => {
@@ -480,13 +482,15 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     const tosCheckbox = document.getElementById('tos-checkbox')!
     fireEvent.click(tosCheckbox)
 
-    // Click Publish 1 Listing
+    // Click Publish button
     await waitFor(() => {
-      const btn = screen.getByText(/Publish 1 Listing/i)
+      const btn = screen.getByRole('button', { name: /Publish/i })
       expect((btn as HTMLButtonElement).disabled).toBe(false)
     })
-    const publishBtn = screen.getByText(/Publish 1 Listing/i)
+    const publishBtn = screen.getByRole('button', { name: /Publish/i })
     fireEvent.click(publishBtn)
+
+
 
     // Assert that market_products.insert was executed
     await waitFor(() => {

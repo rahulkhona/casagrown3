@@ -101,7 +101,7 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
     await expect(page.locator('h2:has-text("How should buyers get this?")')).toBeVisible()
     await expect(page.locator('text=I can deliver to neighbors')).toBeVisible()
     await expect(page.locator('text=Buyers can pick up from me')).toBeVisible()
-    await expect(page.locator('text=Transparent Pricing:')).toBeVisible()
+    await expect(page.locator('text=No Listing Fees:')).toBeVisible()
   })
 
   test('opens Terms of Service and Privacy Policy legal modals', async ({ page }) => {
@@ -132,10 +132,10 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
     await page.locator('button:has-text("Save Details")').click()
     await page.locator('button:has-text("Sell My Items")').click()
 
-    await expect(page.locator('text=Sign in to publish your listings')).toBeVisible()
+    await expect(page.locator('text=Publish & Notify Local Buyers')).toBeVisible()
     await expect(page.locator('text=Continue with Google')).toBeVisible()
     await expect(page.locator('text=Continue with Apple')).toBeVisible()
-    await expect(page.locator('input[placeholder="Email address"]')).toBeVisible()
+    await expect(page.locator('input[placeholder*="sarah@example.com"]')).toBeVisible()
     await expect(page.locator('button:has-text("Get Code")')).toBeVisible()
   })
 })
@@ -148,7 +148,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
 
     // Select lemons and save
     await page.locator('.wizard-step-1').getByText('Meyer Lemons', { exact: true }).click()
+    await page.locator('input[type="number"]').nth(1).fill('10')
     await page.locator('button:has-text("Save Details")').click()
+
 
     // Proceed to Step 2
     await page.locator('button:has-text("Sell My Items")').click()
@@ -156,19 +158,12 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
     // Verify account badge
     await expect(page.locator('text=Signed in as')).toBeVisible()
 
-    // Enter stand name
-    const standNameInput = page.locator('input[placeholder="e.g. John\'s Farm Stand"]')
-    await standNameInput.fill('Blossom Hill Lemon Grove')
-
-    // Uncheck pickup so delivery-only 95120 is used
-    await page.locator('text=Buyers can pick up from me').click()
-
     // Accept TOS
     const tosCheckbox = page.locator('#tos-checkbox')
     await tosCheckbox.check()
 
     // Click Publish button
-    const publishBtn = page.locator('button:has-text("Publish 1 Listing")')
+    const publishBtn = page.locator('button:has-text("Publish & Notify Buyers")')
     await expect(publishBtn).toBeEnabled()
     await publishBtn.click()
 
@@ -176,4 +171,5 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
     const shareModal = page.locator('text=Share Your Stand with Neighbors').or(page.locator('text=CasaGrown Share')).or(page.locator('text=Your Stand is Live!'))
     await expect(shareModal.first()).toBeVisible({ timeout: 15000 })
   })
+
 })

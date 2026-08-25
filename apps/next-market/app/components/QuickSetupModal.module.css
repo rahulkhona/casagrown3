@@ -660,3 +660,209 @@
 .divider:not(:empty)::before { margin-right: .5em; }
 .divider:not(:empty)::after { margin-left: .5em; }
 
+/* ══════════════════════════════════════════════
+   Dark Theme Variant — used when triggered from
+   the list_bulk wizard (dark #0a0f09 background)
+   ══════════════════════════════════════════════ */
+.dark {
+  background: #111812;
+  color: #ffffff;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Close button */
+.dark .closeBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+.dark .closeBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+/* Step dots */
+.dark .stepDot {
+  background: rgba(255, 255, 255, 0.2);
+}
+.dark .stepDotActive {
+  background: #4ade80;
+}
+.dark .stepDotCompleted {
+  background: rgba(74, 222, 128, 0.5);
+}
+
+/* Title / subtitle */
+.dark .stepTitle {
+  color: #ffffff;
+}
+.dark .stepSubtitle {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Labels */
+.dark .label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Inputs */
+.dark .input {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+.dark .input:focus {
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+}
+.dark .input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+.dark .inputError {
+  border-color: #f87171;
+}
+
+/* Select */
+.dark .select {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+.dark .select:focus {
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+}
+
+/* Info card */
+.dark .infoCard {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+.dark .infoText {
+  color: #4ade80;
+}
+
+/* OTP inputs */
+.dark .otpInput {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+.dark .otpInput:focus {
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+}
+.dark .otpMeta {
+  color: rgba(255, 255, 255, 0.4);
+}
+.dark .otpLink {
+  color: #4ade80;
+}
+
+/* Social buttons */
+.dark .socialButton {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+.dark .socialButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Primary button */
+.dark .primaryBtn {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: #0a0f09;
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.3);
+}
+.dark .primaryBtn:disabled {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Secondary button */
+.dark .secondaryBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+.dark .secondaryBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Dividers */
+.dark .divider {
+  color: rgba(255, 255, 255, 0.3);
+}
+.dark .divider::before, .dark .divider::after {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Checkbox row */
+.dark .checkboxRow {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .checkboxLabel {
+  color: rgba(255, 255, 255, 0.7);
+}
+.dark .legalLink {
+  color: #4ade80;
+}
+
+/* Error message */
+.dark .errorMsg {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* Tabs */
+.dark .tabsContainer {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .tabBtn {
+  color: rgba(255, 255, 255, 0.4);
+}
+.dark .tabBtn:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+.dark .tabBtnActive {
+  color: #4ade80;
+  border-bottom-color: #4ade80;
+}
+
+/* Legal panel */
+.dark .legalPanelHeader {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .legalPanelTitle {
+  color: #ffffff;
+}
+.dark .legalBackBtn {
+  color: #4ade80;
+}
+.dark .legalBackBtn:hover {
+  background: rgba(74, 222, 128, 0.1);
+}
+.dark .legalPanelContent {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* SMS section */
+.dark .smsOtpInput {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+.dark .skipLink {
+  color: rgba(255, 255, 255, 0.3);
+}
+.dark .skipLink:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+

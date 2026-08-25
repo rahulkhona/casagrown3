@@ -1423,13 +1423,19 @@ export default function ProduceAdPostCreatorModal({
 
               {/* Preset URLs */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Bulk Listing (/list_bulk)', url: produceNames.length > 0 ? `https://casagrown.com/list_bulk?produce=${produceNames.map((p: string) => encodeURIComponent(p.toLowerCase().replace(/ /g, '_'))).join(',')}` : 'https://casagrown.com/list_bulk' },
-                  { label: 'Seller (/create-listing)', url: 'https://casagrown.com/create-listing' },
-                  { label: 'Buyer Wishlist (/interest)', url: 'https://casagrown.com/interest' },
-                  { label: 'Market Map (/market)', url: 'https://casagrown.com/market' },
-                  { label: 'Games (/games)', url: 'https://casagrown.com/games' },
-                ].map(p => (
+                {(() => {
+                  const primaryZip = (targetZips ? targetZips.split(',')[0].trim() : (topZips[0] || ''))
+                  const bulkUrl = produceNames.length > 0
+                    ? `https://casagrown.com/list_bulk?produce=${produceNames.map((p: string) => encodeURIComponent(p.toLowerCase().replace(/ /g, '_'))).join(',')}${primaryZip ? `&zipcode=${encodeURIComponent(primaryZip)}` : ''}`
+                    : `https://casagrown.com/list_bulk${primaryZip ? `?zipcode=${encodeURIComponent(primaryZip)}` : ''}`
+                  return [
+                    { label: 'Bulk Listing (/list_bulk)', url: bulkUrl },
+                    { label: 'Seller (/create-listing)', url: 'https://casagrown.com/create-listing' },
+                    { label: 'Buyer Wishlist (/interest)', url: 'https://casagrown.com/interest' },
+                    { label: 'Market Map (/market)', url: 'https://casagrown.com/market' },
+                    { label: 'Games (/games)', url: 'https://casagrown.com/games' },
+                  ]
+                })().map(p => (
                   <button
                     key={p.url}
                     type="button"

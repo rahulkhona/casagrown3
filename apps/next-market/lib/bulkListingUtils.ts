@@ -300,16 +300,27 @@ export function inferProduceUnitAndPrice(produceName: string): { unit: string; p
   }
 
   // 8. Individual Unit Produce (Sold Per Piece / Each)
-  if (/\b(cucumber|cucumbers|avocado|avocados|bell pepper|bell peppers|pepper|peppers|lemon|lemons|lime|limes|grapefruit|grapefruits|watermelon|watermelons|cantaloupe|cantaloupes|melon|melons|honeydew|pumpkin|pumpkins|squash|eggplant|eggplants|cabbage|cabbages|cauliflower|cauliflowers|broccoli|lettuce|garlic|corn|sweet corn|mango|mangoes|papaya|papayas|pomegranate|pomegranates|persimmon|persimmons|passionfruit|guava|guavas|seedling|seedlings|sapling|saplings|plant|plants)\b/.test(norm)) {
+  if (/\b(cucumber|cucumbers|avocado|avocados|bell pepper|bell peppers|pepper|peppers|watermelon|watermelons|cantaloupe|cantaloupes|melon|melons|honeydew|pumpkin|pumpkins|squash|eggplant|eggplants|cabbage|cabbages|cauliflower|cauliflowers|broccoli|lettuce|garlic|mango|mangoes|papaya|papayas|pomegranate|pomegranates|seedling|seedlings|sapling|saplings|plant|plants)\b/.test(norm)) {
     if (/seedling/.test(norm)) return { unit: 'each', price: '4.00' }
     if (/sapling|tree/.test(norm)) return { unit: 'each', price: '25.00' }
     if (/watermelon|pumpkin/.test(norm)) return { unit: 'each', price: '5.00' }
     if (/melon|cantaloupe|honeydew/.test(norm)) return { unit: 'each', price: '4.00' }
-    if (/lemon|lime|corn/.test(norm)) return { unit: 'each', price: '0.75' }
     if (/cucumber|garlic/.test(norm)) return { unit: 'each', price: '1.00' }
-    if (/pepper|avocado|persimmon|passionfruit|guava/.test(norm)) return { unit: 'each', price: '1.50' }
+    if (/pepper|avocado|pomegranate|mango/.test(norm)) return { unit: 'each', price: '1.50' }
     return { unit: 'each', price: '2.00' }
   }
+
+  // 8b. Small fruits / citrus sold by dozen or lb (not practical as 'each')
+  if (/\b(lemon|lemons|lime|limes|corn|sweet corn)\b/.test(norm)) {
+    if (/corn/.test(norm)) return { unit: 'dozen', price: '6.00' }
+    return { unit: 'dozen', price: '4.00' }
+  }
+  if (/\b(persimmon|persimmons|passionfruit|guava|guavas)\b/.test(norm)) {
+    if (/passionfruit/.test(norm)) return { unit: 'lb', price: '5.00' }
+    if (/guava/.test(norm)) return { unit: 'lb', price: '3.50' }
+    return { unit: 'lb', price: '3.50' }
+  }
+
 
   // 9. Standard Bulk Pound Produce (Apples, Pears, Peaches, Citrus by lb, Potatoes, Tomatoes, etc.)
   if (/\b(apple|apples|pear|pears|peach|peaches|nectarine|nectarines|plum|plums|grape|grapes|fig|figs|orange|oranges|tangerine|tangerines|mandarin|mandarins|tomato|tomatoes|potato|potatoes|sweet potato|sweet potatoes|onion|onions|zucchini|green bean|green beans|bean|beans|pea|peas|spinach|okra|kumquat|kumquats)\b/.test(norm)) {
@@ -321,6 +332,40 @@ export function inferProduceUnitAndPrice(produceName: string): { unit: string; p
   // Default fallback for any unspecified produce
   return { unit: 'lb', price: '3.00' }
 }
+
+/**
+ * Converts a price from one unit to another.
+ * e.g. convertPrice(0.22, 'each', 'dozen') → 2.64
+ * Used when Kroger/USDA returns a per-item price and we need it for the row's unit,
+ * or when the user changes unit and we need to re-price.
+ */
+export function convertPrice(price: number, fromUnit: string, toUnit: string): number {
+  if (fromUnit === toUnit || price <= 0) return price
+
+  // Normalize everything to per-each first, then convert to target
+  const toEach: Record<string, number> = {
+    'each': 1,
+    'dozen': 12,
+    'lb': 4,       // ~4 items per lb for typical produce
+    'oz': 0.25,    // ~4 oz per item
+    'bunch': 6,    // ~6 stems per bunch
+    'bag': 8,      // ~8 items per bag
+    'basket': 6,   // ~6 items per basket
+    'box': 12,     // ~12 items per box
+    'pint': 2,     // ~2 cups / items
+    'quart': 4,    // ~4 cups / items
+    'jar': 1,
+    'loaf': 1,
+  }
+
+  const fromFactor = toEach[fromUnit] ?? 1
+  const toFactor = toEach[toUnit] ?? 1
+
+  // Convert: price / fromFactor gives per-each, then × toFactor gives target unit
+  const perEach = price / fromFactor
+  return Math.round(perEach * toFactor * 100) / 100
+}
+
 
 export function createRowFromProduceName(produceName: string, idPrefix: string = 'row'): ProduceRowItem {
   const cleanName = produceName ? produceName.trim() : ''

@@ -634,10 +634,11 @@ export default function QuickSetupModal({ isOpen, onClose, onComplete, trigger, 
   if (!isOpen) return null
 
   const stepIndex = step === 'profile' ? 0 : step === 'otp' ? 1 : 2
+  const isDark = trigger === 'header_login'
 
   return (
     <div className={styles.overlay} onClick={legalView ? undefined : onClose} data-testid="quick-setup-modal">
-      <div className={styles.card} onClick={e => e.stopPropagation()}>
+      <div className={`${styles.card} ${isDark ? styles.dark : ''}`} onClick={e => e.stopPropagation()}>
 
         {/* Close button */}
         {!legalView && (

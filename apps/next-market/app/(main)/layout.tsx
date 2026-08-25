@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, Suspense } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { MarketProvider } from '../../lib/store'
 import { CartProvider } from '../../lib/useCart'
@@ -114,6 +115,7 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
 function FocusLayoutContent({ children }: { children: React.ReactNode }) {
   const { isBanned, banReason, user } = useAuth()
+  const { requireAuth } = useQuickSetup()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const isFocusMode = searchParams?.get('focus') === 'true' || searchParams?.get('embed') === 'true'
@@ -144,7 +146,29 @@ function FocusLayoutContent({ children }: { children: React.ReactNode }) {
       <ErrorToastProvider userId={user?.id}>
         <AnalyticsTracker />
         {!isListBulk && <Navbar />}
-        {isListBulk && <div style={{ padding: '16px', borderBottom: '1px solid #eee', background: '#fff', textAlign: 'center' }}><strong style={{ color: '#047857', fontSize: 18 }}>CasaGrown</strong></div>}
+        {isListBulk && (
+          <header style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(10,15,9,0.95)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box' }}>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+              <img src="/logo.png" alt="CasaGrown" width={36} height={36} style={{ width: 36, height: 36, objectFit: 'contain' }} />
+              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.5px' }}>CasaGrown</span>
+              <span style={{ color: '#4ade80', fontSize: '0.9rem', fontWeight: 600, borderLeft: '2px solid rgba(74,222,128,0.4)', paddingLeft: 14, marginLeft: 6 }}>Fresh. Local. Trusted.</span>
+            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {user ? (
+                <Link href="/my-stands" style={{ fontSize: '0.9rem', fontWeight: 600, color: '#4ade80', textDecoration: 'none', padding: '6px 16px', borderRadius: '100px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  👤 My Stands
+                </Link>
+              ) : (
+                <button
+                  onClick={() => requireAuth({ trigger: 'header_login', defaultSignIn: true })}
+                  style={{ fontSize: '0.9rem', fontWeight: 600, color: '#4ade80', padding: '6px 16px', borderRadius: '100px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer' }}
+                >
+                  Log In
+                </button>
+              )}
+            </div>
+          </header>
+        )}
         <main className="page-wrapper">
           <ErrorBoundary>
             <OnboardingGate>
@@ -161,6 +185,7 @@ function FocusLayoutContent({ children }: { children: React.ReactNode }) {
     </MarketProvider>
   )
 }
+
 
 function MainLayoutInner({ children }: { children: React.ReactNode }) {
   return (

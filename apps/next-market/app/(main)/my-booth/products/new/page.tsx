@@ -13,6 +13,9 @@ import { NotificationPromptModal } from '../../../../components/NotificationProm
 import CameraCapture from '../../../../../components/CameraCapture'
 import { checkTextForViolations } from '../../../../../lib/moderation'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../../../lib/crm-analytics'
+import { convertPrice } from '../../../../../lib/bulkListingUtils'
+
+
 import { ShareIcon } from '../../../../components/icons'
 import SocialShareModal from '../../../../components/SocialShareModal'
 import { getBoothProductShareMessage } from '../../../../../lib/shareMessages'
@@ -188,6 +191,8 @@ function NewProductPageInner() {
   const [suggestedPrice, setSuggestedPrice] = useState<{ price_usd: number; unit: string; source: string } | null>(null)
   const [suggestingPrice, setSuggestingPrice] = useState(false)
   const lastPriceCheck = useRef('')
+  const userModifiedPrice = useRef(false)
+
 
   // Quarantine check
   const [quarantineWarning, setQuarantineWarning] = useState<{
@@ -861,7 +866,9 @@ function NewProductPageInner() {
       setDescription(data.description || '')
       setPriceUsd(data.price_usd === 0 ? '0' : String(data.price_usd || ''))
       setIsFree(data.price_usd === 0)
+      userModifiedPrice.current = true  // Don't auto-override existing product's price on unit change
       setUnit(data.unit || 'each')
+
       setQuantity(String(data.inventory || ''))
       setCategory(data.category || '')
       setPhotos(data.photos || [])
@@ -945,7 +952,9 @@ function NewProductPageInner() {
       if (data.category) setCategory(data.category)
       setPriceUsd(data.price_usd === 0 ? '0' : String(data.price_usd || ''))
       setIsFree(data.price_usd === 0)
+      userModifiedPrice.current = true  // Don't auto-override prefilled price on unit change
       setUnit(data.unit || 'each')
+
       if (data.photos?.length) setPhotos(data.photos)
       setPrefilled(true)
     }
@@ -2838,7 +2847,7 @@ function NewProductPageInner() {
                     step="0.01"
                     min="0"
                     value={restriction.isFreeOnly || isFree ? '0' : priceUsd}
-                    onChange={e => { if (!restriction.isFreeOnly && !isFree) { setPriceUsd(e.target.value); setErrors(p => ({ ...p, price: '' })) } }}
+                    onChange={e => { if (!restriction.isFreeOnly && !isFree) { setPriceUsd(e.target.value); userModifiedPrice.current = true; setErrors(p => ({ ...p, price: '' })) } }}
                     onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'price_usd', !!priceUsd)}
                     onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                     placeholder={restriction.isFreeOnly || isFree ? '0.00' : '4.50'}
@@ -2873,7 +2882,23 @@ function NewProductPageInner() {
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Per</label>
-                <select className={styles.input} value={unit} onChange={e => setUnit(e.target.value)}>
+                <select className={styles.input} value={unit} onChange={e => {
+                  const newUnit = e.target.value
+                  if (!userModifiedPrice.current && priceUsd && parseFloat(priceUsd) > 0) {
+                    const converted = convertPrice(parseFloat(priceUsd), unit, newUnit)
+                    setPriceUsd(converted.toFixed(2))
+                    if (suggestedPrice) {
+                      setSuggestedPrice({
+                        ...suggestedPrice,
+                        price_usd: converted,
+                        unit: newUnit,
+                      })
+                    }
+                  }
+                  setUnit(newUnit)
+                }}>
+
+
                   {['each', 'bunch', 'dozen', 'lb', 'oz', 'bag', 'basket', 'box', 'pint', 'quart', 'jar', 'loaf'].map(u => (
                     <option key={u} value={u}>{u}</option>
                   ))}

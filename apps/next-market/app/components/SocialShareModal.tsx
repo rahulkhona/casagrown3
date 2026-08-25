@@ -19,7 +19,10 @@ interface SocialShareModalProps {
   imageUrl?: string
   ogTitle?: string
   isFree?: boolean
+  /** Set to 'dark' when rendered over a dark-background page (e.g. list_bulk wizard) */
+  theme?: 'light' | 'dark'
 }
+
 
 // ── Platform SVG Icons ──
 
@@ -194,6 +197,7 @@ interface PlatformCardProps {
   description: string
   brandColor: string
   onClick: () => void
+  isDark?: boolean
 }
 
 function PlatformCard({
@@ -201,7 +205,8 @@ function PlatformCard({
   title,
   description,
   brandColor,
-  onClick
+  onClick,
+  isDark = false,
 }: PlatformCardProps) {
   const [hovered, setHovered] = useState(false)
   return (
@@ -214,13 +219,19 @@ function PlatformCard({
         alignItems: 'center',
         width: '100%',
         padding: '14px 16px',
-        border: hovered ? '1px solid #10B981' : '1px solid #e5e7eb',
+        border: hovered
+          ? (isDark ? '1px solid rgba(74,222,128,0.5)' : '1px solid #10B981')
+          : (isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb'),
         borderRadius: 14,
-        background: hovered ? 'rgba(16, 185, 129, 0.02)' : '#fff',
+        background: hovered
+          ? (isDark ? 'rgba(74,222,128,0.08)' : 'rgba(16, 185, 129, 0.02)')
+          : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'),
         cursor: 'pointer',
         textAlign: 'left',
         transition: 'all 0.2s ease',
-        boxShadow: hovered ? '0 4px 12px rgba(16, 185, 129, 0.08)' : '0 1px 2px rgba(0,0,0,0.02)',
+        boxShadow: hovered
+          ? (isDark ? '0 4px 12px rgba(74,222,128,0.12)' : '0 4px 12px rgba(16, 185, 129, 0.08)')
+          : '0 1px 2px rgba(0,0,0,0.02)',
         boxSizing: 'border-box',
         outline: 'none',
       }}
@@ -241,12 +252,12 @@ function PlatformCard({
         {icon}
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{title}</span>
-        <span style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>{description}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: isDark ? '#ffffff' : '#111827' }}>{title}</span>
+        <span style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.5)' : '#6b7280', lineHeight: 1.3 }}>{description}</span>
       </div>
       <div style={{
         marginLeft: 8,
-        color: hovered ? '#10B981' : '#d1d5db',
+        color: hovered ? (isDark ? '#4ade80' : '#10B981') : (isDark ? 'rgba(255,255,255,0.3)' : '#d1d5db'),
         fontSize: 16,
         fontWeight: 700,
         transition: 'color 0.2s ease'
@@ -273,7 +284,41 @@ export default function SocialShareModal({
   imageUrl,
   ogTitle,
   isFree = false,
+  theme = 'light',
 }: SocialShareModalProps) {
+  const isDark = theme === 'dark'
+
+  // ── Dark-mode token overrides ──
+  const t = {
+    modalBg:        isDark ? '#111812' : '#fff',
+    modalBorder:    isDark ? '1px solid rgba(255,255,255,0.12)' : 'none',
+    headerBorder:   isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f3f4f6',
+    headingColor:   isDark ? '#ffffff' : '#111827',
+    bodyColor:      isDark ? 'rgba(255,255,255,0.7)' : '#6b7280',
+    cardBg:         isDark ? 'rgba(255,255,255,0.05)' : '#fff',
+    cardBorder:     isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+    cardHoverBg:    isDark ? 'rgba(74,222,128,0.08)' : 'rgba(16,185,129,0.02)',
+    cardHoverBorder:isDark ? '1px solid rgba(74,222,128,0.5)' : '1px solid #10B981',
+    previewBg:      isDark ? 'rgba(255,255,255,0.06)' : '#f3f4f6',
+    previewBorder:  isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+    textareaBorder: isDark ? '1px solid rgba(255,255,255,0.2)' : '1px solid #d1d5db',
+    textareaColor:  isDark ? '#ffffff' : '#374151',
+    textareaBg:     isDark ? 'rgba(255,255,255,0.07)' : '#ffffff',
+    stepCardBg:     isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb',
+    stepCardBorder: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+    closeColor:     isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF',
+    skipColor:      isDark ? 'rgba(255,255,255,0.3)' : '#9CA3AF',
+    editBtnBorder:  isDark ? '1px solid rgba(74,222,128,0.5)' : '1px solid #10B981',
+    editBtnColor:   isDark ? '#4ade80' : '#10B981',
+    fbSecondBg:     isDark ? 'rgba(255,255,255,0.05)' : '#fff',
+    fbSecondBorder: isDark ? '1px solid rgba(74,222,128,0.4)' : '1px solid #10B981',
+    fbSecondColor:  isDark ? '#4ade80' : '#10B981',
+    successBg:      isDark ? 'rgba(34,197,94,0.1)' : '#f0fdf4',
+    successBorder:  isDark ? '1px solid rgba(74,222,128,0.3)' : '1px solid #bbf7d0',
+    successText:    isDark ? '#4ade80' : '#166534',
+  }
+
+
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [customMessages, setCustomMessages] = useState<Record<string, string>>({})
   const [activePreviewTab, setActivePreviewTab] = useState<SharePlatformType>('whatsapp')
@@ -486,12 +531,14 @@ export default function SocialShareModal({
       {/* Modal */}
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        zIndex: 10000, background: '#fff', borderRadius: 20, width: '90%', maxWidth: 410,
-        padding: '24px 20px 20px', 
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+        zIndex: 10000, background: t.modalBg, borderRadius: 20, width: '90%', maxWidth: 410,
+        padding: '24px 20px 20px',
+        boxShadow: isDark ? '0 25px 60px rgba(0,0,0,0.7)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+        border: t.modalBorder,
         display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
         maxHeight: '90vh', overflowY: 'auto'
       }}>
+
         {/* Toast */}
         {toastMessage && (
           <div style={{
@@ -522,13 +569,13 @@ export default function SocialShareModal({
                   alt="CasaGrown" 
                   style={{ width: 24, height: 24, borderRadius: 5 }}
                 />
-                <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>CasaGrown Share</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: t.headingColor }}>CasaGrown Share</span>
               </div>
               <button 
                 onClick={onClose}
                 aria-label="Close"
                 style={{
-                  background: 'none', border: 'none', color: '#9CA3AF',
+                  background: 'none', border: 'none', color: t.closeColor,
                   cursor: 'pointer', padding: '4px 8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
@@ -540,13 +587,14 @@ export default function SocialShareModal({
               </button>
             </div>
 
-            <h2 style={{ margin: '0 0 12px', fontSize: 18, color: '#111827', fontWeight: 700, width: '100%', textAlign: 'left' }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 18, color: t.headingColor, fontWeight: 700, width: '100%', textAlign: 'left' }}>
               {title || 'Select Platform to Share'}
             </h2>
+
             {shareContext === 'new_product_share' ? (
               <div style={{
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
+                background: t.successBg,
+                border: t.successBorder,
                 borderRadius: 12,
                 padding: '12px 16px',
                 margin: '0 0 20px',
@@ -556,7 +604,7 @@ export default function SocialShareModal({
               }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <span style={{ fontSize: 20, lineHeight: 1 }}>{isFree ? "🎁" : "💰"}</span>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#166534', lineHeight: 1.45 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: t.successText, lineHeight: 1.45 }}>
                     {isFree 
                       ? `Let friends and neighbors know you want to share your ${entityName || 'produce'} in just a couple of clicks!`
                       : "Sell out fast by letting neighbors know about your listing in just a couple of clicks."
@@ -565,10 +613,11 @@ export default function SocialShareModal({
                 </div>
               </div>
             ) : (
-              <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280', lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
+              <p style={{ margin: '0 0 16px', fontSize: 13, color: t.bodyColor, lineHeight: 1.4, width: '100%', textAlign: 'left' }}>
                 {subtitle || 'Choose a platform to preview, customize, and invite your neighbors!'}
               </p>
             )}
+
 
             {/* Screen 1: Platform Selection Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', padding: '4px 0' }}>
@@ -579,6 +628,7 @@ export default function SocialShareModal({
                   title="Share on WhatsApp"
                   description="Send a message to neighbors or group chats"
                   brandColor="#25D366"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('whatsapp')
                     setActivePreviewTab('whatsapp')
@@ -592,6 +642,7 @@ export default function SocialShareModal({
                   title="Share on Nextdoor"
                   description="Post directly to your neighborhood feed"
                   brandColor="#00B246"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('nextdoor')
                     setActivePreviewTab('nextdoor')
@@ -605,6 +656,7 @@ export default function SocialShareModal({
                   title="Share on Facebook"
                   description="Post to your timeline or local garden groups"
                   brandColor="#1877F2"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('facebook')
                     setActivePreviewTab('facebook')
@@ -618,6 +670,7 @@ export default function SocialShareModal({
                   title="Text a Neighbor"
                   description="Text a direct invite using iMessage/SMS"
                   brandColor="#34C759"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('sms')
                     setActivePreviewTab('sms')
@@ -631,6 +684,7 @@ export default function SocialShareModal({
                   title="Send via Email"
                   description="Send a beautiful rich newsletter banner"
                   brandColor="#6366F1"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('email')
                     setActivePreviewTab('email')
@@ -644,6 +698,7 @@ export default function SocialShareModal({
                   title="Copy Link"
                   description="Copy tailored text + short link to clipboard"
                   brandColor="#4B5563"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('copy')
                     setActivePreviewTab('copy')
@@ -658,6 +713,7 @@ export default function SocialShareModal({
                   title="More Options"
                   description="Share using your device's native options"
                   brandColor="#10B981"
+                  isDark={isDark}
                   onClick={() => {
                     setSelectedPlatform('native')
                     setActivePreviewTab('native')
@@ -668,14 +724,14 @@ export default function SocialShareModal({
             <button 
               onClick={onClose}
               style={{
-                background: 'none', border: 'none', color: '#9CA3AF',
+                background: 'none', border: 'none', color: t.skipColor,
                 fontSize: 13, fontWeight: 500, cursor: 'pointer',
                 marginTop: 16, padding: '8px 16px', textDecoration: 'underline'
               }}
-              onMouseOver={e => e.currentTarget.style.color = '#6B7280'}
-              onMouseOut={e => e.currentTarget.style.color = '#9CA3AF'}
+              onMouseOver={e => e.currentTarget.style.color = isDark ? 'rgba(255,255,255,0.5)' : '#6B7280'}
+              onMouseOut={e => e.currentTarget.style.color = t.skipColor}
             >
-              No thanks, I'll share later
+              No thanks, I&apos;ll share later
             </button>
           </>
         ) : (
@@ -687,7 +743,7 @@ export default function SocialShareModal({
               justifyContent: 'space-between',
               width: '100%',
               marginBottom: 16,
-              borderBottom: '1px solid #f3f4f6',
+              borderBottom: t.headerBorder,
               paddingBottom: 10
             }}>
               <button 
@@ -695,7 +751,7 @@ export default function SocialShareModal({
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#10B981',
+                  color: isDark ? '#4ade80' : '#10B981',
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -707,7 +763,7 @@ export default function SocialShareModal({
               >
                 ← Back
               </button>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: t.headingColor }}>
                 {selectedPlatform === 'whatsapp' ? 'WhatsApp Share' :
                  selectedPlatform === 'sms' ? 'Text Message' :
                  selectedPlatform === 'email' ? 'Email Invite' :
@@ -719,7 +775,7 @@ export default function SocialShareModal({
                 onClick={onClose}
                 aria-label="Close"
                 style={{
-                  background: 'none', border: 'none', color: '#9CA3AF',
+                  background: 'none', border: 'none', color: t.closeColor,
                   cursor: 'pointer', padding: '4px 8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
@@ -733,8 +789,8 @@ export default function SocialShareModal({
 
             {/* Context Title/Subtitle */}
             <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 2, marginBottom: 12, textAlign: 'left' }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#374151' }}>{title}</h3>
-              {subtitle && <p style={{ margin: 0, fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>{subtitle}</p>}
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: t.headingColor }}>{title}</h3>
+              {subtitle && <p style={{ margin: 0, fontSize: 12, color: t.bodyColor, lineHeight: 1.3 }}>{subtitle}</p>}
             </div>
 
             {/* Message Editor */}
@@ -752,9 +808,10 @@ export default function SocialShareModal({
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: 10,
-                    border: '1px solid #d1d5db',
+                    border: t.textareaBorder,
                     fontSize: 14,
-                    color: '#374151',
+                    color: t.textareaColor,
+                    background: t.textareaBg,
                     fontFamily: 'inherit',
                     resize: 'none',
                     outline: 'none',
@@ -762,15 +819,15 @@ export default function SocialShareModal({
                     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#10B981'
-                    e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.1)'
+                    e.target.style.borderColor = isDark ? '#4ade80' : '#10B981'
+                    e.target.style.boxShadow = isDark ? '0 0 0 3px rgba(74,222,128,0.15)' : '0 0 0 3px rgba(16, 185, 129, 0.1)'
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#d1d5db'
+                    e.target.style.borderColor = isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'
                     e.target.style.boxShadow = 'none'
                   }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#9ca3af', padding: '0 2px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: t.bodyColor, padding: '0 2px' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <span>{(customMessages[activePreviewTab] || '').length} characters</span>
                     {(customMessages[activePreviewTab] || '') !== resolveMessage(activePreviewTab) && (
@@ -779,7 +836,7 @@ export default function SocialShareModal({
                           const defaultMsg = resolveMessage(activePreviewTab)
                           setCustomMessages((prev) => ({ ...prev, [activePreviewTab]: defaultMsg }))
                         }}
-                        style={{ background: 'none', border: 'none', color: '#10B981', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        style={{ background: 'none', border: 'none', color: isDark ? '#4ade80' : '#10B981', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                       >
                         Reset to Default
                       </button>
@@ -788,8 +845,8 @@ export default function SocialShareModal({
                   <button
                     onClick={() => setIsEditing(false)}
                     style={{
-                      background: '#10B981',
-                      color: '#fff',
+                      background: isDark ? '#4ade80' : '#10B981',
+                      color: isDark ? '#0a0f09' : '#fff',
                       border: 'none',
                       borderRadius: 6,
                       padding: '4px 10px',
@@ -811,10 +868,10 @@ export default function SocialShareModal({
                 style={{
                   width: '100%',
                   padding: '12px 14px',
-                  border: '1px solid #10B981',
+                  border: t.editBtnBorder,
                   borderRadius: 10,
                   background: 'transparent',
-                  color: '#10B981',
+                  color: t.editBtnColor,
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -826,7 +883,7 @@ export default function SocialShareModal({
                   transition: 'background 0.2s ease, color 0.2s ease',
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)'
+                  e.currentTarget.style.background = isDark ? 'rgba(74,222,128,0.08)' : 'rgba(16, 185, 129, 0.05)'
                 }}
                 onMouseOut={(e) => {
                   e.currentTarget.style.background = 'transparent'
@@ -840,7 +897,7 @@ export default function SocialShareModal({
             {!isEditing && (
               <div style={{
                 width: '100%',
-                background: '#f3f4f6',
+                background: t.previewBg,
                 borderRadius: 12,
               padding: '12px',
               marginBottom: 16,
@@ -853,8 +910,9 @@ export default function SocialShareModal({
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-start',
-              border: '1px solid #e5e7eb',
+              border: t.previewBorder,
             }}>
+
               {activePreviewTab === 'whatsapp' && (
                 /* WhatsApp Preview Bubble */
                 <div style={{
@@ -1320,21 +1378,21 @@ export default function SocialShareModal({
               {selectedPlatform === 'nextdoor' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
                   <div style={{
-                    border: '1px solid #e5e7eb',
+                    border: t.stepCardBorder,
                     borderRadius: 14,
                     padding: '14px 16px',
                     textAlign: 'left',
-                    background: '#f9fafb',
+                    background: t.stepCardBg,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 1: Custom Post Text</span>
-                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>Copies text only</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.headingColor }}>Step 1: Custom Post Text</span>
+                      <span style={{ fontSize: 11, color: t.bodyColor, fontWeight: 500 }}>Copies text only</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                    <p style={{ margin: 0, fontSize: 11, color: t.bodyColor, lineHeight: 1.4 }}>
                       Copy the custom description, then paste it in your new post composer on Nextdoor.
                     </p>
                     <button
@@ -1346,42 +1404,42 @@ export default function SocialShareModal({
                         boxShadow: '0 4px 14px rgba(0, 178, 70, 0.2)',
                       }}
                     >
-                      <NextdoorIcon /> Copy & Continue to Nextdoor
+                      <NextdoorIcon /> Copy &amp; Continue to Nextdoor
                     </button>
                   </div>
 
                   <div style={{
-                    border: '1px solid #e5e7eb',
+                    border: t.stepCardBorder,
                     borderRadius: 14,
                     padding: '14px 16px',
                     textAlign: 'left',
-                    background: '#f9fafb',
+                    background: t.stepCardBg,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 2: Copy Comment Message</span>
-                      <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.headingColor }}>Step 2: Copy Comment Message</span>
+                      <span style={{ fontSize: 11, color: isDark ? '#4ade80' : '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                    <p style={{ margin: 0, fontSize: 11, color: t.bodyColor, lineHeight: 1.4 }}>
                       Copy the pre-formatted comment containing your tracked shop link, to paste in the comments section immediately following your post publication!
                     </p>
                     <button
                       onClick={handleShareNextdoorStep2}
                       style={{
                         ...btnBase,
-                        background: '#fff',
-                        color: '#10B981',
-                        border: '1px solid #10B981',
+                        background: t.fbSecondBg,
+                        color: t.fbSecondColor,
+                        border: t.fbSecondBorder,
                         boxShadow: '0 4px 12px rgba(16, 185, 129, 0.05)',
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.02)'
+                        e.currentTarget.style.background = isDark ? 'rgba(74,222,128,0.1)' : 'rgba(16, 185, 129, 0.02)'
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.background = '#fff'
+                        e.currentTarget.style.background = t.fbSecondBg
                       }}
                     >
                       <LinkIcon /> Copy Comment Message
@@ -1390,24 +1448,25 @@ export default function SocialShareModal({
                 </div>
               )}
 
+
               {selectedPlatform === 'facebook' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
                   <div style={{
-                    border: '1px solid #e5e7eb',
+                    border: t.stepCardBorder,
                     borderRadius: 14,
                     padding: '14px 16px',
                     textAlign: 'left',
-                    background: '#f9fafb',
+                    background: t.stepCardBg,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 1: Custom Post Text</span>
-                      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>Copies text only</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.headingColor }}>Step 1: Custom Post Text</span>
+                      <span style={{ fontSize: 11, color: t.bodyColor, fontWeight: 500 }}>Copies text only</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                    <p style={{ margin: 0, fontSize: 11, color: t.bodyColor, lineHeight: 1.4 }}>
                       Copy the custom description, then paste it in your new post composer on Facebook.
                     </p>
                     <button
@@ -1419,42 +1478,42 @@ export default function SocialShareModal({
                         boxShadow: '0 4px 14px rgba(24, 119, 242, 0.2)',
                       }}
                     >
-                      <FacebookIcon /> Copy & Continue to Facebook
+                      <FacebookIcon /> Copy &amp; Continue to Facebook
                     </button>
                   </div>
 
                   <div style={{
-                    border: '1px solid #e5e7eb',
+                    border: t.stepCardBorder,
                     borderRadius: 14,
                     padding: '14px 16px',
                     textAlign: 'left',
-                    background: '#f9fafb',
+                    background: t.stepCardBg,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Step 2: Copy Comment Message</span>
-                      <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.headingColor }}>Step 2: Copy Comment Message</span>
+                      <span style={{ fontSize: 11, color: isDark ? '#4ade80' : '#10B981', fontWeight: 600 }}>Algorithm-safe</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                    <p style={{ margin: 0, fontSize: 11, color: t.bodyColor, lineHeight: 1.4 }}>
                       Copy the pre-formatted comment containing your tracked shop link, to paste in the comments section immediately following your post publication!
                     </p>
                     <button
                       onClick={handleShareFacebookStep2}
                       style={{
                         ...btnBase,
-                        background: '#fff',
-                        color: '#10B981',
-                        border: '1px solid #10B981',
+                        background: t.fbSecondBg,
+                        color: t.fbSecondColor,
+                        border: t.fbSecondBorder,
                         boxShadow: '0 4px 12px rgba(16, 185, 129, 0.05)',
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'rgba(16, 185, 129, 0.02)'
+                        e.currentTarget.style.background = isDark ? 'rgba(74,222,128,0.1)' : 'rgba(16, 185, 129, 0.02)'
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.background = '#fff'
+                        e.currentTarget.style.background = t.fbSecondBg
                       }}
                     >
                       <LinkIcon /> Copy Comment Message
@@ -1462,6 +1521,7 @@ export default function SocialShareModal({
                   </div>
                 </div>
               )}
+
 
               {selectedPlatform === 'copy' && (
                 <button 
