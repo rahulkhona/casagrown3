@@ -28,7 +28,9 @@ import {
   isHourSelected,
   toggleHourCell,
   convertPrice,
+  normalizeProduceKey,
 } from '../../../lib/bulkListingUtils'
+
 
 
 
@@ -156,7 +158,7 @@ export default function BulkListingClient() {
     produceCounts: Record<string, number>
     loading: boolean
   }>({
-    totalBuyers: 18,
+    totalBuyers: 0,
     locationLabel: 'In Your Area',
     produceCounts: {},
     loading: true,
@@ -166,35 +168,29 @@ export default function BulkListingClient() {
     let isMounted = true
     async function loadBuyerDemand() {
       try {
-        const rawZip = searchParams.get('zipcode') || searchParams.get('zip')
-        const cleanZip = rawZip ? rawZip.trim().replace(/[^0-9]/g, '') : ''
+        const cleanZip = (zipcode || searchParams.get('zipcode') || searchParams.get('zip') || '')
+          .trim().replace(/[^0-9]/g, '')
 
-        let query = supabase
-          .from('crm_produce_interests')
-          .select('produce_name, zipcodes')
-          .eq('interest_type', 'buy')
-          .eq('status', 'active')
-
-        if (cleanZip && cleanZip.length === 5) {
-          query = query.contains('zipcodes', [cleanZip])
+        const res = await fetch(`/api/interest/demand?zipcode=${encodeURIComponent(cleanZip)}`)
+        if (res.ok) {
+          const json = await res.json()
+          if (json.success && isMounted) {
+            setBuyerDemand({
+              totalBuyers: json.totalBuyers || 0,
+              locationLabel: json.locationLabel || (cleanZip ? `In ${cleanZip}` : 'In Your Area'),
+              produceCounts: json.produceCounts || {},
+              loading: false,
+            })
+            return
+          }
         }
-
-        const { data, error } = await query.limit(5000)
-        if (!error && data && isMounted) {
-          const counts: Record<string, number> = {}
-          data.forEach((item: any) => {
-            const name = (item.produce_name || '').toLowerCase().trim()
-            if (name) counts[name] = (counts[name] || 0) + 1
-          })
-          const total = data.length > 0 ? data.length : 18
-          setBuyerDemand({
-            totalBuyers: Math.max(total, 12),
-            locationLabel: cleanZip ? `Near ${cleanZip}` : 'In Your Area',
-            produceCounts: counts,
-            loading: false,
-          })
-        } else if (isMounted) {
-          setBuyerDemand(prev => ({ ...prev, loading: false }))
+        if (isMounted) {
+          setBuyerDemand(prev => ({ 
+            ...prev, 
+            totalBuyers: 0, 
+            locationLabel: cleanZip ? `In ${cleanZip}` : 'In Your Area', 
+            loading: false 
+          }))
         }
       } catch {
         if (isMounted) setBuyerDemand(prev => ({ ...prev, loading: false }))
@@ -202,7 +198,9 @@ export default function BulkListingClient() {
     }
     loadBuyerDemand()
     return () => { isMounted = false }
-  }, [searchParams, supabase])
+  }, [zipcode, searchParams])
+
+
 
   // ── Platform Fee Dynamic Resolution ──
   const [platformFeePct, setPlatformFeePct] = useState(10)
@@ -470,8 +468,9 @@ export default function BulkListingClient() {
         }
       }
 
-      // Guest / New User: fetch IP location from Vercel edge header endpoint
-      if (!zipcode) {
+      // Guest / New User: fetch IP location from Vercel edge header endpoint if no URL zip provided
+      const queryZip = searchParams.get('zipcode') || searchParams.get('zip') || ''
+      if (!queryZip && !zipcode) {
         try {
           const res = await fetch('/api/location/ip')
           if (res.ok) {
@@ -486,6 +485,7 @@ export default function BulkListingClient() {
         }
       }
     }
+
 
     loadLocationOrBooth()
   }, [user, supabase])
@@ -1653,7 +1653,7 @@ export default function BulkListingClient() {
   const editingRow = produceRows.find(r => r.id === editingRowId)
   const selectedRows = produceRows.filter(r => r.isSelected)
   const rawZipParam = searchParams.get('zipcode') || searchParams.get('zip')
-  const cleanZipDisplay = rawZipParam ? rawZipParam.trim().replace(/[^0-9]/g, '') : ''
+  const cleanZipDisplay = (zipcode || rawZipParam || '').trim().replace(/[^0-9]/g, '')
   const isCartEmpty = selectedRows.length === 0
 
   // Set dark background on html/body while on this page, restore on unmount
@@ -1696,7 +1696,11 @@ export default function BulkListingClient() {
               {/* 3 Trust Metric Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, background: 'rgba(255,255,255,0.04)', padding: '14px 10px', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', backdropFilter: 'blur(12px)' }}>
                 <div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>{buyerDemand.totalBuyers}+</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>
+                    {buyerDemand.totalBuyers > 0 
+                      ? (buyerDemand.totalBuyers >= 10 ? `${buyerDemand.totalBuyers}+` : `${buyerDemand.totalBuyers}`) 
+                      : '0'}
+                  </div>
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Buyer Requests</div>
                 </div>
                 <div>
@@ -1712,9 +1716,18 @@ export default function BulkListingClient() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
               {produceRows.map(row => {
+                const rowKeys = normalizeProduceKey(row.name)
+                let demandCount = 0
+                for (const k of rowKeys) {
+                  if (buyerDemand.produceCounts[k]) {
+                    demandCount = Math.max(demandCount, buyerDemand.produceCounts[k])
+                  }
+                }
                 const isSelected = row.isSelected
-                const demandCount = buyerDemand.produceCounts[row.name.toLowerCase().trim()] || 0
+
                 return (
+
+
                   <div 
                     key={row.id}
                     onClick={() => {
@@ -1757,8 +1770,8 @@ export default function BulkListingClient() {
                         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
                           <span style={{ color: '#fbbf24', fontWeight: 700 }}>
                             {demandCount > 0 
-                              ? `🔥 ${demandCount} ${cleanZipDisplay ? `in ${cleanZipDisplay}` : 'Buyers'}` 
-                              : '🔥 Active Demand'}
+                              ? `🔥 ${demandCount} ${cleanZipDisplay ? `in ${cleanZipDisplay}` : (demandCount === 1 ? 'Buyer' : 'Buyers')}` 
+                              : (buyerDemand.totalBuyers > 0 ? `🔥 ${buyerDemand.totalBuyers} Local ${buyerDemand.totalBuyers === 1 ? 'Buyer' : 'Buyers'}` : '🌱 Ready to List')}
                           </span>
                         </div>
                       )}
@@ -1766,6 +1779,7 @@ export default function BulkListingClient() {
                   </div>
                 )
               })}
+
 
               {/* Add Custom Item Card */}
               <div 

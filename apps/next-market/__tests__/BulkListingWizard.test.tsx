@@ -142,6 +142,67 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     expect(screen.getByText(/Add Custom Item/i)).toBeDefined()
   })
 
+  it('fetches and displays dynamic buyer demand and produce-specific badge for detected zipcode', async () => {
+    mockSearchParams = new URLSearchParams('produce=tomatoes,cucumbers&zipcode=95120')
+    const originalFetch = global.fetch
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/interest/demand')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            zipcode: '95120',
+            totalBuyers: 3,
+            locationLabel: 'In 95120',
+            produceCounts: { tomatoes: 2, tomato: 2, cucumbers: 1 },
+          }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    render(<BulkListingWizard />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/In 95120/)).toBeDefined()
+      expect(screen.getByText('3')).toBeDefined()
+      expect(screen.getByText(/🔥 2 in 95120/)).toBeDefined()
+    })
+
+    global.fetch = originalFetch
+  })
+
+  it('renders 0 buyer requests and ready-to-list badge when no buyers exist in zipcode', async () => {
+    mockSearchParams = new URLSearchParams('produce=tomatoes&zipcode=99999')
+    const originalFetch = global.fetch
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/interest/demand')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            zipcode: '99999',
+            totalBuyers: 0,
+            locationLabel: 'In 99999',
+            produceCounts: {},
+          }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+
+    render(<BulkListingWizard />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/In 99999/)).toBeDefined()
+      expect(screen.getByText('0')).toBeDefined()
+      expect(screen.getByText(/🌱 Ready to List/)).toBeDefined()
+    })
+
+    global.fetch = originalFetch
+  })
+
+
   it('tests full modal field editing: price, unit, quantity, harvest date, and description', async () => {
     mockSearchParams = new URLSearchParams('produce=blueberries')
     render(<BulkListingWizard />)

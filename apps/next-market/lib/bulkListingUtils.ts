@@ -366,6 +366,54 @@ export function convertPrice(price: number, fromUnit: string, toUnit: string): n
   return Math.round(perEach * toFactor * 100) / 100
 }
 
+/**
+ * Normalizes a produce name to all matching key variations (base name, singular, plural, without descriptors)
+ * e.g. "Meyer Lemons" → ["meyer lemons", "lemons", "lemon", "meyer lemon"]
+ * "Heirloom Tomatoes" → ["heirloom tomatoes", "tomatoes", "tomato", "heirloom tomato"]
+ * "Fresh Sweet Basil" → ["fresh sweet basil", "basil", "basils"]
+ */
+export function normalizeProduceKey(name: string): string[] {
+  if (!name) return []
+  const clean = name.toLowerCase().trim()
+  const keys = new Set<string>()
+
+  const addWordForms = (phrase: string) => {
+    if (!phrase) return
+    keys.add(phrase)
+
+    // Handle plurals/singulars for the phrase and individual words
+    if (phrase.endsWith('ies')) {
+      keys.add(phrase.slice(0, -3) + 'y')
+    } else if (phrase.endsWith('oes')) {
+      keys.add(phrase.slice(0, -2)) // tomatoes -> tomato
+    } else if (phrase.endsWith('es') && (phrase.endsWith('ches') || phrase.endsWith('shes') || phrase.endsWith('xes'))) {
+      keys.add(phrase.slice(0, -2)) // peaches -> peach
+    } else if (phrase.endsWith('s') && !phrase.endsWith('ss')) {
+      keys.add(phrase.slice(0, -1))
+    } else {
+      keys.add(phrase + 's')
+      if (phrase.endsWith('o') || phrase.endsWith('ch') || phrase.endsWith('sh')) {
+        keys.add(phrase + 'es')
+      }
+    }
+  }
+
+  addWordForms(clean)
+
+  const base = clean
+    .replace(/\b(fresh|organic|raw|homegrown|sweet|meyer|heirloom|farm|wildflower|bunch|local|ripe|hass|valencia)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (base && base !== clean) {
+    addWordForms(base)
+  }
+
+  return Array.from(keys).filter(k => k.length > 1)
+}
+
+
+
 
 export function createRowFromProduceName(produceName: string, idPrefix: string = 'row'): ProduceRowItem {
   const cleanName = produceName ? produceName.trim() : ''
