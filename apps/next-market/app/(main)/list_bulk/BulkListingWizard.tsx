@@ -299,15 +299,15 @@ export default function BulkListingClient() {
         return {
           ...r,
           isSelected: false,
-          quantity: '5',
-          priceUsd: '',
+          quantity: r.quantity || '5',
+          priceUsd: r.priceUsd || '3.50',
         }
       })
       setProduceRows(rows)
       rows.forEach((r, idx) => {
         trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_name_auto`, true)
         trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_qty`, true)
-        trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_selected`, true)
+        trackFieldInteract(PAGE_SLUG, 1, `row_${idx}_selected`, false)
       })
     } else {
       // Sensible seasonal defaults when no URL params provided
@@ -317,12 +317,14 @@ export default function BulkListingClient() {
         return {
           ...r,
           isSelected: false,
-          quantity: '5',
+          quantity: r.quantity || '5',
+          priceUsd: r.priceUsd || '3.50',
         }
       })
       setProduceRows(rows)
     }
   }, [searchParams])
+
 
   // ── Async pricing resolver for URL pre-filled items ──
   useEffect(() => {
@@ -1682,21 +1684,22 @@ export default function BulkListingClient() {
         {wizardStep === 1 && (
           <div className="wizard-step-1">
             {/* Trust & Demand Header matching ad promise */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '5px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 14, border: '1px solid rgba(34,197,94,0.3)' }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '5px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 12, border: '1px solid rgba(34,197,94,0.3)' }}>
                 <span>✨</span> High Buyer Demand • 100% Free to List
               </div>
-              <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#ffffff', marginBottom: 10, lineHeight: 1.25, letterSpacing: '-0.5px' }}>
+              <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#ffffff', marginBottom: 8, lineHeight: 1.25, letterSpacing: '-0.5px' }}>
                 Items you would like to sell
               </h1>
-              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 15, lineHeight: 1.55, marginBottom: 20 }}>
-                Tap an item to set its price and add details. Local buyers {buyerDemand.locationLabel ? `(${buyerDemand.locationLabel})` : ''} will be notified as soon as you list!
+              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14.5, lineHeight: 1.5, marginBottom: 16 }}>
+                Tap the items you want to list. We&apos;ve pre-set recommended local prices {buyerDemand.locationLabel ? `(${buyerDemand.locationLabel})` : ''} — adjust anything anytime.
               </p>
 
+
               {/* 3 Trust Metric Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, background: 'rgba(255,255,255,0.04)', padding: '14px 10px', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', backdropFilter: 'blur(12px)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, background: 'rgba(255,255,255,0.04)', padding: '12px 10px', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', backdropFilter: 'blur(12px)', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4ade80' }}>
                     {buyerDemand.totalBuyers > 0 
                       ? (buyerDemand.totalBuyers >= 10 ? `${buyerDemand.totalBuyers}+` : `${buyerDemand.totalBuyers}`) 
                       : '0'}
@@ -1704,17 +1707,42 @@ export default function BulkListingClient() {
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Buyer Requests</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>$0</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4ade80' }}>$0</div>
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Free to List</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>60s</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#4ade80' }}>60s</div>
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Instant Setup</div>
                 </div>
+              </div>
+
+              {/* Quick Select All Header Toggle */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 700 }}>
+                  Tap crops below to add ({selectedRows.length} of {produceRows.length} selected):
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    color: '#4ade80',
+                    borderRadius: 20,
+                    padding: '5px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {allSelected ? 'Deselect All' : 'Select All'}
+                </button>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
+
               {produceRows.map(row => {
                 const rowKeys = normalizeProduceKey(row.name)
                 let demandCount = 0
@@ -1724,25 +1752,28 @@ export default function BulkListingClient() {
                   }
                 }
                 const isSelected = row.isSelected
+                const displayPrice = row.priceUsd ? parseFloat(row.priceUsd).toFixed(2) : '3.50'
+                const displayQty = row.quantity || '5'
+                const unitPlural = row.unit === 'each' ? 'items' : (row.unit || 'unit') + 's'
 
                 return (
-
-
                   <div 
                     key={row.id}
                     onClick={() => {
-                      // Tap opens the form where they specify quantity and price
-                      handleUpdateRow(row.id, { isSelected: true })
-                      setEditingRowId(row.id)
+                      const nextSelected = !isSelected
+                      handleUpdateRow(row.id, { isSelected: nextSelected })
+                      trackEvent('button_click', PAGE_SLUG, { action: 'card_toggle_select', produce: row.name, is_selected: nextSelected })
                     }}
                     style={{
                       position: 'relative', borderRadius: 16,
                       border: isSelected ? '2px solid #22c55e' : '1px solid rgba(255,255,255,0.12)',
                       background: isSelected ? 'rgba(34,197,94,0.14)' : 'rgba(255,255,255,0.04)', overflow: 'hidden', cursor: 'pointer',
                       transition: 'all 0.2s', opacity: 1,
-                      boxShadow: isSelected ? '0 0 20px rgba(34,197,94,0.25)' : 'none',
+                      boxShadow: isSelected ? '0 0 20px rgba(34,197,94,0.28)' : 'none',
                       backdropFilter: 'blur(8px)',
-                      transform: isSelected ? 'scale(1.02)' : 'scale(1)'
+                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                      display: 'flex',
+                      flexDirection: 'column'
                     }}
                   >
                     <div style={{ width: '100%', aspectRatio: '1', position: 'relative', background: 'rgba(255,255,255,0.06)' }}>
@@ -1752,34 +1783,65 @@ export default function BulkListingClient() {
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🌱</div>
                       )}
                       {isSelected ? (
-                        <div style={{ position: 'absolute', top: 8, right: 8, background: '#22c55e', color: '#0a0f09', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>✓</div>
+                        <div style={{ position: 'absolute', top: 8, right: 8, background: '#22c55e', color: '#0a0f09', borderRadius: 20, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 900, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                          <span>✓</span> Added
+                        </div>
                       ) : (
-                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(10,15,9,0.7)', color: '#4ade80', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, border: '1px solid rgba(74,222,128,0.4)' }}>+</div>
+                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(10,15,9,0.8)', color: '#4ade80', borderRadius: 20, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, border: '1px solid rgba(74,222,128,0.5)' }}>
+                          <span>+</span> Add
+                        </div>
                       )}
                     </div>
-                    <div style={{ padding: 10 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</div>
-                      {isSelected ? (
+                    <div style={{ padding: '10px 10px 12px 10px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: 14.5, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</div>
+                        
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                          <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 700 }}>
-                            ${parseFloat(row.priceUsd || '3.50').toFixed(2)} / {row.unit}
+                          <span style={{ fontSize: 13.5, color: '#4ade80', fontWeight: 800 }}>
+                            ${displayPrice} / {row.unit}
                           </span>
-                          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>✎ Edit</span>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
-                          <span style={{ color: '#fbbf24', fontWeight: 700 }}>
-                            {demandCount > 0 
-                              ? `🔥 ${demandCount} ${cleanZipDisplay ? `in ${cleanZipDisplay}` : (demandCount === 1 ? 'Buyer' : 'Buyers')}` 
-                              : (buyerDemand.totalBuyers > 0 ? `🔥 ${buyerDemand.totalBuyers} Local ${buyerDemand.totalBuyers === 1 ? 'Buyer' : 'Buyers'}` : '🌱 Ready to List')}
+                          <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                            {displayQty} {unitPlural}
                           </span>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Prominent Touch Target Button */}
+
+                      {/* Full-Width Prominent Edit Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleUpdateRow(row.id, { isSelected: true })
+                          setEditingRowId(row.id)
+                          trackEvent('button_click', PAGE_SLUG, { action: 'card_open_edit_modal', produce: row.name })
+                        }}
+                        style={{
+                          width: '100%',
+                          marginTop: 10,
+                          padding: '7px 0',
+                          background: isSelected ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.06)',
+                          border: isSelected ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: 10,
+                          color: isSelected ? '#4ade80' : 'rgba(255,255,255,0.9)',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        ✎ Edit Price / Qty
+                      </button>
                     </div>
                   </div>
+
                 )
               })}
-
 
               {/* Add Custom Item Card */}
               <div 
@@ -1802,6 +1864,7 @@ export default function BulkListingClient() {
                   }
                   setProduceRows(prev => [...prev, newRow])
                   setEditingRowId(newId)
+                  trackEvent('button_click', PAGE_SLUG, { action: 'add_row' })
                 }}
                 style={{
                   borderRadius: 16,
@@ -1812,7 +1875,7 @@ export default function BulkListingClient() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  minHeight: 180,
+                  minHeight: 200,
                   padding: 16,
                   textAlign: 'center',
                   gap: 8,
@@ -1826,42 +1889,86 @@ export default function BulkListingClient() {
             </div>
 
             {/* Bottom Floating Proceed Bar */}
-            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(10,15,9,0.95)', padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', zIndex: 10, backdropFilter: 'blur(16px)' }}>
-              <button 
-                onClick={() => {
-                  if (!isCartEmpty) {
-                    setWizardStep(2)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }
-                }}
-                disabled={isCartEmpty}
-                style={{
-                  width: '100%', maxWidth: 600, padding: '16px 20px', borderRadius: 100,
-                  background: isCartEmpty ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #22c55e, #16a34a)',
-                  color: isCartEmpty ? 'rgba(255,255,255,0.35)' : '#ffffff',
-                  fontSize: 16, fontWeight: 700,
-                  border: isCartEmpty ? '1px solid rgba(255,255,255,0.1)' : 'none',
-                  cursor: isCartEmpty ? 'not-allowed' : 'pointer',
-                  boxShadow: isCartEmpty ? 'none' : '0 6px 24px rgba(34,197,94,0.35)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {isCartEmpty
-                  ? 'Sell My Items (0 selected)'
-                  : `Sell My Items (${selectedRows.length} selected) →`}
-              </button>
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(10,15,9,0.95)', padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10, backdropFilter: 'blur(16px)' }}>
+              {(() => {
+                const totalEstEarnings = selectedRows.reduce((sum, r) => sum + (parseFloat(r.priceUsd || '3.50') * (parseInt(r.quantity, 10) || 5)), 0)
+                
+                return (
+                  <button 
+                    onClick={() => {
+                      if (isCartEmpty) {
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                        trackEvent('button_click', PAGE_SLUG, { action: 'step_1_empty_prompt_clicked' })
+                      } else {
+                        trackEvent('button_click', PAGE_SLUG, { 
+                          action: 'step_1_proceed', 
+                          selected_count: selectedRows.length,
+                          est_value: totalEstEarnings
+                        })
+                        setWizardStep(2)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }
+                    }}
+                    style={{
+                      width: '100%', maxWidth: 600, padding: '14px 20px', borderRadius: 100,
+                      background: isCartEmpty 
+                        ? 'rgba(255,255,255,0.1)' 
+                        : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                      color: isCartEmpty ? 'rgba(255,255,255,0.7)' : '#ffffff',
+                      fontSize: 16, fontWeight: 800,
+                      border: isCartEmpty ? '1px solid rgba(255,255,255,0.2)' : 'none',
+                      cursor: 'pointer',
+                      boxShadow: isCartEmpty ? 'none' : '0 6px 24px rgba(34,197,94,0.4)',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <span>
+                      {isCartEmpty
+                        ? 'Tap Crops Above to Add (0 selected)'
+                        : `Sell My ${selectedRows.length} ${selectedRows.length === 1 ? 'Item' : 'Items'} (~$${totalEstEarnings.toFixed(2)}) →`}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>
+                      {isCartEmpty ? 'Tap any crop you grow or have extra of' : 'Next: Set Delivery & Pickup'}
+                    </span>
+
+                  </button>
+                )
+              })()}
             </div>
           </div>
         )}
 
         {wizardStep === 2 && (
           <div className="wizard-step-2" style={{ paddingBottom: 120 }}>
-            <button onClick={() => setWizardStep(1)} style={{ background: 'none', border: 'none', color: '#4ade80', fontSize: 15, padding: 0, marginBottom: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              ← Back to items
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <button 
+                onClick={() => setWizardStep(1)} 
+                style={{ 
+                  background: 'rgba(255,255,255,0.08)', 
+                  border: '1px solid rgba(255,255,255,0.18)', 
+                  color: '#4ade80', 
+                  fontSize: 13, 
+                  padding: '8px 16px', 
+                  borderRadius: 100, 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 6, 
+                  fontWeight: 700 
+                }}
+              >
+                ← Back to items ({selectedRows.length})
+              </button>
+            </div>
             <h2 style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginBottom: 20 }}>How should buyers get this?</h2>
+
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 32, width: '100%', boxSizing: 'border-box' }}>
+
               {/* Delivery Option */}
               <div id="delivery-section" style={{ border: offersDelivery ? (fieldErrors.delivery_zip ? '1.5px solid #ef4444' : '1px solid #22c55e') : '1px solid rgba(255,255,255,0.1)', borderRadius: 16, background: offersDelivery ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                 <label style={{ display: 'flex', gap: 12, padding: 18, cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
@@ -2060,7 +2167,7 @@ export default function BulkListingClient() {
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#ffffff' }}>Buyers can pick up from me</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>They will come to your porch or neighborhood stand</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Buyers pick up directly from your porch or doorstep</div>
                   </div>
                 </label>
 
@@ -2317,7 +2424,8 @@ export default function BulkListingClient() {
               {(!user) ? (
                 <div style={{ marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
                   <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: '#ffffff' }}>Publish & Notify Local Buyers</h3>
-                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginBottom: 14 }}>Create your free stand account or sign in with 1 tap:</p>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginBottom: 14 }}>Create your free seller account or sign in with 1 tap:</p>
+
 
                   {authError && (
                     <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', borderRadius: 10, color: '#fca5a5', fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
@@ -2528,8 +2636,32 @@ export default function BulkListingClient() {
                 </div>
               )}
             </div>
+
+            {/* Bottom Return to Step 1 Button */}
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setWizardStep(1)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.6)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '8px 16px',
+                  textDecoration: 'underline'
+                }}
+              >
+                ← Back to edit crops ({selectedRows.length} selected)
+              </button>
+            </div>
           </div>
         )}
+
 
       </main>
 
@@ -2659,6 +2791,7 @@ export default function BulkListingClient() {
                 const currentQty = (!editingRow.quantity || parseInt(editingRow.quantity, 10) <= 0) ? '5' : editingRow.quantity
                 const currentPrice = (!editingRow.priceUsd || (parseFloat(editingRow.priceUsd) <= 0 && !editingRow.isFree)) ? '3.50' : editingRow.priceUsd
                 handleUpdateRow(editingRow.id, { isSelected: true, quantity: currentQty, priceUsd: currentPrice })
+                trackEvent('button_click', PAGE_SLUG, { action: 'save_crop_details', produce: editingRow.name, price: currentPrice, qty: currentQty })
                 setEditingRowId(null)
               }} 
               style={{ width: '100%', padding: '16px', background: rowErrors[editingRow.id] ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg, #22c55e, #16a34a)', color: rowErrors[editingRow.id] ? 'rgba(255,255,255,0.3)' : '#fff', fontSize: 16, fontWeight: 700, border: 'none', borderRadius: 100, cursor: rowErrors[editingRow.id] ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(34,197,94,0.35)' }}
@@ -2666,7 +2799,17 @@ export default function BulkListingClient() {
               Save Details
             </button>
             <div style={{ textAlign: 'center', marginTop: 16 }}>
-              <button type="button" onClick={() => { handleUpdateRow(editingRow.id, { isSelected: false }); setEditingRowId(null) }} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>Remove Item</button>
+              <button 
+                type="button" 
+                onClick={() => { 
+                  handleUpdateRow(editingRow.id, { isSelected: false })
+                  trackEvent('button_click', PAGE_SLUG, { action: 'remove_crop_from_modal', produce: editingRow.name })
+                  setEditingRowId(null) 
+                }} 
+                style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Remove Item
+              </button>
             </div>
           </div>
         </div>
