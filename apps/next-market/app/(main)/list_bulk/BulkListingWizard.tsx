@@ -1688,13 +1688,9 @@ export default function BulkListingClient() {
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '5px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 12, border: '1px solid rgba(34,197,94,0.3)' }}>
                 <span>✨</span> High Buyer Demand • 100% Free to List
               </div>
-              <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#ffffff', marginBottom: 8, lineHeight: 1.25, letterSpacing: '-0.5px' }}>
-                Items you would like to sell
+              <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#ffffff', marginBottom: 12, lineHeight: 1.25, letterSpacing: '-0.5px' }}>
+                Select crops you want to sell
               </h1>
-              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14.5, lineHeight: 1.5, marginBottom: 16 }}>
-                Tap the items you want to list. We&apos;ve pre-set recommended local prices {buyerDemand.locationLabel ? `(${buyerDemand.locationLabel})` : ''} — adjust anything anytime.
-              </p>
-
 
               {/* 3 Trust Metric Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, background: 'rgba(255,255,255,0.04)', padding: '12px 10px', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', backdropFilter: 'blur(12px)', marginBottom: 16 }}>
@@ -1719,7 +1715,7 @@ export default function BulkListingClient() {
               {/* Quick Select All Header Toggle */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
                 <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 700 }}>
-                  Tap crops below to add ({selectedRows.length} of {produceRows.length} selected):
+                  Tap crops below to select ({selectedRows.length} of {produceRows.length} selected):
                 </span>
                 <button
                   type="button"
@@ -1783,12 +1779,14 @@ export default function BulkListingClient() {
                         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🌱</div>
                       )}
                       {isSelected ? (
-                        <div style={{ position: 'absolute', top: 8, right: 8, background: '#22c55e', color: '#0a0f09', borderRadius: 20, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 900, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                          <span>✓</span> Added
+                        <div style={{ position: 'absolute', top: 8, right: 8, background: '#22c55e', color: '#0a0f09', borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, border: '1.5px solid #22c55e', boxShadow: '0 2px 10px rgba(34,197,94,0.5)' }}>
+                          <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#0a0f09', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>✓</span>
+                          <span>Selected</span>
                         </div>
                       ) : (
-                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(10,15,9,0.8)', color: '#4ade80', borderRadius: 20, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, border: '1px solid rgba(74,222,128,0.5)' }}>
-                          <span>+</span> Add
+                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(10,15,9,0.85)', color: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, border: '1.5px solid rgba(255,255,255,0.4)', backdropFilter: 'blur(6px)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                          <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.7)', display: 'inline-block', boxSizing: 'border-box' }} />
+                          <span>Select</span>
                         </div>
                       )}
                     </div>
@@ -1805,8 +1803,6 @@ export default function BulkListingClient() {
                           </span>
                         </div>
                       </div>
-
-                      {/* Prominent Touch Target Button */}
 
                       {/* Full-Width Prominent Edit Button */}
                       <button
@@ -1912,7 +1908,7 @@ export default function BulkListingClient() {
                     style={{
                       width: '100%', maxWidth: 600, padding: '14px 20px', borderRadius: 100,
                       background: isCartEmpty 
-                        ? 'rgba(255,255,255,0.1)' 
+                        ? 'rgba(255,255,255,0.08)' 
                         : 'linear-gradient(135deg, #22c55e, #16a34a)',
                       color: isCartEmpty ? 'rgba(255,255,255,0.7)' : '#ffffff',
                       fontSize: 16, fontWeight: 800,
@@ -1928,13 +1924,12 @@ export default function BulkListingClient() {
                   >
                     <span>
                       {isCartEmpty
-                        ? 'Tap Crops Above to Add (0 selected)'
-                        : `Sell My ${selectedRows.length} ${selectedRows.length === 1 ? 'Item' : 'Items'} (~$${totalEstEarnings.toFixed(2)}) →`}
+                        ? 'Select crops above to continue'
+                        : `Sell ${selectedRows.length} Selected ${selectedRows.length === 1 ? 'Crop' : 'Crops'} (~$${totalEstEarnings.toFixed(2)}) →`}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>
-                      {isCartEmpty ? 'Tap any crop you grow or have extra of' : 'Next: Set Delivery & Pickup'}
+                      {isCartEmpty ? 'Tap any crop you have extra of in your garden' : 'Next: Set Delivery & Pickup'}
                     </span>
-
                   </button>
                 )
               })()}

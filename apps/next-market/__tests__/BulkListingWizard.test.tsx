@@ -127,7 +127,7 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     mockSearchParams = new URLSearchParams('produce=blueberries,tomatoes,cucumbers')
     render(<BulkListingWizard />)
 
-    expect(screen.getByText(/Items you would like to sell/i)).toBeDefined()
+    expect(screen.getByText(/Select crops you want to sell/i)).toBeDefined()
     expect(screen.getByText('Blueberries')).toBeDefined()
     expect(screen.getByText('Tomatoes')).toBeDefined()
     expect(screen.getByText('Cucumbers')).toBeDefined()
@@ -164,8 +164,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     render(<BulkListingWizard />)
 
     await waitFor(() => {
-      expect(screen.getByText(/In 95120/)).toBeDefined()
       expect(screen.getByText('3')).toBeDefined()
+      expect(screen.getByText('Buyer Requests')).toBeDefined()
     })
 
     global.fetch = originalFetch
@@ -193,8 +193,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     render(<BulkListingWizard />)
 
     await waitFor(() => {
-      expect(screen.getByText(/In 99999/)).toBeDefined()
       expect(screen.getByText('0')).toBeDefined()
+      expect(screen.getByText('Buyer Requests')).toBeDefined()
     })
 
     global.fetch = originalFetch
@@ -294,7 +294,7 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
 
     // Verify item is removed from active selection
     await waitFor(() => {
-      expect(screen.getByText(/0 selected/i)).toBeDefined()
+      expect(screen.getByText(/0 of \d+ selected/i)).toBeDefined()
     })
   })
 
@@ -306,16 +306,17 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     mockSearchParams = new URLSearchParams('produce=tomatoes')
     render(<BulkListingWizard />)
 
-    expect(screen.getByText(/0 selected/i)).toBeDefined()
+    expect(screen.getByText(/0 of \d+ selected/i)).toBeDefined()
+    expect(screen.getByText(/Select crops above to continue/i)).toBeDefined()
 
     // 1-tap select Tomatoes
     fireEvent.click(screen.getByText('Tomatoes'))
 
     await waitFor(() => {
-      expect(screen.getByText(/Sell My 1 Item/i)).toBeDefined()
+      expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined()
     })
 
-    fireEvent.click(screen.getByText(/Sell My 1 Item/i))
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
     // Verify Step 2 rendered
     await waitFor(() => {
@@ -326,7 +327,7 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     // Click ← Back to items
     fireEvent.click(screen.getByText(/← Back to items/i))
     await waitFor(() => {
-      expect(screen.getByText(/Items you would like to sell/i)).toBeDefined()
+      expect(screen.getByText(/Select crops you want to sell/i)).toBeDefined()
     })
   })
 
@@ -340,8 +341,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
 
     // 1-tap select Tomatoes and proceed
     fireEvent.click(screen.getByText('Tomatoes'))
-    await waitFor(() => expect(screen.getByText(/Sell My/i)).toBeDefined())
-    fireEvent.click(screen.getByText(/Sell My/i))
+    await waitFor(() => expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined())
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
     await waitFor(() => {
       expect(screen.getByText(/I can deliver to neighbors/i)).toBeDefined()
@@ -377,8 +378,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     render(<BulkListingWizard />)
 
     fireEvent.click(screen.getByText('Tomatoes'))
-    await waitFor(() => expect(screen.getByText(/Sell My/i)).toBeDefined())
-    fireEvent.click(screen.getByText(/Sell My/i))
+    await waitFor(() => expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined())
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
     await waitFor(() => {
       expect(screen.getAllByText(/Weekday evenings/i)[0]).toBeDefined()
@@ -417,8 +418,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     render(<BulkListingWizard />)
 
     fireEvent.click(screen.getByText('Tomatoes'))
-    await waitFor(() => expect(screen.getByText(/Sell My/i)).toBeDefined())
-    fireEvent.click(screen.getByText(/Sell My/i))
+    await waitFor(() => expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined())
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
     // Open Terms of Service modal
     const tosLink = screen.getByRole('button', { name: /Terms of Service/i })
@@ -455,8 +456,8 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
     render(<BulkListingWizard />)
 
     fireEvent.click(screen.getByText('Tomatoes'))
-    await waitFor(() => expect(screen.getByText(/Sell My/i)).toBeDefined())
-    fireEvent.click(screen.getByText(/Sell My/i))
+    await waitFor(() => expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined())
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
     // Accept TOS
     const tosCheckboxes = screen.getAllByRole('checkbox')
@@ -508,10 +509,10 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
 
     // 1-tap select Tomatoes
     fireEvent.click(screen.getByText('Tomatoes'))
-    await waitFor(() => expect(screen.getByText(/Sell My/i)).toBeDefined())
+    await waitFor(() => expect(screen.getByText(/Sell 1 Selected Crop/i)).toBeDefined())
 
     // Proceed to Step 2
-    fireEvent.click(screen.getByText(/Sell My/i))
+    fireEvent.click(screen.getByText(/Sell 1 Selected Crop/i))
 
 
     // Wait for Step 2 to mount completely

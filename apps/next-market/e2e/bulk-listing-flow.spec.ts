@@ -7,9 +7,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
   test('renders crop catalog grid and Add Custom Item button on direct visit', async ({ page }) => {
     await page.goto('/list_bulk')
 
-    await expect(page.locator('h1')).toContainText('Items you would like to sell')
+    await expect(page.locator('h1')).toContainText('Select crops you want to sell')
     await expect(page.locator('text=Add Custom Item')).toBeVisible()
-    await expect(page.locator('text=Sell My Items')).toBeVisible()
+    await expect(page.locator('text=Select crops above to continue')).toBeVisible()
   })
 
   test('redirects from alias /list-bulk to /list_bulk preserving query parameters', async ({ page }) => {
@@ -30,8 +30,8 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
   test('opens edit modal on crop card click, edits price, unit, quantity, harvest date, and saves', async ({ page }) => {
     await page.goto('/list_bulk?produce=blueberries')
 
-    // Click Blueberries card
-    await page.locator('.wizard-step-1').getByText('Blueberries', { exact: true }).click()
+    // Click Edit button on Blueberries card
+    await page.locator('button:has-text("Edit Price / Qty")').first().click()
 
     // Edit modal should open
     await expect(page.locator('h3:has-text("Blueberries")')).toBeVisible()
@@ -49,7 +49,7 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
 
     // Modal should close
     await expect(page.locator('h3:has-text("Blueberries")')).toHaveCount(0)
-    await expect(page.locator('button:has-text("Sell My Items (1 selected)")')).toBeVisible()
+    await expect(page.locator('button:has-text("Sell 1 Selected Crop")')).toBeVisible()
   })
 
   test('supports adding a custom crop item with name, unit, and price', async ({ page }) => {
@@ -92,10 +92,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
 
     // Select Tomatoes
     await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
-    await page.locator('button:has-text("Save Details")').click()
 
     // Proceed to Step 2
-    await page.locator('button:has-text("Sell My Items")').click()
+    await page.locator('button:has-text("Sell 1 Selected Crop")').click()
 
     // Step 2 should be visible
     await expect(page.locator('h2:has-text("How should buyers get this?")')).toBeVisible()
@@ -107,9 +106,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
   test('opens Terms of Service and Privacy Policy legal modals', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
+    // Select Tomatoes
     await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
-    await page.locator('button:has-text("Save Details")').click()
-    await page.locator('button:has-text("Sell My Items")').click()
+    await page.locator('button:has-text("Sell 1 Selected Crop")').click()
 
     // Click Terms of Service link
     await page.locator('button:has-text("Terms of Service")').first().click()
@@ -128,9 +127,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk)', () => {
   test('renders guest authentication options (Google, Apple, OTP) on Step 2 for unauthenticated users', async ({ page }) => {
     await page.goto('/list_bulk?produce=tomatoes')
 
+    // Select Tomatoes
     await page.locator('.wizard-step-1').getByText('Tomatoes', { exact: true }).click()
-    await page.locator('button:has-text("Save Details")').click()
-    await page.locator('button:has-text("Sell My Items")').click()
+    await page.locator('button:has-text("Sell 1 Selected Crop")').click()
 
     await expect(page.locator('text=Publish & Notify Local Buyers')).toBeVisible()
     await expect(page.locator('text=Continue with Google')).toBeVisible()
@@ -146,14 +145,13 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
   test('authenticated seller completes 1-click publish and launches social share modal', async ({ page }) => {
     await page.goto('/list_bulk?produce=meyer_lemons&zipcode=95120')
 
-    // Select lemons and save
-    await page.locator('.wizard-step-1').getByText('Meyer Lemons', { exact: true }).click()
+    // Edit lemons quantity and save
+    await page.locator('button:has-text("Edit Price / Qty")').first().click()
     await page.locator('input[type="number"]').nth(1).fill('10')
     await page.locator('button:has-text("Save Details")').click()
 
-
     // Proceed to Step 2
-    await page.locator('button:has-text("Sell My Items")').click()
+    await page.locator('button:has-text("Sell 1 Selected Crop")').click()
 
     // Verify account badge
     await expect(page.locator('text=Signed in as')).toBeVisible()
