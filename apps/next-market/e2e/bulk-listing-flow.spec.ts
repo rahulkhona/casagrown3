@@ -156,6 +156,9 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
     // Verify account badge
     await expect(page.locator('text=Signed in as')).toBeVisible()
 
+    // Uncheck pickup so delivery-only is used
+    await page.locator('text=Buyers can pick up from me').click()
+
     // Accept TOS
     const tosCheckbox = page.locator('#tos-checkbox')
     await tosCheckbox.check()

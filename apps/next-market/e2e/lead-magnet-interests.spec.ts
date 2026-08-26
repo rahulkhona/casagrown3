@@ -30,6 +30,10 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
 
     // 8. Step 7: Intent
     await page.getByText('Very comfortable — I want to earn extra income!').click()
+    await page.getByRole('button', { name: 'Next →' }).click()
+
+    // 8b. Step 8: Fulfillment Preferences
+    await page.getByText('Deliver to buyers in your neighborhood').click()
     await page.getByRole('button', { name: 'Calculate My Potential →' }).click()
 
     // 9. Step 8: Lead Capture Form — 2-column layout (Social + Email always visible)

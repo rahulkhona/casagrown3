@@ -325,9 +325,14 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     // Step 7: Comfort intent
     await expect(page.locator('h2:has-text("Comfort with selling to neighbors?")')).toBeVisible({ timeout: 30000 });
     await page.locator('label').filter({ hasText: 'Very comfortable' }).locator('input').check();
+    await page.getByRole('button', { name: 'Next →' }).click();
+
+    // Step 8: Fulfillment Preferences
+    await expect(page.locator('h2:has-text("How would you prefer to get produce to neighbors?")')).toBeVisible({ timeout: 30000 });
+    await page.locator('label').filter({ hasText: 'Deliver to buyers in your neighborhood' }).locator('input').check();
     await page.getByRole('button', { name: /Calculate My Potential|Estimate My Potential/i }).click();
 
-    // Step 8: Lead capture
+    // Step 10: Lead capture
     await expect(page.locator('h2:has-text("Where should we send your earnings estimate report?"), h2:has-text("Your report is ready!")')).toBeVisible({ timeout: 30000 });
     
     // Verify wizard_step and field telemetry events are present
