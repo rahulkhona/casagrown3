@@ -7,28 +7,42 @@ export const dynamic = 'force-dynamic'
 export default async function SellReportPage({ searchParams }: { searchParams: { id?: string } }) {
   const { id } = await searchParams
   
-  if (!id) {
-    return notFound()
+  let lead: any = null
+
+  if (id && id !== 'demo' && id !== 'sample') {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (supabaseUrl && supabaseServiceKey) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      const { data } = await supabase
+        .from('crm_leads')
+        .select('*')
+        .eq('id', id)
+        .single()
+      lead = data
+    }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing Supabase env vars for report page")
-    return notFound()
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-  const { data: lead, error } = await supabase
-    .from('crm_leads')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (error || !lead || !lead.metadata?.ai_estimate_result) {
-    return notFound()
+  if (!lead || !lead.metadata?.ai_estimate_result) {
+    if (id === 'demo' || id === 'sample' || !id) {
+      lead = {
+        name: 'Alex Rivera',
+        email: 'alex@example.com',
+        zipcode: '95125',
+        metadata: {
+          garden_size: 'Large Backyard Garden',
+          ai_estimate_result: {
+            estimated_annual_earnings: '1,850',
+            reasoning: 'Based on high local demand for heirloom tomatoes and fresh herbs in 95125.',
+            excess_produce: 'Approx. 400 lbs of tomatoes, 60 lbs of peppers, and fresh culinary herbs.',
+            analogies: ['A weekend getaway with the family', 'All your annual seed and gardening supplies', 'A brand new drip irrigation system']
+          }
+        }
+      }
+    } else {
+      return notFound()
+    }
   }
 
   const result = lead.metadata.ai_estimate_result
@@ -51,46 +65,46 @@ export default async function SellReportPage({ searchParams }: { searchParams: {
       </div>
 
       <div className="promo-content-wrapper">
-        <div className="promo-main-glass" style={{ maxWidth: '800px', flexDirection: 'column', padding: '40px' }}>
+        <div className="promo-main-glass report-card">
           
-          <div className="fade-in-up" style={{ textAlign: 'center' }}>
-            <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#14532d', marginBottom: '8px' }}>Your Backyard Potential</h2>
-            <p style={{ fontSize: '1.05rem', color: '#4b5563', marginBottom: '24px' }}>
+          <div className="fade-in-up" style={{ textAlign: 'center', width: '100%' }}>
+            <h2 className="report-title">Your Backyard Potential</h2>
+            <p className="report-subheading">
               Hi {firstName}, here is the market data analysis for your <strong>{size}</strong> garden in <strong>{lead.zipcode}</strong>.
             </p>
             
-            <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(22,163,74,0.1))', padding: '40px 20px', borderRadius: '24px', marginBottom: '24px', border: '1px solid rgba(34,197,94,0.3)', position: 'relative', overflow: 'hidden' }}>
+            <div className="earnings-hero-box">
               <div style={{ position: 'absolute', top: -20, right: -20, fontSize: '8rem', opacity: 0.1 }}>🌿</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ fontSize: '1rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Estimated Annual Earnings</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '0.95rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Estimated Annual Earnings</div>
                 <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '12px', fontWeight: 600, border: '1px solid #bbf7d0' }}>AI ESTIMATED</span>
               </div>
-              <div style={{ fontSize: '5rem', fontWeight: 900, color: '#14532d', lineHeight: 1, marginBottom: '16px' }}>
+              <div className="earnings-hero-value">
                 ${result.estimated_annual_earnings}
               </div>
-              <p style={{ fontSize: '1.05rem', color: '#166534', lineHeight: 1.5, margin: '0 auto', maxWidth: '80%', fontStyle: 'italic', opacity: 0.9 }}>
+              <p className="earnings-hero-reasoning">
                 {result.reasoning}
               </p>
             </div>
 
-            <div style={{ textAlign: 'left', background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '1.2rem', color: '#1f2937', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ textAlign: 'left', background: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '1.15rem', color: '#1f2937', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>🍅</span> Projected Yield
               </h3>
-              <p style={{ color: '#4b5563', lineHeight: 1.6, fontSize: '1.05rem' }}>{result.excess_produce}</p>
+              <p style={{ color: '#4b5563', lineHeight: 1.6, fontSize: '0.95rem', margin: 0 }}>{result.excess_produce}</p>
             </div>
 
-            <div style={{ background: '#f0fdf4', padding: '24px', borderRadius: '16px', marginBottom: '32px', border: '1px solid #bbf7d0', textAlign: 'left' }}>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div style={{ fontSize: '1.8rem' }}>🎯</div>
-                <p style={{ fontSize: '1.1rem', color: '#166534', fontWeight: 600, margin: 0, paddingTop: '4px' }}>
+            <div style={{ background: '#f0fdf4', padding: '20px', borderRadius: '16px', marginBottom: '28px', border: '1px solid #bbf7d0', textAlign: 'left' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div style={{ fontSize: '1.6rem' }}>🎯</div>
+                <p style={{ fontSize: '1.05rem', color: '#166534', fontWeight: 600, margin: 0, paddingTop: '2px' }}>
                   That's enough extra cash per year to pay for:
                 </p>
               </div>
-              <ul style={{ margin: '0 0 0 46px', padding: 0, listStyleType: 'none', color: '#15803d', fontStyle: 'italic', lineHeight: 1.6, fontSize: '1.05rem' }}>
+              <ul style={{ margin: '0 0 0 36px', padding: 0, listStyleType: 'none', color: '#15803d', fontStyle: 'italic', lineHeight: 1.6, fontSize: '0.95rem' }}>
                 {(result.analogies || []).map((analogy: string, i: number) => (
-                  <li key={i} style={{ marginBottom: '8px', position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '-20px' }}>•</span> {analogy}
+                  <li key={i} style={{ marginBottom: '6px', position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '-16px' }}>•</span> {analogy}
                   </li>
                 ))}
               </ul>
@@ -98,8 +112,7 @@ export default async function SellReportPage({ searchParams }: { searchParams: {
 
             <Link 
               href={`/create-listing?email=${encodeURIComponent(lead.email || '')}&name=${encodeURIComponent(lead.name || '')}&zipcode=${encodeURIComponent(lead.zipcode || '')}`} 
-              className="btn-action" 
-              style={{ display: 'inline-block', textDecoration: 'none', padding: '20px 40px', fontSize: '1.2rem' }}
+              className="btn-action report-cta-btn"
             >
               Start Selling on CasaGrown →
             </Link>
@@ -173,11 +186,88 @@ export default async function SellReportPage({ searchParams }: { searchParams: {
           overflow: hidden;
         }
 
-        .btn-action { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; font-weight: 800; border-radius: 16px; cursor: pointer; transition: all 0.3s; box-shadow: 0 10px 25px rgba(34,197,94,0.3); }
+        .report-card {
+          max-width: 800px;
+          flex-direction: column;
+          padding: 40px;
+        }
+
+        .report-title {
+          font-size: 2rem;
+          font-weight: 800;
+          color: #14532d;
+          margin-bottom: 8px;
+        }
+
+        .report-subheading {
+          font-size: 1.05rem;
+          color: #4b5563;
+          margin-bottom: 24px;
+          line-height: 1.5;
+        }
+
+        .earnings-hero-box {
+          background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(22,163,74,0.1));
+          padding: 36px 20px;
+          border-radius: 24px;
+          margin-bottom: 24px;
+          border: 1px solid rgba(34,197,94,0.3);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .earnings-hero-value {
+          font-size: clamp(2.8rem, 8vw, 4.5rem);
+          font-weight: 900;
+          color: #14532d;
+          line-height: 1.1;
+          margin-bottom: 14px;
+        }
+
+        .earnings-hero-reasoning {
+          font-size: 1rem;
+          color: #166534;
+          line-height: 1.5;
+          margin: 0 auto;
+          max-width: 90%;
+          font-style: italic;
+          opacity: 0.9;
+        }
+
+        .report-cta-btn {
+          display: inline-block;
+          text-decoration: none;
+          padding: 18px 36px;
+          font-size: 1.15rem;
+          width: auto;
+        }
+
+        .btn-action {
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          color: white;
+          border: none;
+          font-weight: 800;
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 10px 25px rgba(34,197,94,0.3);
+        }
         .btn-action:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(34,197,94,0.4); }
 
         .fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 600px) {
+          .promo-content-wrapper { padding: 16px 12px; }
+          .report-card { padding: 24px 16px; border-radius: 20px; }
+          .casagrown-nav { padding: 12px 16px; }
+          .report-title { font-size: 1.6rem; }
+          .report-subheading { font-size: 0.95rem; margin-bottom: 18px; }
+          .earnings-hero-box { padding: 24px 14px; border-radius: 18px; }
+          .earnings-hero-value { font-size: clamp(2.2rem, 11vw, 3.2rem); }
+          .earnings-hero-reasoning { max-width: 100%; font-size: 0.9rem; }
+          .report-cta-btn { display: block; width: 100%; padding: 16px 20px; font-size: 1.05rem; }
+        }
       `}</style>
     </div>
   )

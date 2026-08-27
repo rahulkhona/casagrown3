@@ -348,23 +348,25 @@ function InterestCard({
       display: 'flex', 
       justifyContent: 'space-between', 
       alignItems: 'center', 
+      flexWrap: 'wrap',
+      gap: '14px',
       padding: '16px', 
       backgroundColor: 'white', 
-      borderRadius: '8px', 
+      borderRadius: '12px', 
       border: '1px solid #e5e7eb',
       boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
     }}>
-      <div>
+      <div style={{ minWidth: '180px', flex: '1 1 auto' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: '0 0 4px 0' }}>
           {interest.produce_name}
         </h3>
-        <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 4px 0' }}>
+        <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 6px 0' }}>
           Zipcodes: {interest.zipcodes.join(', ')}
         </p>
         <span style={{ 
           display: 'inline-block',
-          fontSize: '12px', 
-          fontWeight: 500,
+          fontSize: '11px', 
+          fontWeight: 600,
           padding: '2px 8px', 
           borderRadius: '9999px',
           backgroundColor: interest.status === 'active' ? '#dcfce7' : '#f3f4f6',
@@ -374,17 +376,17 @@ function InterestCard({
         </span>
       </div>
       
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         {interest.interest_type === 'sell' && (
           <Link
             href={`/create-listing?produce=${encodeURIComponent(interest.produce_name)}`}
             style={{
-              padding: '6px 14px',
+              padding: '8px 14px',
               fontSize: '13px',
               fontWeight: 600,
               backgroundColor: '#16a34a',
               color: 'white',
-              borderRadius: '6px',
+              borderRadius: '8px',
               textDecoration: 'none',
               display: 'inline-flex',
               alignItems: 'center',
@@ -397,21 +399,21 @@ function InterestCard({
         {interest.status === 'active' ? (
           <button 
             onClick={() => onStatusChange('paused')}
-            style={{ padding: '6px 12px', fontSize: '14px', backgroundColor: '#f3f4f6', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#374151' }}
+            style={{ padding: '8px 12px', fontSize: '13px', fontWeight: 600, backgroundColor: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer', color: '#374151' }}
           >
             Pause
           </button>
         ) : (
           <button 
             onClick={() => onStatusChange('active')}
-            style={{ padding: '6px 12px', fontSize: '14px', backgroundColor: '#dcfce7', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#166534' }}
+            style={{ padding: '8px 12px', fontSize: '13px', fontWeight: 600, backgroundColor: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', color: '#166534' }}
           >
             Resume
           </button>
         )}
         <button 
           onClick={onDelete}
-          style={{ padding: '6px 12px', fontSize: '14px', backgroundColor: '#fee2e2', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#991b1b' }}
+          style={{ padding: '8px 12px', fontSize: '13px', fontWeight: 600, backgroundColor: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', color: '#991b1b' }}
         >
           Delete
         </button>

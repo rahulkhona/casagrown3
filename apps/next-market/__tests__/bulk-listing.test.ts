@@ -78,7 +78,7 @@ describe('Bulk Listing Utilities & Data Transforms', () => {
       expect(inferProduceUnitAndPrice('English Cucumbers')).toEqual({ unit: 'each', price: '1.00' })
       expect(inferProduceUnitAndPrice('Hass Avocado')).toEqual({ unit: 'each', price: '1.50' })
       expect(inferProduceUnitAndPrice('Bell Peppers')).toEqual({ unit: 'each', price: '1.50' })
-      expect(inferProduceUnitAndPrice('Meyer Lemons')).toEqual({ unit: 'each', price: '0.75' })
+      expect(inferProduceUnitAndPrice('Meyer Lemons')).toEqual({ unit: 'dozen', price: '4.00' })
       expect(inferProduceUnitAndPrice('Watermelon')).toEqual({ unit: 'each', price: '5.00' })
     })
 
@@ -96,7 +96,7 @@ describe('Bulk Listing Utilities & Data Transforms', () => {
       expect(row.category).toBe('produce')
       expect(row.unit).toBeDefined()
       expect(ALLOWED_UNITS).toContain(row.unit)
-      expect(row.priceUsd).toBe('0.75')
+      expect(row.priceUsd).toBe('4.00')
       expect(row.quantity).toBe('5')
       expect(row.isFree).toBe(false)
       expect(row.stockImage).toContain('lemon')

@@ -1292,6 +1292,17 @@ export default function NutritionLossLandingPage() {
           .casagrown-nav { padding: 16px 24px; }
           .nav-tagline { display: none; }
         }
+
+        @media (max-width: 600px) {
+          .promo-content-wrapper { padding: 20px 12px; }
+          .promo-main-glass { border-radius: 20px; }
+          .promo-hero-section { padding: 24px 16px; }
+          .promo-form-section { padding: 24px 16px; }
+          .casagrown-nav { padding: 12px 16px; }
+          .promo-headline { font-size: 1.6rem; }
+          .form-heading { font-size: 1.4rem; }
+          .btn-action { padding: 16px 20px; font-size: 1.05rem; }
+        }
       `}</style>
     </div>
   )

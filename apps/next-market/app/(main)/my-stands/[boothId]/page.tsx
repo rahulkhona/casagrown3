@@ -1095,77 +1095,69 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
                 </Link>
                 {/* Product action buttons */}
                 {!isHelperView && (
-                  <div style={{
-                    display: 'flex', gap: 4, padding: '6px 8px',
-                    borderTop: '1px solid var(--gray-100, #f3f4f6)',
-                  }}>
-                    {confirmDeleteId === product.id ? (
-                      /* Inline delete/archive confirmation */
-                      <>
-                        <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: product.has_orders ? '#d97706' : '#dc2626', display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
-                          {product.has_orders ? 'Archive this listing?' : 'Delete this listing?'}
-                        </span>
+                  confirmDeleteId === product.id ? (
+                    /* Inline delete/archive confirmation */
+                    <div className={styles.cardConfirmBox}>
+                      <div className={product.has_orders ? styles.cardConfirmTextArchive : styles.cardConfirmTextDelete}>
+                        {product.has_orders ? 'Archive this listing?' : 'Delete this listing?'}
+                      </div>
+                      <div className={styles.cardConfirmBtns}>
                         <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); product.has_orders ? handleArchiveProduct(product.id) : handleDeleteProduct(product.id) }}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: product.has_orders ? '#d97706' : '#dc2626', color: 'white', border: 'none',
-                            cursor: 'pointer',
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            product.has_orders ? handleArchiveProduct(product.id) : handleDeleteProduct(product.id)
                           }}
+                          className={product.has_orders ? styles.cardConfirmBtnArchive : styles.cardConfirmBtnDelete}
                         >
                           {product.has_orders ? 'Yes, archive' : 'Yes, delete'}
                         </button>
                         <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(null) }}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            background: 'var(--gray-50, #f9fafb)', color: '#374151',
-                            border: '1px solid var(--gray-200, #e5e7eb)', cursor: 'pointer',
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setConfirmDeleteId(null)
                           }}
+                          className={styles.cardConfirmBtnCancel}
                         >
                           Cancel
                         </button>
-                      </>
-                    ) : (
-                      /* Normal action buttons */
-                      <>
-                        <Link
-                          href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
-                          style={{
-                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                            textAlign: 'center', background: 'var(--gray-50, #f9fafb)', color: '#374151',
-                            border: '1px solid var(--gray-200, #e5e7eb)', textDecoration: 'none',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          ✏️ Edit
-                        </Link>
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareProduct(product) }}
-                          style={{
-                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                            background: '#f0fdf4', color: '#15803d',
-                            border: '1px solid #bbf7d0',
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          📣 Share
-                        </button>
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(product.id) }}
-                          style={{
-                            flex: 1, padding: '6px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                            background: product.has_orders ? '#fffbeb' : '#fef2f2',
-                            color: product.has_orders ? '#d97706' : '#dc2626',
-                            border: `1px solid ${product.has_orders ? '#fde68a' : '#fecaca'}`,
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {product.has_orders ? '📦 Archive' : '🗑️ Delete'}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Normal action buttons */
+                    <div className={styles.productActionRow}>
+                      <Link
+                        href={`/my-booth/products/new?edit=${product.id}&booth=${boothId}`}
+                        className={`${styles.cardActionBtnSmall} ${styles.cardBtnEdit}`}
+                      >
+                        <span>✏️</span>
+                        <span>Edit</span>
+                      </Link>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setShareProduct(product)
+                        }}
+                        className={`${styles.cardActionBtnSmall} ${styles.cardBtnShare}`}
+                      >
+                        <span>📣</span>
+                        <span>Share</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setConfirmDeleteId(product.id)
+                        }}
+                        className={`${styles.cardActionBtnSmall} ${product.has_orders ? styles.cardBtnArchive : styles.cardBtnDelete}`}
+                      >
+                        <span>{product.has_orders ? '📦' : '🗑️'}</span>
+                        <span>{product.has_orders ? 'Archive' : 'Delete'}</span>
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             ))}

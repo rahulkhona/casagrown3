@@ -2842,6 +2842,15 @@ export default function PromoPage() {
             gap: 24px;
           }
         }
+
+        @media (max-width: 600px) {
+          .promo-content-wrapper { padding: 16px 12px; }
+          .promo-main-glass { border-radius: 20px; }
+          .promo-hero-section { padding: 24px 16px; }
+          .promo-form-section { padding: 24px 16px; }
+          .promo-headline { font-size: 1.6rem; }
+          .casagrown-nav { padding: 12px 16px; }
+        }
       `}</style>
     </div>
   )

@@ -1396,8 +1396,9 @@ export default function SellLandingPage() {
           justify-content: center;
         }
 
-        .promo-headline { font-size: 3.5rem; font-weight: 800; color: #14532d; line-height: 1.1; margin-bottom: 24px; letter-spacing: -1.5px; }
-        .promo-description { font-size: 1.15rem; color: #166534; line-height: 1.6; }
+        .promo-headline { font-size: 3.5rem; font-weight: 800; color: #ffffff; line-height: 1.1; margin-bottom: 24px; letter-spacing: -1.5px; }
+        .promo-description { font-size: 1.15rem; color: rgba(255, 255, 255, 0.75); line-height: 1.6; }
+        .promo-description strong { color: #4ade80; font-weight: 700; }
         
         .incentive-item { display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,0.85); padding: 20px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
         .incentive-icon { font-size: 2.5rem; }
@@ -1438,6 +1439,17 @@ export default function SellLandingPage() {
           .promo-headline { font-size: 2.5rem; }
           .casagrown-nav { padding: 16px 24px; }
           .nav-tagline { display: none; }
+        }
+
+        @media (max-width: 600px) {
+          .promo-content-wrapper { padding: 20px 12px; }
+          .promo-main-glass { border-radius: 20px; }
+          .promo-hero-section { padding: 28px 16px; }
+          .promo-form-section { padding: 24px 16px; }
+          .promo-headline { font-size: 1.75rem; letter-spacing: -0.5px; }
+          .form-heading { font-size: 1.4rem; }
+          .casagrown-nav { padding: 12px 16px; }
+          .btn-action { padding: 16px 20px; font-size: 1.05rem; }
         }
       `}</style>
     </div>

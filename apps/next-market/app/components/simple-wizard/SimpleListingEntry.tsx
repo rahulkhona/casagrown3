@@ -269,9 +269,10 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
         </div>
       </div>
 
-      <div className={`${styles.container} ${styles.formCard}`}>
-        {/* Error banner */}
-        {error && <div className={styles.errorBanner}>{error}</div>}
+      <div className={styles.container}>
+        <div className={styles.formCard}>
+          {/* Error banner */}
+          {error && <div className={styles.errorBanner}>{error}</div>}
 
         {/* Textarea */}
         <div className={styles.textareaSection}>
@@ -440,5 +441,7 @@ export default function SimpleListingEntry({ pageSlug = '/create-listing-simple'
         </div>
       </div>
     </div>
+  </div>
   )
 }
+

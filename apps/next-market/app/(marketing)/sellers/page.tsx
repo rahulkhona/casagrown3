@@ -198,9 +198,19 @@ export default function SellersPage() {
         .marketing-footer-links a:hover { color: #f0faf0; }
         .marketing-footer-bottom { text-align: center; color: #4a6a4a; font-size: 0.85rem; }
         @media (max-width: 768px) {
-          .marketing-hero { grid-template-columns: 1fr; padding: 48px 24px; }
-          .marketing-steps { grid-template-columns: 1fr; }
-          .sellers-categories { grid-template-columns: repeat(2, 1fr); }
+          .marketing-nav { padding: 16px 20px; }
+          .marketing-nav-links { gap: 16px; }
+          .marketing-hero { grid-template-columns: 1fr; padding: 48px 20px; gap: 32px; }
+          .marketing-hero-title { font-size: 2.4rem; }
+          .marketing-section { padding: 48px 20px; }
+          .marketing-steps { grid-template-columns: 1fr; gap: 16px; }
+          .marketing-step { padding: 24px 20px; }
+          .sellers-categories { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .sellers-category { padding: 20px 12px; }
+          .marketing-cta-section { padding: 60px 20px; }
+          .marketing-footer { padding: 32px 20px; }
+          .marketing-footer-content { flex-direction: column; gap: 20px; text-align: center; }
+          .marketing-footer-links { flex-wrap: wrap; justify-content: center; gap: 16px; }
         }
       `}</style>
     </div>

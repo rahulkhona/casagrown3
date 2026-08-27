@@ -156,3 +156,7 @@
   .dateBar { gap: 6px; }
   .dateBtn { padding: 5px 10px; font-size: 12px; }
 }
+
+@media (max-width: 480px) {
+  .summaryGrid { grid-template-columns: 1fr; gap: 8px; }
+}

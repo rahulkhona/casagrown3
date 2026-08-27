@@ -905,6 +905,17 @@ function JoinContent() {
           .join-address-row { flex-direction: column; gap: 0; }
           .join-hero-benefits { display: none; }
         }
+
+        @media (max-width: 600px) {
+          .join-content-wrapper { padding: 16px 12px; }
+          .join-main-glass { border-radius: 20px; }
+          .join-hero-section { padding: 24px 16px; }
+          .join-form-section { padding: 16px 8px; }
+          .join-form-card { padding: 20px 14px; border-radius: 16px; }
+          .join-nav { padding: 12px 16px; }
+          .join-headline { font-size: 1.6rem; }
+          .join-btn-action { padding: 14px 20px; font-size: 1rem; }
+        }
       `}</style>
     </>
   )

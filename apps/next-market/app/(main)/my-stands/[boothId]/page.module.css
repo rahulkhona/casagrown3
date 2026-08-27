@@ -183,6 +183,166 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+/* ── Product Card Actions ── */
+.productActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 6px;
+  border-top: 1px solid var(--gray-100, #f3f4f6);
+  background: #ffffff;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.cardActionBtnSmall {
+  flex: 1 1 calc(50% - 3px);
+  min-width: 0;
+  padding: 7px 4px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: all 0.15s;
+}
+
+.cardBtnEdit {
+  background: var(--gray-50, #f9fafb);
+  color: #374151;
+  border-color: var(--gray-200, #e5e7eb);
+}
+.cardBtnEdit:hover {
+  background: var(--gray-100, #f3f4f6);
+}
+
+.cardBtnShare {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.cardBtnShare:hover {
+  background: #dcfce7;
+}
+
+.cardBtnDelete,
+.cardBtnArchive {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 6px 4px;
+  font-size: 11.5px;
+}
+
+.cardBtnDelete {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.cardBtnDelete:hover {
+  background: #fee2e2;
+}
+
+.cardBtnArchive {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.cardBtnArchive:hover {
+  background: #fef3c7;
+}
+
+/* ── Inline Delete Confirmation ── */
+.cardConfirmBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 6px;
+  border-top: 1px solid var(--gray-100, #f3f4f6);
+  background: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cardConfirmTextDelete {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #dc2626;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.cardConfirmTextArchive {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #d97706;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.cardConfirmBtns {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.cardConfirmBtnDelete {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+.cardConfirmBtnDelete:hover {
+  background: #b91c1c;
+}
+
+.cardConfirmBtnArchive {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #d97706;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+.cardConfirmBtnArchive:hover {
+  background: #b45309;
+}
+
+.cardConfirmBtnCancel {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--gray-50, #f9fafb);
+  color: #374151;
+  border: 1px solid var(--gray-200, #e5e7eb);
+  cursor: pointer;
+  text-align: center;
+}
+.cardConfirmBtnCancel:hover {
+  background: var(--gray-100, #f3f4f6);
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .listingsGrid { grid-template-columns: repeat(2, 1fr); }
@@ -192,6 +352,14 @@
   .section { padding: 16px; }
   .actionRow { flex-direction: column; }
   .actionBtn { justify-content: center; }
+  .listingsGrid { gap: 10px; }
+  .productActionRow { padding: 6px 4px; gap: 4px; }
+  .cardActionBtnSmall { font-size: 11px; padding: 6px 2px; }
+  .cardBtnDelete, .cardBtnArchive { font-size: 11px; padding: 5px 2px; }
+}
+@media (max-width: 360px) {
+  .cardActionBtnSmall { font-size: 10px; padding: 5px 1px; }
+  .cardBtnDelete, .cardBtnArchive { font-size: 10px; padding: 5px 1px; }
 }
 
 /* ── Enhanced Edit Modal Components ── */

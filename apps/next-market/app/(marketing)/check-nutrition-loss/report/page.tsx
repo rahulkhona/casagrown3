@@ -7,28 +7,42 @@ export const dynamic = 'force-dynamic'
 export default async function NutritionReportPage({ searchParams }: { searchParams: { id?: string } }) {
   const { id } = await searchParams
   
-  if (!id) {
-    return notFound()
+  let lead: any = null
+
+  if (id && id !== 'demo' && id !== 'sample') {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (supabaseUrl && supabaseServiceKey) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      const { data } = await supabase
+        .from('crm_leads')
+        .select('*')
+        .eq('id', id)
+        .single()
+      lead = data
+    }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing Supabase env vars for report page")
-    return notFound()
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-  const { data: lead, error } = await supabase
-    .from('crm_leads')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (error || !lead || !lead.metadata?.ai_nutrition_result) {
-    return notFound()
+  if (!lead || !lead.metadata?.ai_nutrition_result) {
+    if (id === 'demo' || id === 'sample' || !id) {
+      lead = {
+        name: 'Alex Rivera',
+        email: 'alex@example.com',
+        metadata: {
+          ai_nutrition_result: {
+            items: [
+              { name: 'Spinach', time_to_shelf: '7-10 days', nutrient_loss_pct: '80% Vitamin C', impacted_nutrients: 'Vitamin C, Folate' },
+              { name: 'Tomatoes', time_to_shelf: '10-14 days', nutrient_loss_pct: '45% Lycopene', impacted_nutrients: 'Lycopene, Flavor aromatics' },
+              { name: 'Strawberries', time_to_shelf: '5-8 days', nutrient_loss_pct: '50% Polyphenols', impacted_nutrients: 'Antioxidants, Vitamin C' }
+            ],
+            summary: 'Produce transported over long distances loses the majority of its delicate phytonutrients and antioxidants before it reaches store shelves.'
+          }
+        }
+      }
+    } else {
+      return notFound()
+    }
   }
 
   const result = lead.metadata.ai_nutrition_result
@@ -50,31 +64,31 @@ export default async function NutritionReportPage({ searchParams }: { searchPara
       </div>
 
       <div className="promo-content-wrapper">
-        <div className="promo-main-glass" style={{ maxWidth: '900px', flexDirection: 'column', padding: '40px' }}>
+        <div className="promo-main-glass report-card">
           
-          <div className="fade-in-up" style={{ textAlign: 'center' }}>
-            <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#14532d', marginBottom: '8px' }}>Your Nutrition Loss Report</h2>
-            <p style={{ fontSize: '1.1rem', color: '#4b5563', marginBottom: '32px' }}>
+          <div className="fade-in-up" style={{ textAlign: 'center', width: '100%' }}>
+            <h2 className="report-title">Your Nutrition Loss Report</h2>
+            <p className="report-subheading">
               Hi {firstName}, here is the post-harvest analysis for your typical grocery list.
             </p>
             
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', marginBottom: '24px', textAlign: 'left', overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem' }}>
+            <div className="table-wrapper">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
                 <thead>
                   <tr style={{ background: '#f0fdf4', color: '#166534', textAlign: 'left', borderBottom: '2px solid #bbf7d0' }}>
-                    <th style={{ padding: '12px' }}>Produce</th>
-                    <th style={{ padding: '12px' }}>Est. Time to Shelf</th>
-                    <th style={{ padding: '12px' }}>Nutrient Loss</th>
-                    <th style={{ padding: '12px' }}>Impacted Nutrients</th>
+                    <th style={{ padding: '12px 10px' }}>Produce</th>
+                    <th style={{ padding: '12px 10px' }}>Est. Time to Shelf</th>
+                    <th style={{ padding: '12px 10px' }}>Nutrient Loss</th>
+                    <th style={{ padding: '12px 10px' }}>Impacted Nutrients</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(result.items || []).map((item: any, i: number) => (
                     <tr key={i}>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 'bold', color: '#374151' }}>{item.name}</td>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', color: '#4b5563' }}>{item.time_to_shelf}</td>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', color: '#b91c1c', fontWeight: 'bold' }}>{item.nutrient_loss_pct}</td>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb', color: '#4b5563', fontSize: '0.9rem' }}>
+                      <td style={{ padding: '12px 10px', borderBottom: '1px solid #e5e7eb', fontWeight: 'bold', color: '#374151' }}>{item.name}</td>
+                      <td style={{ padding: '12px 10px', borderBottom: '1px solid #e5e7eb', color: '#4b5563' }}>{item.time_to_shelf}</td>
+                      <td style={{ padding: '12px 10px', borderBottom: '1px solid #e5e7eb', color: '#b91c1c', fontWeight: 'bold' }}>{item.nutrient_loss_pct}</td>
+                      <td style={{ padding: '12px 10px', borderBottom: '1px solid #e5e7eb', color: '#4b5563', fontSize: '0.85rem' }}>
                         {item.impacted_nutrients}
                         {item.evidence_link && (
                           <div style={{ marginTop: '4px' }}>
@@ -88,19 +102,19 @@ export default async function NutritionReportPage({ searchParams }: { searchPara
               </table>
             </div>
 
-            <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '32px', textAlign: 'left' }}>
-              <h3 style={{ fontSize: '1.2rem', color: '#1f2937', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '24px', textAlign: 'left' }}>
+              <h3 style={{ fontSize: '1.15rem', color: '#1f2937', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>💡</span> Why is this happening?
               </h3>
-              <p style={{ color: '#4b5563', lineHeight: 1.6, fontSize: '1.05rem' }}>{result.summary}</p>
+              <p style={{ color: '#4b5563', lineHeight: 1.6, fontSize: '0.95rem', margin: 0 }}>{result.summary}</p>
             </div>
 
-            <div style={{ background: '#f0fdf4', padding: '32px', borderRadius: '16px', marginBottom: '16px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
-              <h3 style={{ fontSize: '1.4rem', color: '#166534', fontWeight: 800, marginBottom: '16px' }}>Stop Eating Depleted Food.</h3>
-              <p style={{ fontSize: '1.1rem', color: '#15803d', marginBottom: '24px' }}>
+            <div className="report-cta-box">
+              <h3 style={{ fontSize: '1.3rem', color: '#166534', fontWeight: 800, marginBottom: '12px' }}>Stop Eating Depleted Food.</h3>
+              <p style={{ fontSize: '1rem', color: '#15803d', marginBottom: '20px', lineHeight: 1.5 }}>
                 When you buy directly from neighbors on CasaGrown, your food goes from harvest to your plate in hours—not weeks.
               </p>
-              <Link href="/" className="btn-action" style={{ display: 'inline-block', textDecoration: 'none', padding: '18px 36px', fontSize: '1.1rem' }}>
+              <Link href="/" className="btn-action report-cta-btn">
                 Shop Local on CasaGrown →
               </Link>
             </div>
@@ -129,11 +143,29 @@ export default async function NutritionReportPage({ searchParams }: { searchPara
 
         .promo-main-glass { display: flex; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.15); width: 100%; overflow: hidden; }
 
+        .report-card { max-width: 900px; flex-direction: column; padding: 40px; }
+        .report-title { font-size: 2.2rem; font-weight: 800; color: #14532d; margin-bottom: 8px; }
+        .report-subheading { font-size: 1.1rem; color: #4b5563; margin-bottom: 28px; }
+        .table-wrapper { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 24px; text-align: left; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .report-cta-box { background: #f0fdf4; padding: 28px; border-radius: 16px; margin-bottom: 16px; border: 1px solid #bbf7d0; text-align: center; }
+        .report-cta-btn { display: inline-block; text-decoration: none; padding: 16px 32px; font-size: 1.1rem; width: auto; }
+
         .btn-action { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; font-weight: 800; border-radius: 16px; cursor: pointer; transition: all 0.3s; box-shadow: 0 10px 25px rgba(34,197,94,0.3); }
         .btn-action:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(34,197,94,0.4); }
 
         .fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 600px) {
+          .promo-content-wrapper { padding: 16px 12px; }
+          .report-card { padding: 20px 14px; border-radius: 20px; }
+          .casagrown-nav { padding: 12px 16px; }
+          .report-title { font-size: 1.6rem; }
+          .report-subheading { font-size: 0.95rem; margin-bottom: 18px; }
+          .table-wrapper { padding: 12px 8px; border-radius: 12px; }
+          .report-cta-box { padding: 20px 14px; border-radius: 14px; }
+          .report-cta-btn { display: block; width: 100%; padding: 14px 20px; font-size: 1rem; }
+        }
       `}</style>
     </div>
   )
