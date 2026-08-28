@@ -70,23 +70,37 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
   const fetchBootstrap = useCallback(async (userId: string | null) => {
     try {
       const supabase = createClient()
-      const { data: result, error } = await supabase.rpc('get_client_bootstrap', {
-        p_user_id: userId,
-      })
+      
+      // Attempt RPC call with 1 automatic retry on transient upstream 502 errors
+      let rpcResult = await supabase.rpc('get_client_bootstrap', { p_user_id: userId })
+      if (rpcResult.error && (rpcResult.error.message?.includes('upstream server') || rpcResult.error.message?.includes('Failed to fetch'))) {
+        await new Promise(r => setTimeout(r, 600))
+        rpcResult = await supabase.rpc('get_client_bootstrap', { p_user_id: userId })
+      }
+
+      const { data: result, error } = rpcResult
 
       if (error) {
-        console.error('[BOOTSTRAP] RPC error:', error.message)
-        // Fallback: at least load market config via the old path
-        const { data: fallbackConfig } = await supabase.rpc('get_market_config')
-        setData({
-          profile: null,
-          market_config: fallbackConfig ? {
-            schedule: fallbackConfig.schedule || [],
-            productsNeverExpire: fallbackConfig.productsNeverExpire || false,
-            marketNeverCloses: fallbackConfig.marketNeverCloses ?? true,
-          } : DEFAULT_CONFIG,
-          badges: null,
-        })
+        console.warn('[BOOTSTRAP] RPC warning (falling back):', error.message)
+        // Fallback: try loading market config or default
+        try {
+          const { data: fallbackConfig } = await supabase.rpc('get_market_config')
+          setData({
+            profile: null,
+            market_config: fallbackConfig ? {
+              schedule: fallbackConfig.schedule || [],
+              productsNeverExpire: fallbackConfig.productsNeverExpire || false,
+              marketNeverCloses: fallbackConfig.marketNeverCloses ?? true,
+            } : DEFAULT_CONFIG,
+            badges: null,
+          })
+        } catch {
+          setData({
+            profile: null,
+            market_config: DEFAULT_CONFIG,
+            badges: null,
+          })
+        }
         return
       }
 
@@ -103,7 +117,12 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
         })
       }
     } catch (err) {
-      console.error('[BOOTSTRAP] Unexpected error:', err)
+      console.warn('[BOOTSTRAP] Transient error, using default config:', err)
+      setData({
+        profile: null,
+        market_config: DEFAULT_CONFIG,
+        badges: null,
+      })
     } finally {
       setLoading(false)
     }

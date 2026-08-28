@@ -64,6 +64,13 @@ test.describe('Booth Product Form — Separate Fulfillment Cards', () => {
     const pickupBox = page.locator('[data-testid="pickup-box"]')
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
 
+    // If pickup card is not active by default, click to enable
+    const checkbox = pickupBox.locator('input[type="checkbox"]')
+    if (!(await checkbox.isChecked())) {
+      await pickupBox.click()
+      await page.waitForTimeout(500)
+    }
+
     // Pickup card should show presets list
     await expect(pickupBox.locator('text=Schedule:')).toBeVisible()
 
@@ -170,7 +177,7 @@ test.describe('Edit Mode — Fulfillment Preservation', () => {
 test.describe('Create Listing Wizard — Fulfillment Step', () => {
 
   test('step 2 has separate delivery and pickup cards with independent days', async ({ page }) => {
-    await page.goto('/create-listing')
+    await page.goto('/create-listing?variant_override=standard')
     await page.waitForTimeout(2000)
 
     // Fill Step 1 — email may be disabled if authenticated
@@ -180,7 +187,7 @@ test.describe('Create Listing Wizard — Fulfillment Step', () => {
     }
     await page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]').fill('Test Produce')
     await page.locator('textarea[placeholder="Tell buyers about your produce..."]').fill('Test description')
-    await page.locator('select').selectOption({ index: 1 })
+    await page.locator('select').last().selectOption({ index: 1 })
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // Wait for Step 2
@@ -191,6 +198,13 @@ test.describe('Create Listing Wizard — Fulfillment Step', () => {
     const pickupBox = page.locator('[data-testid="pickup-box"]')
     await expect(deliveryBox).toBeVisible({ timeout: 10000 })
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
+
+    // Expand pickup box if not already checked
+    const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
+    if (!(await pickupCheckbox.isChecked())) {
+      await pickupBox.click()
+      await page.waitForTimeout(500)
+    }
 
     // Each card should have its own day pill buttons
     const deliveryDayPills = deliveryBox.locator('button:has-text("Today"), button:has-text("Tomorrow")')
@@ -238,7 +252,7 @@ test.describe('Create Listing Wizard — SMS/Push Prompts', () => {
 
   test('step 5 does not show SMS section for verified user', async ({ page }) => {
     // Authenticated users with phone verified should not see SMS verification
-    await page.goto('/create-listing')
+    await page.goto('/create-listing?variant_override=standard')
     await page.waitForTimeout(2000)
 
     // Fill Steps 1-3 to reach Step 5 (skip Step 4 since authenticated)
@@ -249,7 +263,7 @@ test.describe('Create Listing Wizard — SMS/Push Prompts', () => {
     }
     await page.locator('input[placeholder="e.g. Organic Heirloom Tomatoes"]').fill('SMS Test Produce')
     await page.locator('textarea[placeholder="Tell buyers about your produce..."]').fill('Test')
-    await page.locator('select').selectOption({ index: 1 })
+    await page.locator('select').last().selectOption({ index: 1 })
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // Step 2 — fill address and proceed
@@ -262,8 +276,13 @@ test.describe('Create Listing Wizard — SMS/Push Prompts', () => {
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
     const todayBtn = deliveryBox.locator('button:has-text("Today")').first()
     if (await todayBtn.isVisible()) await todayBtn.click()
-    // Toggle off pickup to simplify
-    await page.getByText('Pickup Available').click()
+
+    // Ensure pickup is unchecked to simplify
+    const pickupBox = page.locator('[data-testid="pickup-box"]')
+    const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
+    if (await pickupCheckbox.isChecked()) {
+      await pickupBox.click()
+    }
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // Step 3 — fill pricing

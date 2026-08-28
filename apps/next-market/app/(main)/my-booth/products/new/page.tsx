@@ -21,6 +21,8 @@ import SocialShareModal from '../../../../components/SocialShareModal'
 import { getBoothProductShareMessage } from '../../../../../lib/shareMessages'
 import styles from './page.module.css'
 import AddressInput from '../../../../components/AddressInput'
+import LandmarkPickerModal from '../../../../components/LandmarkPickerModal'
+import { LandmarkItem, isPublicLandmark, getSuggestedInstructionsForCategory } from '../../../../../lib/landmarks'
 import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressComplete, buildAddress } from '../../../../../lib/address'
 import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
 import { decomposeAddress, parseTextFallback } from './nlp-parser-utils'
@@ -219,6 +221,9 @@ function NewProductPageInner() {
   const [inlinePickupWindows, setInlinePickupWindows] = useState<string[]>(['8-10', '10-12', '12-14', '14-16'])
   const [geolocatingDelivery, setGeolocatingDelivery] = useState(false)
   const [geolocatingPickup, setGeolocatingPickup] = useState(false)
+  const [showLandmarkModal, setShowLandmarkModal] = useState(false)
+  const [productPickupInstructions, setProductPickupInstructions] = useState('')
+  const [pickupNoticeMinutes, setPickupNoticeMinutes] = useState<number>(30)
 
   const handleGeolocate = async (type: 'delivery' | 'pickup') => {
     if (!navigator.geolocation) return
@@ -916,6 +921,12 @@ function NewProductPageInner() {
       } else {
         setProductPickupAddr(EMPTY_ADDRESS)
       }
+      if (data.pickup_instructions) {
+        setProductPickupInstructions(data.pickup_instructions)
+      }
+      if (data.pickup_notice_minutes !== undefined && data.pickup_notice_minutes !== null) {
+        setPickupNoticeMinutes(data.pickup_notice_minutes)
+      }
       if (data.delivery_zipcodes) setInlineDeliveryZipcodes(data.delivery_zipcodes)
       // Detect if product is inactive — trigger relist mode automatically
       if (!data.is_active && !data.is_draft) {
@@ -1146,8 +1157,13 @@ function NewProductPageInner() {
     const isValidPrice = effectivePrice !== '' && effectivePrice !== null && !isNaN(parsedPrice) && parsedPrice >= 0 && (!restriction.isFreeOnly || parsedPrice === 0)
     let needsDraft = forceDraft || !name.trim() || photos.length === 0 || !isValidPrice || !quantity || parseInt(quantity) <= 0
     
-    // Safety check first
+    // Safety check first: Mandatory instructions when Safe Public Spot is selected
     const newErrors: Record<string, string> = {}
+    const isPickupActive = hasBooth ? productOffersPickup : inlinePickup
+    const isPublicSpot = isPickupActive && isPublicLandmark(productPickupAddr.street)
+    if (isPublicSpot && !productPickupInstructions.trim()) {
+      newErrors.pickupInstructions = 'Please provide pickup instructions for meeting at this public location.'
+    }
     
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
@@ -1479,6 +1495,19 @@ function NewProductPageInner() {
       ? inlineDeliveryZipcodes
       : (boothDefaults?.delivery_zipcodes || [])
 
+    // ── Track All Input States & Button Click Intent ──
+    trackEvent('button_click', PAGE_SLUG, { step: 1, button: isEditMode ? 'update_product' : 'create_product' })
+    trackFieldInteract(PAGE_SLUG, 1, 'name', !!name.trim())
+    trackFieldInteract(PAGE_SLUG, 1, 'price', !!priceUsd || isFree)
+    trackFieldInteract(PAGE_SLUG, 1, 'quantity', !!quantity)
+    trackFieldInteract(PAGE_SLUG, 1, 'category', !!category)
+    trackFieldInteract(PAGE_SLUG, 1, 'offers_delivery', !!offersDelivery)
+    trackFieldInteract(PAGE_SLUG, 1, 'offers_pickup', !!offersPickup)
+    trackFieldInteract(PAGE_SLUG, 1, 'pickup_address', !!resolvedPickupAddress)
+    trackFieldInteract(PAGE_SLUG, 1, 'pickup_safety_mode', isPublicLandmark(productPickupAddr.street))
+    trackFieldInteract(PAGE_SLUG, 1, 'pickup_instructions', !!productPickupInstructions.trim())
+    trackFieldInteract(PAGE_SLUG, 1, 'pickup_notice_minutes', pickupNoticeMinutes > 0)
+
     // ── 3. Insert or update the product ──
     if (isEditMode) {
       // Upload any new photos (base64) to storage
@@ -1501,57 +1530,73 @@ function NewProductPageInner() {
       }
 
       // Edit mode: update existing product
-      const { error, count } = await supabase
+      const updatePayload: Record<string, any> = {
+        name: name.trim() || 'Untitled Draft',
+        description: description.trim() || null,
+        category,
+        price_usd: parseFloat(priceUsd || '0'),
+        unit,
+        inventory: parseInt(quantity) || 0,
+        photos: editPhotoUrls,
+        harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
+        expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
+        market_date: marketDate,
+        is_active: !needsDraft,
+        is_draft: needsDraft,
+        delivery_radius_miles: resolvedRadius,
+        pickup_address: offersPickup ? resolvedPickupAddress : null,
+        pickup_instructions: offersPickup && productPickupInstructions.trim() ? productPickupInstructions.trim() : null,
+        pickup_notice_minutes: offersPickup ? pickupNoticeMinutes : null,
+        delivery_zipcodes: offersDelivery ? resolvedZipcodes : null,
+        product_delivery_windows: !offersDelivery ? null : (() => {
+          const obj: Record<string, any[]> = {}
+          for (const d of selectedDates) {
+            const ids = productDeliveryWindows[d] || []
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
+          }
+          return Object.keys(obj).length > 0 ? obj : null
+        })(),
+        product_pickup_windows: !offersPickup ? null : (() => {
+          const obj: Record<string, any[]> = {}
+          for (const d of selectedDates) {
+            const ids = productPickupWindows[d] || []
+            if (ids.length > 0) {
+              obj[d] = ids.map(id => {
+                const parts = id.split('-')
+                const start = parts[0]
+                const end = parts[1] || String(parseInt(start) + 2)
+                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+              })
+            }
+          }
+          return Object.keys(obj).length > 0 ? obj : null
+        })(),
+        window_dates: selectedDates,
+      }
+
+      let { error, count } = await supabase
         .from('market_products')
-        .update({
-          name: name.trim() || 'Untitled Draft',
-          description: description.trim() || null,
-          category,
-          price_usd: parseFloat(priceUsd || '0'),
-          unit,
-          inventory: parseInt(quantity) || 0,
-          photos: editPhotoUrls,
-          harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-          expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
-          market_date: marketDate,
-          is_active: !needsDraft,
-          is_draft: needsDraft,
-          delivery_radius_miles: resolvedRadius,
-          pickup_address: offersPickup ? resolvedPickupAddress : null,
-          delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
-          product_delivery_windows: !productOffersDelivery ? null : (() => {
-            const obj: Record<string, any[]> = {}
-            for (const d of selectedDates) {
-              const ids = productDeliveryWindows[d] || []
-              if (ids.length > 0) {
-                obj[d] = ids.map(id => {
-                  const parts = id.split('-')
-                  const start = parts[0]
-                  const end = parts[1] || String(parseInt(start) + 2)
-                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
-                })
-              }
-            }
-            return Object.keys(obj).length > 0 ? obj : null
-          })(),
-          product_pickup_windows: !productOffersPickup ? null : (() => {
-            const obj: Record<string, any[]> = {}
-            for (const d of selectedDates) {
-              const ids = productPickupWindows[d] || []
-              if (ids.length > 0) {
-                obj[d] = ids.map(id => {
-                  const parts = id.split('-')
-                  const start = parts[0]
-                  const end = parts[1] || String(parseInt(start) + 2)
-                  return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
-                })
-              }
-            }
-            return Object.keys(obj).length > 0 ? obj : null
-          })(),
-          window_dates: selectedDates,
-        }, { count: 'exact' })
+        .update(updatePayload, { count: 'exact' })
         .eq('id', editId)
+
+      // Schema resilience fallback if columns not yet migrated
+      if (error && (error.message?.includes('pickup_instructions') || error.message?.includes('pickup_notice_minutes') || error.code === 'PGRST204')) {
+        console.warn('Retrying product update without new pickup columns pending migration:', error.message)
+        const { pickup_instructions, pickup_notice_minutes, ...cleanedPayload } = updatePayload
+        const retryRes = await supabase
+          .from('market_products')
+          .update(cleanedPayload, { count: 'exact' })
+          .eq('id', editId)
+        error = retryRes.error
+        count = retryRes.count
+      }
 
       if (error) {
         setValidating(false)
@@ -1639,72 +1684,89 @@ function NewProductPageInner() {
     }
 
     // Add mode: insert new product
-    const { data: insertedProduct, error } = await supabase
+    const insertPayload: Record<string, any> = {
+      seller_id: await (async () => {
+        const selected = allBooths.find(b => b.id === boothId)
+        if (selected?.isHelper && selected?.owner_id) return selected.owner_id
+        // If booth not in allBooths yet (race condition), look up owner directly
+        if (boothId && boothId !== allBooths.find(b => !b.isHelper)?.id) {
+          const { data: boothRow } = await supabase
+            .from('market_booths')
+            .select('owner_id')
+            .eq('id', boothId)
+            .single()
+          if (boothRow && boothRow.owner_id !== authUser.id) return boothRow.owner_id
+        }
+        return authUser.id
+      })(),
+      market_date: marketDate,
+      name: name.trim() || 'Untitled Draft',
+      description: description.trim() || null,
+      category,
+      price_usd: parseFloat(priceUsd || '0'),
+      unit,
+      inventory: parseInt(quantity) || 0,
+      photos: uploadedPhotoUrls,
+      harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
+      expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
+      is_active: !needsDraft,
+      is_draft: needsDraft,
+      delivery_radius_miles: resolvedRadius,
+      pickup_address: offersPickup ? resolvedPickupAddress : null,
+      pickup_instructions: offersPickup && productPickupInstructions.trim() ? productPickupInstructions.trim() : null,
+      pickup_notice_minutes: offersPickup ? pickupNoticeMinutes : null,
+      delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
+      product_delivery_windows: !productOffersDelivery ? null : (() => {
+        const obj: Record<string, any[]> = {}
+        for (const d of selectedDates) {
+          const ids = productDeliveryWindows[d] || []
+          if (ids.length > 0) {
+            obj[d] = ids.map(id => {
+              const parts = id.split('-')
+              const start = parts[0]
+              const end = parts[1] || String(parseInt(start) + 2)
+              return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+            })
+          }
+        }
+        return Object.keys(obj).length > 0 ? obj : null
+      })(),
+      product_pickup_windows: !productOffersPickup ? null : (() => {
+        const obj: Record<string, any[]> = {}
+        for (const d of selectedDates) {
+          const ids = productPickupWindows[d] || []
+          if (ids.length > 0) {
+            obj[d] = ids.map(id => {
+              const parts = id.split('-')
+              const start = parts[0]
+              const end = parts[1] || String(parseInt(start) + 2)
+              return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
+            })
+          }
+        }
+        return Object.keys(obj).length > 0 ? obj : null
+      })(),
+      window_dates: selectedDates,
+    }
+
+    let { data: insertedProduct, error } = await supabase
       .from('market_products')
-      .insert({
-        seller_id: await (async () => {
-          const selected = allBooths.find(b => b.id === boothId)
-          if (selected?.isHelper && selected?.owner_id) return selected.owner_id
-          // If booth not in allBooths yet (race condition), look up owner directly
-          if (boothId && boothId !== allBooths.find(b => !b.isHelper)?.id) {
-            const { data: boothRow } = await supabase
-              .from('market_booths')
-              .select('owner_id')
-              .eq('id', boothId)
-              .single()
-            if (boothRow && boothRow.owner_id !== authUser.id) return boothRow.owner_id
-          }
-          return authUser.id
-        })(),
-        market_date: marketDate,
-        name: name.trim() || 'Untitled Draft',
-        description: description.trim() || null,
-        category,
-        price_usd: parseFloat(priceUsd || '0'),
-        unit,
-        inventory: parseInt(quantity) || 0,
-        photos: uploadedPhotoUrls,
-        harvested_at: harvestedAt ? new Date(harvestedAt + 'T12:00:00').toISOString() : null,
-        expires_at: getExpiryDate(selectedDates, productDeliveryWindows, productPickupWindows),
-        is_active: !needsDraft,
-        is_draft: needsDraft,
-        delivery_radius_miles: resolvedRadius,
-        pickup_address: offersPickup ? resolvedPickupAddress : null,
-        delivery_zipcodes: offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
-        product_delivery_windows: !productOffersDelivery ? null : (() => {
-          const obj: Record<string, any[]> = {}
-          for (const d of selectedDates) {
-            const ids = productDeliveryWindows[d] || []
-            if (ids.length > 0) {
-              obj[d] = ids.map(id => {
-                const parts = id.split('-')
-                const start = parts[0]
-                const end = parts[1] || String(parseInt(start) + 2)
-                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
-              })
-            }
-          }
-          return Object.keys(obj).length > 0 ? obj : null
-        })(),
-        product_pickup_windows: !productOffersPickup ? null : (() => {
-          const obj: Record<string, any[]> = {}
-          for (const d of selectedDates) {
-            const ids = productPickupWindows[d] || []
-            if (ids.length > 0) {
-              obj[d] = ids.map(id => {
-                const parts = id.split('-')
-                const start = parts[0]
-                const end = parts[1] || String(parseInt(start) + 2)
-                return { id, start: `${start.padStart(2,'0')}:00`, end: `${end.padStart(2,'0')}:00` }
-              })
-            }
-          }
-          return Object.keys(obj).length > 0 ? obj : null
-        })(),
-        window_dates: selectedDates,
-      })
+      .insert(insertPayload)
       .select('id')
       .single()
+
+    // Schema resilience fallback if columns not yet migrated
+    if (error && (error.message?.includes('pickup_instructions') || error.message?.includes('pickup_notice_minutes') || error.code === 'PGRST204')) {
+      console.warn('Retrying product insert without new pickup columns pending migration:', error.message)
+      const { pickup_instructions, pickup_notice_minutes, ...cleanedPayload } = insertPayload
+      const retryRes = await supabase
+        .from('market_products')
+        .insert(cleanedPayload)
+        .select('id')
+        .single()
+      insertedProduct = retryRes.data
+      error = retryRes.error
+    }
 
     setAddedProductId(insertedProduct?.id || null)
 
@@ -2961,8 +3023,15 @@ function NewProductPageInner() {
                     >
                       <span style={{ fontSize: 28 }}>🚗</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: isDeliveryActive ? '#15803d' : '#374151' }}>I&apos;ll Deliver</div>
-                        <div style={{ fontSize: 13, color: '#6b7280' }}>Drop off at buyer&apos;s door</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: isDeliveryActive ? '#15803d' : '#374151' }}>I&apos;ll Deliver</div>
+                          <span style={{ fontSize: 11, fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 12, padding: '2px 8px' }}>
+                            🛡️ Safest (100% Contactless)
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>
+                          100% Contactless Porch Drop-off — you deliver directly to buyer&apos;s door.
+                        </div>
                       </div>
                       <div>
                         <input type="checkbox" checked={isDeliveryActive} readOnly style={{ width: 20, height: 20, accentColor: '#16a34a', pointerEvents: 'none' }} />
@@ -3235,32 +3304,230 @@ function NewProductPageInner() {
                     {isPickupActive && (
                       <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
                         <div className={styles.field} style={{ marginTop: 16, marginBottom: 12 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label className={styles.label}>
-                              📍 {hasBooth ? 'Pickup Address Override' : 'Alternate Pickup Address'} <span className={styles.optional}>(leave blank to use base address)</span>
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => handleGeolocate('pickup')}
-                              disabled={geolocatingPickup}
-                              style={{
-                                background: 'none', border: 'none', color: '#16a34a',
-                                fontSize: 12, fontWeight: 600, cursor: geolocatingPickup ? 'wait' : 'pointer',
-                                padding: 0, display: 'flex', alignItems: 'center', gap: 4
-                              }}
-                            >
-                              {geolocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
-                            </button>
+                          {/* ── Pickup Location & Safety Preference Selector ── */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>📍</span> Choose Pickup Location & Safety Mode:
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProductPickupAddr(boothBaseAddr)
+                                  setErrors(p => ({ ...p, pickupAddress: '' }))
+                                }}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: 10,
+                                  border: !isPublicLandmark(productPickupAddr.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                                  background: !isPublicLandmark(productPickupAddr.street) ? '#ffffff' : '#f9fafb',
+                                  boxShadow: !isPublicLandmark(productPickupAddr.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 2,
+                                  transition: 'all 0.15s ease',
+                                }}
+                                data-testid="pickup-mode-home"
+                              >
+                                <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <span>🏡</span> My Home Address
+                                </div>
+                                <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
+                                  House # kept private
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setShowLandmarkModal(true)}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: 10,
+                                  border: isPublicLandmark(productPickupAddr.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                                  background: isPublicLandmark(productPickupAddr.street) ? '#ffffff' : '#f9fafb',
+                                  boxShadow: isPublicLandmark(productPickupAddr.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 2,
+                                  transition: 'all 0.15s ease',
+                                }}
+                                data-testid="find-landmark-btn"
+                              >
+                                <div style={{ fontWeight: 700, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <span>🛡️</span> Safe Public Place
+                                </div>
+                                <div style={{ fontSize: 11, color: '#166534', fontWeight: 500, lineHeight: 1.3 }}>
+                                  Parks, libraries (Safe)
+                                </div>
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Safety & Privacy Reassurance Callout */}
+                          {isPublicLandmark(productPickupAddr.street) ? (
+                            <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.4 }}>
+                                🛡️ <strong>Safe Meeting Spot:</strong> Meet buyers in a safe, public location without sharing your home address.
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowLandmarkModal(true)}
+                                style={{ background: '#ffffff', border: '1px solid #6ee7b7', borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#047857', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                Change
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ fontSize: 12, color: '#4b5563', lineHeight: 1.4 }}>
+                                🔒 <strong>Home Privacy:</strong> House numbers are hidden from public browse cards for your privacy.
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleGeolocate('pickup')}
+                                disabled={geolocatingPickup}
+                                style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 11, fontWeight: 600, cursor: geolocatingPickup ? 'wait' : 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}
+                              >
+                                {geolocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
+                              </button>
+                            </div>
+                          )}
+
                           <AddressInput
                             value={productPickupAddr}
                             onChange={val => {
                               setProductPickupAddr(val)
                               setErrors(p => ({ ...p, pickupAddress: '' }))
                             }}
-                            placeholderStreet="Street Address"
+                            placeholderStreet={isPublicLandmark(productPickupAddr.street) ? 'Public Landmark & Street' : 'Street Address'}
                           />
                           {errors.pickupAddress && <span className={styles.error} data-testid="pickup-address-error">{errors.pickupAddress}</span>}
+
+                          {/* ── Pickup Instructions Input ── */}
+                          {(() => {
+                            const isPublic = isPublicLandmark(productPickupAddr.street)
+                            const suggestedInfo = getSuggestedInstructionsForCategory(undefined, productPickupAddr.street)
+
+                            return (
+                              <div style={{ marginTop: 12 }}>
+                                <label className={styles.label} style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span>
+                                    📋 Pickup Instructions for Buyer{' '}
+                                    {isPublic ? (
+                                      <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 12 }}>(Required for public spots)</span>
+                                    ) : (
+                                      <span className={styles.optional}>(optional)</span>
+                                    )}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{productPickupInstructions.length}/300</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  className={styles.input}
+                                  value={productPickupInstructions}
+                                  onChange={e => {
+                                    setProductPickupInstructions(e.target.value)
+                                    setErrors(p => ({ ...p, pickupInstructions: '' }))
+                                  }}
+                                  placeholder={suggestedInfo.placeholder}
+                                  maxLength={300}
+                                  data-testid="pickup-instructions-input"
+                                />
+                                {errors.pickupInstructions && (
+                                  <span className={styles.error} data-testid="pickup-instructions-error" style={{ display: 'block', marginTop: 4 }}>
+                                    {errors.pickupInstructions}
+                                  </span>
+                                )}
+                                {!productPickupInstructions && (
+                                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 11, color: '#6b7280' }}>💡 Suggestion:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProductPickupInstructions(suggestedInfo.example)
+                                        setErrors(p => ({ ...p, pickupInstructions: '' }))
+                                      }}
+                                      style={{
+                                        background: '#f0fdf4',
+                                        border: '1px dashed #86efac',
+                                        borderRadius: 6,
+                                        padding: '2px 8px',
+                                        fontSize: 11,
+                                        color: '#166534',
+                                        cursor: 'pointer',
+                                        textAlign: 'left'
+                                      }}
+                                    >
+                                      "{suggestedInfo.example}"
+                                    </button>
+                                  </div>
+                                )}
+                                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280' }}>
+                                  Shared with the buyer on their Order Details page after checkout.
+                                </p>
+
+                                {/* ── Buyer Advance Notice Selector ── */}
+                                <div style={{ marginTop: 14 }}>
+                                  <label className={styles.label} style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6, display: 'block' }}>
+                                    ⏱️ Buyer Advance Notice Before Arrival
+                                  </label>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+                                    {[
+                                      { mins: 15, label: '⚡ 15 min' },
+                                      { mins: 30, label: '⏱️ 30 min (Default)' },
+                                      { mins: 60, label: '🕐 1 hour' },
+                                      { mins: 0, label: 'No notice needed' },
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.mins}
+                                        type="button"
+                                        onClick={() => setPickupNoticeMinutes(opt.mins)}
+                                        style={{
+                                          padding: '8px 10px',
+                                          borderRadius: 8,
+                                          fontSize: 12,
+                                          fontWeight: pickupNoticeMinutes === opt.mins ? 700 : 500,
+                                          border: pickupNoticeMinutes === opt.mins ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                                          background: pickupNoticeMinutes === opt.mins ? '#f0fdf4' : '#fff',
+                                          color: pickupNoticeMinutes === opt.mins ? '#15803d' : '#4b5563',
+                                          cursor: 'pointer',
+                                          textAlign: 'center',
+                                          transition: 'all 0.15s ease',
+                                        }}
+                                        data-testid={`pickup-notice-${opt.mins}`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280' }}>
+                                    {pickupNoticeMinutes > 0
+                                      ? `Buyers will be asked to message you ${pickupNoticeMinutes} minutes before arriving within their 2-hour window.`
+                                      : `Buyers can arrive anytime during their selected 2-hour pickup window.`}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          <LandmarkPickerModal
+                            isOpen={showLandmarkModal}
+                            onClose={() => setShowLandmarkModal(false)}
+                            onSelect={(landmark: LandmarkItem) => {
+                              setProductPickupAddr({
+                                street: landmark.addressFields.street,
+                                city: landmark.addressFields.city || boothBaseAddr.city || '',
+                                state: landmark.addressFields.state || boothBaseAddr.state || 'CA',
+                                zip: landmark.addressFields.zip || boothBaseAddr.zip || '',
+                              })
+                              setErrors(p => ({ ...p, pickupAddress: '' }))
+                            }}
+                            fallbackZip={boothBaseAddr.zip || profileHomeAddr.zip}
+                          />
                         </div>
 
                         {/* ── Pickup presets & Custom weekly calendar snap grid ── */}

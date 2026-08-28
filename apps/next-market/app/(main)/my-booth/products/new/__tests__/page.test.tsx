@@ -99,4 +99,88 @@ describe('AddProductListing', () => {
       expect(screen.getByText('Tap to select your available hours')).toBeInTheDocument()
     })
   })
+
+  it('renders Find Landmark button and Pickup Instructions input in pickup section', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    render(<AddProductListing />)
+
+    // Verify Delivery Contactless Badge
+    expect(screen.getByText(/Safest \(100% Contactless\)/i)).toBeInTheDocument()
+
+    // Verify Safe Public Place button is present
+    const findLandmarkBtn = screen.getByTestId('find-landmark-btn')
+    expect(findLandmarkBtn).toBeInTheDocument()
+    expect(findLandmarkBtn).toHaveTextContent(/Safe Public Place/i)
+
+    // Click Safe Public Place button to open modal
+    fireEvent.click(findLandmarkBtn)
+    await waitFor(() => {
+      expect(screen.getByTestId('landmark-modal')).toBeInTheDocument()
+    })
+
+    // Verify Pickup Instructions field is present and writable
+    const instructionsInput = screen.getByTestId('pickup-instructions-input')
+    expect(instructionsInput).toBeInTheDocument()
+    fireEvent.change(instructionsInput, { target: { value: 'Meet at the gazebo near the playground' } })
+    expect((instructionsInput as HTMLInputElement).value).toBe('Meet at the gazebo near the playground')
+  })
+
+  it('validates required pickup instructions when public spot is chosen and supports suggestion chip clicks', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    render(<AddProductListing />)
+
+    // Open Landmark modal and select a public landmark
+    const findLandmarkBtn = screen.getByTestId('find-landmark-btn')
+    fireEvent.click(findLandmarkBtn)
+    await waitFor(() => {
+      expect(screen.getByTestId('landmark-modal')).toBeInTheDocument()
+    })
+
+    // Wait for landmark options to load and select Willow Glen Community Center
+    const commOption = await screen.findByTestId('landmark-option-mock_comm_1')
+    fireEvent.click(commOption)
+
+    // Verify pickup instructions label indicates required
+    await waitFor(() => {
+      expect(screen.getByText(/\(Required for public spots\)/i)).toBeInTheDocument()
+    })
+
+    // Try submitting form with empty instructions
+    const submitBtn = screen.getByRole('button', { name: /Save Draft|Publish Product/i })
+    fireEvent.click(submitBtn)
+
+    // Inline error should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('pickup-instructions-error')).toBeInTheDocument()
+      expect(screen.getByTestId('pickup-instructions-error')).toHaveTextContent(/Please provide pickup instructions for meeting at this public location/i)
+    })
+
+    // Click dynamic suggestion chip to auto-populate
+    const suggestionBtn = await screen.findByText(/Meet near the main front entrance parking area/i)
+    expect(suggestionBtn).toBeInTheDocument()
+    fireEvent.click(suggestionBtn)
+
+    // Instructions input should now be filled and error cleared
+    const instructionsInput = screen.getByTestId('pickup-instructions-input') as HTMLInputElement
+    expect(instructionsInput.value).toContain('Meet near the main front entrance parking area')
+    expect(screen.queryByTestId('pickup-instructions-error')).not.toBeInTheDocument()
+  })
+
+  it('handles buyer advance notice selection', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    render(<AddProductListing />)
+
+    // Select 15 min notice button
+    const notice15Btn = screen.getByTestId('pickup-notice-15')
+    expect(notice15Btn).toBeInTheDocument()
+    fireEvent.click(notice15Btn)
+
+    // Verify callout updates
+    expect(screen.getByText(/15 minutes before arriving/i)).toBeInTheDocument()
+
+    // Select 60 min notice button
+    const notice60Btn = screen.getByTestId('pickup-notice-60')
+    fireEvent.click(notice60Btn)
+    expect(screen.getByText(/60 minutes before arriving/i)).toBeInTheDocument()
+  })
 })

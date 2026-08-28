@@ -10,6 +10,8 @@ import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../lib/interestCatalog'
 import { extractBaseProduce, getProduceImage } from '../../../lib/produceCatalog'
 import { TERMS_SECTIONS, PRIVACY_SECTIONS } from '../terms/page'
 import AddressInput from '../../components/AddressInput'
+import LandmarkPickerModal from '../../components/LandmarkPickerModal'
+import { LandmarkItem, isPublicLandmark, getSuggestedInstructionsForCategory } from '../../../lib/landmarks'
 import {
   AddressFields,
   EMPTY_ADDRESS,
@@ -77,6 +79,9 @@ export default function BulkListingClient() {
   )
 
   const [pickupAddr, setPickupAddr] = useState<AddressFields>(EMPTY_ADDRESS)
+  const [pickupInstructions, setPickupInstructions] = useState('')
+  const [pickupNoticeMinutes, setPickupNoticeMinutes] = useState(30)
+  const [showLandmarkModal, setShowLandmarkModal] = useState(false)
   const [pickupPreset, setPickupPreset] = useState<FulfillmentPresetType>('both')
   const [customPickupWindows, setCustomPickupWindows] = useState<Record<string, string[]>>(() =>
     getWindowsForPreset('both')
@@ -858,6 +863,11 @@ export default function BulkListingClient() {
       return
     }
 
+    if (offersPickup && isPublicLandmark(pickupAddr.street) && !pickupInstructions.trim()) {
+      setGlobalError('Please provide pickup instructions for meeting at this public location.')
+      return
+    }
+
     saveDraftToStorage()
 
     // If user is already authenticated:
@@ -1154,6 +1164,8 @@ export default function BulkListingClient() {
           harvested_at: new Date().toISOString(),
           delivery_radius_miles: offersDelivery ? deliveryRadius : null,
           pickup_address: pickupStr,
+          pickup_instructions: offersPickup && pickupInstructions.trim() ? pickupInstructions.trim() : null,
+          pickup_notice_minutes: offersPickup ? pickupNoticeMinutes : null,
           delivery_zipcodes: offersDelivery ? (deliveryZipcodes.length > 0 ? deliveryZipcodes : (finalZip ? [finalZip] : [])) : null,
           product_delivery_windows: formattedDeliveryWindows,
           product_pickup_windows: formattedPickupWindows,
@@ -1163,10 +1175,22 @@ export default function BulkListingClient() {
         productsToInsert.push(prodItem)
       }
 
-      const { data: createdProducts, error: prodErr } = await supabase
+      let { data: createdProducts, error: prodErr } = await supabase
         .from('market_products')
         .insert(productsToInsert)
         .select('id, name, description, photos')
+
+      // Schema resilience: fallback retry if migration has not been applied to live DB yet
+      if (prodErr && (prodErr.message?.includes('pickup_instructions') || prodErr.message?.includes('pickup_notice_minutes') || prodErr.code === 'PGRST204')) {
+        console.warn('Retrying product insert without new pickup columns pending migration:', prodErr.message)
+        const cleanedProducts = productsToInsert.map(({ pickup_instructions, pickup_notice_minutes, ...rest }) => rest)
+        const retryRes = await supabase
+          .from('market_products')
+          .insert(cleanedProducts)
+          .select('id, name, description, photos')
+        createdProducts = retryRes.data
+        prodErr = retryRes.error
+      }
 
       if (prodErr) {
         console.error('Product insert error details:', {
@@ -1591,11 +1615,16 @@ export default function BulkListingClient() {
                     className={styles.toggleCardCheckbox}
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-                      🚗 I can deliver to neighbors
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
+                        🚗 I can deliver to neighbors
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 12, padding: '2px 8px' }}>
+                        🛡️ Safest (100% Contactless)
+                      </span>
                     </div>
-                    <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                      Deliver within your local area or selected ZIP codes on your scheduled days
+                    <div style={{ fontSize: '0.82rem', color: '#4b5563', marginTop: 2 }}>
+                      100% Contactless Porch Drop-off — you deliver directly to buyer&apos;s door
                     </div>
                   </div>
                 </div>
@@ -1646,11 +1675,8 @@ export default function BulkListingClient() {
 
                     {deliveryMode === 'zipcode' ? (
                       <div className={styles.fieldGroup} style={{ marginBottom: 16 }}>
-                        <label className={styles.fieldLabel}>📮 Delivery Zip Code(s) *</label>
-                        <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 6px' }}>
-                          Add one or multiple 5-digit ZIP codes where you deliver (press Enter, space, or comma to add).
-                        </p>
-                        <div className={styles.zipTagsContainer}>
+                        <label className={styles.fieldLabel}>Delivery Zip Codes *</label>
+                        <div className={styles.zipTagContainer}>
                           {deliveryZipcodes.map(zip => (
                             <span key={zip} className={styles.zipTag}>
                               {zip}
@@ -1660,39 +1686,26 @@ export default function BulkListingClient() {
                                 className={styles.zipTagRemove}
                                 aria-label={`Remove ${zip}`}
                               >
-                                ×
+                                &times;
                               </button>
                             </span>
                           ))}
                           <input
                             type="text"
-                            placeholder={deliveryZipcodes.length === 0 ? "e.g. 95125, 95112" : "Add another ZIP..."}
+                            placeholder={deliveryZipcodes.length === 0 ? 'e.g. 95125, 95112' : 'Add another ZIP...'}
                             value={zipInput}
-                            onChange={e => {
-                              const val = e.target.value
-                              if (val.includes(',') || val.includes(' ')) {
-                                const parts = val.split(/[,\s]+/).filter(Boolean)
-                                parts.forEach(p => handleAddZipTag(p))
-                                setZipInput('')
-                              } else {
-                                setZipInput(val.replace(/[^0-9]/g, ''))
-                              }
-                            }}
+                            onChange={e => setZipInput(e.target.value.replace(/[^0-9]/g, ''))}
                             onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                              if (e.key === 'Enter' || e.key === ',') {
                                 e.preventDefault()
-                                if (zipInput.trim()) {
-                                  handleAddZipTag(zipInput)
-                                }
+                                handleAddZipTag(zipInput)
                               }
                             }}
                             onBlur={() => {
                               if (zipInput.trim()) {
                                 handleAddZipTag(zipInput)
                               }
-                              trackFieldInteract(PAGE_SLUG, 1, 'delivery_zipcodes', deliveryZipcodes.length > 0 || !!zipInput.trim())
                             }}
-                            onPaste={handlePasteZips}
                             className={styles.zipTagInput}
                             maxLength={5}
                           />
@@ -1860,37 +1873,228 @@ export default function BulkListingClient() {
                       🏡 Buyers can pick up from me
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                      Porch pickup or neighborhood hand-off at your address
+                      Porch pickup or neighborhood hand-off at your stand or public spot
                     </div>
                   </div>
                 </div>
 
                 {offersPickup && (
                   <div className={styles.toggleCardBody}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <label className={styles.fieldLabel}>Pickup Address *</label>
-                      <button
-                        type="button"
-                        onClick={() => handleGeolocate('pickup')}
-                        disabled={geolocatingPickup}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#16a34a',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: geolocatingPickup ? 'wait' : 'pointer',
-                        }}
-                      >
-                        {geolocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
-                      </button>
+                    {/* ── Pickup Location & Safety Preference Selector ── */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>📍</span> Choose Pickup Location &amp; Safety Mode:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (deliveryBaseAddr.street) {
+                              setPickupAddr(deliveryBaseAddr)
+                            }
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            border: !isPublicLandmark(pickupAddr.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                            background: !isPublicLandmark(pickupAddr.street) ? '#ffffff' : '#f9fafb',
+                            boxShadow: !isPublicLandmark(pickupAddr.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                            transition: 'all 0.15s ease',
+                          }}
+                          data-testid="pickup-mode-home"
+                        >
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span>🏡</span> My Home / Stand
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
+                            House # kept private
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowLandmarkModal(true)}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            border: isPublicLandmark(pickupAddr.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                            background: isPublicLandmark(pickupAddr.street) ? '#ffffff' : '#f9fafb',
+                            boxShadow: isPublicLandmark(pickupAddr.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                            transition: 'all 0.15s ease',
+                          }}
+                          data-testid="find-landmark-btn"
+                        >
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span>🛡️</span> Safe Public Place
+                          </div>
+                          <div style={{ fontSize: 11, color: '#166534', fontWeight: 500, lineHeight: 1.3 }}>
+                            Parks, cafes (Safe)
+                          </div>
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Safety Reassurance Banner */}
+                    {isPublicLandmark(pickupAddr.street) ? (
+                      <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.4 }}>
+                          🛡️ <strong>Safe Meeting Spot:</strong> Meet buyers in a safe, public location without sharing your home address.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowLandmarkModal(true)}
+                          style={{ background: '#ffffff', border: '1px solid #6ee7b7', borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#047857', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ fontSize: 12, color: '#4b5563', lineHeight: 1.4 }}>
+                          🔒 <strong>Home Privacy:</strong> House numbers are hidden from public browse cards for your privacy.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleGeolocate('pickup')}
+                          disabled={geolocatingPickup}
+                          style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 11, fontWeight: 600, cursor: geolocatingPickup ? 'wait' : 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}
+                        >
+                          {geolocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
+                        </button>
+                      </div>
+                    )}
+
                     <AddressInput
                       value={pickupAddr}
                       onChange={val => setPickupAddr(val)}
                       onBlur={(f) => trackFieldInteract(PAGE_SLUG, 1, `pickup_${f}`, !!pickupAddr[f]?.trim())}
-                      placeholderStreet="Street Address for pickup"
-                      showPrivacyNote={true}
+                      placeholderStreet={isPublicLandmark(pickupAddr.street) ? 'Public Landmark & Street' : 'Street Address for pickup'}
+                      showPrivacyNote={!isPublicLandmark(pickupAddr.street)}
+                    />
+
+                    {/* ── Pickup Instructions Input ── */}
+                    {(() => {
+                      const isPublic = isPublicLandmark(pickupAddr.street)
+                      const suggestedInfo = getSuggestedInstructionsForCategory(undefined, pickupAddr.street)
+
+                      return (
+                        <div style={{ marginTop: 12 }}>
+                          <label className={styles.fieldLabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span>
+                              📋 Pickup Instructions for Buyer{' '}
+                              {isPublic ? (
+                                <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 12 }}>(Required for public spots)</span>
+                              ) : (
+                                <span style={{ color: '#6b7280', fontWeight: 400 }}>(optional)</span>
+                              )}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{pickupInstructions.length}/300</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={pickupInstructions}
+                            onChange={e => setPickupInstructions(e.target.value)}
+                            placeholder={suggestedInfo.placeholder}
+                            maxLength={300}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: 8,
+                              fontSize: 14,
+                              boxSizing: 'border-box',
+                            }}
+                            data-testid="pickup-instructions-input"
+                          />
+                          {!pickupInstructions && (
+                            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, color: '#6b7280' }}>💡 Suggestion:</span>
+                              <button
+                                type="button"
+                                onClick={() => setPickupInstructions(suggestedInfo.example)}
+                                style={{
+                                  background: '#f0fdf4',
+                                  border: '1px dashed #86efac',
+                                  borderRadius: 6,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                  color: '#166534',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                "{suggestedInfo.example}"
+                              </button>
+                            </div>
+                          )}
+
+                          {/* ── Buyer Advance Notice Selector ── */}
+                          <div style={{ marginTop: 14 }}>
+                            <label className={styles.fieldLabel} style={{ marginBottom: 6, display: 'block' }}>
+                              ⏱️ Buyer Advance Notice Before Arrival
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+                              {[
+                                { mins: 15, label: '⚡ 15 min' },
+                                { mins: 30, label: '⏱️ 30 min (Default)' },
+                                { mins: 60, label: '🕐 1 hour' },
+                                { mins: 0, label: 'No notice needed' },
+                              ].map(opt => (
+                                <button
+                                  key={opt.mins}
+                                  type="button"
+                                  onClick={() => setPickupNoticeMinutes(opt.mins)}
+                                  style={{
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                    fontWeight: pickupNoticeMinutes === opt.mins ? 700 : 500,
+                                    border: pickupNoticeMinutes === opt.mins ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                                    background: pickupNoticeMinutes === opt.mins ? '#f0fdf4' : '#fff',
+                                    color: pickupNoticeMinutes === opt.mins ? '#15803d' : '#4b5563',
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  data-testid={`pickup-notice-${opt.mins}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                            <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280' }}>
+                              {pickupNoticeMinutes > 0
+                                ? `Buyers will be asked to message you ${pickupNoticeMinutes} minutes before arriving within their 2-hour window.`
+                                : `Buyers can arrive anytime during their selected 2-hour pickup window.`}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    <LandmarkPickerModal
+                      isOpen={showLandmarkModal}
+                      onClose={() => setShowLandmarkModal(false)}
+                      onSelect={(landmark: LandmarkItem) => {
+                        setPickupAddr({
+                          street: landmark.addressFields.street,
+                          city: landmark.addressFields.city || deliveryBaseAddr.city || '',
+                          state: landmark.addressFields.state || deliveryBaseAddr.state || 'CA',
+                          zip: landmark.addressFields.zip || deliveryBaseAddr.zip || '',
+                        })
+                      }}
+                      fallbackZip={deliveryBaseAddr.zip || zipcode}
+                      theme="dark"
                     />
 
                     {/* Pickup Schedule Preset Selector */}

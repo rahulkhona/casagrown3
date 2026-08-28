@@ -32,6 +32,8 @@ export interface WizardState {
   offersPickup: boolean;
   deliveryRadius: number;
   pickupAddress: string;
+  pickupInstructions?: string;
+  pickupNoticeMinutes?: number;
   deliveryZipcodes: string[];
   selectedDates: string[]; 
   deliveryWindows: Record<string, string[]>;
@@ -711,6 +713,8 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
           is_draft: isDraft,
           delivery_radius_miles: resolvedRadius,
           pickup_address: state.offersPickup ? resolvedPickupAddress : null,
+          pickup_instructions: state.offersPickup && state.pickupInstructions?.trim() ? state.pickupInstructions.trim() : null,
+          pickup_notice_minutes: state.offersPickup ? (state.pickupNoticeMinutes ?? 30) : null,
           delivery_zipcodes: state.offersDelivery && resolvedZipcodes.length > 0 ? resolvedZipcodes : null,
           product_delivery_windows: !state.offersDelivery ? null : (() => {
             const obj: Record<string, any[]> = {}
@@ -741,11 +745,24 @@ export function WizardProvider({ children, pageSlug = '/create-listing' }: { chi
         productInsert.catalog_item_id = state.catalogItemId
       }
 
-      const { data: insertedProduct, error: prodErr } = await supabase
+      let { data: insertedProduct, error: prodErr } = await supabase
         .from('market_products')
         .insert(productInsert)
         .select('id')
         .single()
+
+      // Schema resilience: fallback retry if migration has not been applied to live DB yet
+      if (prodErr && (prodErr.message?.includes('pickup_instructions') || prodErr.message?.includes('pickup_notice_minutes') || prodErr.code === 'PGRST204')) {
+        console.warn('Retrying product insert without new pickup columns pending migration:', prodErr.message)
+        const { pickup_instructions, pickup_notice_minutes, ...cleanedInsert } = productInsert
+        const retryRes = await supabase
+          .from('market_products')
+          .insert(cleanedInsert)
+          .select('id')
+          .single()
+        insertedProduct = retryRes.data
+        prodErr = retryRes.error
+      }
 
       if (prodErr || !insertedProduct) throw new Error('Failed to add product: ' + (prodErr?.message || 'Unknown error'))
 

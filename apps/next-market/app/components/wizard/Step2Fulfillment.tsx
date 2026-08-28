@@ -4,7 +4,9 @@ import { useWizard } from './WizardContext'
 import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
+import LandmarkPickerModal from '../LandmarkPickerModal'
 import { type AddressFields, formatFullAddress } from '../../../lib/address'
+import { LandmarkItem, isPublicLandmark, getSuggestedInstructionsForCategory } from '../../../lib/landmarks'
 import styles from './wizard.module.css'
 import { trackFieldInteract as rawTrackFieldInteract, trackEvent as rawTrackEvent } from '../../../lib/crm-analytics'
 
@@ -180,6 +182,7 @@ export default function Step2Fulfillment() {
   
   const wentNext = useRef(false)
   const wentBack = useRef(false)
+  const hasAbandoned = useRef(false)
   const stateRef = useRef(state)
 
   useEffect(() => {
@@ -187,23 +190,27 @@ export default function Step2Fulfillment() {
   }, [state])
 
   useEffect(() => {
-    trackFieldInteract('/create-listing', 2, 'next_button', false)
+    trackFieldInteract(pageSlug, 2, 'next_button', false)
     const startTime = Date.now()
 
     const handleUnload = () => {
-      if (!wentNext.current && !wentBack.current) {
+      if (!wentNext.current && !wentBack.current && !hasAbandoned.current) {
+        hasAbandoned.current = true
         const duration = (Date.now() - startTime) / 1000
         const st = stateRef.current
-        trackEvent('wizard_abandon', '/create-listing', {
+        trackEvent('wizard_abandon', pageSlug, {
           last_step: 2,
           last_step_name: 'fulfillment',
           time_on_step_secs: Math.round(duration)
         })
-        trackFieldInteract('/create-listing', 2, 'home_address', !!st.address)
-        trackFieldInteract('/create-listing', 2, 'offers_delivery', !!st.offersDelivery)
-        trackFieldInteract('/create-listing', 2, 'delivery_radius', !!st.deliveryRadius)
-        trackFieldInteract('/create-listing', 2, 'offers_pickup', !!st.offersPickup)
-        trackFieldInteract('/create-listing', 2, 'pickup_address', !!st.pickupAddress)
+        trackFieldInteract(pageSlug, 2, 'home_address', !!st.address)
+        trackFieldInteract(pageSlug, 2, 'offers_delivery', !!st.offersDelivery)
+        trackFieldInteract(pageSlug, 2, 'delivery_radius', !!st.deliveryRadius)
+        trackFieldInteract(pageSlug, 2, 'offers_pickup', !!st.offersPickup)
+        trackFieldInteract(pageSlug, 2, 'pickup_address', !!st.pickupAddress)
+        trackFieldInteract(pageSlug, 2, 'pickup_safety_mode', isPublicLandmark(st.pickupAddress || ''))
+        trackFieldInteract(pageSlug, 2, 'pickup_instructions', !!st.pickupInstructions?.trim())
+        trackFieldInteract(pageSlug, 2, 'pickup_notice_minutes', (st.pickupNoticeMinutes ?? 30) > 0)
       }
     }
 
@@ -211,21 +218,25 @@ export default function Step2Fulfillment() {
 
     return () => {
       window.removeEventListener('beforeunload', handleUnload)
-      if (!wentNext.current && !wentBack.current) {
+      if (!wentNext.current && !wentBack.current && !hasAbandoned.current) {
         const duration = (Date.now() - startTime) / 1000
         if (duration < 0.5) return
+        hasAbandoned.current = true
 
         const st = stateRef.current
-        trackEvent('wizard_abandon', '/create-listing', {
+        trackEvent('wizard_abandon', pageSlug, {
           last_step: 2,
           last_step_name: 'fulfillment',
           time_on_step_secs: Math.round(duration)
         })
-        trackFieldInteract('/create-listing', 2, 'home_address', !!st.address)
-        trackFieldInteract('/create-listing', 2, 'offers_delivery', !!st.offersDelivery)
-        trackFieldInteract('/create-listing', 2, 'delivery_radius', !!st.deliveryRadius)
-        trackFieldInteract('/create-listing', 2, 'offers_pickup', !!st.offersPickup)
-        trackFieldInteract('/create-listing', 2, 'pickup_address', !!st.pickupAddress)
+        trackFieldInteract(pageSlug, 2, 'home_address', !!st.address)
+        trackFieldInteract(pageSlug, 2, 'offers_delivery', !!st.offersDelivery)
+        trackFieldInteract(pageSlug, 2, 'delivery_radius', !!st.deliveryRadius)
+        trackFieldInteract(pageSlug, 2, 'offers_pickup', !!st.offersPickup)
+        trackFieldInteract(pageSlug, 2, 'pickup_address', !!st.pickupAddress)
+        trackFieldInteract(pageSlug, 2, 'pickup_safety_mode', isPublicLandmark(st.pickupAddress || ''))
+        trackFieldInteract(pageSlug, 2, 'pickup_instructions', !!st.pickupInstructions?.trim())
+        trackFieldInteract(pageSlug, 2, 'pickup_notice_minutes', (st.pickupNoticeMinutes ?? 30) > 0)
       }
     }
   }, [])
@@ -257,6 +268,8 @@ export default function Step2Fulfillment() {
     if (parts.length === 2) return { street: parts[0], city: parts[1], state: '', zip: '' }
     return { street: a, city: '', state: '', zip: '' }
   })
+
+  const [showLandmarkModal, setShowLandmarkModal] = useState(false)
 
   // Sync local fields when state.address changes from context (e.g. after async profile fetch)
   useEffect(() => {
@@ -504,12 +517,26 @@ export default function Step2Fulfillment() {
       if (state.offersPickup) {
         hasPickupWindow = Object.keys(state.pickupWindows || {}).length > 0;
         if (!hasPickupWindow) newErrors.fulfillment = newErrors.fulfillment ? 'Select delivery and pickup days/windows' : 'Select at least one pickup day/window';
+        if (isPublicLandmark(pickupAddressFields.street) && !state.pickupInstructions?.trim()) {
+          newErrors.pickupInstructions = 'Please provide pickup instructions for meeting at this public location.'
+        }
       }
     }
 
+    // Track all input states on step transition
+    trackEvent('button_click', pageSlug, { step: 2, button: 'next' })
+    trackFieldInteract(pageSlug, 2, 'home_address', !!state.address)
+    trackFieldInteract(pageSlug, 2, 'offers_delivery', !!state.offersDelivery)
+    trackFieldInteract(pageSlug, 2, 'delivery_radius', !!state.deliveryRadius)
+    trackFieldInteract(pageSlug, 2, 'offers_pickup', !!state.offersPickup)
+    trackFieldInteract(pageSlug, 2, 'pickup_address', !!state.pickupAddress)
+    trackFieldInteract(pageSlug, 2, 'pickup_safety_mode', isPublicLandmark(pickupAddressFields.street))
+    trackFieldInteract(pageSlug, 2, 'pickup_instructions', !!state.pickupInstructions?.trim())
+    trackFieldInteract(pageSlug, 2, 'pickup_notice_minutes', (state.pickupNoticeMinutes ?? 30) > 0)
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
-      trackEvent('wizard_validation_error', '/create-listing', {
+      trackEvent('wizard_validation_error', pageSlug, {
         step: 2,
         fields: Object.keys(newErrors)
       })
@@ -520,7 +547,7 @@ export default function Step2Fulfillment() {
       return
     }
 
-    trackFieldInteract('/create-listing', 2, 'next_button', true)
+    trackFieldInteract(pageSlug, 2, 'next_button', true)
     wentNext.current = true
     nextStep()
   }
@@ -675,8 +702,15 @@ export default function Step2Fulfillment() {
             >
               <span style={{ fontSize: 28 }}>🚗</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: state.offersDelivery ? '#15803d' : '#374151' }}>I'll Deliver</div>
-                <div style={{ fontSize: 13, color: '#6b7280' }}>Drop off at buyer's door</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: state.offersDelivery ? '#15803d' : '#374151' }}>I&apos;ll Deliver</div>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 12, padding: '2px 8px' }}>
+                    🛡️ Safest (100% Contactless)
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>
+                  100% Contactless Porch Drop-off — you deliver directly to buyer&apos;s door.
+                </div>
               </div>
               <div>
                 <input type="checkbox" checked={state.offersDelivery} readOnly style={{ width: 20, height: 20, accentColor: '#16a34a', pointerEvents: 'none' }} />
@@ -819,25 +853,234 @@ export default function Step2Fulfillment() {
             {state.offersPickup && (
               <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #bbf7d0' }}>
                 <div style={{ marginTop: 16 }}>
-                  <label className={styles.label}>📍 Alternate Pickup Address <span className={styles.optional}>(optional)</span></label>
-                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Leave blank to use your Home / Farm address.</p>
+                  {/* ── Pickup Location & Safety Preference Selector ── */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📍</span> Choose Pickup Location &amp; Safety Mode:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickupAddressFields(addressFields)
+                          updateState({ pickupAddress: formatFullAddress(addressFields) })
+                          setErrors(p => ({ ...p, pickupAddress: '' }))
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: !isPublicLandmark(pickupAddressFields.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                          background: !isPublicLandmark(pickupAddressFields.street) ? '#ffffff' : '#f9fafb',
+                          boxShadow: !isPublicLandmark(pickupAddressFields.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                          transition: 'all 0.15s ease',
+                        }}
+                        data-testid="pickup-mode-home"
+                      >
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span>🏡</span> My Home Address
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
+                          House # kept private
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowLandmarkModal(true)}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: isPublicLandmark(pickupAddressFields.street) ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                          background: isPublicLandmark(pickupAddressFields.street) ? '#ffffff' : '#f9fafb',
+                          boxShadow: isPublicLandmark(pickupAddressFields.street) ? '0 1px 3px rgba(22, 163, 74, 0.2)' : 'none',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                          transition: 'all 0.15s ease',
+                        }}
+                        data-testid="find-landmark-btn"
+                      >
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span>🛡️</span> Safe Public Place
+                        </div>
+                        <div style={{ fontSize: 11, color: '#166534', fontWeight: 500, lineHeight: 1.3 }}>
+                          Parks, libraries (Safe)
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Safety & Privacy Reassurance Callout */}
+                  {isPublicLandmark(pickupAddressFields.street) ? (
+                    <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ fontSize: 12, color: '#065f46', lineHeight: 1.4 }}>
+                        🛡️ <strong>Safe Meeting Spot:</strong> Meet buyers in a safe, public location without sharing your home address.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowLandmarkModal(true)}
+                        style={{ background: '#ffffff', border: '1px solid #6ee7b7', borderRadius: 6, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#047857', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ fontSize: 12, color: '#4b5563', lineHeight: 1.4 }}>
+                        🔒 <strong>Home Privacy:</strong> House numbers are hidden from public browse cards for your privacy.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUseCurrentLocationPickup}
+                        disabled={isLocatingPickup}
+                        style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 11, fontWeight: 600, cursor: isLocatingPickup ? 'wait' : 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}
+                      >
+                        {isLocatingPickup ? '⏳ Locating...' : '📍 Use My Location'}
+                      </button>
+                    </div>
+                  )}
+
                   <AddressInput
                     value={pickupAddressFields}
                     onChange={(val: AddressFields) => {
                       setPickupAddressFields(val)
                       updateState({ pickupAddress: formatFullAddress(val) })
+                      setErrors(p => ({ ...p, pickupAddress: '' }))
                     }}
-                    placeholderStreet="e.g. Corner Store Parking Lot"
+                    placeholderStreet={isPublicLandmark(pickupAddressFields.street) ? 'Public Landmark & Street' : 'Street Address'}
                   />
                   {errors.pickupAddress && <span className={styles.errorText} style={{ display: 'block' }}>{errors.pickupAddress}</span>}
-                  <button
-                    type="button"
-                    className={styles.aiBtn}
-                    style={{ marginTop: 6 }}
-                    onClick={handleUseCurrentLocationPickup}
-                  >
-                    {isLocatingPickup ? "⏳ Locating..." : "📍 Use my current location"}
-                  </button>
+
+                  {/* ── Pickup Instructions Input ── */}
+                  {(() => {
+                    const isPublic = isPublicLandmark(pickupAddressFields.street)
+                    const suggestedInfo = getSuggestedInstructionsForCategory(undefined, pickupAddressFields.street)
+
+                    return (
+                      <div style={{ marginTop: 12 }}>
+                        <label className={styles.label} style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>
+                            📋 Pickup Instructions for Buyer{' '}
+                            {isPublic ? (
+                              <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 12 }}>(Required for public spots)</span>
+                            ) : (
+                              <span className={styles.optional}>(optional)</span>
+                            )}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>{(state.pickupInstructions || '').length}/300</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={styles.input}
+                          value={state.pickupInstructions || ''}
+                          onChange={e => {
+                            updateState({ pickupInstructions: e.target.value })
+                            setErrors(p => ({ ...p, pickupInstructions: '' }))
+                          }}
+                          placeholder={suggestedInfo.placeholder}
+                          maxLength={300}
+                          data-testid="pickup-instructions-input"
+                        />
+                        {errors.pickupInstructions && (
+                          <span className={styles.errorText} data-testid="pickup-instructions-error" style={{ display: 'block', marginTop: 4 }}>
+                            {errors.pickupInstructions}
+                          </span>
+                        )}
+                        {!state.pickupInstructions && (
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 11, color: '#6b7280' }}>💡 Suggestion:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateState({ pickupInstructions: suggestedInfo.example })
+                                setErrors(p => ({ ...p, pickupInstructions: '' }))
+                              }}
+                              style={{
+                                background: '#f0fdf4',
+                                border: '1px dashed #86efac',
+                                borderRadius: 6,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                color: '#166534',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                              }}
+                            >
+                              "{suggestedInfo.example}"
+                            </button>
+                          </div>
+                        )}
+
+                        {/* ── Buyer Advance Notice Selector ── */}
+                        <div style={{ marginTop: 14 }}>
+                          <label className={styles.label} style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6, display: 'block' }}>
+                            ⏱️ Buyer Advance Notice Before Arrival
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+                            {[
+                              { mins: 15, label: '⚡ 15 min' },
+                              { mins: 30, label: '⏱️ 30 min (Default)' },
+                              { mins: 60, label: '🕐 1 hour' },
+                              { mins: 0, label: 'No notice needed' },
+                            ].map(opt => {
+                              const active = (state.pickupNoticeMinutes ?? 30) === opt.mins
+                              return (
+                                <button
+                                  key={opt.mins}
+                                  type="button"
+                                  onClick={() => updateState({ pickupNoticeMinutes: opt.mins })}
+                                  style={{
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                    fontWeight: active ? 700 : 500,
+                                    border: active ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                                    background: active ? '#f0fdf4' : '#fff',
+                                    color: active ? '#15803d' : '#4b5563',
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  data-testid={`pickup-notice-${opt.mins}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280' }}>
+                            {(state.pickupNoticeMinutes ?? 30) > 0
+                              ? `Buyers will be asked to message you ${state.pickupNoticeMinutes ?? 30} minutes before arriving within their 2-hour window.`
+                              : `Buyers can arrive anytime during their selected 2-hour pickup window.`}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  <LandmarkPickerModal
+                    isOpen={showLandmarkModal}
+                    onClose={() => setShowLandmarkModal(false)}
+                    onSelect={(landmark: LandmarkItem) => {
+                      const newFields: AddressFields = {
+                        street: landmark.addressFields.street,
+                        city: landmark.addressFields.city || addressFields.city || '',
+                        state: landmark.addressFields.state || addressFields.state || 'CA',
+                        zip: landmark.addressFields.zip || addressFields.zip || '',
+                      }
+                      setPickupAddressFields(newFields)
+                      updateState({ pickupAddress: formatFullAddress(newFields) })
+                      setErrors(p => ({ ...p, pickupAddress: '' }))
+                    }}
+                    fallbackZip={addressFields.zip}
+                  />
                 </div>
                 <WindowSelector 
                   value={state.pickupWindows || {}} 

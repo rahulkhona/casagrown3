@@ -1,3 +1,5 @@
+import { isPublicLandmark } from './landmarks'
+
 /**
  * Window display utilities for showing fulfillment windows as compact pills,
  * matching the creation-form style (e.g. "4–6p", "6–8p").
@@ -100,10 +102,19 @@ export function getWindowDays(
 /**
  * Anonymize an address by removing the street number.
  * "1234 Oak Ave, San Jose, CA 95120" → "Near Oak Ave, San Jose, CA 95120"
+ * Public landmarks (e.g. "Willow Glen Community Center, 2175 Lincoln Ave") are preserved in full.
  */
 export function anonymizeAddress(address: string | null | undefined): string | null {
   if (!address) return null
-  const stripped = address.replace(/^\d+[-\s]*/, '').trim()
-  if (!stripped || stripped === address) return null
+  const trimmed = address.trim()
+  if (!trimmed) return null
+
+  // Public landmarks are public facilities and should not have house numbers stripped
+  if (isPublicLandmark(trimmed)) {
+    return trimmed
+  }
+
+  const stripped = trimmed.replace(/^\d+[-\s]*/, '').trim()
+  if (!stripped || stripped === trimmed) return null
   return `Near ${stripped}`
 }

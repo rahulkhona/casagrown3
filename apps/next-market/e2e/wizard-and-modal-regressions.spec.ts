@@ -250,7 +250,14 @@ test.describe.serial('Wizard and Modal Regression Tests (Authed)', () => {
     await expect(deliveryToday).toContainText('✅')
     await selectDayChip(page.getByTestId('delivery-box'))
 
-    const pickupToday = page.getByTestId('pickup-box').locator('button:has-text("Today")').first()
+    const pickupBox = page.getByTestId('pickup-box')
+    const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
+    if (!(await pickupCheckbox.isChecked())) {
+      await pickupBox.click()
+      await page.waitForTimeout(500)
+    }
+
+    const pickupToday = pickupBox.locator('button:has-text("Today")').first()
     for (let attempt = 0; attempt < 3; attempt++) {
       await pickupToday.click()
       const hasCheck = await pickupToday.textContent().then(t => t?.includes('✅')).catch(() => false)

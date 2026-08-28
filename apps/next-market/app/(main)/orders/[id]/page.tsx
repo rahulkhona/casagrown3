@@ -64,6 +64,8 @@ interface OrderDetail {
   seller_avatar?: string
   booth_name: string
   delivery_instructions?: string | null
+  pickup_instructions?: string | null
+  pickup_notice_minutes?: number | null
 }
 
 interface Dispute {
@@ -151,11 +153,12 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
     }
 
     if (data) {
-      // Step 2: Fetch buyer profile, seller profile, and booth info from public views in parallel
-      const [{ data: buyerProfile }, { data: sellerProfile }, { data: boothInfo }] = await Promise.all([
+      // Step 2: Fetch buyer profile, seller profile, booth info, and product info in parallel
+      const [{ data: buyerProfile }, { data: sellerProfile }, { data: boothInfo }, { data: productInfo }] = await Promise.all([
         supabase.from('public_profiles').select('full_name, avatar_url').eq('id', data.buyer_id).single(),
         supabase.from('public_profiles').select('full_name, avatar_url').eq('id', data.seller_id).single(),
         supabase.from('public_market_booths').select('name, pickup_display_address').eq('id', data.booth_id).single(),
+        data.product_id ? supabase.from('market_products').select('pickup_address, pickup_instructions, pickup_notice_minutes').eq('id', data.product_id).single() : Promise.resolve({ data: null }),
       ])
 
       setOrder({
@@ -164,8 +167,10 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         seller_name: sellerProfile?.full_name || 'Unknown',
         // Use only delivery_address — never fall back to buyer's profile street_address (PII)
         buyer_address: (data as any).delivery_address || undefined,
-        // Use only the booth's pickup_display_address — never fall back to seller profile street_address (PII)
-        seller_address: boothInfo?.pickup_display_address || undefined,
+        // Use product pickup address override or booth's pickup_display_address
+        seller_address: productInfo?.pickup_address || (data as any).pickup_address || boothInfo?.pickup_display_address || undefined,
+        pickup_instructions: (data as any).pickup_instructions || productInfo?.pickup_instructions || undefined,
+        pickup_notice_minutes: (data as any).pickup_notice_minutes !== undefined ? (data as any).pickup_notice_minutes : (productInfo?.pickup_notice_minutes ?? 30),
         buyer_avatar: buyerProfile?.avatar_url || undefined,
         seller_avatar: sellerProfile?.avatar_url || undefined,
         booth_name: boothInfo?.name || (data as any).booth?.name || 'Unknown Stand',
@@ -359,11 +364,33 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
 
         {/* Pickup address — shown for pickup orders */}
         {order.fulfillment_type === 'pickup' && order.seller_address && (
-          <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '10px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>📍</span>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', marginTop: 12, fontSize: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>📍</span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pickup Address</div>
-              <div style={{ color: 'var(--gray-800)', lineHeight: '1.4' }}>{order.seller_address}</div>
+              <div style={{ color: 'var(--gray-800)', lineHeight: '1.4', fontWeight: 600 }}>{order.seller_address}</div>
+
+              {order.pickup_notice_minutes && order.pickup_notice_minutes > 0 ? (
+                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }} data-testid="order-pickup-notice">
+                  <div>
+                    ⏱️ <strong>Advance Notice:</strong> Please message the seller {order.pickup_notice_minutes} minutes before arriving.
+                  </div>
+                  {isBuyer && (
+                    <Link
+                      href={`/messages?user=${order.seller_id}`}
+                      style={{ background: '#f59e0b', color: '#ffffff', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      💬 Message Seller
+                    </Link>
+                  )}
+                </div>
+              ) : null}
+
+              {order.pickup_instructions && (
+                <div style={{ fontSize: 13, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '6px 10px' }} data-testid="order-pickup-instructions">
+                  <strong>Pickup instructions:</strong> {order.pickup_instructions}
+                </div>
+              )}
               {isBuyer && (
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.seller_address)}`}
