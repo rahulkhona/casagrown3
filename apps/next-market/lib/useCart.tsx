@@ -95,7 +95,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         // Update qty for existing item
         items = state.items.map((item, idx) =>
           idx === existing
-            ? { ...item, qty: action.qty, unavailable: undefined }
+            ? { ...item, qty: item.qty + action.qty, unavailable: undefined }
             : item
         )
       } else {

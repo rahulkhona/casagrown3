@@ -26,7 +26,6 @@ interface ProduceDisplayItem {
   defaultUnit: string
   liveProductCount: number
   description?: string
-  demandTag?: string
   liveProduct?: LiveProductItem
 }
 
@@ -316,13 +315,6 @@ function MarketProducePageContent() {
         const liveMatches = prodMap[norm] || prodMap[catItem.id] || []
         const liveCount = liveMatches.length
 
-        let demandTag = 'Neighbors interested this week'
-        if (liveCount > 0) {
-          demandTag = `🟢 ${liveCount} Neighbor ${liveCount === 1 ? 'Stand' : 'Stands'} Live`
-        } else if (catItem.category === 'produce' || catItem.category === 'herbs') {
-          demandTag = 'Active requests this week'
-        }
-
         const livePhoto = liveMatches.find((m) => m.photo_url)?.photo_url
         const livePrice = liveCount > 0 ? liveMatches[0].price : catItem.defaultPrice || 3.5
 
@@ -337,7 +329,6 @@ function MarketProducePageContent() {
           liveProductCount: liveCount,
           liveProduct: liveMatches.length > 0 ? liveMatches[0] : undefined,
           description: `Freshly harvested, locally grown ${catItem.name.toLowerCase()}.`,
-          demandTag,
         }
       })
 
@@ -347,11 +338,17 @@ function MarketProducePageContent() {
           const rawName = (p.name || '').trim()
           const norm = rawName.toLowerCase()
           const baseName = extractBaseProduce(rawName).name.toLowerCase()
-          const alreadyInCatalog = displayList.some(
+          const existingIdx = displayList.findIndex(
             (d) => d.name.toLowerCase() === norm || d.name.toLowerCase() === baseName
           )
 
-          if (!alreadyInCatalog && !displayList.some((d) => d.id === p.id)) {
+          const allMatches = prodMap[norm] || prodMap[baseName] || []
+          const liveCount = allMatches.length || 1
+
+          if (existingIdx >= 0) {
+            // Already in list -> update aggregate count
+            displayList[existingIdx].liveProductCount = liveCount
+          } else if (!displayList.some((d) => d.id === p.id)) {
             const boothData = p.market_booths
             const customLiveItem: LiveProductItem = {
               id: p.id,
@@ -384,10 +381,9 @@ function MarketProducePageContent() {
               image: p.photos?.[0] || getProduceImage(p.name),
               defaultPrice: Number(p.price_usd) || 3.5,
               defaultUnit: p.unit || 'lb',
-              liveProductCount: 1,
+              liveProductCount: liveCount,
               liveProduct: customLiveItem,
-              description: `Freshly harvested ${p.name} from a local neighbor.`,
-              demandTag: '🟢 1 Neighbor Stand Live',
+              description: `Freshly harvested ${p.name} from local neighbors.`,
             })
           }
         })
@@ -605,7 +601,6 @@ function MarketProducePageContent() {
       defaultUnit: unit || 'lb',
       liveProductCount: 0,
       description: `Locally grown custom ${name}.`,
-      demandTag: 'New harvest signal',
     }
     setProduceItems((prev) => [newItem, ...prev])
     setSelectedWantCrop(newItem)
@@ -623,7 +618,6 @@ function MarketProducePageContent() {
       defaultUnit: unit || 'lb',
       liveProductCount: 0,
       description: `Locally grown custom ${name}.`,
-      demandTag: 'Neighborhood harvest',
     }
     setProduceItems((prev) => [newItem, ...prev])
     handleOpenListingForCrop(newItem)
@@ -769,7 +763,7 @@ function MarketProducePageContent() {
                       </span>
                     </div>
 
-                    {myListing ? (
+                    {myListing && (
                       <div className={styles.yourListingBadge}>
                         <span className={styles.yourListingIcon}>🧺</span>
                         <div className={styles.yourListingText}>
@@ -778,13 +772,6 @@ function MarketProducePageContent() {
                             {myListing.quantity} {myListing.unit} • ${parseFloat(myListing.price || '0').toFixed(2)}/{myListing.unit}
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className={styles.demandPill}>
-                        <span className={styles.demandLabel}>Local Demand:</span>
-                        <span className={styles.demandValue}>
-                          <span>🔥</span> {item.demandTag}
-                        </span>
                       </div>
                     )}
 

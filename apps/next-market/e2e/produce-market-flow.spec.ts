@@ -195,4 +195,120 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     expect(popup.url().toLowerCase()).toContain('lemon')
     await popup.close()
   })
+
+  test('PM-06: Custom uncatalogued produce with multiple sellers is aggregated into 1 card with multi-stand Want modal', async ({ page }) => {
+    const testCrop = `Golden Dragonfruit ${timestamp}`
+    const seller1Id = 'd4444444-4444-4444-4444-444444444444'
+    const booth1Id = 'cd5eba14-843d-4780-9e65-1e13635f9e63'
+
+    const seller2Id = '55555555-5555-5555-5555-555555555555'
+    const booth2Id = '53990c6d-1760-447e-a718-771d6e938860'
+
+    const todayDate = new Date().toISOString().split('T')[0]
+
+    // 1. Create 2 market products from 2 sellers with the same custom crop name
+    const { data: p1, error: err1 } = await supabase.from('market_products').insert({
+      name: testCrop,
+      price_usd: 4.50,
+      unit: 'each',
+      is_active: true,
+      is_draft: false,
+      seller_id: seller1Id,
+      booth_id: booth1Id,
+      inventory: 10,
+      market_date: todayDate,
+    }).select('id').single()
+
+    const { data: p2, error: err2 } = await supabase.from('market_products').insert({
+      name: testCrop,
+      price_usd: 5.00,
+      unit: 'each',
+      is_active: true,
+      is_draft: false,
+      seller_id: seller2Id,
+      booth_id: booth2Id,
+      inventory: 15,
+      market_date: todayDate,
+    }).select('id').single()
+
+    expect(err1).toBeNull()
+    expect(err2).toBeNull()
+
+    try {
+      // 2. Open /market
+      await page.goto('/market')
+      await expect(page.locator('#produce-search')).toBeVisible({ timeout: 10000 })
+
+      // 3. Search for the custom crop
+      const produceSearch = page.locator('#produce-search')
+      await produceSearch.fill(testCrop)
+      await page.waitForTimeout(600)
+
+      // 4. Verify exactly ONE aggregated produce card appears for this custom crop
+      const matchingCards = page.locator(`[data-name="${testCrop}"]`)
+      await expect(matchingCards).toHaveCount(1)
+
+      // 5. Click Want button on this custom produce card
+      const wantButton = matchingCards.first().locator('button:has-text("Want")')
+      await wantButton.click()
+
+      // 6. Verify WantProduceModal opens and lists BOTH stands
+      await expect(page.getByText('Available from Neighbors')).toBeVisible({ timeout: 5000 })
+      const standCards = page.locator('[class*="listingCard"]')
+      await expect(standCards).toHaveCount(2)
+
+      // Verify prices $4.50 and $5.00 are rendered
+      await expect(page.locator('[class*="listingPriceBadge"]').filter({ hasText: '$4.50' })).toBeVisible()
+      await expect(page.locator('[class*="listingPriceBadge"]').filter({ hasText: '$5.00' })).toBeVisible()
+
+      // Verify Buy Now and Cart buttons exist for both
+      const buyNowBtns = page.locator('button:has-text("Buy Now")')
+      await expect(buyNowBtns).toHaveCount(2)
+    } finally {
+      // Cleanup seeded test products
+      if (p1?.id) await supabase.from('market_products').delete().eq('id', p1.id)
+      if (p2?.id) await supabase.from('market_products').delete().eq('id', p2.id)
+    }
+  })
+
+  test('PM-07: Buy Now, + Cart button, and View Details link in WantProduceModal', async ({ page }) => {
+    await page.goto('/market')
+    await expect(page.locator('#produce-grid')).toBeVisible({ timeout: 10000 })
+
+    // 1. Open Want modal for Tomatoes (which has live neighbor stands)
+    const tomatoCard = page.locator('.produce-card, [class*="produceCard"]').filter({ hasText: 'Tomatoes' }).first()
+    await expect(tomatoCard).toBeVisible()
+    await tomatoCard.locator('button:has-text("Want")').click()
+
+    // 2. Verify View Details link exists and links to product page
+    await expect(page.getByText('Available from Neighbors')).toBeVisible({ timeout: 5000 })
+    const viewDetailsLink = page.locator('a:has-text("View Details →")').first()
+    await expect(viewDetailsLink).toBeVisible()
+    await expect(viewDetailsLink).toHaveAttribute('href', /\/market\/booth\/.*\/product\/.*/)
+
+    // 3. Click + Cart on the first neighbor listing
+    const addCartBtn = page.locator('button:has-text("+ Cart")').first()
+    await expect(addCartBtn).toBeVisible()
+    await addCartBtn.click()
+
+    // 4. Verify immediate feedback banner appears with View Cart link
+    const feedbackBanner = page.locator('text=/Added .* to Cart!/')
+    await expect(feedbackBanner).toBeVisible({ timeout: 5000 })
+    const viewCartLink = page.getByRole('link', { name: /View Cart →/i })
+    await expect(viewCartLink).toBeVisible()
+
+    // 5. Verify navbar shopping cart badge shows 1
+    const cartBadge = page.locator('nav').getByText('1')
+    await expect(cartBadge).toBeVisible()
+
+    // 6. Click Buy Now button and verify BuyModal opens
+    const buyNowBtn = page.locator('button:has-text("Buy Now")').first()
+    await expect(buyNowBtn).toBeVisible()
+    await buyNowBtn.click()
+
+    // Verify BuyModal elements
+    await expect(page.locator('text=/from .*/').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/Price Breakdown/i)).toBeVisible()
+    await expect(page.locator('button:has-text("Pickup")')).toBeVisible()
+  })
 })

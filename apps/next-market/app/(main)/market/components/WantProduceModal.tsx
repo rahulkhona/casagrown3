@@ -662,6 +662,27 @@ export default function WantProduceModal({
         ) : hasActiveListings ? (
           /* State A: Active Listings in Booths */
           <div className={styles.modalBody}>
+            {cartFeedback && (
+              <div style={{
+                background: '#dcfce7',
+                border: '1px solid #86efac',
+                color: '#166534',
+                padding: '10px 14px',
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 600,
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <span>🛒 {cartFeedback}</span>
+                <Link href="/cart" onClick={onClose} style={{ color: '#15803d', fontWeight: 700, textDecoration: 'underline', marginLeft: 8 }}>
+                  View Cart →
+                </Link>
+              </div>
+            )}
+
             <div className={styles.listingsHeader}>
               <span className={styles.listingsBadge}>
                 <span className={styles.pulseDot}></span> Available from Neighbors
@@ -678,36 +699,47 @@ export default function WantProduceModal({
                     : true) &&
                   (dist == null || prod.delivery_radius_miles == null || dist <= (prod.delivery_radius_miles || 5))
                 )
+                const productDetailUrl = `/market/booth/${prod.booth_id || prod.seller_id}/product/${prod.id}`
 
                 return (
                   <div key={prod.id} className={styles.listingCard}>
                     {/* Top Row: Thumbnail + Stand Info + Price */}
                     <div className={styles.listingTopRow}>
-                      <img
-                        src={prod.photo_url || cropImage || '/images/produce_placeholder.jpg'}
-                        alt={prod.name}
-                        className={styles.listingThumb}
-                      />
+                      <Link href={productDetailUrl} onClick={onClose} style={{ display: 'block', flexShrink: 0 }}>
+                        <img
+                          src={prod.photo_url || cropImage || '/images/produce_placeholder.jpg'}
+                          alt={prod.name}
+                          className={styles.listingThumb}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </Link>
                       <div className={styles.listingMainContent}>
                         <div className={styles.listingHeaderLine}>
-                          <span className={styles.standTitle}>
-                            🏡 {prod.seller_name || 'Neighborhood Stand'}
-                            {prod.rating && (
-                              <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginLeft: 4 }}>
-                                ⭐️ {prod.rating.avg.toFixed(1)}
-                              </span>
-                            )}
-                          </span>
+                          <Link href={productDetailUrl} onClick={onClose} style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <span className={styles.standTitle} style={{ cursor: 'pointer' }}>
+                              🏡 {prod.seller_name || 'Neighborhood Stand'}
+                              {prod.rating && (
+                                <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginLeft: 4 }}>
+                                  ⭐️ {prod.rating.avg.toFixed(1)}
+                                </span>
+                              )}
+                            </span>
+                          </Link>
                           <span className={styles.listingPriceBadge}>
                             ${prod.price.toFixed(2)}<span className={styles.listingPriceUnit}>/{prod.unit}</span>
                           </span>
                         </div>
 
-                        {prod.stock_quantity != null && (
-                          <div className={styles.stockLine}>
-                            {prod.stock_quantity > 0 ? `${prod.stock_quantity} available` : 'Sold out'}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                          {prod.stock_quantity != null && (
+                            <span className={styles.stockLine}>
+                              {prod.stock_quantity > 0 ? `${prod.stock_quantity} available` : 'Sold out'}
+                            </span>
+                          )}
+                          <Link href={productDetailUrl} onClick={onClose} style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-700)', textDecoration: 'none' }}>
+                            View Details →
+                          </Link>
+                        </div>
 
                         {/* Badges / Chips: Driving distance & Delivery area */}
                         <div className={styles.chipsContainer}>
