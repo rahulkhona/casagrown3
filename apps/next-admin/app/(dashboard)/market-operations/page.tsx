@@ -198,6 +198,28 @@ export default function MarketOperationsPage() {
     setDefaultLoading(false)
   }
 
+  // ── Toggle Default Schedule Active State Immediately ──
+  const handleToggleDefaultActive = async (nextStatus: boolean) => {
+    setDefIsActive(nextStatus)
+    if (defaultSchedule?.id) {
+      const { error } = await adminApi.update(
+        'market_city_schedules',
+        { is_active: nextStatus, updated_at: new Date().toISOString() },
+        { eq: { id: defaultSchedule.id } }
+      )
+      if (error) {
+        showToast(`Failed to update default schedule: ${error}`, 'error')
+        setDefIsActive(!nextStatus)
+      } else {
+        showToast(nextStatus ? 'Default Market Schedule is now Active platform-wide!' : 'Default Market Schedule disabled globally.')
+        loadSchedules()
+      }
+    } else {
+      // If no row exists yet, save the full payload
+      handleSaveDefaultSchedule()
+    }
+  }
+
   // ── Save Default Schedule ──
   const handleSaveDefaultSchedule = async () => {
     if (!defDay) {
@@ -456,7 +478,7 @@ export default function MarketOperationsPage() {
 
           <ToggleSwitch
             checked={defIsActive}
-            onChange={setDefIsActive}
+            onChange={handleToggleDefaultActive}
             showLabels={true}
             activeLabel="Active Platform-Wide"
             inactiveLabel="Disabled Globally"

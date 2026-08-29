@@ -140,13 +140,16 @@ export default function BulkListingClient() {
       zip: targetZip,
       city: targetCity,
       state: targetState,
-    }).then((sched) => {
-      setActiveCitySchedule(sched)
+    }, true).then((sched) => {
+      setActiveCitySchedule(sched || null)
       if (sched && !hasUserEditedFulfillmentRef.current) {
         setCustomDeliveryWindows(getWindowsForCitySchedule(sched, 'delivery'))
         setCustomPickupWindows(getWindowsForCitySchedule(sched, 'pickup'))
         setDeliveryPreset('city_market_day' as FulfillmentPresetType)
         setPickupPreset('city_market_day' as FulfillmentPresetType)
+      } else if (!sched && !hasUserEditedFulfillmentRef.current) {
+        setDeliveryPreset('both' as FulfillmentPresetType)
+        setPickupPreset('both' as FulfillmentPresetType)
       }
     })
   }, [zipcode, deliveryBaseAddr.zip, deliveryBaseAddr.city, deliveryBaseAddr.state, supabase])

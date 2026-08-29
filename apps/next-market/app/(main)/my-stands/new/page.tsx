@@ -362,8 +362,8 @@ export default function NewStandPage() {
       city: boothAddress.city,
       state: boothAddress.state,
       zip: boothAddress.zip
-    }).then(sched => {
-      setActiveCitySchedule(sched)
+    }, true).then(sched => {
+      setActiveCitySchedule(sched || null)
       if (sched) {
         if (Object.keys(weeklyDeliveryWindows).length === 0) {
           setWeeklyDeliveryWindows(getWindowsForWeeklyPreset('city_market_day', sched, 'delivery'))

@@ -438,8 +438,8 @@ export default function Step2Fulfillment() {
       city: addressFields.city,
       state: addressFields.state,
       zip: addressFields.zip
-    }).then(sched => {
-      setActiveCitySchedule(sched)
+    }, true).then(sched => {
+      setActiveCitySchedule(sched || null)
       if (sched && !cityScheduleAppliedRef.current && !state.boothId) {
         cityScheduleAppliedRef.current = true
         const { pickup, delivery } = mapCityScheduleToDates(sched, dynamicDays)

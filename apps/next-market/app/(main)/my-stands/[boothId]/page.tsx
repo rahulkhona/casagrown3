@@ -492,8 +492,8 @@ export default function StandDetailPage({ params }: { params: Promise<{ boothId:
       city: editBoothAddr.city,
       state: editBoothAddr.state,
       zip: editBoothAddr.zip
-    }).then(sched => {
-      setActiveCitySchedule(sched)
+    }, true).then(sched => {
+      setActiveCitySchedule(sched || null)
     })
   }, [editBoothAddr.city, editBoothAddr.state, editBoothAddr.zip])
 

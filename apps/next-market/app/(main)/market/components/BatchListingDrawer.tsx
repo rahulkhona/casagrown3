@@ -159,13 +159,16 @@ export default function BatchListingDrawer({
     const supabase = createClient()
     resolveActiveCitySchedule(supabase, {
       zip: currentZipcode,
-    }).then((sched) => {
-      setActiveCitySchedule(sched)
+    }, true).then((sched) => {
+      setActiveCitySchedule(sched || null)
       if (sched) {
         setCustomDeliveryWindows(getWindowsForCitySchedule(sched, 'delivery'))
         setCustomPickupWindows(getWindowsForCitySchedule(sched, 'pickup'))
         setDeliveryPreset('city_market_day')
         setPickupPreset('city_market_day')
+      } else {
+        setDeliveryPreset('both')
+        setPickupPreset('both')
       }
     })
   }, [isOpen, currentZipcode])

@@ -28,7 +28,7 @@ export interface CityMarketSchedule {
 // In-memory cache for fast client lookups
 let cachedCitySchedules: CityMarketSchedule[] | null = null
 let cacheTimestamp = 0
-const CACHE_TTL_MS = 60 * 1000 // 1 minute
+const CACHE_TTL_MS = 3 * 1000 // 3 seconds for instant response to admin toggles
 
 export function _clearCitySchedulesCache(): void {
   cachedCitySchedules = null
@@ -38,9 +38,9 @@ export function _clearCitySchedulesCache(): void {
 /**
  * Fetch all active city schedules (with client-side caching)
  */
-export async function fetchActiveCitySchedules(supabase: any): Promise<CityMarketSchedule[]> {
+export async function fetchActiveCitySchedules(supabase: any, forceFresh = false): Promise<CityMarketSchedule[]> {
   const now = Date.now()
-  if (Array.isArray(cachedCitySchedules) && now - cacheTimestamp < CACHE_TTL_MS) {
+  if (!forceFresh && Array.isArray(cachedCitySchedules) && now - cacheTimestamp < CACHE_TTL_MS) {
     return cachedCitySchedules
   }
 
@@ -71,9 +71,10 @@ export async function fetchActiveCitySchedules(supabase: any): Promise<CityMarke
  */
 export async function resolveActiveCitySchedule(
   supabase: any,
-  location: { city?: string | null; state?: string | null; zip?: string | null }
+  location: { city?: string | null; state?: string | null; zip?: string | null },
+  forceFresh = false
 ): Promise<CityMarketSchedule | null> {
-  const schedules = await fetchActiveCitySchedules(supabase)
+  const schedules = await fetchActiveCitySchedules(supabase, forceFresh)
   if (!Array.isArray(schedules) || schedules.length === 0) return null
 
   const cleanCity = (location.city || '').trim().toLowerCase()

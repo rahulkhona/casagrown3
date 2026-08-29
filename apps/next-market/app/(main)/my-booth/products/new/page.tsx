@@ -887,7 +887,7 @@ function NewProductPageInner() {
             city: targetCity,
             state: targetState,
             zip: targetZip,
-          })
+          }, true)
 
           if (citySched) {
             setActiveCitySchedule(citySched)
@@ -898,6 +898,7 @@ function NewProductPageInner() {
             setDeliveryPreset('city_market_day' as PresetType)
             setPickupPreset('city_market_day' as PresetType)
           } else {
+            setActiveCitySchedule(null)
             const defaultDw = getWindowsForPreset('both')
             const defaultPw = getWindowsForPreset('both')
             setProductDeliveryWindows(defaultDw)
