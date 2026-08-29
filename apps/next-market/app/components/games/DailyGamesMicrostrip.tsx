@@ -7,21 +7,17 @@ import { getTodayDateStr, getTodayGames } from '../../../lib/gamesCatalog'
 import styles from './DailyGamesMicrostrip.module.css'
 
 export default function DailyGamesMicrostrip() {
-  const [isVisible, setIsVisible] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [streakDays, setStreakDays] = useState(0)
   const [featuredGameTitle, setFeaturedGameTitle] = useState("Today's Crop Puzzle")
-  const [featuredGameId, setFeaturedGameId] = useState('/games')
 
   useEffect(() => {
     try {
       const todayStr = getTodayDateStr()
-      const dismissedKey = `casagrown_daily_game_strip_dismissed_${todayStr}`
-      const isDismissed = localStorage.getItem(dismissedKey)
-
-      if (isDismissed === 'true') {
-        setIsVisible(false)
-        return
-      }
+      const minKey = `casagrown_daily_game_strip_minimized_${todayStr}`
+      const wasMinimized = localStorage.getItem(minKey) === 'true'
+      setIsMinimized(wasMinimized)
 
       // Read streak and stats
       const stats = getGuestGameStats()
@@ -32,12 +28,11 @@ export default function DailyGamesMicrostrip() {
       if (todayGames && todayGames.length > 0) {
         const featured = todayGames[0]
         setFeaturedGameTitle(featured.categoryName || featured.title)
-        setFeaturedGameId(`/games/${featured.id}`)
       }
 
-      setIsVisible(true)
+      setIsMounted(true)
     } catch {
-      setIsVisible(false)
+      setIsMounted(false)
     }
   }, [])
 
@@ -46,12 +41,40 @@ export default function DailyGamesMicrostrip() {
     e.stopPropagation()
     try {
       const todayStr = getTodayDateStr()
-      localStorage.setItem(`casagrown_daily_game_strip_dismissed_${todayStr}`, 'true')
+      localStorage.setItem(`casagrown_daily_game_strip_minimized_${todayStr}`, 'true')
     } catch {}
-    setIsVisible(false)
+    setIsMinimized(true)
   }
 
-  if (!isVisible) return null
+  const handleExpand = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      const todayStr = getTodayDateStr()
+      localStorage.removeItem(`casagrown_daily_game_strip_minimized_${todayStr}`)
+    } catch {}
+    setIsMinimized(false)
+  }
+
+  if (!isMounted) return null
+
+  // Option 1: Minimized state on left margin above Market tab — expands on tap!
+  if (isMinimized) {
+    return (
+      <aside aria-label="Daily games mini bubble" className={styles.miniBubbleWrapper}>
+        <button
+          type="button"
+          onClick={handleExpand}
+          className={styles.miniBubbleBtn}
+          title="Tap to view Daily Games"
+          aria-label="Expand Daily Games challenge"
+        >
+          <span className={styles.miniBubbleIcon}>🎮</span>
+          <span className={styles.miniBubbleStreak}>🔥{streakDays > 0 ? streakDays : 1}</span>
+        </button>
+      </aside>
+    )
+  }
 
   return (
     <aside aria-label="Daily games hub banner" className={styles.microstripWrapper}>

@@ -13,7 +13,6 @@ import BatchListingDrawer, { BatchItem } from './components/BatchListingDrawer'
 import BuyModal from '../../components/BuyModal'
 import { SmartAppBanner } from '../../components/SmartAppBanner'
 import DailyGamesMicrostrip from '../../components/games/DailyGamesMicrostrip'
-import DailyGamesBar from '../../components/games/DailyGamesBar'
 import { trackEvent } from '../../../lib/crm-analytics'
 import styles from './page.module.css'
 
@@ -710,10 +709,7 @@ function MarketProducePageContent() {
 
       {/* ── MAIN CONTENT & PRODUCE GRID ── */}
       <main className={styles.mainContainer}>
-        {/* Desktop Daily Games Carousel (Hidden on Mobile) */}
-        <DailyGamesBar />
-
-        {/* Mobile Floating Games Microstrip (Hidden on Desktop) */}
+        {/* Floating Daily Games Microstrip & Collapsible Mini-Bubble */}
         <DailyGamesMicrostrip />
 
         {isLoading ? (

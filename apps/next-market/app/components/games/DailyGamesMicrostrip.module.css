@@ -12,7 +12,12 @@
 
 @media (min-width: 769px) {
   .microstripWrapper {
-    display: none !important;
+    bottom: 24px;
+    left: 24px;
+    right: auto;
+    width: 440px;
+    max-width: 440px;
+    margin: 0;
   }
 }
 
@@ -31,6 +36,10 @@
   color: inherit;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(16, 185, 129, 0.1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.microstripContent:hover {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(16, 185, 129, 0.15);
 }
 
 .microstripContent:active {
@@ -78,19 +87,6 @@
   flex-shrink: 0;
 }
 
-.pointsBadge {
-  display: inline-flex;
-  align-items: center;
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-  border-radius: 12px;
-  padding: 2px 7px;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
 .microstripRight {
   display: flex;
   align-items: center;
@@ -107,6 +103,10 @@
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: background 0.15s ease;
+}
+
+.playBtn:hover {
+  background: #047857;
 }
 
 .dismissBtn {
@@ -132,6 +132,63 @@
   background: #e2e8f0;
 }
 
+/* ── FLOATING MINI-BUBBLE (UNIFIED ON DESKTOP & MOBILE) ── */
+.miniBubbleWrapper {
+  position: fixed;
+  bottom: calc(56px + env(safe-area-inset-bottom, 8px) + 10px);
+  left: 14px;
+  z-index: 95;
+  animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@media (min-width: 769px) {
+  .miniBubbleWrapper {
+    bottom: 24px;
+    left: 24px;
+  }
+}
+
+.miniBubbleBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1.5px solid #10b981;
+  border-radius: 20px;
+  padding: 5px 9px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.22), 0 2px 5px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.miniBubbleBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.3);
+}
+
+.miniBubbleBtn:active {
+  transform: scale(0.92);
+}
+
+.miniBubbleIcon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.miniBubbleStreak {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -140,5 +197,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
