@@ -27,11 +27,35 @@ import {
   parseProduceParams,
   createRowFromProduceName,
   getWindowsForPreset,
+  getWindowsForCitySchedule,
   isHourSelected,
   toggleHourCell,
   convertPrice,
   normalizeProduceKey,
 } from '../../../lib/bulkListingUtils'
+import {
+  CityMarketSchedule,
+  resolveActiveCitySchedule,
+  formatMarketDaySummary,
+} from '../../../lib/marketCitySchedules'
+
+function formatTime12(timeStr: string): string {
+  const [hStr, mStr] = timeStr.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr || '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+function getMarketDayTimeString(sched: CityMarketSchedule, type: 'pickup' | 'delivery'): string {
+  const days = sched.market_days.join(', ')
+  const windows = type === 'pickup' ? sched.default_pickup_windows : sched.default_delivery_windows
+  if (!windows || windows.length === 0) return `${days}`
+  const times = windows.map(w => `${formatTime12(w.start_time)} – ${formatTime12(w.end_time)}`).join(', ')
+  return `${days} · ${times}`
+}
 
 
 
@@ -94,6 +118,8 @@ export default function BulkListingClient() {
     getWindowsForPreset('both')
   )
 
+  const [activeCitySchedule, setActiveCitySchedule] = useState<CityMarketSchedule | null>(null)
+
   const [geolocatingDelivery, setGeolocatingDelivery] = useState(false)
   const [geolocatingPickup, setGeolocatingPickup] = useState(false)
   const [existingBoothId, setExistingBoothId] = useState<string | null>(null)
@@ -102,6 +128,28 @@ export default function BulkListingClient() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const hasUserEditedFulfillmentRef = useRef(false)
   const hasPublishedRef = useRef(false)
+
+  // Resolve City Market Schedule whenever location changes
+  useEffect(() => {
+    const targetZip = zipcode || deliveryBaseAddr.zip || ''
+    const targetCity = deliveryBaseAddr.city || ''
+    const targetState = deliveryBaseAddr.state || ''
+    if (!targetZip && !targetCity) return
+
+    resolveActiveCitySchedule(supabase, {
+      zip: targetZip,
+      city: targetCity,
+      state: targetState,
+    }).then((sched) => {
+      setActiveCitySchedule(sched)
+      if (sched && !hasUserEditedFulfillmentRef.current) {
+        setCustomDeliveryWindows(getWindowsForCitySchedule(sched, 'delivery'))
+        setCustomPickupWindows(getWindowsForCitySchedule(sched, 'pickup'))
+        setDeliveryPreset('city_market_day' as FulfillmentPresetType)
+        setPickupPreset('city_market_day' as FulfillmentPresetType)
+      }
+    })
+  }, [zipcode, deliveryBaseAddr.zip, deliveryBaseAddr.city, deliveryBaseAddr.state, supabase])
   const userModifiedPriceRowIds = useRef<Set<string>>(new Set())
 
 
@@ -1260,11 +1308,11 @@ export default function BulkListingClient() {
         '94024'
 
 
-      const deliveryWindows = deliveryPreset === 'custom' 
+      const deliveryWindows = (deliveryPreset === 'custom' || deliveryPreset === 'city_market_day')
         ? customDeliveryWindows 
         : getWindowsForPreset(deliveryPreset)
 
-      const pickupWindows = pickupPreset === 'custom' 
+      const pickupWindows = (pickupPreset === 'custom' || pickupPreset === 'city_market_day')
         ? customPickupWindows 
         : getWindowsForPreset(pickupPreset)
 
@@ -1991,7 +2039,6 @@ export default function BulkListingClient() {
             </div>
             <h2 style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginBottom: 20 }}>How should buyers get this?</h2>
 
-            
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 32, width: '100%', boxSizing: 'border-box' }}>
 
               {/* Delivery Option */}
@@ -2067,68 +2114,162 @@ export default function BulkListingClient() {
 
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 8 }}>Delivery Schedule</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: deliveryPreset === 'custom' ? 12 : 0 }}>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setDeliveryPreset('weekday_evenings')
-                            setSelectedDeliveryWindows(['weekday_evenings'])
-                            setCustomDeliveryWindows(getWindowsForPreset('weekday_evenings'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            background: deliveryPreset === 'weekday_evenings' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
-                            borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            border: deliveryPreset === 'weekday_evenings' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            color: deliveryPreset === 'weekday_evenings' ? '#4ade80' : 'rgba(255,255,255,0.8)'
-                          }}>
-                          🌆 Weekday evenings
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setDeliveryPreset('weekend_mornings')
-                            setSelectedDeliveryWindows(['weekend_mornings'])
-                            setCustomDeliveryWindows(getWindowsForPreset('weekend_mornings'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            background: deliveryPreset === 'weekend_mornings' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
-                            borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            border: deliveryPreset === 'weekend_mornings' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            color: deliveryPreset === 'weekend_mornings' ? '#4ade80' : 'rgba(255,255,255,0.8)'
-                          }}>
-                          🌅 Weekend mornings
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setDeliveryPreset('both')
-                            setSelectedDeliveryWindows(['weekday_evenings', 'weekend_mornings'])
-                            setCustomDeliveryWindows(getWindowsForPreset('both'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            background: deliveryPreset === 'both' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
-                            borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            border: deliveryPreset === 'both' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            color: deliveryPreset === 'both' ? '#4ade80' : 'rgba(255,255,255,0.8)'
-                          }}>
-                          ☀️ Both (Recommended)
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setDeliveryPreset('custom')} 
-                          style={{
-                            padding: '8px 14px',
-                            background: deliveryPreset === 'custom' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
-                            borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            border: deliveryPreset === 'custom' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            color: deliveryPreset === 'custom' ? '#4ade80' : 'rgba(255,255,255,0.8)'
-                          }}>
-                          📅 Custom schedule
-                        </button>
-                      </div>
+
+                      {activeCitySchedule && deliveryPreset !== 'custom' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(34, 197, 94, 0.15)', border: '1.5px solid #22c55e', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>✨</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>
+                                {activeCitySchedule.city} Market Day Delivery
+                              </div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 }}>
+                                {getMarketDayTimeString(activeCitySchedule, 'delivery')}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            data-testid="customize-delivery-schedule-btn"
+                            onClick={() => {
+                              hasUserEditedFulfillmentRef.current = true
+                              setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                              setDeliveryPreset('custom')
+                            }}
+                            style={{
+                              background: '#ffffff',
+                              border: '1.5px solid #22c55e',
+                              borderRadius: 8,
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#15803d',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <span>✏️</span> Customize
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {activeCitySchedule && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600 }}>Custom Schedule Mode</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  hasUserEditedFulfillmentRef.current = true
+                                  setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                  setDeliveryPreset('city_market_day' as FulfillmentPresetType)
+                                  setSelectedDeliveryWindows(['city_market_day'])
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#4ade80',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: 0
+                                }}
+                              >
+                                ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: deliveryPreset === 'custom' ? 12 : 0 }}>
+                            {activeCitySchedule && (
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  hasUserEditedFulfillmentRef.current = true
+                                  setDeliveryPreset('city_market_day' as FulfillmentPresetType)
+                                  setSelectedDeliveryWindows(['city_market_day'])
+                                  setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                }} 
+                                style={{
+                                  padding: '8px 14px',
+                                  background: deliveryPreset === 'city_market_day' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                                  borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                  border: deliveryPreset === 'city_market_day' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                  color: deliveryPreset === 'city_market_day' ? '#4ade80' : 'rgba(255,255,255,0.8)'
+                                }}>
+                                ✨ {activeCitySchedule.city} Market Day
+                              </button>
+                            )}
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setDeliveryPreset('weekday_evenings')
+                                setSelectedDeliveryWindows(['weekday_evenings'])
+                                setCustomDeliveryWindows(getWindowsForPreset('weekday_evenings'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                background: deliveryPreset === 'weekday_evenings' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                                borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                border: deliveryPreset === 'weekday_evenings' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                color: deliveryPreset === 'weekday_evenings' ? '#4ade80' : 'rgba(255,255,255,0.8)'
+                              }}>
+                              🌆 Weekday evenings
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setDeliveryPreset('weekend_mornings')
+                                setSelectedDeliveryWindows(['weekend_mornings'])
+                                setCustomDeliveryWindows(getWindowsForPreset('weekend_mornings'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                background: deliveryPreset === 'weekend_mornings' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                                borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                border: deliveryPreset === 'weekend_mornings' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                color: deliveryPreset === 'weekend_mornings' ? '#4ade80' : 'rgba(255,255,255,0.8)'
+                              }}>
+                              🌅 Weekend mornings
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setDeliveryPreset('both')
+                                setSelectedDeliveryWindows(['weekday_evenings', 'weekend_mornings'])
+                                setCustomDeliveryWindows(getWindowsForPreset('both'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                background: deliveryPreset === 'both' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                                borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                border: deliveryPreset === 'both' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                color: deliveryPreset === 'both' ? '#4ade80' : 'rgba(255,255,255,0.8)'
+                              }}>
+                              ☀️ Both (Recommended)
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setDeliveryPreset('custom')
+                                if (activeCitySchedule && (!customDeliveryWindows || Object.keys(customDeliveryWindows).length === 0)) {
+                                  setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                }
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                background: deliveryPreset === 'custom' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.06)',
+                                borderRadius: 100, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                border: deliveryPreset === 'custom' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                color: deliveryPreset === 'custom' ? '#4ade80' : 'rgba(255,255,255,0.8)'
+                              }}>
+                              📅 Custom schedule
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {deliveryPreset === 'custom' && (
                         <div style={{ background: '#111812', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>
@@ -2500,84 +2641,182 @@ export default function BulkListingClient() {
 
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 8 }}>Pickup Schedule</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: pickupPreset === 'custom' ? 12 : 0 }}>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setPickupPreset('weekday_evenings')
-                            setSelectedPickupWindows(['weekday_evenings'])
-                            setCustomPickupWindows(getWindowsForPreset('weekday_evenings'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 100,
-                            border: pickupPreset === 'weekday_evenings' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            background: pickupPreset === 'weekday_evenings' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
-                            color: pickupPreset === 'weekday_evenings' ? '#4ade80' : '#ffffff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          🌆 Weekday evenings
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setPickupPreset('weekend_mornings')
-                            setSelectedPickupWindows(['weekend_mornings'])
-                            setCustomPickupWindows(getWindowsForPreset('weekend_mornings'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 100,
-                            border: pickupPreset === 'weekend_mornings' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            background: pickupPreset === 'weekend_mornings' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
-                            color: pickupPreset === 'weekend_mornings' ? '#4ade80' : '#ffffff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          🌅 Weekend mornings
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setPickupPreset('both')
-                            setSelectedPickupWindows(['weekday_evenings', 'weekend_mornings'])
-                            setCustomPickupWindows(getWindowsForPreset('both'))
-                          }} 
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 100,
-                            border: pickupPreset === 'both' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            background: pickupPreset === 'both' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
-                            color: pickupPreset === 'both' ? '#4ade80' : '#ffffff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          🌟 Both (Recommended)
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setPickupPreset('custom')} 
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: 100,
-                            border: pickupPreset === 'custom' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
-                            background: pickupPreset === 'custom' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
-                            color: pickupPreset === 'custom' ? '#4ade80' : '#ffffff',
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          📅 Custom schedule
-                        </button>
-                      </div>
+
+                      {activeCitySchedule && pickupPreset !== 'custom' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(34, 197, 94, 0.15)', border: '1.5px solid #22c55e', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>✨</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>
+                                {activeCitySchedule.city} Market Day Pickup
+                              </div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 }}>
+                                {getMarketDayTimeString(activeCitySchedule, 'pickup')}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            data-testid="customize-pickup-schedule-btn"
+                            onClick={() => {
+                              hasUserEditedFulfillmentRef.current = true
+                              setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                              setPickupPreset('custom')
+                            }}
+                            style={{
+                              background: '#ffffff',
+                              border: '1.5px solid #22c55e',
+                              borderRadius: 8,
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#15803d',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <span>✏️</span> Customize
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {activeCitySchedule && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600 }}>Custom Schedule Mode</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  hasUserEditedFulfillmentRef.current = true
+                                  setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                  setPickupPreset('city_market_day' as FulfillmentPresetType)
+                                  setSelectedPickupWindows(['city_market_day'])
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#4ade80',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: 0
+                                }}
+                              >
+                                ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: pickupPreset === 'custom' ? 12 : 0 }}>
+                            {activeCitySchedule && (
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  hasUserEditedFulfillmentRef.current = true
+                                  setPickupPreset('city_market_day' as FulfillmentPresetType)
+                                  setSelectedPickupWindows(['city_market_day'])
+                                  setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                }} 
+                                style={{
+                                  padding: '8px 14px',
+                                  borderRadius: 100,
+                                  border: pickupPreset === 'city_market_day' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                  background: pickupPreset === 'city_market_day' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                                  color: pickupPreset === 'city_market_day' ? '#4ade80' : '#ffffff',
+                                  fontWeight: 600,
+                                  fontSize: 13,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ✨ {activeCitySchedule.city} Market Day
+                              </button>
+                            )}
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setPickupPreset('weekday_evenings')
+                                setSelectedPickupWindows(['weekday_evenings'])
+                                setCustomPickupWindows(getWindowsForPreset('weekday_evenings'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 100,
+                                border: pickupPreset === 'weekday_evenings' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                background: pickupPreset === 'weekday_evenings' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                                color: pickupPreset === 'weekday_evenings' ? '#4ade80' : '#ffffff',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🌆 Weekday evenings
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setPickupPreset('weekend_mornings')
+                                setSelectedPickupWindows(['weekend_mornings'])
+                                setCustomPickupWindows(getWindowsForPreset('weekend_mornings'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 100,
+                                border: pickupPreset === 'weekend_mornings' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                background: pickupPreset === 'weekend_mornings' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                                color: pickupPreset === 'weekend_mornings' ? '#4ade80' : '#ffffff',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🌅 Weekend mornings
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setPickupPreset('both')
+                                setSelectedPickupWindows(['weekday_evenings', 'weekend_mornings'])
+                                setCustomPickupWindows(getWindowsForPreset('both'))
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 100,
+                                border: pickupPreset === 'both' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                background: pickupPreset === 'both' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                                color: pickupPreset === 'both' ? '#4ade80' : '#ffffff',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🌟 Both (Recommended)
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setPickupPreset('custom')
+                                if (activeCitySchedule && (!customPickupWindows || Object.keys(customPickupWindows).length === 0)) {
+                                  setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                }
+                              }} 
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 100,
+                                border: pickupPreset === 'custom' ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                                background: pickupPreset === 'custom' ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.05)',
+                                color: pickupPreset === 'custom' ? '#4ade80' : '#ffffff',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📅 Custom schedule
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {pickupPreset === 'custom' && (
                         <div style={{ background: '#111812', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>

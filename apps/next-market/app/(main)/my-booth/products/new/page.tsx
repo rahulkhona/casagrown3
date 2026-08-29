@@ -13,8 +13,30 @@ import { NotificationPromptModal } from '../../../../components/NotificationProm
 import CameraCapture from '../../../../../components/CameraCapture'
 import { checkTextForViolations } from '../../../../../lib/moderation'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId } from '../../../../../lib/crm-analytics'
-import { convertPrice } from '../../../../../lib/bulkListingUtils'
+import { convertPrice, getWindowsForCitySchedule } from '../../../../../lib/bulkListingUtils'
+import {
+  CityMarketSchedule,
+  resolveActiveCitySchedule,
+  formatMarketDaySummary,
+} from '../../../../../lib/marketCitySchedules'
 
+function formatTime12(timeStr: string): string {
+  const [hStr, mStr] = timeStr.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr || '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+function getMarketDayTimeString(sched: CityMarketSchedule, type: 'pickup' | 'delivery'): string {
+  const days = sched.market_days.join(', ')
+  const windows = type === 'pickup' ? sched.default_pickup_windows : sched.default_delivery_windows
+  if (!windows || windows.length === 0) return `${days}`
+  const times = windows.map(w => `${formatTime12(w.start_time)} – ${formatTime12(w.end_time)}`).join(', ')
+  return `${days} · ${times}`
+}
 
 import { ShareIcon } from '../../../../components/icons'
 import SocialShareModal from '../../../../components/SocialShareModal'
@@ -27,6 +49,31 @@ import { AddressFields, EMPTY_ADDRESS, formatFullAddress, hasAddress, isAddressC
 import { geocodeAddress, toPostgisPoint } from '../../../../../lib/geocode'
 import { decomposeAddress, parseTextFallback } from './nlp-parser-utils'
 import { autoPostProductToCommunity } from '../../../../../../../packages/app/features/community-chat/auto-post-service'
+import { extractBaseProduce } from '../../../../../lib/produceCatalog'
+
+function getSuggestedQuantities(unitName: string): number[] {
+  switch (unitName) {
+    case 'dozen':
+      return [1, 2, 3, 5]
+    case 'bunch':
+      return [3, 5, 10, 20]
+    case 'lb':
+      return [3, 5, 10, 20]
+    case 'oz':
+      return [4, 8, 16, 32]
+    case 'basket':
+    case 'box':
+    case 'jar':
+    case 'bag':
+    case 'pint':
+    case 'quart':
+    case 'loaf':
+      return [2, 4, 6, 12]
+    case 'each':
+    default:
+      return [5, 10, 15, 25]
+  }
+}
 
 
 
@@ -131,7 +178,7 @@ function NewProductPageInner() {
   const [showCamera, setShowCamera] = useState(false)
 
   // Product details
-  const [name, setName] = useState('')
+  const [name, setName] = useState(() => searchParams.get('name') || searchParams.get('crop') || '')
   const [description, setDescription] = useState('')
   const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false)
   const [generatedRecipesList, setGeneratedRecipesList] = useState<string[]>([])
@@ -331,9 +378,10 @@ function NewProductPageInner() {
   const [prodCustomEnd, setProdCustomEnd] = useState('19:00')
 
   // ── Fulfillment Window presets (Revised Per-Card layout) ──
-  type PresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom'
+  type PresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom' | 'city_market_day'
   const [deliveryPreset, setDeliveryPreset] = useState<PresetType>('both')
   const [pickupPreset, setPickupPreset] = useState<PresetType>('both')
+  const [activeCitySchedule, setActiveCitySchedule] = useState<CityMarketSchedule | null>(null)
 
   // Map 1-hour rows to 2-hour database slots
   const mapHourToSlotId = (hour: number): string | null => {
@@ -528,82 +576,81 @@ function NewProductPageInner() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Price suggestion: two-tier (local average → AI fallback)
+  // Price suggestion: Instant catalog baseline → local neighborhood average → AI fallback
   useEffect(() => {
-    if (!name || name.trim().length < 3) {
+    if (!name || name.trim().length < 2) {
       setSuggestedPrice(null)
       return
     }
+    const trimmed = name.trim()
+    const baseProduce = extractBaseProduce(trimmed)
+
+    // Instant Tier 0: Canonical produce catalog baseline
+    if (baseProduce && baseProduce.defaultPrice) {
+      setSuggestedPrice({
+        price_usd: baseProduce.defaultPrice,
+        unit: baseProduce.defaultUnit || 'lb',
+        source: 'catalog',
+      })
+    }
+
     const timer = setTimeout(async () => {
-      const trimmed = name.trim()
       // Extract last word as the base noun ("Heirloom Tomatoes" → "Tomatoes")
       const words = trimmed.split(/\s+/)
       const baseNoun = words[words.length - 1]
-      if (baseNoun === lastPriceCheck.current) return
+      if (baseNoun === lastPriceCheck.current && suggestedPrice) return
       lastPriceCheck.current = baseNoun
 
-      if (!authUser) return
       setSuggestingPrice(true)
 
       try {
-        // Tier 1: query local products in the same neighborhood
-        const { data: profile } = await supabase
-          .from('profiles').select('home_community_h3_index, city, state_code')
-          .eq('id', authUser.id).single()
-        const h3 = profile?.home_community_h3_index
+        let h3: string | undefined
+        let stateCode: string | undefined
+        let city: string | undefined
 
-        if (h3) {
-          // Find active products from sellers in same neighborhood matching the base noun
-          const { data: localProducts } = await supabase
-            .from('market_products')
-            .select('price_usd, unit, seller_id, name')
-            .ilike('name', `%${baseNoun}%`)
-            .eq('is_active', true)
-            .order('created_at', { ascending: false })
-            .limit(50)
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles').select('home_community_h3_index, city, state_code')
+            .eq('id', authUser.id).single()
+          h3 = profile?.home_community_h3_index
+          stateCode = profile?.state_code
+          city = profile?.city
+        }
 
-          // Filter to same-neighborhood sellers
-          if (localProducts && localProducts.length > 0) {
-            const sellerIds = Array.from(new Set(localProducts.map((p: any) => p.seller_id)))
-            const { data: neighborSellers } = await supabase
-              .from('profiles').select('id')
-              .eq('home_community_h3_index', h3)
-              .in('id', sellerIds)
+        // Tier 1: query active market products matching the base noun
+        const { data: localProducts } = await supabase
+          .from('market_products')
+          .select('price_usd, unit, seller_id, name')
+          .ilike('name', `%${baseNoun}%`)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(30)
 
-            if (neighborSellers && neighborSellers.length > 0) {
-              const neighborIds = new Set(neighborSellers.map((s: any) => s.id))
-              const matches = localProducts.filter((p: any) => neighborIds.has(p.seller_id))
+        if (localProducts && localProducts.length >= 2) {
+          const avg = localProducts.reduce((sum: number, p: any) => sum + Number(p.price_usd), 0) / localProducts.length
+          const unitCounts: Record<string, number> = {}
+          localProducts.forEach((p: any) => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
+          const topUnit = Object.entries(unitCounts).sort((a, b) => b[1] - a[1])[0][0]
+          setSuggestedPrice({ price_usd: Math.round(avg * 100) / 100, unit: topUnit, source: 'neighborhood_average' })
+          setSuggestingPrice(false)
+          return
+        }
 
-              if (matches.length >= 3) {
-                const avg = matches.reduce((sum: number, p: any) => sum + Number(p.price_usd), 0) / matches.length
-                // Most common unit
-                const unitCounts: Record<string, number> = {}
-                matches.forEach((p: any) => { unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1 })
-                const topUnit = Object.entries(unitCounts).sort((a, b) => b[1] - a[1])[0][0]
-                setSuggestedPrice({ price_usd: Math.round(avg * 100) / 100, unit: topUnit, source: 'neighborhood_average' })
-                setSuggestingPrice(false)
-                return
-              }
-            }
+        // Tier 2: AI fallback (if user is authenticated)
+        if (authUser) {
+          const res = await supabase.functions.invoke('suggest-product-price', {
+            body: { name: trimmed, state: stateCode, city: city }
+          })
+          if (res.data && typeof res.data.price_usd === 'number' && res.data.price_usd > 0 && !res.data.error) {
+            setSuggestedPrice(res.data)
           }
         }
-
-        // Tier 2: AI fallback
-        const res = await supabase.functions.invoke('suggest-product-price', {
-          body: { name: trimmed, state: profile?.state_code, city: profile?.city }
-        })
-        if (res.data && typeof res.data.price_usd === 'number' && res.data.price_usd > 0 && !res.data.error) {
-          setSuggestedPrice(res.data)
-        } else {
-          setSuggestedPrice(null)
-        }
       } catch (err) {
-        console.warn('Price suggestion failed:', err)
-        setSuggestedPrice(null)
+        console.warn('Price suggestion lookup failed:', err)
       } finally {
         setSuggestingPrice(false)
       }
-    }, 700)
+    }, 400)
     return () => clearTimeout(timer)
   }, [name, authUser, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -815,13 +862,6 @@ function NewProductPageInner() {
           if (booth?.delivery_radius_miles != null) setInlineDeliveryRadius(booth.delivery_radius_miles)
           if (booth?.delivery_zipcodes) setInlineDeliveryZipcodes(booth.delivery_zipcodes)
 
-          const defaultDw = getWindowsForPreset('both')
-          const defaultPw = getWindowsForPreset('both')
-          setProductDeliveryWindows(defaultDw)
-          setProductPickupWindows(defaultPw)
-          setDeliveryPreset('both')
-          setPickupPreset('both')
-
           // Use profile address as pickup address fallback
           const { data: profile } = await supabase
             .from('profiles')
@@ -836,6 +876,34 @@ function NewProductPageInner() {
               zip: profile.zip_code || '',
             }
             setProductPickupAddr(profileAddr)
+          }
+
+          // Check for City Market Schedule
+          const targetCity = booth?.booth_city || profile?.city || ''
+          const targetState = booth?.booth_state || profile?.state_code || ''
+          const targetZip = booth?.booth_zip || profile?.zip_code || ''
+
+          const citySched = await resolveActiveCitySchedule(supabase, {
+            city: targetCity,
+            state: targetState,
+            zip: targetZip,
+          })
+
+          if (citySched) {
+            setActiveCitySchedule(citySched)
+            const cityDw = getWindowsForCitySchedule(citySched, 'delivery')
+            const cityPw = getWindowsForCitySchedule(citySched, 'pickup')
+            setProductDeliveryWindows(cityDw)
+            setProductPickupWindows(cityPw)
+            setDeliveryPreset('city_market_day' as PresetType)
+            setPickupPreset('city_market_day' as PresetType)
+          } else {
+            const defaultDw = getWindowsForPreset('both')
+            const defaultPw = getWindowsForPreset('both')
+            setProductDeliveryWindows(defaultDw)
+            setProductPickupWindows(defaultPw)
+            setDeliveryPreset('both')
+            setPickupPreset('both')
           }
         }
       } else {
@@ -2604,45 +2672,6 @@ function NewProductPageInner() {
 
         <form onSubmit={handleSubmit}>
 
-          {/* ===== Booth Selector (multi-booth users) ===== */}
-          {allBooths.length > 1 && (
-            <div className={styles.section}>
-              <label className={styles.label}>🏪 Booth</label>
-              {boothParam ? (
-                <>
-                  <div style={{
-                    width: '100%', padding: '10px 14px', fontSize: 15, borderRadius: 10,
-                    border: '1px solid #d1d5db', background: '#f9fafb', color: '#374151',
-                  }}>
-                    {allBooths.find(b => b.id === boothId)?.name || 'Loading...'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-                    Adding to this booth. <a href="/my-booth/products/new" style={{ color: 'var(--green-600)' }}>Switch booth?</a>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <select
-                    value={boothId || ''}
-                    onChange={e => setBoothId(e.target.value)}
-                    style={{
-                      width: '100%', padding: '10px 14px', fontSize: 15, borderRadius: 10,
-                      border: '1px solid #d1d5db', background: '#fff', outline: 'none',
-                      appearance: 'auto',
-                    }}
-                  >
-                    {allBooths.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-                    This product will be listed at the selected booth
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
           {/* ===== Photos with cropping ===== */}
           <div className={styles.section}>
             <label className={styles.label}>Photos {photos.length > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
@@ -2971,6 +3000,34 @@ function NewProductPageInner() {
               <label className={styles.label}>Available Quantity {quantity && parseInt(quantity) > 0 ? <span style={{ color: 'var(--green-600)' }}>✓</span> : <span className={styles.required}>*</span>}</label>
               <div className={styles.fieldHint}>Enter your estimated minimum available quantity so we can prevent orders when you&apos;re sold out.</div>
               <input className={`${styles.input} ${errors.quantity ? styles.inputError : (quantity && parseInt(quantity) > 0) ? styles.inputFilled : styles.inputRequired}`} type="number" min="1" value={quantity} onChange={e => { setQuantity(e.target.value); setErrors(p => ({ ...p, quantity: '', minimum: '' })) }} onBlur={() => trackFieldInteract(PAGE_SLUG, 1, 'quantity', !!quantity)} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} placeholder="10" />
+              {/* Quick Select Quantity Chips */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--gray-600, #4b5563)', fontWeight: 500 }}>💡 Quick select:</span>
+                {getSuggestedQuantities(unit).map(q => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => {
+                      setQuantity(q.toString())
+                      setErrors(p => ({ ...p, quantity: '', minimum: '' }))
+                      trackFieldInteract(PAGE_SLUG, 1, 'quantity', true)
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 16,
+                      border: quantity === q.toString() ? '1.5px solid var(--green-600, #16a34a)' : '1px solid var(--gray-300, #d1d5db)',
+                      background: quantity === q.toString() ? 'var(--green-50, #f0fdf4)' : '#ffffff',
+                      color: quantity === q.toString() ? 'var(--green-800, #166534)' : 'var(--gray-700, #374151)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {q} {unit}{q > 1 && !unit.endsWith('s') && unit !== 'each' && unit !== 'dozen' && unit !== 'oz' && unit !== 'lb' ? 's' : ''}
+                  </button>
+                ))}
+              </div>
               {errors.quantity && <span className={styles.error}>{errors.quantity}</span>}
             </div>
           </div>
@@ -3171,41 +3228,118 @@ function NewProductPageInner() {
 
                         {/* ── Delivery presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <div className={styles.presetGroup}>
-                            <label className={styles.label}>Schedule:</label>
-                            {[
-                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
-                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
-                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
-                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
-                            ].map(p => {
-                              const isActive = deliveryPreset === p.id
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
-                                  onClick={() => {
-                                    setDeliveryPreset(p.id)
-                                    if (p.id !== 'custom') {
-                                      setProductDeliveryWindows(getWindowsForPreset(p.id))
-                                    }
-                                  }}
-                                >
-                                  <input
-                                    type="radio"
-                                    checked={isActive}
-                                    onChange={() => {}}
-                                    className={styles.presetRadio}
-                                  />
-                                  <div className={styles.presetText}>
-                                    <span className={styles.presetLabel}>{p.label}</span>
-                                    <span className={styles.presetDesc}>{p.desc}</span>
+                          <label className={styles.label} style={{ marginBottom: 8, display: 'block' }}>Schedule:</label>
+                          {activeCitySchedule && deliveryPreset !== 'custom' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 18 }}>✨</span>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                                    {activeCitySchedule.city} Market Day Delivery
                                   </div>
-                                </button>
-                              )
-                            })}
-                          </div>
+                                  <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                                    {getMarketDayTimeString(activeCitySchedule, 'delivery')}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                data-testid="customize-delivery-schedule-btn"
+                                onClick={() => {
+                                  setProductDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                  setDeliveryPreset('custom')
+                                }}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1.5px solid #16a34a',
+                                  borderRadius: 8,
+                                  padding: '6px 14px',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: '#15803d',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                <span>✏️</span> Customize
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              {activeCitySchedule && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                  <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setProductDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                      setDeliveryPreset('city_market_day')
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#15803d',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                      padding: 0
+                                    }}
+                                  >
+                                    ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className={styles.presetGroup}>
+                                {[
+                                  ...(activeCitySchedule ? [{
+                                    id: 'city_market_day' as PresetType,
+                                    label: `✨ ${activeCitySchedule.city} Market Day (Pre-Selected)`,
+                                    desc: formatMarketDaySummary(activeCitySchedule),
+                                  }] : []),
+                                  { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                                  { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                                  { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                                  { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                                ].map(p => {
+                                  const isActive = deliveryPreset === p.id
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
+                                      onClick={() => {
+                                        setDeliveryPreset(p.id)
+                                        if (p.id === 'city_market_day' && activeCitySchedule) {
+                                          setProductDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                        } else if (p.id === 'custom') {
+                                          if (activeCitySchedule && (!productDeliveryWindows || Object.keys(productDeliveryWindows).length === 0)) {
+                                            setProductDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                          }
+                                        } else {
+                                          setProductDeliveryWindows(getWindowsForPreset(p.id))
+                                        }
+                                      }}
+                                    >
+                                      <input
+                                        type="radio"
+                                        checked={isActive}
+                                        onChange={() => {}}
+                                        className={styles.presetRadio}
+                                      />
+                                      <div className={styles.presetText}>
+                                        <span className={styles.presetLabel}>{p.label}</span>
+                                        <span className={styles.presetDesc}>{p.desc}</span>
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {deliveryPreset === 'custom' && (
                             <div className={styles.gridContainer}>
@@ -3532,41 +3666,118 @@ function NewProductPageInner() {
 
                         {/* ── Pickup presets & Custom weekly calendar snap grid ── */}
                         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #bbf7d0' }}>
-                          <div className={styles.presetGroup}>
-                            <label className={styles.label}>Schedule:</label>
-                            {[
-                              { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
-                              { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
-                              { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
-                              { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
-                            ].map(p => {
-                              const isActive = pickupPreset === p.id
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
-                                  onClick={() => {
-                                    setPickupPreset(p.id)
-                                    if (p.id !== 'custom') {
-                                      setProductPickupWindows(getWindowsForPreset(p.id))
-                                    }
-                                  }}
-                                >
-                                  <input
-                                    type="radio"
-                                    checked={isActive}
-                                    onChange={() => {}}
-                                    className={styles.presetRadio}
-                                  />
-                                  <div className={styles.presetText}>
-                                    <span className={styles.presetLabel}>{p.label}</span>
-                                    <span className={styles.presetDesc}>{p.desc}</span>
+                          <label className={styles.label} style={{ marginBottom: 8, display: 'block' }}>Schedule:</label>
+                          {activeCitySchedule && pickupPreset !== 'custom' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 18 }}>✨</span>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                                    {activeCitySchedule.city} Market Day Pickup
                                   </div>
-                                </button>
-                              )
-                            })}
-                          </div>
+                                  <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                                    {getMarketDayTimeString(activeCitySchedule, 'pickup')}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                data-testid="customize-pickup-schedule-btn"
+                                onClick={() => {
+                                  setProductPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                  setPickupPreset('custom')
+                                }}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1.5px solid #16a34a',
+                                  borderRadius: 8,
+                                  padding: '6px 14px',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: '#15803d',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4
+                                }}
+                              >
+                                <span>✏️</span> Customize
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              {activeCitySchedule && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                  <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setProductPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                      setPickupPreset('city_market_day')
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#15803d',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                      padding: 0
+                                    }}
+                                  >
+                                    ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className={styles.presetGroup}>
+                                {[
+                                  ...(activeCitySchedule ? [{
+                                    id: 'city_market_day' as PresetType,
+                                    label: `✨ ${activeCitySchedule.city} Market Day (Pre-Selected)`,
+                                    desc: formatMarketDaySummary(activeCitySchedule),
+                                  }] : []),
+                                  { id: 'weekend_mornings' as PresetType, label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+                                  { id: 'weekday_evenings' as PresetType, label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
+                                  { id: 'both' as PresetType, label: '☀️ Both', desc: 'Both — Recommended' },
+                                  { id: 'custom' as PresetType, label: '📅 Custom schedule', desc: 'Set your own' }
+                                ].map(p => {
+                                  const isActive = pickupPreset === p.id
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      className={`${styles.presetOption} ${isActive ? styles.presetOptionActive : ''}`}
+                                      onClick={() => {
+                                        setPickupPreset(p.id)
+                                        if (p.id === 'city_market_day' && activeCitySchedule) {
+                                          setProductPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                        } else if (p.id === 'custom') {
+                                          if (activeCitySchedule && (!productPickupWindows || Object.keys(productPickupWindows).length === 0)) {
+                                            setProductPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                          }
+                                        } else {
+                                          setProductPickupWindows(getWindowsForPreset(p.id))
+                                        }
+                                      }}
+                                    >
+                                      <input
+                                        type="radio"
+                                        checked={isActive}
+                                        onChange={() => {}}
+                                        className={styles.presetRadio}
+                                      />
+                                      <div className={styles.presetText}>
+                                        <span className={styles.presetLabel}>{p.label}</span>
+                                        <span className={styles.presetDesc}>{p.desc}</span>
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {pickupPreset === 'custom' && (
                             <div className={styles.gridContainer}>
@@ -3712,16 +3923,17 @@ function NewProductPageInner() {
         {showCamera && (
           <CameraCapture
             facingMode="environment"
-            closeLabel="✕ Cancel Listing"
-            skipLabel="Skip Photo for Now"
+            closeLabel="✕ Close"
+            skipLabel="Skip"
             onSkip={() => setShowCamera(false)}
-            onClose={() => router.back()}
+            onClose={() => setShowCamera(false)}
             onCapture={({ file }) => {
               setShowCamera(false)
               const reader = new FileReader()
               reader.onload = (ev) => {
                 const dataUrl = ev.target?.result as string
                 setPhotos(prev => [...prev, dataUrl])
+                setErrors(p => ({ ...p, photo: '' }))
               }
               reader.readAsDataURL(file)
             }}

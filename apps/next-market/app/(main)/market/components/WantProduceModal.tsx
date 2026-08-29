@@ -446,9 +446,11 @@ export default function WantProduceModal({
                   ~${benchmarkInfo.price.toFixed(2)} / {benchmarkInfo.unit}
                 </span>
               </div>
-              <p className={styles.cropSubtitle}>
-                {hasActiveListings ? `${liveProducts.length} local stand(s) available in ${currentZipcode}` : `Signal growers in ${currentZipcode}`}
-              </p>
+              {hasActiveListings && (
+                <p className={styles.cropSubtitle}>
+                  {liveProducts.length} local stand(s) available in {currentZipcode}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -466,21 +468,21 @@ export default function WantProduceModal({
           <div className={styles.modalBody}>
             <div className={styles.successHubCard}>
               <div className={styles.successIconBadge}>🎉</div>
-              <h3 className={styles.successHubTitle}>Demand Signal Sent!</h3>
+              <h3 className={styles.successHubTitle}>Neighbors notified</h3>
               <p className={styles.successHubDesc}>
-                We&apos;ve notified local growers in <strong>{currentZipcode}</strong> that you want{' '}
-                <strong>{quantity} {unit}</strong> of fresh <strong>{cropName}</strong> (est. <strong>~${estimatedTotal}</strong> at ~${benchmarkInfo.price.toFixed(2)}/{benchmarkInfo.unit}). You&apos;ll receive an instant alert the moment a neighbor lists!
+                We&apos;ve notified neighbors in <strong>{currentZipcode}</strong> that you want{' '}
+                <strong>{quantity} {unit}</strong> of fresh <strong>{cropName}</strong> (est. <strong>~${estimatedTotal}</strong> at ~${benchmarkInfo.price.toFixed(2)}/{benchmarkInfo.unit}). You&apos;ll be notified the moment a neighbor has it available!
               </p>
             </div>
 
             {/* Commercial Supermarket Delivery (Instacart & Kroger) */}
             <div className={styles.deliveryOptionsSection}>
               <div className={styles.sectionHeadingRow}>
-                <span className={styles.sectionIcon}>🚚</span>
+                <span className={styles.sectionIcon}>🛒</span>
                 <div>
-                  <h4 className={styles.sectionTitle}>Need It Delivered Today?</h4>
+                  <h4 className={styles.sectionTitle}>Need immediately?</h4>
                   <p className={styles.sectionSubtitle}>
-                    Add commercial produce to your CasaGrown cart
+                    Buy produce from nearby stores
                   </p>
                 </div>
               </div>
@@ -844,15 +846,6 @@ export default function WantProduceModal({
               </button>
             )}
 
-            <div className={styles.infoBox}>
-              <div className={styles.infoBoxTitle}>
-                <span>🔔</span> Get Notified When Harvested
-              </div>
-              <p>
-                Tell local growers what you need. You&apos;ll receive an instant alert the moment a neighbor lists fresh {cropName.toLowerCase()} so you can buy!
-              </p>
-            </div>
-
             {errorMessage && <div className={styles.errorBanner}>{errorMessage}</div>}
             {successMessage && <div className={styles.successBanner}>{successMessage}</div>}
 
@@ -1104,7 +1097,7 @@ export default function WantProduceModal({
               disabled={isSubmitting}
               className={styles.submitSignalBtn}
             >
-              <span>🔔</span> {isSubmitting ? 'Saving Request...' : 'Notify Me When Available'}
+              <span>🔔</span> {isSubmitting ? 'Notifying Neighbors...' : 'Find sellers in my neighborhood'}
             </button>
           </form>
         )}

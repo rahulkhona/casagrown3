@@ -12,9 +12,15 @@ import {
   FULFILLMENT_PRESET_OPTIONS,
   FulfillmentPresetType,
   getWindowsForPreset,
+  getWindowsForCitySchedule,
   isHourSelected,
   toggleHourCell,
 } from '../../../../lib/bulkListingUtils'
+import {
+  CityMarketSchedule,
+  resolveActiveCitySchedule,
+  formatMarketDaySummary,
+} from '../../../../lib/marketCitySchedules'
 import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../lib/interestCatalog'
 import LandmarkPickerModal from '../../../components/LandmarkPickerModal'
 import { LandmarkItem } from '../../../../lib/landmarks'
@@ -35,6 +41,24 @@ export interface BatchItem {
   description?: string
   isFree?: boolean
   isSelected?: boolean
+}
+
+function formatTime12(timeStr: string): string {
+  const [hStr, mStr] = timeStr.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr || '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+function getMarketDayTimeString(sched: CityMarketSchedule, type: 'pickup' | 'delivery'): string {
+  const days = sched.market_days.join(', ')
+  const windows = type === 'pickup' ? sched.default_pickup_windows : sched.default_delivery_windows
+  if (!windows || windows.length === 0) return `${days}`
+  const times = windows.map(w => `${formatTime12(w.start_time)} – ${formatTime12(w.end_time)}`).join(', ')
+  return `${days} · ${times}`
 }
 
 interface BatchListingDrawerProps {
@@ -111,6 +135,8 @@ export default function BatchListingDrawer({
   const [pickupPreset, setPickupPreset] = useState<FulfillmentPresetType>('both')
   const [customPickupWindows, setCustomPickupWindows] = useState<Record<string, string[]>>(() => getWindowsForPreset('both'))
 
+  const [activeCitySchedule, setActiveCitySchedule] = useState<CityMarketSchedule | null>(null)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -127,10 +153,42 @@ export default function BatchListingDrawer({
     }
   }, [currentZipcode])
 
+  // Resolve City Market Schedule for active location
+  useEffect(() => {
+    if (!isOpen) return
+    const supabase = createClient()
+    resolveActiveCitySchedule(supabase, {
+      zip: currentZipcode,
+    }).then((sched) => {
+      setActiveCitySchedule(sched)
+      if (sched) {
+        setCustomDeliveryWindows(getWindowsForCitySchedule(sched, 'delivery'))
+        setCustomPickupWindows(getWindowsForCitySchedule(sched, 'pickup'))
+        setDeliveryPreset('city_market_day')
+        setPickupPreset('city_market_day')
+      }
+    })
+  }, [isOpen, currentZipcode])
+
   useEffect(() => {
     setErrorMessage('')
     setSuccessMessage('')
   }, [isOpen])
+
+  const isMarketDaySlot = (dateStr: string, hour: number, type: 'pickup' | 'delivery') => {
+    if (!activeCitySchedule) return false
+    const d = new Date(dateStr + 'T12:00:00')
+    const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = DAY_NAMES[d.getDay()]
+    if (!activeCitySchedule.market_days.map(m => m.toLowerCase()).includes(dayName)) return false
+    const windows = type === 'pickup' ? activeCitySchedule.default_pickup_windows : activeCitySchedule.default_delivery_windows
+    return (windows || []).some(w => {
+      if (w.day.toLowerCase() !== dayName) return false
+      const startH = parseInt(w.start_time.split(':')[0], 10)
+      const endH = parseInt(w.end_time.split(':')[0], 10)
+      return hour >= startH && hour < endH
+    })
+  }
 
   if (!isOpen || items.length === 0) return null
 
@@ -768,7 +826,7 @@ export default function BatchListingDrawer({
                     onClick={() => setIsAddingProduce(true)}
                     className={styles.addProduceBtn}
                   >
-                    <span>➕</span> Add Another Produce to Stand
+                    <span>➕</span> Add another produce
                   </button>
                 </div>
               )}
@@ -934,83 +992,163 @@ export default function BatchListingDrawer({
                       <label className={styles.fieldLabel} style={{ marginBottom: 6, display: 'block' }}>
                         📅 Pickup Schedule & Availability
                       </label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: pickupPreset === 'custom' ? 12 : 0 }}>
-                        {FULFILLMENT_PRESET_OPTIONS.map((opt) => {
-                          const isActive = pickupPreset === opt.id
-                          return (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => {
-                                setPickupPreset(opt.id)
-                                if (opt.id !== 'custom') {
-                                  setCustomPickupWindows(getWindowsForPreset(opt.id))
-                                }
-                              }}
-                              style={{
-                                padding: '8px 14px',
-                                borderRadius: 100,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
-                                background: isActive ? 'var(--green-50)' : '#ffffff',
-                                color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
 
-                      {pickupPreset === 'custom' && (
-                        <div style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>
-                          <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 8, textAlign: 'center' }}>
-                            Tap any hour cell to set custom pickup hours
+                      {activeCitySchedule && pickupPreset !== 'custom' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>✨</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                                {activeCitySchedule.city} Market Day Pickup
+                              </div>
+                              <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                                {getMarketDayTimeString(activeCitySchedule, 'pickup')}
+                              </div>
+                            </div>
                           </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'center' }}>
-                            <thead>
-                              <tr>
-                                <th style={{ width: 32, padding: '4px 2px' }}></th>
-                                {dayOptions.map((d) => (
-                                  <th key={d.date} style={{ padding: '4px 2px', fontWeight: 600, color: 'var(--gray-700)' }}>
-                                    {d.label.split(' ')[0]}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Array.from({ length: 13 }).map((_, index) => {
-                                const hour = 8 + index
-                                const isPm = hour >= 12
-                                const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-                                const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
-                                return (
-                                  <tr key={hour}>
-                                    <td style={{ color: 'var(--gray-400)', padding: '3px 0', fontSize: 10 }}>{hourLabel}</td>
-                                    {dayOptions.map((opt) => {
-                                      const isSelected = isHourSelected(hour, customPickupWindows[opt.date] || [])
-                                      return (
-                                        <td
-                                          key={opt.date}
-                                          onClick={() => toggleHourCell(opt.date, hour, customPickupWindows, setCustomPickupWindows)}
-                                          style={{
-                                            height: 22,
-                                            border: '1px solid #e5e7eb',
-                                            background: isSelected ? 'var(--green-500)' : '#ffffff',
-                                            cursor: 'pointer',
-                                            borderRadius: 2,
-                                          }}
-                                        />
-                                      )
-                                    })}
+                          <button
+                            type="button"
+                            data-testid="customize-pickup-schedule-btn"
+                            onClick={() => {
+                              setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                              setPickupPreset('custom')
+                            }}
+                            style={{
+                              background: '#ffffff',
+                              border: '1.5px solid #16a34a',
+                              borderRadius: 8,
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#15803d',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <span>✏️</span> Customize
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {activeCitySchedule && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                  setPickupPreset('city_market_day')
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#15803d',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: 0
+                                }}
+                              >
+                                ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: pickupPreset === 'custom' ? 12 : 0 }}>
+                            {[
+                              ...(activeCitySchedule ? [{
+                                id: 'city_market_day' as FulfillmentPresetType,
+                                label: `✨ ${activeCitySchedule.city} Market Day`,
+                                desc: formatMarketDaySummary(activeCitySchedule)
+                              }] : []),
+                              ...FULFILLMENT_PRESET_OPTIONS
+                            ].map((opt) => {
+                              const isActive = pickupPreset === opt.id
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setPickupPreset(opt.id)
+                                    if (opt.id === 'city_market_day' && activeCitySchedule) {
+                                      setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                    } else if (opt.id === 'custom') {
+                                      if (activeCitySchedule && (!customPickupWindows || Object.keys(customPickupWindows).length === 0)) {
+                                        setCustomPickupWindows(getWindowsForCitySchedule(activeCitySchedule, 'pickup'))
+                                      }
+                                    } else {
+                                      setCustomPickupWindows(getWindowsForPreset(opt.id))
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '8px 14px',
+                                    borderRadius: 100,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
+                                    background: isActive ? 'var(--green-50)' : '#ffffff',
+                                    color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {pickupPreset === 'custom' && (
+                            <div id="pickup-schedule-section" style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>
+                              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 8, textAlign: 'center' }}>
+                                Tap any hour cell to set custom pickup hours
+                              </div>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'center' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 32, padding: '4px 2px' }}></th>
+                                    {dayOptions.map((d) => (
+                                      <th key={d.date} style={{ padding: '4px 2px', fontWeight: 600, color: 'var(--gray-700)' }}>
+                                        {d.label.split(' ')[0]}
+                                      </th>
+                                    ))}
                                   </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
+                                    return (
+                                      <tr key={hour}>
+                                        <td style={{ color: 'var(--gray-400)', padding: '3px 0', fontSize: 10 }}>{hourLabel}</td>
+                                        {dayOptions.map((opt) => {
+                                          const isSelected = isHourSelected(hour, customPickupWindows[opt.date] || [])
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              onClick={() => toggleHourCell(opt.date, hour, customPickupWindows, setCustomPickupWindows)}
+                                              style={{
+                                                height: 22,
+                                                border: '1px solid #e5e7eb',
+                                                background: isSelected ? 'var(--green-500)' : '#ffffff',
+                                                cursor: 'pointer',
+                                                borderRadius: 2,
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1125,83 +1263,163 @@ export default function BatchListingDrawer({
                       <label className={styles.fieldLabel} style={{ marginBottom: 6, display: 'block' }}>
                         📅 Delivery Schedule & Availability
                       </label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: deliveryPreset === 'custom' ? 12 : 0 }}>
-                        {FULFILLMENT_PRESET_OPTIONS.map((opt) => {
-                          const isActive = deliveryPreset === opt.id
-                          return (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => {
-                                setDeliveryPreset(opt.id)
-                                if (opt.id !== 'custom') {
-                                  setCustomDeliveryWindows(getWindowsForPreset(opt.id))
-                                }
-                              }}
-                              style={{
-                                padding: '8px 14px',
-                                borderRadius: 100,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
-                                background: isActive ? 'var(--green-50)' : '#ffffff',
-                                color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
 
-                      {deliveryPreset === 'custom' && (
-                        <div style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>
-                          <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 8, textAlign: 'center' }}>
-                            Tap any hour cell to set custom delivery hours
+                      {activeCitySchedule && deliveryPreset !== 'custom' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>✨</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                                {activeCitySchedule.city} Market Day Delivery
+                              </div>
+                              <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                                {getMarketDayTimeString(activeCitySchedule, 'delivery')}
+                              </div>
+                            </div>
                           </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'center' }}>
-                            <thead>
-                              <tr>
-                                <th style={{ width: 32, padding: '4px 2px' }}></th>
-                                {dayOptions.map((d) => (
-                                  <th key={d.date} style={{ padding: '4px 2px', fontWeight: 600, color: 'var(--gray-700)' }}>
-                                    {d.label.split(' ')[0]}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Array.from({ length: 13 }).map((_, index) => {
-                                const hour = 8 + index
-                                const isPm = hour >= 12
-                                const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-                                const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
-                                return (
-                                  <tr key={hour}>
-                                    <td style={{ color: 'var(--gray-400)', padding: '3px 0', fontSize: 10 }}>{hourLabel}</td>
-                                    {dayOptions.map((opt) => {
-                                      const isSelected = isHourSelected(hour, customDeliveryWindows[opt.date] || [])
-                                      return (
-                                        <td
-                                          key={opt.date}
-                                          onClick={() => toggleHourCell(opt.date, hour, customDeliveryWindows, setCustomDeliveryWindows)}
-                                          style={{
-                                            height: 22,
-                                            border: '1px solid #e5e7eb',
-                                            background: isSelected ? 'var(--green-500)' : '#ffffff',
-                                            cursor: 'pointer',
-                                            borderRadius: 2,
-                                          }}
-                                        />
-                                      )
-                                    })}
+                          <button
+                            type="button"
+                            data-testid="customize-delivery-schedule-btn"
+                            onClick={() => {
+                              setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                              setDeliveryPreset('custom')
+                            }}
+                            style={{
+                              background: '#ffffff',
+                              border: '1.5px solid #16a34a',
+                              borderRadius: 8,
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#15803d',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <span>✏️</span> Customize
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {activeCitySchedule && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                  setDeliveryPreset('city_market_day')
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#15803d',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: 0
+                                }}
+                              >
+                                ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: deliveryPreset === 'custom' ? 12 : 0 }}>
+                            {[
+                              ...(activeCitySchedule ? [{
+                                id: 'city_market_day' as FulfillmentPresetType,
+                                label: `✨ ${activeCitySchedule.city} Market Day`,
+                                desc: formatMarketDaySummary(activeCitySchedule)
+                              }] : []),
+                              ...FULFILLMENT_PRESET_OPTIONS
+                            ].map((opt) => {
+                              const isActive = deliveryPreset === opt.id
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setDeliveryPreset(opt.id)
+                                    if (opt.id === 'city_market_day' && activeCitySchedule) {
+                                      setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                    } else if (opt.id === 'custom') {
+                                      if (activeCitySchedule && (!customDeliveryWindows || Object.keys(customDeliveryWindows).length === 0)) {
+                                        setCustomDeliveryWindows(getWindowsForCitySchedule(activeCitySchedule, 'delivery'))
+                                      }
+                                    } else {
+                                      setCustomDeliveryWindows(getWindowsForPreset(opt.id))
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '8px 14px',
+                                    borderRadius: 100,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
+                                    background: isActive ? 'var(--green-50)' : '#ffffff',
+                                    color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {opt.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {deliveryPreset === 'custom' && (
+                            <div id="delivery-schedule-section" style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 12, marginTop: 10, overflowX: 'auto' }}>
+                              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 8, textAlign: 'center' }}>
+                                Tap any hour cell to set custom delivery hours
+                              </div>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'center' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 32, padding: '4px 2px' }}></th>
+                                    {dayOptions.map((d) => (
+                                      <th key={d.date} style={{ padding: '4px 2px', fontWeight: 600, color: 'var(--gray-700)' }}>
+                                        {d.label.split(' ')[0]}
+                                      </th>
+                                    ))}
                                   </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
+                                </thead>
+                                <tbody>
+                                  {Array.from({ length: 13 }).map((_, index) => {
+                                    const hour = 8 + index
+                                    const isPm = hour >= 12
+                                    const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+                                    const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
+                                    return (
+                                      <tr key={hour}>
+                                        <td style={{ color: 'var(--gray-400)', padding: '3px 0', fontSize: 10 }}>{hourLabel}</td>
+                                        {dayOptions.map((opt) => {
+                                          const isSelected = isHourSelected(hour, customDeliveryWindows[opt.date] || [])
+                                          return (
+                                            <td
+                                              key={opt.date}
+                                              onClick={() => toggleHourCell(opt.date, hour, customDeliveryWindows, setCustomDeliveryWindows)}
+                                              style={{
+                                                height: 22,
+                                                border: '1px solid #e5e7eb',
+                                                background: isSelected ? 'var(--green-500)' : '#ffffff',
+                                                cursor: 'pointer',
+                                                borderRadius: 2,
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -64,12 +64,12 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await qtyInput.fill('4')
 
     // Submit harvest signal
-    const submitBtn = page.locator('button:has-text("Notify Me When Available")').last()
+    const submitBtn = page.locator('button:has-text("Find sellers in my neighborhood")').last()
     await expect(submitBtn).toBeVisible()
     await submitBtn.click()
 
     // Verify UI success confirmation and post-submission hub
-    await expect(page.getByRole('heading', { name: 'Demand Signal Sent!' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'Neighbors notified' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/Instacart Delivery/i)).toBeVisible({ timeout: 10000 })
 
     // ── EMPIRICAL DATABASE VERIFICATION ──
@@ -161,11 +161,11 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(qtyInput).toBeVisible({ timeout: 5000 })
     await qtyInput.fill('2')
 
-    const submitBtn = page.locator('button:has-text("Notify Me When Available")').last()
+    const submitBtn = page.locator('button:has-text("Find sellers in my neighborhood")').last()
     await submitBtn.click()
 
     // 4. In Post-submission Hub, click Add to Cart on Instacart
-    await expect(page.getByRole('heading', { name: 'Demand Signal Sent!' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'Neighbors notified' })).toBeVisible({ timeout: 10000 })
     const instacartCard = page.locator('text=Instacart Delivery').first()
     await expect(instacartCard).toBeVisible()
 

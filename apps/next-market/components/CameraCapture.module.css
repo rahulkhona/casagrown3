@@ -1,50 +1,123 @@
 /* ── Camera Capture Overlay ── */
 .overlay {
   position: fixed; inset: 0; z-index: 3000;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: center; justify-content: center;
+  padding: 16px;
 }
 .modal {
-  width: 96vw; max-width: 800px;
+  width: 96vw; max-width: 640px;
   border-radius: 16px; overflow: hidden;
-  background: #000; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-  max-height: 95vh; display: flex; flex-direction: column;
+  background: #18181b; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-height: 92vh; display: flex; flex-direction: column;
+}
+.videoWrap {
+  position: relative;
+  background: #000;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .video {
   width: 100%; display: block;
-  max-height: 75vh; object-fit: contain;
+  max-height: 65vh; object-fit: contain;
 }
+
+/* Top bar overlay for camera selector */
+.topBar {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.cameraSelect {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  max-width: 85%;
+  text-overflow: ellipsis;
+}
+.cameraSelect option { color: #18181b; background: #ffffff; }
+
+/* 3 Buttons in a single row */
 .controls {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 14px 16px; background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #111113;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Buttons */
-.cancelBtn, .captureBtn {
-  padding: 10px 20px; border: none; border-radius: 10px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  transition: all 0.15s;
+.cancelBtn, .skipBtn, .captureBtn {
+  height: 42px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
 }
+
 .cancelBtn {
-  background: var(--gray-700, #444); color: #fff;
+  background: #27272a;
+  color: #f4f4f5;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
-.cancelBtn:hover { background: var(--gray-600, #555); }
+.cancelBtn:hover { background: #3f3f46; }
+
+.skipBtn {
+  background: transparent;
+  color: #a1a1aa;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.skipBtn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
 .captureBtn {
-  background: var(--green-500, #22c55e); color: #fff;
+  background: var(--green-500, #22c55e);
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  flex: 1.2 1 0;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 .captureBtn:hover { background: var(--green-600, #16a34a); }
-
-/* Camera selector */
-.cameraSelect {
-  background: var(--gray-800, #333); color: #fff; border: 1px solid var(--gray-600, #555);
-  border-radius: 8px; padding: 8px 12px; font-size: 13px;
-  max-width: 200px;
-}
-.cameraSelect option { color: #000; background: #fff; }
+.captureBtn:active { transform: scale(0.97); }
 
 /* Crop overlays */
-.videoWrap { position: relative; }
 .cropOverlay {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
@@ -74,7 +147,7 @@
   border-radius: 50%;
 }
 
-/* GPS indicator */
+/* GPS indicator (only for stampPhoto delivery proof) */
 .geoIndicator {
   position: absolute; bottom: 8px; left: 8px;
   font-size: 11px; font-weight: 600;

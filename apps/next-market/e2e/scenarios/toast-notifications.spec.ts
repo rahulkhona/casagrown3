@@ -74,15 +74,13 @@ test.describe('Toast Notifications for Success and Error Handling', () => {
 
     await navigateToMarket(page)
 
+    let modalVisible = false
     const inviteBtn = page.locator('button:has-text("Invite Neighbors"), button:has-text("Invite"), a:has-text("Invite")').first()
     if (await inviteBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await inviteBtn.click()
-      const modalVisible = await page.locator('text=Share on WhatsApp, text=Copy Link, text=Send via Email').first()
+      modalVisible = await page.locator('text=Share on WhatsApp, text=Copy Link, text=Send via Email').first()
         .isVisible({ timeout: 5000 })
         .catch(() => false)
-      if (modalVisible) {
-        expect(modalVisible).toBeTruthy()
-      }
     }
 
     if (modalVisible) {

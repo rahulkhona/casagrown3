@@ -111,9 +111,9 @@ describe('CameraCapture', () => {
     expect(container.textContent).toContain('✕ Cancel')
   })
 
-  it('shows GPS indicator', async () => {
+  it('shows GPS indicator when stampPhoto is true', async () => {
     const CameraCapture = (await import('../../components/CameraCapture')).default
-    const { container } = render(React.createElement(CameraCapture, { onCapture: vi.fn(), onClose: vi.fn() }))
+    const { container } = render(React.createElement(CameraCapture, { onCapture: vi.fn(), onClose: vi.fn(), stampPhoto: true }))
     await act(async () => { await new Promise(r => setTimeout(r, 100)) })
 
     expect(container.textContent).toMatch(/GPS locked|Acquiring GPS/)
@@ -152,14 +152,6 @@ describe('CameraCapture', () => {
     expect(container.textContent).toContain('Banner area')
   })
 
-  it('renders square crop guide when cropGuide="square"', async () => {
-    const CameraCapture = (await import('../../components/CameraCapture')).default
-    const { container } = render(React.createElement(CameraCapture, {
-      onCapture: vi.fn(), onClose: vi.fn(), cropGuide: 'square',
-    }))
-    await act(async () => { await new Promise(r => setTimeout(r, 100)) })
-    expect(container.querySelector('[class*="cropOverlaySquare"]')).toBeTruthy()
-  })
 
   it('multiCapture mode shows Done button after capture', async () => {
     const CameraCapture = (await import('../../components/CameraCapture')).default

@@ -631,7 +631,7 @@ function MarketProducePageContent() {
         <div className={styles.headerInner}>
           {/* 1. Add Produce Button */}
           <Link
-            href="/create-listing"
+            href="/my-booth/products/new"
             className={styles.addProduceBtn}
             title="Create a new stand listing or add produce"
           >
@@ -724,7 +724,7 @@ function MarketProducePageContent() {
                   Want to list your harvest on a neighborhood stand?
                 </p>
                 <Link
-                  href="/create-listing"
+                  href={searchQuery.trim() ? `/my-booth/products/new?name=${encodeURIComponent(searchQuery.trim())}` : '/my-booth/products/new'}
                   className={styles.zeroAddBtn}
                 >
                   <span>+</span> List on Neighborhood Stand

@@ -43,9 +43,9 @@ export default function ImageCropper({ src, aspectRatio = 3.5, circleGuide = fal
     setImgSize({ w: iw, h: ih })
     setContainerSize({ w: cw, h: ch })
 
-    // Scale so image covers the crop area (must fill entire width and height)
+    // Scale so image covers the crop area with a slight comfortable 15% zoom for panning
     const fillScale = Math.max(cw / iw, ch / ih)
-    setScale(fillScale)
+    setScale(fillScale * 1.15)
     setPosition({ x: 0, y: 0 })
   }, [])
 
@@ -67,9 +67,9 @@ export default function ImageCropper({ src, aspectRatio = 3.5, circleGuide = fal
     const dw = imgSize.w * scale
     const dh = imgSize.h * scale
 
-    // Allow panning up to the container bounds whether zooming in or out!
-    const maxBoundX = Math.abs((dw - cw) / 2)
-    const maxBoundY = Math.abs((dh - ch) / 2)
+    // Constrain panning so photo always fills the crop area without exposing empty borders
+    const maxBoundX = Math.max(0, (dw - cw) / 2)
+    const maxBoundY = Math.max(0, (dh - ch) / 2)
 
     let candidateX = dragStart.current.posX + (e.clientX - dragStart.current.x)
     let candidateY = dragStart.current.posY + (e.clientY - dragStart.current.y)
@@ -85,13 +85,13 @@ export default function ImageCropper({ src, aspectRatio = 3.5, circleGuide = fal
   // Zoom
   const zoom = useCallback((delta: number) => {
     setScale(prev => {
-      // Calculate absolute minimum scale to prevent photo from shrinking smaller than crop box
       const container = containerRef.current
-      const minScale = (container && imgSize.w) 
-        ? Math.min(container.offsetWidth / imgSize.w, container.offsetHeight / imgSize.h)
+      const fillScale = (container && imgSize.w && imgSize.h)
+        ? Math.max(container.offsetWidth / imgSize.w, container.offsetHeight / imgSize.h)
         : 0.05
+      const maxScale = (container && imgSize.w && imgSize.h) ? fillScale * 4 : 5
         
-      return Math.max(minScale, prev + delta)
+      return Math.max(fillScale, Math.min(maxScale, prev + delta))
     })
   }, [imgSize])
 
@@ -103,43 +103,50 @@ export default function ImageCropper({ src, aspectRatio = 3.5, circleGuide = fal
   // Crop
   const handleCrop = useCallback(() => {
     const container = containerRef.current
-    if (!container || !imgSize.w) return
+    if (!container || !imgSize.w || !imgRef.current) return
 
     const cw = container.offsetWidth
     const ch = container.offsetHeight
+    if (cw === 0 || ch === 0) return
 
     // Displayed image dimensions
     const dw = imgSize.w * scale
     const dh = imgSize.h * scale
 
-    // Image top-left relative to container
+    // Image top-left relative to container in display pixels
     const imgLeft = (cw - dw) / 2 + position.x
     const imgTop = (ch - dh) / 2 + position.y
 
     const canvas = document.createElement('canvas')
     
-    // Set the canvas natively scaled
-    canvas.width = cw / scale
-    canvas.height = ch / scale
+    // High-res output
+    const outWidth = circleGuide ? 512 : Math.min(1200, Math.max(cw * 2, 600))
+    const outHeight = Math.round(outWidth / aspectRatio)
 
-    const ctx = canvas.getContext('2d')!
+    canvas.width = outWidth
+    canvas.height = outHeight
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
     
-    // Support letterboxing if users zoom all the way out
+    // Clean background
     ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillRect(0, 0, outWidth, outHeight)
     
-    const destX = imgLeft / scale
-    const destY = imgTop / scale
-    const destW = imgSize.w
-    const destH = imgSize.h
+    // Scale factor from display to output canvas
+    const factor = outWidth / cw
+    const destX = imgLeft * factor
+    const destY = imgTop * factor
+    const destW = dw * factor
+    const destH = dh * factor
 
-    ctx.drawImage(imgRef.current!, destX, destY, destW, destH)
+    ctx.drawImage(imgRef.current, destX, destY, destW, destH)
 
     canvas.toBlob((blob) => {
       if (!blob) return
       onCrop(new File([blob], 'cropped.jpg', { type: 'image/jpeg' }))
     }, 'image/jpeg', 0.92)
-  }, [imgSize, scale, position, aspectRatio, onCrop])
+  }, [imgSize, scale, position, aspectRatio, circleGuide, onCrop])
 
   return (
     <div className={styles.overlay}>
@@ -186,7 +193,7 @@ export default function ImageCropper({ src, aspectRatio = 3.5, circleGuide = fal
               )
             })()}
 
-          <div className={styles.cropBorder} />
+          {!circleGuide && <div className={styles.cropBorder} />}
           {circleGuide && <div className={styles.circleGuide} />}
         </div>
         </div>

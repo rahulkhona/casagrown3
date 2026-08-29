@@ -153,30 +153,32 @@ export default function CameraCapture({
     const canvas = canvasRef.current
     if (!video || !canvas) return
 
-    // Defensive: ensure video has dimensions
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.warn('Video not ready yet — no dimensions')
-      return
-    }
+    // Ensure dimensions, with natural / client fallbacks
+    const vWidth = video.videoWidth || video.clientWidth || 640
+    const vHeight = video.videoHeight || video.clientHeight || 480
 
     // Set canvas size
-    let w = video.videoWidth
-    let h = video.videoHeight
+    let w = vWidth
+    let h = vHeight
     if (cropSquare) {
       const size = Math.min(w, h)
-      w = size; h = size
+      w = size
+      h = size
     }
     canvas.width = w
     canvas.height = h
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) { console.error('Cannot get canvas context'); return }
+    if (!ctx) {
+      console.error('Cannot get canvas context')
+      return
+    }
 
     // Draw video frame
     if (cropSquare) {
-      const size = Math.min(video.videoWidth, video.videoHeight)
-      const sx = (video.videoWidth - size) / 2
-      const sy = (video.videoHeight - size) / 2
+      const size = Math.min(vWidth, vHeight)
+      const sx = (vWidth - size) / 2
+      const sy = (vHeight - size) / 2
       ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size)
     } else {
       ctx.drawImage(video, 0, 0, w, h)
@@ -217,18 +219,39 @@ export default function CameraCapture({
       })
     }
 
-    // Create blob — stop stream AFTER blob is ready
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const file = new File([blob], `proof-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    const processBlob = (blob: Blob | null) => {
+      let finalBlob = blob
+      if (!finalBlob) {
+        try {
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+          const byteString = atob(dataUrl.split(',')[1] || '')
+          const ab = new ArrayBuffer(byteString.length)
+          const ia = new Uint8Array(ab)
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i)
+          }
+          finalBlob = new Blob([ab], { type: 'image/jpeg' })
+        } catch (e) {
+          console.error('Fallback blob conversion failed:', e)
+        }
+      }
+      if (!finalBlob) return
+
+      const file = new File([finalBlob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
       if (!multiCapture) {
-        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current?.getTracks().forEach((t) => t.stop())
       }
       onCapture({ file, meta })
-      setCaptureCount(c => c + 1)
+      setCaptureCount((c) => c + 1)
       setFlash(true)
       setTimeout(() => setFlash(false), 200)
-    }, 'image/jpeg', 0.9)
+    }
+
+    try {
+      canvas.toBlob(processBlob, 'image/jpeg', 0.9)
+    } catch {
+      processBlob(null)
+    }
   }
 
   const handleSwitchCamera = async (idx: number) => {
@@ -284,6 +307,23 @@ export default function CameraCapture({
         ) : (
         <>
         <div className={styles.videoWrap}>
+          {cameras.length > 1 && (
+            <div className={styles.topBar}>
+              <select
+                className={styles.cameraSelect}
+                value={activeCameraIdx}
+                onChange={(e) => handleSwitchCamera(Number(e.target.value))}
+                aria-label="Select camera"
+              >
+                {cameras.map((cam, i) => (
+                  <option key={cam.deviceId || i} value={i}>
+                    {cam.label || `Camera ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <video ref={videoRef} autoPlay playsInline muted className={styles.video} />
           {cropGuide === 'banner' && (
             <div className={styles.cropOverlay}>
@@ -293,9 +333,6 @@ export default function CameraCapture({
               </div>
               <div className={styles.cropDarkBottom} />
             </div>
-          )}
-          {cropGuide === 'square' && (
-            <div className={styles.cropOverlaySquare} />
           )}
           <canvas ref={canvasRef} style={{ display: 'none' }} />
 
@@ -311,49 +348,48 @@ export default function CameraCapture({
             </div>
           )}
 
-          {/* Geo indicator */}
-          <div className={styles.geoIndicator}>
-            {geoPosition
-              ? <span className={styles.geoOn}>📍 GPS locked</span>
-              : <span className={styles.geoOff}>📍 Acquiring GPS...</span>
-            }
-          </div>
+          {/* Geo indicator (only for delivery proof stamping) */}
+          {stampPhoto && (
+            <div className={styles.geoIndicator}>
+              {geoPosition
+                ? <span className={styles.geoOn}>📍 GPS locked</span>
+                : <span className={styles.geoOff}>📍 Acquiring GPS...</span>
+              }
+            </div>
+          )}
         </div>
-        <div className={styles.controls}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button type="button" className={styles.cancelBtn} onClick={handleClose}>
-              {multiCapture && captureCount > 0 ? `✓ Done (${captureCount})` : closeLabel}
-            </button>
-            {onSkip && (!multiCapture || captureCount === 0) && (
-              <button 
-                type="button" 
-                className={styles.cancelBtn} 
-                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.4)', padding: '6px 12px', fontSize: 13 }} 
-                onClick={() => {
-                  streamRef.current?.getTracks().forEach(t => t.stop())
-                  onSkip()
-                }}
-              >
-                {skipLabel}
-              </button>
-            )}
-          </div>
 
-          {cameras.length > 1 && (
-            <select
-              className={styles.cameraSelect}
-              value={activeCameraIdx}
-              onChange={(e) => handleSwitchCamera(Number(e.target.value))}
+        <div className={styles.controls}>
+          <button
+            type="button"
+            className={styles.cancelBtn}
+            onClick={handleClose}
+            data-testid="close-camera-btn"
+            aria-label={closeLabel}
+          >
+            {multiCapture && captureCount > 0 ? `✓ Done (${captureCount})` : closeLabel}
+          </button>
+
+          {onSkip && (!multiCapture || captureCount === 0) && (
+            <button 
+              type="button" 
+              className={styles.skipBtn} 
+              onClick={() => {
+                streamRef.current?.getTracks().forEach(t => t.stop())
+                onSkip()
+              }}
             >
-              {cameras.map((cam, i) => (
-                <option key={cam.deviceId} value={i}>
-                  {cam.label || `Camera ${i + 1}`}
-                </option>
-              ))}
-            </select>
+              {skipLabel}
+            </button>
           )}
 
-          <button type="button" className={styles.captureBtn} onClick={handleCapture}>
+          <button
+            type="button"
+            className={styles.captureBtn}
+            onClick={handleCapture}
+            data-testid="capture-btn"
+            aria-label={captureLabel}
+          >
             {captureLabel}
           </button>
         </div>

@@ -39,6 +39,7 @@ const ALLOWED_TABLES = new Set([
   'tutorial_sections',
   'market_settings',
   'market_schedule_policies',
+  'market_city_schedules',
   // Sales & categories
   'sales_categories',
   'category_restrictions',

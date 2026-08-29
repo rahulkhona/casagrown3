@@ -43,7 +43,7 @@ export const PRODUCE_CATEGORIES = [
   { id: 'plants', label: 'Potted Garden Plants' },
 ]
 
-export type FulfillmentPresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom'
+export type FulfillmentPresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom' | 'city_market_day'
 
 export interface FulfillmentPresetOption {
   id: FulfillmentPresetType
@@ -153,6 +153,39 @@ export function getWindowsForPreset(preset: FulfillmentPresetType): Record<strin
       } else {
         result[dateStr] = ['16-18', '18-20']
       }
+    }
+  }
+  return result
+}
+
+/**
+ * Generate 7-day calendar windows mapping for a specific CityMarketSchedule
+ */
+export function getWindowsForCitySchedule(
+  schedule: any,
+  mode: 'pickup' | 'delivery' = 'pickup'
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  if (!schedule) return result
+  const targetWindows = mode === 'pickup' ? schedule.default_pickup_windows : schedule.default_delivery_windows
+  if (!targetWindows || !targetWindows.length) return result
+
+  const localToday = new Date()
+  for (let offset = 0; offset < 7; offset++) {
+    const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+
+    if (Array.isArray(schedule.market_days) && schedule.market_days.map((m: string) => m.toLowerCase()).includes(weekday)) {
+      targetWindows.forEach((w: any) => {
+        if (w.day.toLowerCase() === weekday) {
+          const startH = parseInt(w.start_time.split(':')[0], 10)
+          const endH = parseInt(w.end_time.split(':')[0], 10)
+          const slot = `${startH}-${endH}`
+          if (!result[dateStr]) result[dateStr] = []
+          if (!result[dateStr].includes(slot)) result[dateStr].push(slot)
+        }
+      })
     }
   }
   return result

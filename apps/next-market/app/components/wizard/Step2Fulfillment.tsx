@@ -5,8 +5,32 @@ import { useAuth } from '../../../lib/useAuth'
 import { createClient } from '../../../lib/supabase'
 import AddressInput from '../AddressInput'
 import LandmarkPickerModal from '../LandmarkPickerModal'
-import { type AddressFields, formatFullAddress } from '../../../lib/address'
 import { LandmarkItem, isPublicLandmark, getSuggestedInstructionsForCategory } from '../../../lib/landmarks'
+import { AddressFields, formatFullAddress } from '../../../lib/address'
+import {
+  CityMarketSchedule,
+  resolveActiveCitySchedule,
+  formatMarketDaySummary,
+} from '../../../lib/marketCitySchedules'
+
+function formatTime12(timeStr: string): string {
+  const [hStr, mStr] = timeStr.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr || '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+function getMarketDayTimeString(sched: CityMarketSchedule, type: 'pickup' | 'delivery'): string {
+  const days = sched.market_days.join(', ')
+  const windows = type === 'pickup' ? sched.default_pickup_windows : sched.default_delivery_windows
+  if (!windows || windows.length === 0) return `${days}`
+  const times = windows.map(w => `${formatTime12(w.start_time)} – ${formatTime12(w.end_time)}`).join(', ')
+  return `${days} · ${times}`
+}
+
 import styles from './wizard.module.css'
 import { trackFieldInteract as rawTrackFieldInteract, trackEvent as rawTrackEvent } from '../../../lib/crm-analytics'
 
@@ -362,6 +386,77 @@ export default function Step2Fulfillment() {
     return result
   }
 
+  const mapCityScheduleToDates = (
+    sched: CityMarketSchedule,
+    dates: { id: string; label: string }[]
+  ) => {
+    const pickup: Record<string, string[]> = {}
+    const delivery: Record<string, string[]> = {}
+
+    dates.forEach(d => {
+      const dateObj = new Date(d.id + 'T12:00:00')
+      const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      if (Array.isArray(sched.market_days) && sched.market_days.map(m => m.toLowerCase()).includes(weekday)) {
+        // Pickup windows
+        if (Array.isArray(sched.default_pickup_windows) && sched.default_pickup_windows.length > 0) {
+          sched.default_pickup_windows.forEach(pw => {
+            if (pw.day.toLowerCase() === weekday) {
+              const startH = parseInt(pw.start_time.split(':')[0], 10)
+              const endH = parseInt(pw.end_time.split(':')[0], 10)
+              const slot = `${startH}-${endH}`
+              if (!pickup[d.id]) pickup[d.id] = []
+              if (!pickup[d.id].includes(slot)) pickup[d.id].push(slot)
+            }
+          })
+        }
+        // Delivery windows
+        if (Array.isArray(sched.default_delivery_windows) && sched.default_delivery_windows.length > 0) {
+          sched.default_delivery_windows.forEach(dw => {
+            if (dw.day.toLowerCase() === weekday) {
+              const startH = parseInt(dw.start_time.split(':')[0], 10)
+              const endH = parseInt(dw.end_time.split(':')[0], 10)
+              const slot = `${startH}-${endH}`
+              if (!delivery[d.id]) delivery[d.id] = []
+              if (!delivery[d.id].includes(slot)) delivery[d.id].push(slot)
+            }
+          })
+        }
+      }
+    })
+
+    return { pickup, delivery }
+  }
+
+  const [activeCitySchedule, setActiveCitySchedule] = useState<CityMarketSchedule | null>(null)
+  const [isCustomScheduleOpen, setIsCustomScheduleOpen] = useState(false)
+  const cityScheduleAppliedRef = useRef(false)
+
+  // Resolve City Market Schedule whenever address changes
+  useEffect(() => {
+    const supabase = createClient()
+    resolveActiveCitySchedule(supabase, {
+      city: addressFields.city,
+      state: addressFields.state,
+      zip: addressFields.zip
+    }).then(sched => {
+      setActiveCitySchedule(sched)
+      if (sched && !cityScheduleAppliedRef.current && !state.boothId) {
+        cityScheduleAppliedRef.current = true
+        const { pickup, delivery } = mapCityScheduleToDates(sched, dynamicDays)
+        const allDates = Array.from(new Set([...Object.keys(pickup), ...Object.keys(delivery)]))
+        if (allDates.length > 0) {
+          updateState({
+            pickupWindows: pickup,
+            deliveryWindows: delivery,
+            selectedDates: allDates,
+            offersPickup: Object.keys(pickup).length > 0,
+            offersDelivery: Object.keys(delivery).length > 0
+          })
+        }
+      }
+    })
+  }, [addressFields.city, addressFields.state, addressFields.zip]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load user's stands and profile address
   useEffect(() => {
     if (!user?.id) return
@@ -685,8 +780,11 @@ export default function Step2Fulfillment() {
       <div className={styles.formGroup}>
         <label className={styles.label}>📅 Available For</label>
         <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
-          Booth defaults are pre-selected — override as needed.
+          {activeCitySchedule
+            ? `Default ${activeCitySchedule.city} Market Day fulfillment windows are pre-selected.`
+            : 'Booth defaults are pre-selected — override as needed.'}
         </p>
+
         {errors.fulfillment && <span className={styles.errorText} style={{ display: 'block', marginBottom: 8 }}>{errors.fulfillment}</span>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 12 }}>
@@ -819,14 +917,80 @@ export default function Step2Fulfillment() {
                     />
                   </div>
                 </div>
-                <WindowSelector 
-                  value={state.deliveryWindows || {}} 
-                  onChange={(v) => {
-                    const allDates = Array.from(new Set([...Object.keys(v), ...Object.keys(state.pickupWindows || {})]))
-                    updateState({ deliveryWindows: v, selectedDates: allDates })
-                  }} 
-                  days={dynamicDays} 
-                />
+                {activeCitySchedule && !isCustomScheduleOpen ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>✨</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                          {activeCitySchedule.city} Market Day Delivery
+                        </div>
+                        <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                          {getMarketDayTimeString(activeCitySchedule, 'delivery')}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="customize-delivery-schedule-btn"
+                      onClick={() => setIsCustomScheduleOpen(true)}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #16a34a',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#15803d',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <span>✏️</span> Customize
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    {activeCitySchedule && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mapped = mapWeeklyWindowsToDates(
+                              activeCitySchedule ? { [activeCitySchedule.market_days[0]?.toLowerCase() || 'saturday']: (activeCitySchedule.default_delivery_windows || []).map(w => ({ start_time: w.start_time, end_time: w.end_time })) } : null,
+                              dynamicDays
+                            )
+                            updateState({ deliveryWindows: mapped })
+                            setIsCustomScheduleOpen(false)
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#15803d',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0
+                          }}
+                        >
+                          ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                        </button>
+                      </div>
+                    )}
+                    <WindowSelector 
+                      value={state.deliveryWindows || {}} 
+                      onChange={(v) => {
+                        const allDates = Array.from(new Set([...Object.keys(v), ...Object.keys(state.pickupWindows || {})]))
+                        updateState({ deliveryWindows: v, selectedDates: allDates })
+                      }} 
+                      days={dynamicDays} 
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1082,14 +1246,80 @@ export default function Step2Fulfillment() {
                     fallbackZip={addressFields.zip}
                   />
                 </div>
-                <WindowSelector 
-                  value={state.pickupWindows || {}} 
-                  onChange={(v) => {
-                    const allDates = Array.from(new Set([...Object.keys(v), ...Object.keys(state.deliveryWindows || {})]))
-                    updateState({ pickupWindows: v, selectedDates: allDates })
-                  }} 
-                  days={dynamicDays} 
-                />
+                {activeCitySchedule && !isCustomScheduleOpen ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>✨</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                          {activeCitySchedule.city} Market Day Pickup
+                        </div>
+                        <div style={{ fontSize: 12, color: '#15803d', marginTop: 1 }}>
+                          {getMarketDayTimeString(activeCitySchedule, 'pickup')}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="customize-pickup-schedule-btn"
+                      onClick={() => setIsCustomScheduleOpen(true)}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #16a34a',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#15803d',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <span>✏️</span> Customize
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    {activeCitySchedule && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>Custom Schedule Mode</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mapped = mapWeeklyWindowsToDates(
+                              activeCitySchedule ? { [activeCitySchedule.market_days[0]?.toLowerCase() || 'saturday']: (activeCitySchedule.default_pickup_windows || []).map(w => ({ start_time: w.start_time, end_time: w.end_time })) } : null,
+                              dynamicDays
+                            )
+                            updateState({ pickupWindows: mapped })
+                            setIsCustomScheduleOpen(false)
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#15803d',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0
+                          }}
+                        >
+                          ↩️ Use {activeCitySchedule.city} Market Day Defaults
+                        </button>
+                      </div>
+                    )}
+                    <WindowSelector 
+                      value={state.pickupWindows || {}} 
+                      onChange={(v) => {
+                        const allDates = Array.from(new Set([...Object.keys(v), ...Object.keys(state.deliveryWindows || {})]))
+                        updateState({ pickupWindows: v, selectedDates: allDates })
+                      }} 
+                      days={dynamicDays} 
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

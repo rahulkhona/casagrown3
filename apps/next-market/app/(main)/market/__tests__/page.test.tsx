@@ -117,7 +117,7 @@ describe('MarketProducePage', () => {
   it('renders search bar, location bar, and category tabs', async () => {
     render(<MarketPage />)
 
-    expect(screen.getByRole('link', { name: /Add Produce/i })).toHaveAttribute('href', '/create-listing')
+    expect(screen.getByRole('link', { name: /Add Produce/i })).toHaveAttribute('href', '/my-booth/products/new')
     expect(screen.getByPlaceholderText(/Search produce/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Address or ZIP/i)).toBeInTheDocument()
     expect(screen.getByText(/All Seasonal Produce/i)).toBeInTheDocument()
@@ -149,7 +149,7 @@ describe('MarketProducePage', () => {
     fireEvent.change(searchInput, { target: { value: 'Dragonfruit' } })
 
     expect(screen.getByText(/No produce found matching.*Dragonfruit/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /List on Neighborhood Stand/i })).toHaveAttribute('href', '/create-listing')
+    expect(screen.getByRole('link', { name: /List on Neighborhood Stand/i })).toHaveAttribute('href', '/my-booth/products/new?name=Dragonfruit')
   })
 
   it('opens listing modal when clicking Have Extra on a crop card', async () => {
@@ -188,17 +188,16 @@ describe('MarketProducePage', () => {
 
     fireEvent.click(wantButtons[0])
 
-    expect(screen.getByText(/Get Notified When Harvested/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/Desired Quantity/i)).toBeInTheDocument()
 
     // Submit the demand signal
-    const form = screen.getByRole('button', { name: /Notify Me When Available/i }).closest('form')
+    const form = screen.getByRole('button', { name: /Find sellers in my neighborhood/i }).closest('form')
     expect(form).toBeInTheDocument()
     fireEvent.submit(form!)
 
     // Post-submission confirmation hub with Instacart and USDA markets
     await waitFor(() => {
-      expect(screen.getByText(/Demand Signal Sent!/i)).toBeInTheDocument()
+      expect(screen.getByText(/Neighbors notified/i)).toBeInTheDocument()
       expect(screen.getByText(/Instacart Delivery/i)).toBeInTheDocument()
       expect(screen.getByText(/Nearby Farmers Markets & Stands/i)).toBeInTheDocument()
       expect(screen.getByText(/Willow Glen Farmers Market/i)).toBeInTheDocument()
