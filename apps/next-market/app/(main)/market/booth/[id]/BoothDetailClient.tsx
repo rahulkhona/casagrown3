@@ -509,28 +509,6 @@ export default function BoothDetailClient({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {/* Market Closed Banner */}
-      {isClosed && (
-        <div style={{
-          background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
-          border: '1px solid #fbbf24',
-          borderRadius: 'var(--radius-md, 12px)',
-          padding: '16px 20px',
-          margin: '16px 0',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>🕐</span>
-            <strong style={{ color: '#92400e', fontSize: 15 }}>
-              Market is currently closed
-            </strong>
-          </div>
-          {nextOpenStr && (
-            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
-              Next market open: <strong>{nextOpenStr}</strong> — tap 🔔 on any product to get notified!
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Products */}
       <div className={styles.productsSection} style={{ '--theme-border': theme.border, '--theme-accent-color': theme.border } as React.CSSProperties}>

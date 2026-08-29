@@ -735,28 +735,6 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
             </div>
           )}
 
-          {/* Market Closed Banner — only shown when override is off and schedule says closed */}
-          {!marketIsOpen && (
-            <div style={{
-              background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
-              border: '1px solid #fbbf24',
-              borderRadius: 'var(--radius-md, 12px)',
-              padding: '16px 20px',
-              marginTop: 16,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>🕐</span>
-                <strong style={{ color: '#92400e', fontSize: 15 }}>
-                  Market is currently closed
-                </strong>
-              </div>
-              {nextOpenStr && (
-                <p style={{ margin: '8px 0 0', fontSize: 13, color: '#a16207' }}>
-                  Next market open: <strong>{nextOpenStr}</strong>
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Windows Expired Banner + Reminder */}
           {windowsExpired && (
