@@ -54,8 +54,8 @@ export default function DailyGamesMicrostrip() {
   if (!isVisible) return null
 
   return (
-    <aside aria-label="Daily challenge banner" className={styles.microstripWrapper}>
-      <Link href={featuredGameId} className={styles.microstripContent}>
+    <aside aria-label="Daily games hub banner" className={styles.microstripWrapper}>
+      <Link href="/games" className={styles.microstripContent}>
         <div className={styles.microstripLeft}>
           <span className={styles.gameIcon}>🎮</span>
           <span className={styles.gameTitle}>
