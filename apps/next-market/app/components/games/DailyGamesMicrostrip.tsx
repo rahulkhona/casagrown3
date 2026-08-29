@@ -59,17 +59,11 @@ export default function DailyGamesMicrostrip() {
         <div className={styles.microstripLeft}>
           <span className={styles.gameIcon}>🎮</span>
           <span className={styles.gameTitle}>
-            <strong>Daily Challenge:</strong> {featuredGameTitle}
+            <strong>Daily Game:</strong> {featuredGameTitle}
           </span>
-          {streakDays > 0 ? (
-            <span className={styles.streakBadge}>
-              🔥 {streakDays}d Streak
-            </span>
-          ) : (
-            <span className={styles.pointsBadge}>
-              🏆 +50 pts
-            </span>
-          )}
+          <span className={styles.streakBadge}>
+            🔥 {streakDays > 0 ? `${streakDays}d Streak` : 'Daily Streak'}
+          </span>
         </div>
 
         <div className={styles.microstripRight}>
