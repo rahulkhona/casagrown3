@@ -266,9 +266,14 @@ test.describe('Fulfillment Base Address and Pickup Override', () => {
       await page.locator('input[placeholder="ST"]').last().fill('CA')
       await page.locator('input[placeholder="ZIP"]').last().fill('94111')
 
-      // Select a time window for both delivery and pickup
-      await page.getByText(/^Today/i).first().click()
-      await page.getByText(/^Today/i).last().click()
+      // Select a time window for both delivery and pickup if custom/standard pills are present
+      const todayBtns = page.getByText(/^Today/i)
+      if (await todayBtns.first().isVisible({ timeout: 1000 }).catch(() => false)) {
+        await todayBtns.first().click()
+      }
+      if (await todayBtns.last().isVisible({ timeout: 1000 }).catch(() => false)) {
+        await todayBtns.last().click()
+      }
 
       await page.locator('button:has-text("Next")').click()
 

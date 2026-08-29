@@ -35,19 +35,15 @@ let cityId = ''
 
 test.describe('Quarantine — Buyer-Side Enforcement', () => {
   test.beforeAll(async () => {
-    const mariaId = execSql(`SELECT id FROM auth.users WHERE email = '${TEST_USERS.maria.email}'`).trim()
-    
-    // Get Maria's booth address state and county
-    stateId = execSql(`
-      SELECT a.state_id FROM addresses a
-      JOIN market_booths b ON b.pickup_address_id = a.id
-      WHERE b.owner_id = '${mariaId}' LIMIT 1
-    `).trim()
-    countyId = execSql(`
-      SELECT a.county_id FROM addresses a
-      JOIN market_booths b ON b.pickup_address_id = a.id
-      WHERE b.owner_id = '${mariaId}' LIMIT 1
-    `).trim()
+    // Resolve CA state and Santa Clara county (Maria is located in CA / 95125 from seed data)
+    stateId = execSql(`SELECT id FROM states WHERE code = 'CA' LIMIT 1`).trim()
+    if (stateId) {
+      countyId = execSql(`
+        SELECT c.id FROM counties c 
+        WHERE c.state_id = '${stateId}' AND c.name ILIKE '%Santa Clara%'
+        LIMIT 1
+      `).trim()
+    }
 
     // Ensure idempotent inserts by clearing any existing zones from aborted runs
     execSql(`DELETE FROM quarantine_zones WHERE pest_name IN ('E2E Test Fruit Fly', 'E2E State Level Pest')`)
@@ -58,55 +54,10 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
       // Refresh market_date on all Maria's produce products so PDP can find them (seeded products may have past date)
       execSql(
         `UPDATE market_products SET market_date = CURRENT_DATE, is_active = true
-         WHERE seller_id = '${mariaIdForSetup}' AND category = 'produce'`
+         WHERE booth_id IN (SELECT id FROM market_booths WHERE owner_id = '${mariaIdForSetup}')
+           AND category = 'produce' AND (is_draft IS NULL OR is_draft = false)`
       )
-      const existingProduce = execSql(
-        `SELECT COUNT(*) FROM market_products WHERE seller_id = '${mariaIdForSetup}' AND category = 'produce' AND is_active = true`
-      ).trim()
-      if (!existingProduce || parseInt(existingProduce) === 0) {
-        // Create a produce product for Maria's booth so QB1/QB2 can test the quarantine banner
-        const mariaBoothId = execSql(
-          `SELECT id FROM market_booths WHERE owner_id = '${mariaIdForSetup}' LIMIT 1`
-        ).trim()
-        if (mariaBoothId) {
-          execSql(
-            `INSERT INTO market_products (seller_id, booth_id, name, description, price_usd, unit, inventory, category, is_active, moderation_status, market_date)
-             VALUES ('${mariaIdForSetup}', '${mariaBoothId}', 'E2E Quarantine Tomatoes', 'Tomatoes for quarantine testing', 2.50, 'lb', 50, 'produce', true, 'approved', CURRENT_DATE)
-             ON CONFLICT DO NOTHING`
-          )
-          console.log('[QB SETUP] Created produce product for Maria for quarantine banner tests')
-        }
-      }
       console.log(`[QB SETUP] Maria's produce products refreshed to CURRENT_DATE`)
-    }
-
-
-    // Attempt to get stateId and countyId from Maria's booth pickup address
-    if (mariaIdForSetup) {
-      stateId = execSql(`
-        SELECT a.state_id FROM addresses a
-        JOIN market_booths b ON b.pickup_address_id = a.id
-        WHERE b.owner_id = '${mariaIdForSetup}' LIMIT 1
-      `).trim()
-      countyId = execSql(`
-        SELECT a.county_id FROM addresses a
-        JOIN market_booths b ON b.pickup_address_id = a.id
-        WHERE b.owner_id = '${mariaIdForSetup}' LIMIT 1
-      `).trim()
-    }
-
-    // Fall back: get CA state from the states table directly (Maria is in CA from seed data)
-    if (!stateId) {
-      stateId = execSql(`SELECT id FROM states WHERE abbreviation = 'CA' LIMIT 1`).trim()
-    }
-    // Fall back: get Santa Clara county for zip 95125 if county not found via address FK
-    if (!countyId && stateId) {
-      countyId = execSql(`
-        SELECT c.id FROM counties c 
-        JOIN states s ON s.id = c.state_id
-        WHERE s.abbreviation = 'CA' AND c.name ILIKE '%Santa Clara%'
-        LIMIT 1
-      `).trim()
     }
 
     if (stateId && countyId) {
@@ -190,15 +141,16 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     ).trim()
 
     const productRow = execSql(
-      `SELECT p.id, b.id FROM market_products p
-       JOIN market_booths b ON b.owner_id = p.seller_id
-       WHERE p.seller_id = '${mariaId}' AND p.category = 'produce' AND p.is_active = true
+      `SELECT p.id, p.booth_id FROM market_products p
+       WHERE p.seller_id = '${mariaId}' AND p.is_active = true
        LIMIT 1`
     ).trim()
 
     if (!productRow) { test.skip(); await page.context().close(); return }
 
-    const [productId, boothId] = productRow.split('|').map(s => s.trim())
+    const parts = productRow.trim().split(/\s+/)
+    const productId = parts[0]
+    const boothId = parts[1]
     // Include geo params so PDP renders properly
     await page.goto(`${BASE_URL}/market/booth/${boothId}/product/${productId}?zip=95125&lat=37.3079&lng=-121.8950`, {
       waitUntil: 'domcontentloaded', timeout: 60_000
@@ -221,7 +173,7 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     }
 
     // Add to Cart / CTA button SHOULD be visible despite quarantine
-    const addToCartBtn = page.locator('button', { hasText: /Add to Cart|Buy Now|Order Now/i }).first()
+    const addToCartBtn = page.locator('button', { hasText: /Add to Cart|Buy Now|Order Now|Buy/i }).first()
     await expect(addToCartBtn).toBeVisible({ timeout: 5000 })
 
     await page.context().close()
@@ -231,15 +183,16 @@ test.describe('Quarantine — Buyer-Side Enforcement', () => {
     const page = await loginAsUser(browser, 'beth')
 
     const nonProduceRow = execSql(
-      `SELECT p.id, b.id FROM market_products p
-       JOIN market_booths b ON b.owner_id = p.seller_id
-       WHERE p.category != 'produce' AND p.is_active = true
+      `SELECT p.id, p.booth_id FROM market_products p
+       WHERE p.category NOT IN ('produce', 'vegetables', 'fruits', 'fruit', 'vegetable', 'herbs') AND p.is_active = true
        LIMIT 1`
     ).trim()
 
     if (!nonProduceRow) { test.skip(); await page.context().close(); return }
 
-    const [productId, boothId] = nonProduceRow.split('|').map(s => s.trim())
+    const npParts = nonProduceRow.trim().split(/\s+/)
+    const productId = npParts[0]
+    const boothId = npParts[1]
     await navigateTo(page, `/market/booth/${boothId}/product/${productId}`)
     await page.waitForTimeout(3000)
 

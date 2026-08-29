@@ -605,12 +605,12 @@ export default function Step2Fulfillment() {
       let hasPickupWindow = false;
       
       if (state.offersDelivery) {
-        hasDeliveryWindow = Object.keys(state.deliveryWindows || {}).length > 0;
+        hasDeliveryWindow = Object.keys(state.deliveryWindows || {}).length > 0 || (!!activeCitySchedule && !isCustomScheduleOpen);
         if (!hasDeliveryWindow) newErrors.fulfillment = 'Select at least one delivery day/window';
       }
       
       if (state.offersPickup) {
-        hasPickupWindow = Object.keys(state.pickupWindows || {}).length > 0;
+        hasPickupWindow = Object.keys(state.pickupWindows || {}).length > 0 || (!!activeCitySchedule && !isCustomScheduleOpen);
         if (!hasPickupWindow) newErrors.fulfillment = newErrors.fulfillment ? 'Select delivery and pickup days/windows' : 'Select at least one pickup day/window';
         if (isPublicLandmark(pickupAddressFields.street) && !state.pickupInstructions?.trim()) {
           newErrors.pickupInstructions = 'Please provide pickup instructions for meeting at this public location.'
@@ -640,6 +640,21 @@ export default function Step2Fulfillment() {
         firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 50)
       return
+    }
+
+    if (activeCitySchedule && !isCustomScheduleOpen) {
+      const updates: any = {}
+      if (state.offersDelivery && Object.keys(state.deliveryWindows || {}).length === 0) {
+        const schedMap = { [activeCitySchedule.market_days[0]?.toLowerCase() || 'saturday']: (activeCitySchedule.default_delivery_windows || []).map(w => ({ start_time: w.start_time, end_time: w.end_time })) }
+        updates.deliveryWindows = mapWeeklyWindowsToDates(schedMap, dynamicDays)
+      }
+      if (state.offersPickup && Object.keys(state.pickupWindows || {}).length === 0) {
+        const schedMap = { [activeCitySchedule.market_days[0]?.toLowerCase() || 'saturday']: (activeCitySchedule.default_pickup_windows || []).map(w => ({ start_time: w.start_time, end_time: w.end_time })) }
+        updates.pickupWindows = mapWeeklyWindowsToDates(schedMap, dynamicDays)
+      }
+      if (Object.keys(updates).length > 0) {
+        updateState(updates)
+      }
     }
 
     trackFieldInteract(pageSlug, 2, 'next_button', true)

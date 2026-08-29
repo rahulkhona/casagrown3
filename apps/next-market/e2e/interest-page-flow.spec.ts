@@ -5,7 +5,7 @@ test.describe('Exhaustive Interest Page & Form Controls Suite', () => {
     await page.goto('/market')
     await page.waitForTimeout(1000)
 
-    const addProduceLink = page.locator('a[href="/create-listing"]').first()
+    const addProduceLink = page.locator('a[href="/my-booth/products/new"], a:has-text("Add Produce")').first()
     await expect(addProduceLink).toBeVisible()
 
     await page.goto('/interest?scope=sell')

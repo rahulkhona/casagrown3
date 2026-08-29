@@ -79,21 +79,21 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
     const fetchProfileAddress = async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('street_address, city, state, zip_code')
+        .select('street_address, city, state_code, zip_code')
         .eq('id', user.id)
         .single()
       if (data) {
         setDeliveryAddressFields(prev => ({
           street: prev.street || data.street_address || '',
           city: prev.city || data.city || '',
-          state: prev.state || data.state || '',
+          state: prev.state || data.state_code || '',
           zip: prev.zip || data.zip_code || buyerZip || ''
         }))
         if (data.street_address || data.city) {
           const full = formatFullAddress({
             street: data.street_address || '',
             city: data.city || '',
-            state: data.state || '',
+            state: data.state_code || '',
             zip: data.zip_code || buyerZip || ''
           })
           setDeliveryAddress(prev => prev || full)

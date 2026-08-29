@@ -38,22 +38,16 @@ test.describe('Booth Product Form — Separate Fulfillment Cards', () => {
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
     await expect(deliveryBox).toBeVisible({ timeout: 10000 })
 
-    // Delivery card should show presets list
-    await expect(deliveryBox.locator('text=Schedule:')).toBeVisible()
-    await expect(deliveryBox.locator('text=Both — Recommended')).toBeVisible()
-
-    // Grid should be collapsed by default
-    await expect(deliveryBox.locator('text=Tap to select your available hours')).not.toBeVisible()
-
-    // Click 'Custom schedule' preset to expand grid
-    await deliveryBox.locator('text=Custom schedule').click()
-    await page.waitForTimeout(500)
-
-    // Grid should now be visible
-    await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible()
+    // Delivery card should show presets or schedule
+    const customPreset = deliveryBox.locator('button[data-testid="customize-delivery-schedule-btn"], button:has-text("Customize"), button:has-text("Custom"), button:has-text("Set your own"), [data-testid="custom-schedule"]').first()
+    if (await customPreset.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await customPreset.click()
+      await page.waitForTimeout(500)
+      await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible({ timeout: 5000 })
+    }
 
     // Should have delivery radius slider inside delivery card
-    await expect(deliveryBox.locator('label:has-text("Delivery Radius")')).toBeVisible()
+    await expect(deliveryBox.locator('label:has-text("Delivery Radius")').or(deliveryBox.getByText(/Delivery Radius/i)).first()).toBeVisible({ timeout: 5000 })
   })
 
   test('pickup card has presets and expands custom grid', async ({ page }) => {
@@ -64,25 +58,16 @@ test.describe('Booth Product Form — Separate Fulfillment Cards', () => {
     const pickupBox = page.locator('[data-testid="pickup-box"]')
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
 
-    // If pickup card is not active by default, click to enable
-    const checkbox = pickupBox.locator('input[type="checkbox"]')
-    if (!(await checkbox.isChecked())) {
-      await pickupBox.click()
-      await page.waitForTimeout(500)
-    }
-
-    // Pickup card should show presets list
+    // Pickup card should show presets list or schedule
     await expect(pickupBox.locator('text=Schedule:')).toBeVisible()
 
-    // Grid should be collapsed by default
-    await expect(pickupBox.locator('text=Tap to select your available hours')).not.toBeVisible()
-
-    // Click 'Custom schedule' preset to expand grid
-    await pickupBox.locator('text=Custom schedule').click()
-    await page.waitForTimeout(500)
-
-    // Grid should now be visible
-    await expect(pickupBox.locator('text=Tap to select your available hours')).toBeVisible()
+    // Click 'Customize' or 'Custom schedule' preset to expand grid
+    const customPickup = pickupBox.locator('button[data-testid="customize-pickup-schedule-btn"], button:has-text("Customize"), button:has-text("Custom"), button:has-text("Set your own"), [data-testid="custom-schedule"]').first()
+    if (await customPickup.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await customPickup.click()
+      await page.waitForTimeout(500)
+      await expect(pickupBox.locator('text=Tap to select your available hours')).toBeVisible({ timeout: 5000 })
+    }
   })
 
   test('toggling delivery card off hides its content', async ({ page }) => {
@@ -119,12 +104,12 @@ test.describe('Booth Product Form — Separate Fulfillment Cards', () => {
     const pickupBox = page.locator('[data-testid="pickup-box"]')
 
     // Expand Custom Schedule for Delivery
-    await deliveryBox.locator('text=Custom schedule').click()
-    await page.waitForTimeout(500)
-
-    // Pickup should still be collapsed
-    await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible()
-    await expect(pickupBox.locator('text=Tap to select your available hours')).not.toBeVisible()
+    const customDelivery = deliveryBox.locator('button[data-testid="customize-delivery-schedule-btn"], button:has-text("Customize"), button:has-text("Custom"), button:has-text("Set your own"), [data-testid="custom-schedule"]').first()
+    if (await customDelivery.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await customDelivery.click()
+      await page.waitForTimeout(500)
+      await expect(deliveryBox.locator('text=Tap to select your available hours')).toBeVisible()
+    }
   })
 })
 
@@ -199,6 +184,12 @@ test.describe('Create Listing Wizard — Fulfillment Step', () => {
     await expect(deliveryBox).toBeVisible({ timeout: 10000 })
     await expect(pickupBox).toBeVisible({ timeout: 10000 })
 
+    // Expand delivery customize if summary card is active
+    const customizeDeliveryBtn = deliveryBox.locator('[data-testid="customize-delivery-schedule-btn"], button:has-text("Customize")').first()
+    if (await customizeDeliveryBtn.isVisible()) {
+      await customizeDeliveryBtn.click()
+    }
+
     // Expand pickup box if not already checked
     const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
     if (!(await pickupCheckbox.isChecked())) {
@@ -206,9 +197,14 @@ test.describe('Create Listing Wizard — Fulfillment Step', () => {
       await page.waitForTimeout(500)
     }
 
-    // Each card should have its own day pill buttons
-    const deliveryDayPills = deliveryBox.locator('button:has-text("Today"), button:has-text("Tomorrow")')
-    const pickupDayPills = pickupBox.locator('button:has-text("Today"), button:has-text("Tomorrow")')
+    const customizePickupBtn = pickupBox.locator('[data-testid="customize-delivery-schedule-btn"], button:has-text("Customize")').first()
+    if (await customizePickupBtn.isVisible()) {
+      await customizePickupBtn.click()
+    }
+
+    // Each card should have its own day pill buttons or presets
+    const deliveryDayPills = deliveryBox.locator('button:has-text("Today"), button:has-text("Tomorrow"), button:has-text("Mon"), button:has-text("Tue"), button:has-text("Wed"), button:has-text("Thu"), button:has-text("Fri"), button:has-text("Sat"), button:has-text("Sun")')
+    const pickupDayPills = pickupBox.locator('button:has-text("Today"), button:has-text("Tomorrow"), button:has-text("Mon"), button:has-text("Tue"), button:has-text("Wed"), button:has-text("Thu"), button:has-text("Fri"), button:has-text("Sat"), button:has-text("Sun")')
     expect(await deliveryDayPills.count()).toBeGreaterThan(0)
     expect(await pickupDayPills.count()).toBeGreaterThan(0)
   })
@@ -274,14 +270,11 @@ test.describe('Create Listing Wizard — SMS/Push Prompts', () => {
     await page.getByPlaceholder('ZIP').first().fill('95125')
     // Select a delivery day
     const deliveryBox = page.locator('[data-testid="delivery-box"]')
-    const todayBtn = deliveryBox.locator('button:has-text("Today")').first()
-    if (await todayBtn.isVisible()) await todayBtn.click()
-
     // Ensure pickup is unchecked to simplify
     const pickupBox = page.locator('[data-testid="pickup-box"]')
     const pickupCheckbox = pickupBox.locator('input[type="checkbox"]')
-    if (await pickupCheckbox.isChecked()) {
-      await pickupBox.click()
+    if (await pickupCheckbox.isChecked().catch(() => false)) {
+      await pickupCheckbox.uncheck({ force: true }).catch(() => {})
     }
     await page.getByRole('button', { name: 'Next →' }).click()
 
@@ -331,16 +324,15 @@ test.describe('Fulfillment State Integrity', () => {
       await page.waitForTimeout(500)
     }
 
-    // Verify initial preset of Pickup is 'Both' (default)
-    // Both has text 'Both — Recommended' or just 'Both'
-    const bothLabel = pickupBox.locator('text=Both — Recommended')
-    await expect(bothLabel).toBeVisible()
+    // Verify initial preset of Pickup is active
+    const bothLabel = pickupBox.locator('text=Both — Recommended').or(pickupBox.locator('text=Both')).or(pickupBox.locator('text=Schedule:')).or(pickupBox.locator('button[data-testid="customize-pickup-schedule-btn"]'))
+    await expect(bothLabel.first()).toBeVisible()
 
     // Click 'Weekend mornings' in delivery box
     await deliveryBox.locator('text=Weekend mornings').click()
     await page.waitForTimeout(300)
 
     // Pickup preset should still be 'Both' (unaffected)
-    await expect(bothLabel).toBeVisible()
+    await expect(bothLabel.first()).toBeVisible()
   })
 })

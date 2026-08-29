@@ -96,15 +96,17 @@ test.describe('Guest Seller Wizard - Step 2 (Fulfillment)', () => {
     // Wait for Step 2
     await expect(page.locator('h2:has-text("How will buyers get it?")')).toBeVisible({ timeout: 15000 })
 
-    // Fill Address and select a window
+    // Fill Address
     await page.getByPlaceholder('Street Address').first().fill('100 Main St')
     await page.getByPlaceholder('City').first().fill('San Francisco')
     await page.getByPlaceholder('ST').first().fill('CA')
     await page.getByPlaceholder('ZIP').first().fill('94105')
-    await page.getByText(/^Today/i).first().click()
     
-    // Toggle off pickup so we don't need a pickup window
-    await page.getByText('Pickup Available').click()
+    // Select window if custom or standard pill is present
+    const todayPill = page.getByText(/^Today/i).first()
+    if (await todayPill.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await todayPill.click()
+    }
 
     // Click continue
     await page.getByRole('button', { name: 'Next →' }).click()
@@ -132,8 +134,8 @@ test.describe('Guest Seller Wizard - Step 3 (Pricing)', () => {
     await page.getByPlaceholder('City').first().fill('San Francisco')
     await page.getByPlaceholder('ST').first().fill('CA')
     await page.getByPlaceholder('ZIP').first().fill('94105')
-    await page.getByText(/^Today/i).first().click()
-    await page.getByText('Pickup Available').click()
+
+    // Proceed to Step 3 (pre-selected schedule is already populated)
     await page.getByRole('button', { name: 'Next →' }).click()
 
     // Wait for Step 3

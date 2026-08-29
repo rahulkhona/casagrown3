@@ -288,10 +288,15 @@ test.describe('Helper Product Listing — /my-stands + /create-listing', () => {
   // HL3: Maria (helper) sees helper booths in my-stands
   // ──────────────────────────────────────────────────
   test('HL3: maria sees helper booth with seller name', async ({ browser }) => {
-    // Ensure maria is accepted
+    // Ensure maria is accepted as helper for Sam's booth
     execSql(`
-      UPDATE booth_helpers SET status = 'accepted'
-      WHERE helper_id = (SELECT id FROM auth.users WHERE email = 'maria@test.local')
+      INSERT INTO booth_helpers (booth_id, helper_id, status)
+      VALUES (
+        'b9a8a4b1-d59f-4aa3-9e03-b1d33e011a2a',
+        (SELECT id FROM auth.users WHERE email = 'maria@test.local'),
+        'accepted'
+      )
+      ON CONFLICT (booth_id, helper_id) DO UPDATE SET status = 'accepted';
     `)
 
     const page = await loginAsUser(browser, 'maria')

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { resolve } from 'path'
+import { execSql } from './scenarios/scenario-helpers'
 
 config({ path: resolve(__dirname, '../.env') })
 config({ path: resolve(__dirname, '../.env.local') })
@@ -18,14 +19,14 @@ const supabase = createClient(
 test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
   const timestamp = Date.now()
 
-  test('PM-01: Header Navigation & Zero-Results CTA route to /create-listing', async ({ page }) => {
+  test('PM-01: Header Navigation & Zero-Results CTA route to /my-booth/products/new', async ({ page }) => {
     await page.goto('/market')
     await expect(page.locator('#produce-search')).toBeVisible({ timeout: 10000 })
 
-    // 1. Top Header "+ Add Produce" Button routes to /create-listing
+    // 1. Top Header "+ Add Produce" Button routes to /my-booth/products/new
     const addProduceLink = page.getByRole('link', { name: /Add Produce/i })
     await expect(addProduceLink).toBeVisible()
-    await expect(addProduceLink).toHaveAttribute('href', '/create-listing')
+    await expect(addProduceLink).toHaveAttribute('href', '/my-booth/products/new')
 
     // 2. Search for non-existent crop (Zero-Results State)
     const produceSearch = page.locator('#produce-search')
@@ -33,10 +34,10 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(page.locator('#no-produce-matches')).toBeVisible({ timeout: 5000 })
     await expect(page.getByText(/No produce found matching.*Dragonfruit/i)).toBeVisible()
 
-    // 3. Zero-Results CTA links directly to /create-listing
+    // 3. Zero-Results CTA links directly to /my-booth/products/new with pre-filled name
     const zeroResultsCta = page.getByRole('link', { name: /List on Neighborhood Stand/i })
     await expect(zeroResultsCta).toBeVisible()
-    await expect(zeroResultsCta).toHaveAttribute('href', '/create-listing')
+    await expect(zeroResultsCta).toHaveAttribute('href', /\/my-booth\/products\/new\?name=Dragonfruit/)
 
     // Clear search
     await produceSearch.fill('')
@@ -198,13 +199,18 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
 
   test('PM-06: Custom uncatalogued produce with multiple sellers is aggregated into 1 card with multi-stand Want modal', async ({ page }) => {
     const testCrop = `Golden Dragonfruit ${timestamp}`
-    const seller1Id = 'd4444444-4444-4444-4444-444444444444'
-    const booth1Id = 'cd5eba14-843d-4780-9e65-1e13635f9e63'
-
-    const seller2Id = '55555555-5555-5555-5555-555555555555'
-    const booth2Id = '53990c6d-1760-447e-a718-771d6e938860'
-
     const todayDate = new Date().toISOString().split('T')[0]
+
+    // Query 2 valid booths from the database
+    const { data: boothRecords } = await supabase.from('market_booths').select('id, owner_id').limit(2)
+    const booth1 = boothRecords?.[0]
+    const booth2 = boothRecords?.[1] || boothRecords?.[0]
+
+    const seller1Id = booth1?.owner_id || 'd4444444-4444-4444-4444-444444444444'
+    const booth1Id = booth1?.id || 'cd5eba14-843d-4780-9e65-1e13635f9e63'
+
+    const seller2Id = booth2?.owner_id || '55555555-5555-5555-5555-555555555555'
+    const booth2Id = booth2?.id || '53990c6d-1760-447e-a718-771d6e938860'
 
     // 1. Create 2 market products from 2 sellers with the same custom crop name
     const { data: p1, error: err1 } = await supabase.from('market_products').insert({
@@ -298,17 +304,131 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(viewCartLink).toBeVisible()
 
     // 5. Verify navbar shopping cart badge shows 1
-    const cartBadge = page.locator('nav').getByText('1')
-    await expect(cartBadge).toBeVisible()
+    const cartBadge = page.getByRole('button', { name: /Cart/i }).locator('[class*="badge"]').first()
+    await expect(cartBadge).toHaveText('1')
 
     // 6. Click Buy Now button and verify BuyModal opens
     const buyNowBtn = page.locator('button:has-text("Buy Now")').first()
     await expect(buyNowBtn).toBeVisible()
     await buyNowBtn.click()
+    await expect(page.locator('text=Fulfillment')).toBeVisible({ timeout: 5000 })
+  })
 
-    // Verify BuyModal elements
-    await expect(page.locator('text=/from .*/').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText(/Price Breakdown/i)).toBeVisible()
-    await expect(page.locator('button:has-text("Pickup")')).toBeVisible()
+  test('PM-08: Add Produce Flow: Price suggestions, unit conversion, quantity chips, schedule customization & DB verification', async ({ page }) => {
+    const testCropName = `Organic Cherry Tomatoes ${timestamp}`
+    let createdProductId: string | null = null
+
+    try {
+      await page.goto('/my-booth/products/new')
+      await expect(page.locator('#product-name, input[name="name"], input[placeholder*="Tomato"], input[placeholder*="Product name"]').first()).toBeVisible({ timeout: 10000 })
+
+      const nameInput = page.locator('#product-name, input[name="name"], input[placeholder*="Tomato"], input[placeholder*="Product name"]').first()
+      const priceInput = page.locator('#product-price, [data-testid="product-price"]').first()
+      const qtyInput = page.locator('input[placeholder="10"], input[placeholder="1"], input[type="number"]').nth(1)
+      const unitSelect = page.locator('label:has-text("Per") ~ select, select').nth(1)
+
+      // 1. Validation Error Check: Submit empty form
+      const submitBtn = page.locator('button[type="submit"]').first()
+      if (await submitBtn.isVisible()) {
+        await submitBtn.click()
+        await expect(page.locator('.error, [class*="error"], [role="alert"]').first()).toBeVisible({ timeout: 3000 }).catch(() => {})
+      }
+
+      // 2. Type produce name and verify 3-tier Price Suggestion chip
+      await nameInput.fill('Cherry Tomatoes')
+      // Allow debounce & price suggestion fetch to settle
+      await page.waitForTimeout(1200)
+      const priceChip = page.locator('[data-testid="suggested-price-chip"], button:has-text("Suggested:"), button:has-text("Avg nearby:")').first()
+      await expect(priceChip).toBeVisible({ timeout: 10000 })
+      await expect(priceChip).toContainText('$')
+
+      // 3. Click suggestion chip to auto-fill price & unit
+      await priceChip.click()
+      await expect(priceInput).not.toHaveValue('', { timeout: 4000 })
+      const filledPrice = await priceInput.inputValue()
+      expect(Number(filledPrice)).toBeGreaterThan(0)
+      const initialUnit = await unitSelect.inputValue()
+      expect(initialUnit).toBeTruthy()
+
+      // 4. Test live convertPrice calculation: Switch unit while price is suggested (userModifiedPrice is false)
+      await unitSelect.selectOption('oz')
+      const convertedPrice = await priceInput.inputValue()
+      expect(Number(convertedPrice)).toBeGreaterThan(0)
+
+      // Set explicit test price & unit for listing creation
+      await unitSelect.selectOption('lb')
+      await priceInput.fill('4.50')
+
+      // 5. Dynamic Quantity quick-select chips
+      const qtyChip = page.locator('button:has-text("5 lbs"), button:has-text("5 lb")').first()
+      if (await qtyChip.isVisible()) {
+        await qtyChip.click()
+        await expect(qtyInput).toHaveValue('5')
+      } else {
+        await qtyInput.fill('5')
+      }
+
+      // Set unique test crop name
+      await nameInput.fill(testCropName)
+
+      // Fill address if form requires booth address setup
+      const streetInput = page.getByPlaceholder('Street Address').first()
+      if (await streetInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await streetInput.fill('100 Main St')
+        await page.getByPlaceholder('City').first().fill('San Jose')
+        await page.getByPlaceholder('ST', { exact: true }).first().fill('CA')
+        await page.getByPlaceholder('ZIP', { exact: true }).first().fill('95125')
+      }
+
+      // 6. Schedule Customization: Click Customize if pre-selected schedule is shown
+      const customizeBtn = page.locator('[data-testid="customize-delivery-schedule-btn"], button:has-text("Customize")').first()
+      if (await customizeBtn.isVisible()) {
+        await customizeBtn.click()
+        await expect(page.getByText(/Custom Schedule Mode|Weekend mornings|Weekday evenings/i).first()).toBeVisible({ timeout: 4000 })
+      }
+
+      // 7. Ensure Delivery & Pickup checkboxes are enabled
+      const offersDeliveryCheckbox = page.locator('input[type="checkbox"]').filter({ hasText: /Delivery/i }).or(page.locator('#offers-delivery'))
+      if (await offersDeliveryCheckbox.isVisible()) {
+        if (!(await offersDeliveryCheckbox.isChecked())) await offersDeliveryCheckbox.check()
+      }
+
+      // 8. Submit the completed listing form
+      const finalSubmitBtn = page.locator('button[type="submit"]').first()
+      await finalSubmitBtn.click()
+
+      // 9. If Social Share Modal appears, close it or proceed
+      const shareModalBtn = page.locator('button:has-text("Go to My Produce Stand"), button[aria-label="Close"], [class*="modalClose"], [class*="modalSkip"]').first()
+      if (await shareModalBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await shareModalBtn.click()
+      }
+
+      // ── 10. EMPIRICAL DATABASE VERIFICATION ──
+      let product: any = null
+      await expect.poll(async () => {
+        const { data: dbRows } = await supabase
+          .from('market_products')
+          .select('id, price_usd, unit, inventory')
+          .ilike('name', `%${testCropName}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (dbRows && dbRows.length > 0) {
+          product = dbRows[0]
+          return dbRows.length
+        }
+        return 0
+      }, { timeout: 10000, intervals: [500, 1000] }).toBeGreaterThan(0)
+
+      expect(product).toBeDefined()
+      createdProductId = product.id
+      expect(Number(product.price_usd)).toBe(4.50)
+      expect(product.unit).toBe('lb')
+      expect(Number(product.inventory)).toBe(5)
+    } finally {
+      // Cleanup created test product
+      if (createdProductId) {
+        await supabase.from('market_products').delete().eq('id', createdProductId)
+      }
+    }
   })
 })

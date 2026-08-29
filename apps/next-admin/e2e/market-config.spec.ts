@@ -7,32 +7,45 @@ test.describe('Market Operations Page', () => {
   })
 
   test('should load market settings and schedule', async ({ page }) => {
-    // ClientOnly wrapper delays first render — wait longer
-    await expect(page.getByRole('button', { name: /Save (Configuration|Settings)/i })).toBeVisible({ timeout: 30000 })
-    await expect(page.getByText('Saturday')).toBeVisible()
+    // 1. Default Market Schedule Card
+    await expect(page.getByText('Default Market Schedule (Platform-Wide)')).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole('button', { name: 'Saturday' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Save Default Schedule/i })).toBeVisible()
+
+    // 2. City Overrides Card
+    await expect(page.getByText('City Overrides')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Add City Override/i })).toBeVisible()
+
+    // 3. Global Market Settings Card
+    await expect(page.getByText('Global Market Settings')).toBeVisible()
+    await expect(page.getByText('Products Never Expire')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible()
   })
 
-  test('should show info box', async ({ page }) => {
-    await expect(page.getByText('How Market Hours Work')).toBeVisible({ timeout: 15000 })
+  test('should open and close Add City Override modal', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /Add City Override/i })).toBeVisible({ timeout: 15000 })
+    await page.getByRole('button', { name: /Add City Override/i }).click()
+
+    // Modal opens
+    await expect(page.getByText('Add City Schedule Override')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByPlaceholder('e.g. San Jose')).toBeVisible()
+
+    // Click Cancel to dismiss
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByText('Add City Schedule Override')).not.toBeVisible()
   })
 
-  test('should decouple market never closes flag and display schedule override warning', async ({ page }) => {
-    // Locate the Switch for "Market Never Closes"
-    const neverClosesSwitch = page.locator('button[id="market-never-closes"]')
-    
-    // Ensure it's active so the warning banner appears
-    const isChecked = await neverClosesSwitch.getAttribute('aria-checked') === 'true'
-    if (!isChecked) {
-      await neverClosesSwitch.click()
-    }
+  test('should toggle platform-wide default market schedule and global settings', async ({ page }) => {
+    // Verify Platform-wide default schedule card is present
+    await expect(page.getByText('Default Market Schedule (Platform-Wide)')).toBeVisible({ timeout: 15000 })
 
-    // Verify the warning banner is actively displayed showing schedule decoupling
-    await expect(page.getByText('Market Override Active')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText(/You may still perfectly edit and save the schedule below/)).toBeVisible()
-    
-    // Verify the schedule itself is STILL beautifully displayed and editable underneath
-    await expect(page.getByText('Saturday')).toBeVisible()
-    await expect(page.getByText('Market Schedule')).toBeVisible()
+    // Verify products never expire toggle exists and Save Settings works
+    const saveSettingsBtn = page.getByRole('button', { name: /Save Settings/i })
+    await expect(saveSettingsBtn).toBeVisible()
+    await saveSettingsBtn.click()
+
+    // Success feedback
+    await expect(page.getByText(/Market settings saved successfully|Saved successfully/i).first()).toBeVisible({ timeout: 5000 })
   })
 })
 

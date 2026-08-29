@@ -45,9 +45,10 @@ test.describe('Multi-Wizard Telemetry E2E', () => {
     await page.getByPlaceholder('Street Address').first().fill('100 Main St');
     await page.getByPlaceholder('City').first().fill('San Francisco');
     await page.getByPlaceholder('ST').first().fill('CA');
-    await page.getByPlaceholder('ZIP').first().fill('94105');
-    await page.getByText(/^Today/i).first().click();
-    await page.getByText('Pickup Available').click(); // toggle pickup off
+    const zipInput = page.getByPlaceholder('ZIP').first();
+    if (await zipInput.isVisible().catch(() => false)) {
+      await zipInput.fill('94105');
+    }
 
     // Go next
     await page.getByRole('button', { name: 'Next →' }).click();

@@ -178,20 +178,6 @@ test.describe('Landmark Pickup, Safety & Multi-Wizard End-to-End Test Suite', ()
     await page.getByPlaceholder('ST').first().fill('CA')
     await page.getByPlaceholder('ZIP').first().fill('95125')
 
-    // Toggle delivery off so only public pickup is tested
-    const deliveryToggle = page.locator('text=I\'ll Deliver').first()
-    if (await deliveryToggle.isVisible()) {
-      await deliveryToggle.click()
-      await page.waitForTimeout(300)
-    }
-
-    // Select today for pickup schedule
-    const pickupDayBtn = page.locator('button:has-text("Today")').first()
-    if (await pickupDayBtn.isVisible()) {
-      await pickupDayBtn.click()
-      await page.waitForTimeout(300)
-    }
-
     // Advance to Step 3 (Pricing)
     await page.getByRole('button', { name: 'Next →' }).click()
     await expect(page.locator('h2:has-text("Set Your Price")')).toBeVisible({ timeout: 15000 })

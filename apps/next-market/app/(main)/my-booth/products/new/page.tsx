@@ -1228,6 +1228,9 @@ function NewProductPageInner() {
     
     // Safety check first: Mandatory instructions when Safe Public Spot is selected
     const newErrors: Record<string, string> = {}
+    if (!name.trim()) {
+      newErrors.name = 'Name is required'
+    }
     const isPickupActive = hasBooth ? productOffersPickup : inlinePickup
     const isPublicSpot = isPickupActive && isPublicLandmark(productPickupAddr.street)
     if (isPublicSpot && !productPickupInstructions.trim()) {
@@ -1236,7 +1239,6 @@ function NewProductPageInner() {
     
     // Strict checks only enforced if trying to publish fully
     if (!needsDraft) {
-      if (!name.trim()) newErrors.name = 'Name is required'
       if (!isValidPrice) {
         if (effectivePrice === '' || effectivePrice === null) newErrors.price = 'Set a price (or 0 for free)'
         else if (parsedPrice < 0) newErrors.price = 'Price cannot be negative'
@@ -2934,6 +2936,8 @@ function NewProductPageInner() {
                 <div className={styles.priceInput}>
                   <span className={styles.priceCurrency}>$</span>
                   <input
+                    id="product-price"
+                    data-testid="product-price"
                     className={`${styles.input} ${styles.priceField} ${errors.price ? styles.inputError : (priceUsd || isFree) ? styles.inputFilled : styles.inputRequired}`}
                     type="number"
                     step="0.01"
@@ -2958,9 +2962,11 @@ function NewProductPageInner() {
                 {suggestedPrice && !restriction.isFreeOnly && !isFree && (
                   <button
                     type="button"
+                    data-testid="suggested-price-chip"
                     onClick={() => {
                       setPriceUsd(suggestedPrice.price_usd.toString());
                       setUnit(suggestedPrice.unit);
+                      userModifiedPrice.current = false;
                       setErrors(p => ({ ...p, price: '' }));
                     }}
                     style={{

@@ -57,17 +57,17 @@ test.describe('Market Page — Produce Marketplace Layout', () => {
   test('should show Add Produce button', async ({ page }) => {
     await page.goto('/market')
     await page.waitForTimeout(1000)
-    const addLink = page.locator('a[href="/create-listing"]').first()
+    const addLink = page.locator('a[href="/my-booth/products/new"], a:has-text("Add Produce")').first()
     await expect(addLink).toBeVisible({ timeout: 5000 })
     const text = await addLink.textContent()
     expect(text).toContain('Add Produce')
   })
 
-  test('Add Produce should link to /create-listing', async ({ page }) => {
+  test('Add Produce should link to /my-booth/products/new', async ({ page }) => {
     await page.goto('/market')
     await page.waitForTimeout(1000)
-    const addLink = page.locator('a[href="/create-listing"]').first()
-    await expect(addLink).toHaveAttribute('href', '/create-listing')
+    const addLink = page.locator('a:has-text("Add Produce")').first()
+    await expect(addLink).toHaveAttribute('href', '/my-booth/products/new')
   })
 
   test('should show category filter pills', async ({ page }) => {

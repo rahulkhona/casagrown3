@@ -266,61 +266,70 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 4: Vitest Unit Tests (all apps)
 # ─────────────────────────────────────────────────────────────────────────
-section "Phase 4: Vitest Unit Tests"
+if should_run_phase "4"; then
+  section "Phase 4: Vitest Unit Tests"
 
-run_vitest() {
-  local app_name="$1"
-  local app_dir="$2"
+  run_vitest() {
+    local app_name="$1"
+    local app_dir="$2"
 
-  echo "  Running $app_name Vitest..."
-  local output
-  output=$(cd "$app_dir" && npx vitest run 2>&1)
-  local exit_code=$?
+    echo "  Running $app_name Vitest..."
+    local output
+    output=$(cd "$app_dir" && npx vitest run 2>&1)
+    local exit_code=$?
 
-  local passed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
-  local failed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
-  local files_p=$(echo "$output" | grep "Test Files" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+    local passed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+    local failed=$(echo "$output" | grep "Tests" | tail -n 10 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+    local files_p=$(echo "$output" | grep "Test Files" | tail -n 10 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
-  if [ "$exit_code" -eq 0 ]; then
-    echo -e "  ${GREEN}✅ ${app_name} Vitest: ${files_p} files, ${passed} tests — ALL PASS${NC}"
-    log_suite "${app_name} Vitest" "$passed"
-  else
-    echo -e "  ${RED}❌ ${app_name} Vitest: ${passed} passed, ${failed} failed${NC}"
-    log_suite "${app_name} Vitest" "$passed" "$failed"
-  fi
-}
+    if [ "$exit_code" -eq 0 ]; then
+      echo -e "  ${GREEN}✅ ${app_name} Vitest: ${files_p} files, ${passed} tests — ALL PASS${NC}"
+      log_suite "${app_name} Vitest" "$passed"
+    else
+      echo -e "  ${RED}❌ ${app_name} Vitest: ${passed} passed, ${failed} failed${NC}"
+      log_suite "${app_name} Vitest" "$passed" "$failed"
+    fi
+  }
 
-run_vitest "Market" "apps/next-market"
-run_vitest "Admin" "apps/next-admin"
-run_vitest "Voice" "apps/next-community-voice"
-run_vitest "Metrics" "apps/next-metrics"
-run_vitest "Quarantine Bot" "apps/quarantine-bot"
+  run_vitest "Market" "apps/next-market"
+  run_vitest "Admin" "apps/next-admin"
+  run_vitest "Voice" "apps/next-community-voice"
+  run_vitest "Metrics" "apps/next-metrics"
+  run_vitest "Quarantine Bot" "apps/quarantine-bot"
+else
+  section "Phase 4: Vitest Unit Tests — SKIPPED (--start-from $START_FROM)"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 4b: Jest Unit Tests (Native Apps)
 # ─────────────────────────────────────────────────────────────────────────
-section "Phase 4b: Jest Unit Tests (Native Apps)"
+if should_run_phase "4b"; then
+  section "Phase 4b: Jest Unit Tests (Native Apps)"
 
-echo "  Running expo-market Jest tests..."
-EXPO_OUTPUT=$(cd apps/expo-market && npx jest --ci --no-colors 2>&1)
-EXPO_EXIT=$?
+  echo "  Running expo-market Jest tests..."
+  EXPO_OUTPUT=$(cd apps/expo-market && npx jest --ci --no-colors 2>&1)
+  EXPO_EXIT=$?
 
-EXPO_PASSED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
-EXPO_FAILED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  EXPO_PASSED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  EXPO_FAILED=$(echo "$EXPO_OUTPUT" | grep "Tests:" | tail -1 | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
-if [ "$EXPO_EXIT" -eq 0 ]; then
-  echo -e "  ${GREEN}✅ expo-market Jest: ${EXPO_PASSED} tests — ALL PASS${NC}"
-  log_suite "expo-market Jest" "$EXPO_PASSED"
+  if [ "$EXPO_EXIT" -eq 0 ]; then
+    echo -e "  ${GREEN}✅ expo-market Jest: ${EXPO_PASSED} tests — ALL PASS${NC}"
+    log_suite "expo-market Jest" "$EXPO_PASSED"
+  else
+    echo -e "  ${RED}❌ expo-market Jest: ${EXPO_PASSED} passed, ${EXPO_FAILED} failed${NC}"
+    echo "$EXPO_OUTPUT" | grep "FAIL\|●" | head -10 | sed 's/^/    /'
+    log_suite "expo-market Jest" "$EXPO_PASSED" "$EXPO_FAILED"
+  fi
 else
-  echo -e "  ${RED}❌ expo-market Jest: ${EXPO_PASSED} passed, ${EXPO_FAILED} failed${NC}"
-  echo "$EXPO_OUTPUT" | grep "FAIL\|●" | head -10 | sed 's/^/    /'
-  log_suite "expo-market Jest" "$EXPO_PASSED" "$EXPO_FAILED"
+  section "Phase 4b: Jest Unit Tests (Native Apps) — SKIPPED (--start-from $START_FROM)"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 5: Deno Integration Tests
 # ─────────────────────────────────────────────────────────────────────────
-section "Phase 5: Deno Integration Tests"
+if should_run_phase "5"; then
+  section "Phase 5: Deno Integration Tests"
 
 # 5a: Main integration tests
 echo "  Running Deno integration tests (_tests/)..."
@@ -708,25 +717,32 @@ else
   echo "$METRICS_DB_OUTPUT" | grep "^not ok" | head -10 | sed 's/^/    /'
   log_suite "Metrics RPC DB" "$METRICS_DB_P" "$METRICS_DB_F"
 fi
+else
+  section "Phase 5: Deno Integration Tests — SKIPPED (--start-from $START_FROM)"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────
 # PHASE 6: Shell Integration Tests (Escalation Handling)
 # ─────────────────────────────────────────────────────────────────────────
-section "Phase 6: Shell Integration Tests (Escalation Handling)"
+if should_run_phase "6"; then
+  section "Phase 6: Shell Integration Tests (Escalation Handling)"
 
-echo "  Running escalation interaction tests..."
-SHELL_OUTPUT=$(bash scripts/test-escalation-interactions.sh 2>&1)
-SHELL_EXIT=$?
+  echo "  Running escalation interaction tests..."
+  SHELL_OUTPUT=$(bash scripts/test-escalation-interactions.sh 2>&1)
+  SHELL_EXIT=$?
 
-SHELL_PASSED=$(echo "$SHELL_OUTPUT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
-SHELL_FAILED=$(echo "$SHELL_OUTPUT" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  SHELL_PASSED=$(echo "$SHELL_OUTPUT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
+  SHELL_FAILED=$(echo "$SHELL_OUTPUT" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '[0-9]+' || echo "0")
 
-if [ "$SHELL_EXIT" -eq 0 ]; then
-  echo -e "  ${GREEN}✅ Escalation Shell: ${SHELL_PASSED} tests — ALL PASS${NC}"
-  log_suite "Escalation Shell" "$SHELL_PASSED"
+  if [ "$SHELL_EXIT" -eq 0 ]; then
+    echo -e "  ${GREEN}✅ Escalation Shell: ${SHELL_PASSED} tests — ALL PASS${NC}"
+    log_suite "Escalation Shell" "$SHELL_PASSED"
+  else
+    echo -e "  ${RED}❌ Escalation Shell: ${SHELL_PASSED} passed, ${SHELL_FAILED} failed${NC}"
+    log_suite "Escalation Shell" "$SHELL_PASSED" "$SHELL_FAILED"
+  fi
 else
-  echo -e "  ${RED}❌ Escalation Shell: ${SHELL_PASSED} passed, ${SHELL_FAILED} failed${NC}"
-  log_suite "Escalation Shell" "$SHELL_PASSED" "$SHELL_FAILED"
+  section "Phase 6: Shell Integration Tests — SKIPPED (--start-from $START_FROM)"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

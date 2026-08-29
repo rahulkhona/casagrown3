@@ -35,16 +35,16 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
        WHERE id = '${testBoothId}'`
     )
 
-    // 2. Ensure Beth has buyer zip=95125 and $0.00 balance to force card payment path
+    // 2. Ensure Beth has buyer zip=95125, street_address, and funded test balance
     execSql(
       `UPDATE profiles
-       SET zip_code = '95125', zip_plus4 = '95125', state_code = 'CA', street_address = '123 Buyer St, San Jose, CA'
+       SET zip_code = '95125', zip_plus4 = '95125', state_code = 'CA', street_address = '123 Buyer St', city = 'San Jose'
        WHERE id = '${BUYER_ID}'`
     )
     execSql(
-      `UPDATE user_balances
-       SET available_usd = 0.00, held_balance_usd = 0.00
-       WHERE user_id = '${BUYER_ID}'`
+      `INSERT INTO user_balances (user_id, available_usd, held_balance_usd)
+       VALUES ('${BUYER_ID}', 50.00, 0.00)
+       ON CONFLICT (user_id) DO UPDATE SET available_usd = 50.00, held_balance_usd = 0.00`
     )
     execSql(
       `DELETE FROM buyer_debts WHERE buyer_id = '${BUYER_ID}'`
@@ -170,8 +170,8 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
     await expect(placeBtn).toBeEnabled({ timeout: 10000 })
     await placeBtn.click()
 
-    // Wait for success screen or redirect
-    await page.waitForURL(/\/orders\//, { timeout: 30000 })
+    // Wait for success screen or redirect (Next.js SPA navigation)
+    await expect(page).toHaveURL(/\/orders\//, { timeout: 30000 })
     const currentUrl = page.url()
     const orderIdMatch = currentUrl.match(/\/orders\/([a-f0-9-]{36})/i)
     expect(orderIdMatch).toBeTruthy()
