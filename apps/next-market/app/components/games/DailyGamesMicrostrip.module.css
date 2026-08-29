@@ -1,10 +1,19 @@
 .microstripWrapper {
-  margin: 10px auto 14px auto;
-  width: 100%;
-  max-width: 1200px;
-  padding: 0 16px;
+  position: fixed;
+  bottom: calc(56px + env(safe-area-inset-bottom, 8px) + 8px);
+  left: 12px;
+  right: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+  z-index: 95;
   box-sizing: border-box;
-  animation: fadeIn 0.25s ease-in-out;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 769px) {
+  .microstripWrapper {
+    display: none !important;
+  }
 }
 
 .microstripContent {
@@ -12,19 +21,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #fefce8 100%);
-  border: 1px solid #a7f3d0;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid #a7f3d0;
+  border-radius: 14px;
   padding: 8px 12px;
   text-decoration: none;
   color: inherit;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(16, 185, 129, 0.1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.microstripContent:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.14);
+.microstripContent:active {
+  transform: scale(0.98);
 }
 
 .microstripLeft {
@@ -93,67 +103,42 @@
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 5px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: background 0.15s ease;
 }
 
-.microstripContent:hover .playBtn {
-  background: #047857;
-}
-
 .dismissBtn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 14px;
-  font-weight: 600;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   line-height: 1;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .dismissBtn:hover {
-  color: #475569;
-  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+  background: #e2e8f0;
 }
 
-@keyframes fadeIn {
+@keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@media (max-width: 640px) {
-  .microstripWrapper {
-    margin: 8px auto 10px auto;
-    padding: 0 12px;
-  }
-
-  .microstripContent {
-    padding: 6px 10px;
-    gap: 6px;
-  }
-
-  .gameTitle {
-    font-size: 12px;
-  }
-
-  .streakBadge,
-  .pointsBadge {
-    display: none; /* Hide extra badges on very narrow mobile to keep 1-line clean layout */
-  }
-
-  .playBtn {
-    font-size: 11px;
-    padding: 3px 8px;
   }
 }

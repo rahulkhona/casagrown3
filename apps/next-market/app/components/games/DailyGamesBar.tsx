@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getGuestGameStats } from '../../../lib/useGuestGameStats'
 import { useQuickSetup } from '../../../lib/useQuickSetup'
 import { useAuth } from '../../../lib/useAuth'
+import styles from './DailyGamesBar.module.css'
 
 export default function DailyGamesBar() {
   const { user } = useAuth()
@@ -65,7 +66,8 @@ export default function DailyGamesBar() {
   ]
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 18, padding: '18px 16px', margin: '20px 0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div className={styles.dailyGamesBarWrapper}>
+      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 18, padding: '18px 16px', margin: '20px 0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
       {/* HEADER BAR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
@@ -192,6 +194,7 @@ export default function DailyGamesBar() {
             </div>
           </Link>
         ))}
+      </div>
       </div>
     </div>
   )

@@ -1,0 +1,10 @@
+.dailyGamesBarWrapper {
+  display: block;
+  margin: 16px 0 24px 0;
+}
+
+@media (max-width: 768px) {
+  .dailyGamesBarWrapper {
+    display: none !important;
+  }
+}
