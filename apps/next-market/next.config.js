@@ -34,5 +34,14 @@ module.exports = {
       }
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/interest',
+        destination: '/market',
+        permanent: false,
+      },
+    ]
+  },
 }
 // Trigger Vercel rebuild 20260717-200535

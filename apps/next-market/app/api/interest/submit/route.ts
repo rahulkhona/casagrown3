@@ -95,17 +95,20 @@ export async function POST(req: Request) {
       if (headerLng) finalLng = parseFloat(headerLng)
     }
 
-    const effectiveSourceUrl = source_url || first_touch_source || body.source || '/interest'
+    const effectiveSourceUrl = source_url || first_touch_source || body.source || '/market'
     const effectiveFirstTouch = first_touch_source || source_url || body.source || null
 
     console.log('[Interest API] userId:', userId, 'source_url:', effectiveSourceUrl, 'interests count:', interests?.length)
+
+    const effectiveEmail = (email && String(email).trim()) || (user?.email) || 'guest@casagrown.local'
+    const effectiveName = (name && String(name).trim()) || effectiveEmail.split('@')[0] || 'Community Neighbor'
 
     const { data: leadData, error: leadError } = await supabase
       .from('crm_leads')
       .upsert(
         {
-          name,
-          email,
+          name: effectiveName,
+          email: effectiveEmail,
           phone,
           zipcode: primaryZipcode,
           accepts_email: accepts_email ?? true,
@@ -147,12 +150,23 @@ export async function POST(req: Request) {
 
     // 3. Save produce interests in crm_produce_interests
     if (interests && Array.isArray(interests) && interests.length > 0) {
-      const rowsToInsert = interests.map((item: { produce_name: string; interest_type: string; category?: string }) => ({
+      const nowIso = new Date().toISOString()
+      const rowsToInsert = interests.map((item: { 
+        produce_name: string
+        interest_type: string
+        category?: string
+        requested_quantity?: number
+        requested_unit?: string 
+      }) => ({
         lead_id: leadId || null,
         user_id: userId || null,
         interest_type: item.interest_type,
         produce_name: item.produce_name,
         produce_category: item.category || 'produce',
+        requested_quantity: item.requested_quantity || null,
+        requested_unit: item.requested_unit || 'lb',
+        requested_date: nowIso,
+        last_renewed_at: nowIso,
         zipcodes: zipcodes.map((z: string) => z.trim()),
         radius_miles: radius_miles || 5,
         home_address: home_address || null,
@@ -163,13 +177,23 @@ export async function POST(req: Request) {
         status: 'active',
       }))
 
-      const { error: interestError } = await supabase.from('crm_produce_interests').insert(rowsToInsert)
-      console.log('[Interest API] Insert interests result:', interestError ? 'ERROR: ' + JSON.stringify(interestError) : 'OK, ' + rowsToInsert.length + ' rows')
+      // Upsert rows to handle repeat clicks and quantity updates
+      const { error: interestError } = await supabase
+        .from('crm_produce_interests')
+        .upsert(rowsToInsert, {
+          onConflict: 'lead_id,interest_type,produce_name',
+          ignoreDuplicates: false,
+        })
+      console.log('[Interest API] Upsert interests result:', interestError ? 'ERROR: ' + JSON.stringify(interestError) : 'OK, ' + rowsToInsert.length + ' rows')
 
       if (userId && leadId) {
         await supabase
           .from('crm_produce_interests')
-          .update({ user_id: userId })
+          .update({ 
+            user_id: userId,
+            last_renewed_at: nowIso,
+            updated_at: nowIso
+          })
           .eq('lead_id', leadId)
       }
 

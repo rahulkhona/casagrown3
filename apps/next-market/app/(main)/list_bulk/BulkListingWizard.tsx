@@ -477,7 +477,11 @@ export default function BulkListingClient() {
 
       // Guest / New User: fetch IP location from Vercel edge header endpoint if no URL zip provided
       const queryZip = searchParams.get('zipcode') || searchParams.get('zip') || ''
-      if (!queryZip && !zipcode) {
+      if (queryZip) {
+        setZipcode(queryZip)
+        setZipInput(queryZip)
+        setDeliveryZipcodes([queryZip])
+      } else if (!zipcode) {
         try {
           const res = await fetch('/api/location/ip')
           if (res.ok) {
@@ -485,6 +489,7 @@ export default function BulkListingClient() {
             const detectedZip = data.zip || data.zipcode || ''
             if (detectedZip) {
               setZipcode(detectedZip)
+              setDeliveryZipcodes([detectedZip])
             }
           }
         } catch {

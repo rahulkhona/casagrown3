@@ -77,31 +77,30 @@ describe('Produce Catalog & URL Parameter Ingestion', () => {
     expect(raspberries?.id).toBe('raspberries')
   })
 
-  it('handles quoted URL parameters like ?produce="oranges, lemons"', async () => {
+  it('handles quoted URL parameters like ?produce="oranges, lemons" and redirects to market', async () => {
     mockSearchParams.set('produce', '"oranges, lemons"')
     mockSearchParams.set('scope', 'buy')
 
     render(<InterestPage />)
     
-    // Items pre-selected: sticky bar appears with Save & Get Notified button
-    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Redirecting to Produce Market.../i)).toBeInTheDocument()
   })
 
-  it('handles alias parameter ?items=Peaches,Figs&scope=sell', async () => {
+  it('handles alias parameter ?items=Peaches,Figs&scope=sell and redirects to market', async () => {
     mockSearchParams.set('items', 'Peaches,Figs')
     mockSearchParams.set('scope', 'sell')
 
     render(<InterestPage />)
 
-    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Redirecting to Produce Market.../i)).toBeInTheDocument()
   })
 
-  it('handles unlisted custom produce items like ?produce=Chickoo', async () => {
+  it('handles unlisted custom produce items like ?produce=Chickoo and redirects to market', async () => {
     mockSearchParams.set('produce', 'Chickoo')
     mockSearchParams.set('scope', 'buy')
 
     render(<InterestPage />)
 
-    expect(await screen.findByText(/Save & Get Notified/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Redirecting to Produce Market.../i)).toBeInTheDocument()
   })
 })

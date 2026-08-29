@@ -400,9 +400,6 @@ export function NavbarInner() {
 
   // Extended menu items (hamburger only — items NOT in BottomNav/header)
   const menuItems = [
-    { href: '/interest?scope=sell', label: 'Notify me when buyers want what I have', icon: '📢', section: 'main', locked: false },
-    { href: '/interest?scope=buy', label: 'Notify me when sellers list what I need', icon: '🔔', section: 'main', locked: false },
-    { href: '/my-interests', label: 'My Interests', icon: '📋', section: 'main', locked: true },
     { href: '/my-stands', label: 'My Produce Stands', icon: '🏪', section: 'main' },
     { href: '/earnings', label: 'Earnings & Activity', icon: '💰', section: 'main' },
     { href: '/earnings/payout', label: 'Wallet', icon: '💸', section: 'main' },
@@ -677,34 +674,6 @@ export function NavbarInner() {
                       <button className={styles.menuItem} style={{ fontWeight: 600, color: 'var(--green-700)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => { setMenuOpen(false); requireAuth({ trigger: 'sign_in', defaultSignIn: true }) }}>
                         <span className={styles.menuItemIcon}>🔑</span>
                         <span>Sign In</span>
-                      </button>
-                    </div>
-
-                    <div className={styles.menuSection}>
-                      <div className={styles.menuSectionLabel}>Explore</div>
-                      <button
-                        type="button"
-                        className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          router.push('/interest?scope=sell')
-                        }}
-                        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
-                      >
-                        <span className={styles.menuItemIcon}>📢</span>
-                        <span>Notify me when buyers want what I have</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.menuItem} ${pathname === '/interest' ? styles.menuItemActive : ''}`}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          router.push('/interest?scope=buy')
-                        }}
-                        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}
-                      >
-                        <span className={styles.menuItemIcon}>🔔</span>
-                        <span>Notify me when sellers list what I need</span>
                       </button>
                     </div>
                   </>

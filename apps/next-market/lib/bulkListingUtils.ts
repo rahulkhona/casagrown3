@@ -52,9 +52,9 @@ export interface FulfillmentPresetOption {
 }
 
 export const FULFILLMENT_PRESET_OPTIONS: FulfillmentPresetOption[] = [
-  { id: 'both', label: '☀️ Both (Recommended)', desc: 'Mon–Fri 5pm–8pm & Sat–Sun 8am–12pm' },
   { id: 'weekday_evenings', label: '🌆 Weekday evenings', desc: 'Mon–Fri 5pm–8pm' },
   { id: 'weekend_mornings', label: '🌅 Weekend mornings', desc: 'Sat–Sun 8am–12pm' },
+  { id: 'both', label: '☀️ Both (Recommended)', desc: 'Mon–Fri 5pm–8pm & Sat–Sun 8am–12pm' },
   { id: 'custom', label: '📅 Custom schedule', desc: 'Choose custom hours via weekly grid' },
 ]
 

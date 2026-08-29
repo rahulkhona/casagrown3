@@ -70,10 +70,10 @@ test.describe('Signup Path Attribution E2E', () => {
     })
 
     // Submit Step 1
-    await page.locator('form button[type="submit"]').click()
+    await page.locator('#join-submit-btn, form button[type="submit"]').first().click()
 
     // Verify OTP step appeared (mock auth triggers it)
-    const otpVisible = await page.getByText(/Check your email/i).isVisible({ timeout: 15000 }).catch(() => false)
+    const otpVisible = await page.locator('text=Verify Your Email, text=Enter 6-Digit Code, text=Check your email').first().isVisible({ timeout: 15000 }).catch(() => false)
     if (!otpVisible) {
       console.warn('[SIGNUP-ATTR-1] OTP step not shown after form submit — skipping')
       test.skip()
@@ -135,10 +135,10 @@ test.describe('Signup Path Attribution E2E', () => {
     })
 
     // Submit Step 1
-    await page.locator('form button[type="submit"]').click()
+    await page.locator('#join-submit-btn, form button[type="submit"]').first().click()
 
     // Verify OTP step appeared
-    const otpVisible = await page.getByText(/Check your email/i).isVisible({ timeout: 15000 }).catch(() => false)
+    const otpVisible = await page.locator('text=Verify Your Email, text=Enter 6-Digit Code, text=Check your email').first().isVisible({ timeout: 15000 }).catch(() => false)
     if (!otpVisible) {
       console.warn('[SIGNUP-ATTR-2] OTP step not shown after form submit — skipping')
       test.skip()

@@ -29,6 +29,7 @@ import {
   getWindowsForPreset,
   isHourSelected,
   toggleHourCell,
+  convertPrice,
 } from '../../../lib/bulkListingUtils'
 import {
   resetSessionId,
@@ -1518,7 +1519,14 @@ export default function BulkListingClient() {
                             <label className={styles.fieldLabel}>Unit</label>
                             <select
                               value={row.unit}
-                              onChange={e => handleUpdateRow(row.id, { unit: e.target.value })}
+                              onChange={e => {
+                                const newUnit = e.target.value
+                                const currentPriceNum = parseFloat(row.priceUsd)
+                                const newPrice = (!isNaN(currentPriceNum) && currentPriceNum > 0)
+                                  ? String(convertPrice(currentPriceNum, row.unit, newUnit))
+                                  : row.priceUsd
+                                handleUpdateRow(row.id, { unit: newUnit, priceUsd: newPrice })
+                              }}
                               className={styles.select}
                             >
                               {ALLOWED_UNITS.map(u => (

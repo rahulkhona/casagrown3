@@ -140,7 +140,7 @@ Respond ONLY with the JSON object. Do not use markdown blocks or code fences.`;
           </table>
         </div>
 
-        ${actionButton("Find Fresh Local Harvest Near You →", "https://casagrown.com/interest?scope=buy")}
+        ${actionButton("Find Fresh Local Harvest Near You →", "https://casagrown.com/market")}
       `;
 
       return wrapInBrandedTemplate({

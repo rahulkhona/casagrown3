@@ -128,6 +128,113 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
   const [deliveryWindows, setDeliveryWindows] = useState<any[]>(product.product_delivery_windows || [])
   const [pickupWindows, setPickupWindows] = useState<any[]>(product.product_pickup_windows || [])
 
+  // Time slot labels mapping
+  const TIME_SLOT_LABELS: Record<string, string> = {
+    '8-10': '8:00 AM – 10:00 AM',
+    '10-12': '10:00 AM – 12:00 PM',
+    '12-14': '12:00 PM – 2:00 PM',
+    '14-16': '2:00 PM – 4:00 PM',
+    '16-18': '4:00 PM – 6:00 PM',
+    '18-20': '6:00 PM – 8:00 PM',
+  }
+
+  const formatSlotLabel = (slotId: string | { start?: string; end?: string }) => {
+    if (typeof slotId === 'object' && slotId !== null) {
+      return `${slotId.start || ''} – ${slotId.end || ''}`.trim() || 'Flexible'
+    }
+    if (TIME_SLOT_LABELS[slotId]) return TIME_SLOT_LABELS[slotId]
+    if (typeof slotId === 'string' && slotId.startsWith('custom-')) {
+      const parts = slotId.split('-')
+      return `${parts[1]} – ${parts[2]}`
+    }
+    return String(slotId || 'Flexible')
+  }
+
+  // Available window options for the selected fulfillment mode
+  const availableWindowOptions = useMemo(() => {
+    const activeWindows = fulfillment === 'delivery' ? deliveryWindows : pickupWindows
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+    const results: Array<{ date: string; displayDate: string; slots: Array<{ id: string; label: string }> }> = []
+
+    if (Array.isArray(windowDates) && windowDates.length > 0) {
+      windowDates.forEach((dateStr) => {
+        const ds = String(dateStr)
+        if (ds < todayStr) return
+
+        let slots: any[] = []
+        if (Array.isArray(activeWindows)) {
+          slots = activeWindows
+        } else if (typeof activeWindows === 'object' && activeWindows !== null) {
+          slots = activeWindows[ds] || []
+        }
+
+        const [y, m, d] = ds.split('-').map(Number)
+        const dateObj = new Date(y, m - 1, d)
+        const isToday = ds === todayStr
+        const tomorrowObj = new Date(now)
+        tomorrowObj.setDate(now.getDate() + 1)
+        const isTomorrow = dateObj.toDateString() === tomorrowObj.toDateString()
+
+        const dayName = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : dateObj.toLocaleDateString('en-US', { weekday: 'short' })
+        const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const displayDate = `${dayName}, ${monthDay}`
+
+        const formattedSlots = slots.length > 0
+          ? slots.map((s) => ({
+              id: typeof s === 'string' ? s : `${s.start || ''}-${s.end || ''}`,
+              label: formatSlotLabel(s),
+            }))
+          : [
+              { id: '10-12', label: '10:00 AM – 12:00 PM' },
+              { id: '16-18', label: '4:00 PM – 6:00 PM' },
+            ]
+
+        results.push({ date: ds, displayDate, slots: formattedSlots })
+      })
+    }
+
+    if (results.length === 0) {
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(now)
+        d.setDate(now.getDate() + i)
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const isToday = i === 0
+        const isTomorrow = i === 1
+        const dayName = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' })
+        const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const displayDate = `${dayName}, ${monthDay}`
+
+        results.push({
+          date: ds,
+          displayDate,
+          slots: [
+            { id: '8-10', label: '8:00 AM – 10:00 AM' },
+            { id: '10-12', label: '10:00 AM – 12:00 PM' },
+            { id: '14-16', label: '2:00 PM – 4:00 PM' },
+            { id: '16-18', label: '4:00 PM – 6:00 PM' },
+          ],
+        })
+      }
+    }
+
+    return results
+  }, [windowDates, deliveryWindows, pickupWindows, fulfillment])
+
+  const [selectedDate, setSelectedDate] = useState<string>('')
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('')
+
+  useEffect(() => {
+    if (availableWindowOptions.length > 0) {
+      if (!selectedDate || !availableWindowOptions.some((o) => o.date === selectedDate)) {
+        const first = availableWindowOptions[0]
+        setSelectedDate(first.date)
+        setSelectedTimeSlot(first.slots[0]?.label || 'Flexible')
+      }
+    }
+  }, [availableWindowOptions, selectedDate])
+
   // Mode-specific window check: does the selected fulfillment mode have valid windows?
   const windowsValid = hasValidWindows(windowDates, deliveryWindows, pickupWindows, fulfillment)
   const canOrder = !productExpired && windowsValid
@@ -742,6 +849,63 @@ export default function BuyModal({ product, booth, buyerZip, buyerAddress, onClo
                   <p className={styles.deliveryNote}>Delivery available within {effectiveRadius} miles of seller</p>
                 ) : null}
               </>
+            )}
+          </div>
+
+          {/* Preferred Delivery / Pickup Window Selection */}
+          <div className={styles.section}>
+            <div className={styles.sectionLabel}>
+              {fulfillment === 'delivery' ? '🚗 Preferred Delivery Window' : '📍 Preferred Pickup Window'}
+            </div>
+            <div className={styles.windowDatesRow}>
+              {availableWindowOptions.map((opt) => {
+                const isSelected = selectedDate === opt.date
+                return (
+                  <button
+                    key={opt.date}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(opt.date)
+                      if (opt.slots.length > 0 && !opt.slots.some((s) => s.label === selectedTimeSlot)) {
+                        setSelectedTimeSlot(opt.slots[0].label)
+                      }
+                    }}
+                    className={`${styles.windowDateBtn} ${isSelected ? styles.windowDateBtnActive : ''}`}
+                  >
+                    {opt.displayDate}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Time slots for selected date */}
+            {selectedDate && (
+              <div className={styles.windowSlotsRow}>
+                {availableWindowOptions
+                  .find((o) => o.date === selectedDate)
+                  ?.slots.map((slot) => {
+                    const isSlotActive = selectedTimeSlot === slot.label
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        onClick={() => setSelectedTimeSlot(slot.label)}
+                        className={`${styles.windowSlotBtn} ${isSlotActive ? styles.windowSlotBtnActive : ''}`}
+                      >
+                        {slot.label}
+                      </button>
+                    )
+                  })}
+              </div>
+            )}
+
+            {selectedDate && selectedTimeSlot && (
+              <div className={styles.selectedWindowPill}>
+                <span>✅</span> Selected:{' '}
+                <strong>
+                  {availableWindowOptions.find((o) => o.date === selectedDate)?.displayDate} • {selectedTimeSlot}
+                </strong>
+              </div>
             )}
           </div>
 

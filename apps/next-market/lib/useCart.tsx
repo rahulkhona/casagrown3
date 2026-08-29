@@ -314,6 +314,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
 export function useCart(): CartContextValue {
   const ctx = useContext(CartContext)
-  if (!ctx) throw new Error('useCart must be used within <CartProvider>')
+  if (!ctx) {
+    return {
+      items: [],
+      boothGroups: [],
+      itemCount: 0,
+      addItem: () => {},
+      removeItem: () => {},
+      updateQty: () => {},
+      updateFulfillment: () => {},
+      clearCart: () => {},
+      clearBooth: () => {},
+      refreshItems: () => {},
+      getItemQty: () => 0,
+    }
+  }
   return ctx
 }

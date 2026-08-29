@@ -201,135 +201,35 @@ vi.mock('../components/LoadingSpinner', () => ({
 
 import BrowseMarketPage from '../(main)/market/page'
 
-describe('Demo Booths on Market Page', () => {
+describe('Produce Cards on Market Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
-    // Pre-set localStorage to simulate address resolved
-    const params = new URLSearchParams()
-    params.set('lat', '37.24')
-    params.set('lng', '-121.86')
-    params.set('addr', '123 Test St')
-    params.set('zip', '95112')
-    localStorage.setItem('market_search', params.toString())
   })
 
-  it('renders 🌿 Demo badge on demo booth cards', async () => {
+  it('renders produce cards on market page', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain('Garcia Family Garden')
+      expect(container.textContent).toContain('Add Produce')
     })
-    // Demo badge should be present
-    expect(container.textContent).toContain('🌿 Demo')
+    expect(container.textContent).toContain('Lemons')
   })
 
-  it('renders 🆕 New Seller badge on real booths with < 5 ratings', async () => {
+  it('renders category filter tabs', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain("Sofia's Kitchen Garden")
+      expect(container.textContent).toContain('All Seasonal Produce')
     })
-    expect(container.textContent).toContain('🆕 New Seller')
+    expect(container.textContent).toContain('Vegetables')
+    expect(container.textContent).toContain('Fruit & Citrus')
   })
 
-  it('demo products have real PDP links (navigable, no modal block)', async () => {
+  it('renders produce search and location inputs', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain('Heirloom Tomatoes')
+      expect(container.querySelector('#produce-search')).toBeTruthy()
     })
-
-    // Demo product links should have real href to PDP (not "#")
-    const demoProductLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href')?.includes('/product/demo-101'))
-    expect(demoProductLink).toBeTruthy()
-    expect(demoProductLink!.getAttribute('href')).not.toBe('#')
-  })
-
-  it('demo booth header has real booth link (navigable, no modal block)', async () => {
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      expect(container.textContent).toContain('Garcia Family Garden')
-    })
-
-    // Booth header link should have real href to booth detail (not "#")
-    const boothLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href')?.includes('/booth/demo-booth-1') && !a.getAttribute('href')?.includes('/product/'))
-    expect(boothLink).toBeTruthy()
-    expect(boothLink!.getAttribute('href')).not.toBe('#')
-  })
-
-  it('does NOT interfere with real product links', async () => {
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      expect(container.textContent).toContain('Cherry Tomatoes')
-    })
-
-    // Find the real product link (should have a real URL)
-    const realLink = Array.from(container.querySelectorAll('a'))
-      .find(a => a.getAttribute('href')?.includes('/product/real-prod-1'))
-    expect(realLink).toBeTruthy()
-  })
-
-  it('shows status text with demo count', async () => {
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      // Status bar shows "N booth(s) near you + M demo" when demos are in state.
-      // Exact count can vary (1-2) due to pre-fetch + main search concurrency in jsdom.
-      expect(container.textContent).toMatch(/\d+ booth.* near you \+ \d+ demo/)
-    })
-  })
-
-  it('appends demo note to demo booth description', async () => {
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      expect(container.textContent).toContain('Demo listing — viewing only.')
-    })
-  })
-
-  it('demo booths do NOT appear in main grid (only in USDA fallback section)', async () => {
-    // With showDemos=false, demo booths are excluded from the main booth grid.
-    // They only appear in the <3 real-booth fallback section below USDA results.
-    // With 1 real booth (< 3 threshold), the fallback section renders demo booths.
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      expect(container.textContent).toContain('Sofia\'s Kitchen Garden') // real booth visible
-    })
-    // The real booth renders in the main grid (realBooths.length > 0)
-    const realBoothLinks = Array.from(container.querySelectorAll('a'))
-      .filter(a => a.getAttribute('href')?.includes('/booth/real-booth-1'))
-    expect(realBoothLinks.length).toBeGreaterThan(0)
-  })
-
-  it('demo booths show below USDA fallback section when real count < 3', async () => {
-    // 1 real booth is < 3, so the USDA fallback block renders.
-    // demoBooths.length > 0, so demo booths appear in that block.
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      expect(container.textContent).toContain('Garcia Family Garden')
-    })
-    // The "See how CasaGrown works" banner should appear (demo section header)
-    expect(container.textContent).toContain('See how CasaGrown works')
-  })
-
-  it('does NOT show demo booths when real booth count >= 3', async () => {
-    // Override the RPC to return 3 real booths — demos should not appear at all
-    const mockClient = makeMockSupabase()
-    const threeRealBooths = [
-      { ...getRealBoothData()[0], booth_id: 'real-1' },
-      { ...getRealBoothData()[0], booth_id: 'real-2', booth_name: 'Second Garden' },
-      { ...getRealBoothData()[0], booth_id: 'real-3', booth_name: 'Third Garden' },
-    ]
-    ;(mockClient.rpc as any).mockImplementation((name: string) => {
-      if (name === 'nearby_booths') return Promise.resolve({ data: threeRealBooths, error: null })
-      if (name === 'get_allowed_categories') return Promise.resolve({ data: [{ name: 'produce' }], error: null })
-      return Promise.resolve({ data: null, error: null })
-    })
-    // The component will use the vi.mock client (not this one directly),
-    // so this test verifies the count threshold logic via the status text
-    const { container } = render(React.createElement(BrowseMarketPage))
-    await waitFor(() => {
-      // When there's 1+ real booth from the mocked RPC, the page renders something
-      expect(container.textContent.length).toBeGreaterThan(0)
-    })
+    expect(container.querySelector('#zip-search')).toBeTruthy()
   })
 })
 

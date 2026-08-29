@@ -1,390 +1,874 @@
-/* ── Browse Market ── */
+/* ============================================================================
+   CasaGrown Produce Market — Design System Styles
+   ============================================================================ */
 
-/* Address Prompt (State 2: need address) */
-.addressPrompt {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 48px 20px 220px; text-align: center;
-  animation: slideUp 0.4s ease-out;
-}
-.promptIcon { font-size: 48px; margin-bottom: 12px; }
-.promptTitle { font-size: 20px; font-weight: 700; color: var(--gray-800); margin-bottom: 6px; text-align: center; }
-.promptText { font-size: 14px; color: var(--gray-500); max-width: 480px; line-height: 1.5; margin-bottom: 24px; text-align: center; }
-.addressForm { width: 100%; max-width: 680px; }
-.addressRow { display: flex; gap: 8px; align-items: center; }
-.addressRow .input { flex: 1; }
-.geoRow { text-align: center; margin-top: 8px; }
-.geoLink {
-  background: none; border: none; white-space: nowrap;
-  font-size: 13px; color: var(--green-700); font-weight: 500; cursor: pointer;
-  transition: color 0.15s;
-}
-.geoLink:hover { color: var(--green-800); text-decoration: underline; }
-.geoLink:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Address bar (State 3: resolved) */
-.addressBar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; margin: 12px 0 8px;
-  background: var(--green-50); border: 1px solid var(--green-200);
-  border-radius: var(--radius-lg);
-}
-.addressLabel { font-size: 13px; font-weight: 500; color: var(--green-800); }
-
-/* Search + filters section */
-.searchSection { margin-bottom: 16px; }
-.filterRow {
-  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-  margin-top: 10px;
-}
-.pills { display: flex; gap: 5px; }
-.pill {
-  padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-full);
-  background: #fff; font-size: 12px; font-weight: 500; cursor: pointer;
-  transition: all 0.15s; white-space: nowrap;
-}
-.pill:hover { border-color: var(--green-300); }
-.pillActive { background: var(--green-50); border-color: var(--green-500); color: var(--green-800); font-weight: 700; }
-
-.rangeWrap { display: flex; align-items: center; gap: 6px; }
-.rangeLabel { font-size: 11px; font-weight: 600; color: var(--gray-500); white-space: nowrap; }
-.slider { width: 90px; accent-color: var(--green-500); }
-
-.priceWrap { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.priceLabel { font-size: 11px; font-weight: 600; color: var(--gray-500); white-space: nowrap; }
-.priceInput {
-  width: 64px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius);
-  font-size: 12px; outline: none; text-align: center;
-}
-.priceInput:focus { border-color: var(--green-500); }
-
-.categorySelect {
-  padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg);
-  font-size: 12px; font-weight: 500; color: var(--text-primary); background: #fff;
-  cursor: pointer; outline: none; min-width: 140px;
-}
-.categorySelect:focus { border-color: var(--green-500); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
-
-.statusText { font-size: 12px; color: var(--gray-500); margin-bottom: 10px; }
-
-/* Booth Grid */
-.boothGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; padding-bottom: 32px; }
-
-/* Card header */
-.cardHeaderLink { text-decoration: none; display: block; }
-.cardHeader {
-  padding: 20px 16px 14px; position: relative; min-height: 80px;
-  display: flex; align-items: flex-end;
-}
-.headerOverlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0.05)); }
-.headerContent { position: relative; z-index: 1; width: 100%; }
-.cardTitle { font-size: 17px; font-weight: 800; line-height: 1.2; }
-.cardMeta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray-500); margin-top: 3px; }
-
-/* Seller avatar badge */
-.sellerBadge {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-}
-.sellerAvatar {
-  width: 36px; height: 36px; border-radius: 50%; overflow: hidden;
-  border: 2px solid #fff; background: var(--green-100);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 700; color: var(--green-700);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
-.sellerAvatar img { width: 100%; height: 100%; object-fit: cover; }
-.sellerRating {
-  font-size: 10px; font-weight: 600; color: #fff;
-  background: rgba(0,0,0,0.45); border-radius: 8px;
-  padding: 1px 6px; white-space: nowrap;
+.marketContainer {
+  min-height: 100vh;
+  background-color: var(--gray-50);
+  color: var(--gray-900);
+  padding-bottom: 120px;
 }
 
-/* Card body */
-.cardBody { padding: 12px 14px 14px; }
-.cardDesc {
-  font-size: 12px; color: var(--gray-500); line-height: 1.4; margin-bottom: 8px;
-  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden;
-}
-.tagRow { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-
-/* Product grid (visual cards) */
-.productList { border-top: 1px solid var(--gray-100); padding-top: 10px; display: flex; gap: 8px; overflow-x: auto; }
-.productCard {
-  flex: 0 0 auto; width: 100px; text-decoration: none;
-}
-.productThumb {
-  width: 100px; height: 80px; border-radius: var(--radius-lg); overflow: hidden;
-  background: var(--gray-100);
-  display: flex; align-items: center; justify-content: center; font-size: 28px;
-}
-.productThumb img { width: 100%; height: 100%; object-fit: cover; }
-.productInfo { margin-top: 4px; }
-.productName { display: block; font-size: 11px; font-weight: 600; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.productDesc { display: block; font-size: 10px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.productMeta { margin-top: 2px; }
-.productPrice { font-size: 12px; font-weight: 800; color: var(--green-700); }
-.unit { font-weight: 500; font-size: 9px; color: var(--gray-400); }
-.qty { font-size: 9px; color: var(--gray-500); display: block; }
-.moreCard {
-  flex: 0 0 auto; width: 60px; height: 80px; border-radius: var(--radius-lg);
-  background: var(--gray-50); border: 1px dashed var(--gray-300);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; color: var(--gray-500); font-weight: 600;
+/* ── Sticky Top Header & Search Bar ── */
+.headerSticky {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 12px 16px;
 }
 
-@media (max-width: 640px) {
-  .boothGrid { grid-template-columns: 1fr; }
-  .filterRow { flex-direction: column; align-items: stretch; }
-  .priceWrap { margin-left: 0; }
+.headerInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* App Smart Banner */
-.appBanner {
+.headerSearchRow {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(22, 163, 74, 0.15);
+}
+
+.searchBarWrapper {
   position: relative;
-  z-index: 150;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-  margin-top: -12px; /* Pull it slightly up to align under navbar nicely */
-  margin-bottom: 12px;
+  flex: 1;
 }
 
-.appBannerClose {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: var(--gray-400, #9ca3af);
-  cursor: pointer;
-  padding: 4px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease;
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--gray-400);
+  pointer-events: none;
 }
 
-.appBannerClose:hover {
-  color: var(--gray-700, #374151);
+.searchInput {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  background: var(--gray-100);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-900);
+  outline: none;
+  transition: all 0.2s ease;
 }
 
-.appBannerLogo {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+.searchInput:focus {
   background: #fff;
+  border-color: var(--green-600);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.locationFormWrapper {
+  position: relative;
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.locationIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--green-600);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.locationInput {
+  width: 100%;
+  padding: 10px 38px 10px 32px;
+  background: var(--gray-100);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.locationInput:focus {
+  background: #fff;
+  border-color: var(--green-600);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.geolocateBtn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--green-700);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  transition: all 0.15s ease;
+  z-index: 2;
 }
 
-.appBannerLogo img {
+.geolocateBtn:hover {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+
+.geolocateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.geolocateSpin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.addProduceBtn {
+  background: var(--green-600);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: var(--radius-xl);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+  text-decoration: none;
+}
+
+.addProduceBtn:hover {
+  background: var(--green-700);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(22, 163, 74, 0.3);
+}
+
+/* ── Category Filter Pills ── */
+.categoryPillsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.categoryPillsRow::-webkit-scrollbar {
+  display: none;
+}
+
+.categoryPill {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--gray-100);
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.categoryPill:hover {
+  background: var(--gray-200);
+  border-color: var(--gray-300);
+}
+
+.categoryPillActive {
+  background: var(--green-600);
+  color: #fff;
+  font-weight: 700;
+  border-color: var(--green-600);
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.25);
+}
+
+.categoryPillActive:hover {
+  background: var(--green-700);
+}
+
+/* ── Main Layout & Produce Grid ── */
+.mainContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+}
+
+.loadingWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  color: var(--gray-500);
+  gap: 16px;
+}
+
+.produceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+/* ── Produce Card ── */
+.produceCard {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.produceCard:hover {
+  border-color: var(--green-400);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.produceCardSelected {
+  border: 2px solid var(--green-600);
+  background: var(--green-50);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15), var(--shadow-md);
+}
+
+.produceImageWrapper {
+  width: 100%;
+  height: 180px;
+  position: relative;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.produceImage {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
 }
 
-.appBannerInfo {
+.produceCard:hover .produceImage {
+  transform: scale(1.03);
+}
+
+.produceCardContent {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  min-width: 0;
 }
 
-.appBannerTitle {
+.produceTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.produceTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.priceBadge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-800);
+  background: var(--green-100);
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.livePriceBadge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.liveDemandPill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  margin-top: auto;
+  margin-bottom: 14px;
+}
+
+.liveDemandText {
+  font-weight: 700;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.liveReadyPill {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #22c55e;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 100px;
+}
+
+.produceDesc {
+  font-size: 12px;
+  color: var(--gray-600);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.demandPill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  margin-top: auto;
+  margin-bottom: 14px;
+}
+
+.demandLabel {
+  color: var(--gray-500);
+}
+
+.demandValue {
+  font-weight: 700;
+  color: var(--green-700);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Card Action Buttons ── */
+.cardActionRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sellerStandBox {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  margin-top: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sellerStandTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sellerStandName {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewStandLink {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green-700);
+  text-decoration: underline;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.drivingDistanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.drivingDistanceText {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.directionsAnchor {
+  color: #16a34a;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.fulfillmentPillsRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pickupRow,
+.deliveryRow {
+  display: flex;
+  align-items: center;
+}
+
+.pickupPill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.deliveryPill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.deliveryPillOk {
+  font-size: 11px;
+  font-weight: 700;
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.deliveryPill {
+  font-size: 10px;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.buyNowCardBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+  transition: all 0.15s ease;
+}
+
+.buyNowCardBtn:hover {
+  background: linear-gradient(135deg, #15803d, #166534);
+  transform: translateY(-1px);
+}
+
+.wantBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-800);
+  background: var(--green-50);
+  border: 1px solid var(--green-300);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.yourListingBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-md);
+  margin-top: auto;
+  margin-bottom: 12px;
+}
+
+.yourListingIcon {
+  font-size: 16px;
+}
+
+.yourListingText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.yourListingHeader {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--green-800);
+  letter-spacing: 0.03em;
+}
+
+.yourListingDetails {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-900);
+}
+
+.editListingBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-900);
+  background: var(--green-100);
+  border: 1px solid var(--green-300);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editListingBtn:hover {
+  background: var(--green-200);
+  border-color: var(--green-500);
+}
+
+.wantBtnActive {
+  background: var(--green-100);
+  border-color: var(--green-400);
+  color: var(--green-900);
+}
+
+.haveExtraBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--gray-900);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.haveExtraBtn:hover {
+  background: var(--gray-800);
+}
+
+/* ── Add Custom Produce Card (In-Grid) ── */
+.addCustomCard {
+  border: 2px dashed var(--gray-300);
+  background: var(--gray-50);
+  border-radius: var(--radius-2xl);
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 280px;
+}
+
+.addCustomCard:hover {
+  border-color: var(--green-500);
+  background: #fff;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.addCustomIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--green-100);
+  color: var(--green-700);
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.addCustomTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 4px;
+}
+
+.addCustomSub {
+  font-size: 12px;
+  color: var(--gray-500);
+  max-width: 200px;
+  line-height: 1.4;
+}
+
+/* ── Zero-Results Search Banner ── */
+.zeroResultsCard {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  padding: 48px 24px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.zeroIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--green-50);
+  color: var(--green-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.zeroTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.zeroSub {
+  font-size: 13px;
+  color: var(--gray-500);
+  max-width: 420px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.zeroAddBtn {
+  margin-top: 8px;
+  background: var(--green-600);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: var(--radius-xl);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 6px rgba(22, 163, 74, 0.2);
+  transition: all 0.2s ease;
+}
+
+.zeroAddBtn:hover {
+  background: var(--green-700);
+  transform: translateY(-1px);
+}
+
+/* ── Floating Batch Bar ── */
+.batchFloatingBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(140%);
+  width: calc(100% - 32px);
+  max-width: 620px;
+  background: var(--gray-900);
+  color: #fff;
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 100;
+  border: 1px solid var(--gray-700);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.batchFloatingBarActive {
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.batchBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.batchIconBadge {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xl);
+  background: var(--green-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.batchTitle {
   font-size: 14px;
   font-weight: 700;
-  color: var(--gray-800, #1f2937);
+  color: #fff;
   margin: 0;
   line-height: 1.2;
 }
 
-.appBannerSubtitle {
-  font-size: 11px;
-  color: var(--gray-500, #6b7280);
-  margin: 2px 0 0 0;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.batchSub {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin: 0;
 }
 
-.appBannerBadge {
-  display: block;
-  flex-shrink: 0;
-  transition: transform 0.15s ease;
-}
-
-.appBannerBadge:hover {
-  transform: scale(1.05);
-}
-
-.appBannerBadge:active {
-  transform: scale(0.97);
-}
-
-.appBannerBadgeImg {
-  height: 34px;
-  width: auto;
-  display: block;
-}
-
-/* ── Option B: Asymmetric Action Cards ── */
-.actionCards {
+.batchBarRight {
   display: flex;
-  gap: 10px;
-  padding: 12px 0 8px;
-  align-items: stretch;
-}
-.actionCardSell {
-  flex: 1.8;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 20px 18px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #15803d 0%, #166534 100%);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(22, 101, 52, 0.35);
-  cursor: pointer;
-  text-decoration: none;
-  transition: transform 0.15s, box-shadow 0.15s;
-  position: relative;
-  overflow: hidden;
-}
-.actionCardSell::after {
-  content: '🌿';
-  position: absolute;
-  bottom: -10px;
-  right: -8px;
-  font-size: 80px;
-  opacity: 0.1;
-  transform: rotate(-15deg);
-  pointer-events: none;
-}
-.actionCardSell:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(22, 101, 52, 0.4);
-}
-.actionCardSell:active { transform: scale(0.98); }
-.sellTitle {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-}
-.sellSub {
-  font-size: 13px;
-  opacity: 0.9;
-  line-height: 1.4;
-}
-.sellBadge {
-  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.2);
-  font-size: 11px;
-  font-weight: 700;
-  width: fit-content;
+  gap: 10px;
 }
-.sellBtn {
-  display: inline-flex;
+
+.clearBatchBtn {
+  background: transparent;
+  border: none;
+  color: var(--gray-400);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  transition: color 0.15s ease;
+}
+
+.clearBatchBtn:hover {
+  color: #fff;
+}
+
+.proceedBatchBtn {
+  background: var(--green-500);
+  color: var(--gray-950);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 18px;
+  border-radius: var(--radius-xl);
+  border: none;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 20px;
-  border-radius: 999px;
-  background: #fff;
-  color: #15803d;
-  font-size: 14px;
-  font-weight: 800;
-  border: none;
-  cursor: pointer;
-  width: fit-content;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.1s;
-}
-.sellBtn:hover { transform: scale(1.04); }
-
-.actionCardBot {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 16px 12px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 50%, #a5b4fc 100%);
-  border: 1.5px solid #818cf8;
-  color: #1e1b4b;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
-  cursor: pointer;
-  text-decoration: none;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
+  transition: all 0.2s ease;
 }
 
-.actionCardBot:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.35);
-  border-color: #6366f1;
+.proceedBatchBtn:hover {
+  background: var(--green-400);
+  transform: translateY(-1px);
 }
-.actionCardBot:active { transform: scale(0.98); }
-.botAvatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 2.5px solid #ffffff;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
-  background: #ffffff;
-}
-.botAvatar img { width: 100%; height: 100%; object-fit: cover; }
-.botTitle {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #1e1b4b;
-}
-.botSub {
-  font-size: 11px;
-  color: #3730a3;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.botBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: #4338ca;
-  color: #ffffff;
-  border: none;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(67, 56, 202, 0.3);
-  transition: transform 0.1s;
-}
-.botBtn:hover { transform: scale(1.04); }
 
-@media (max-width: 380px) {
-  .actionCards { flex-direction: column; }
-  .actionCardSell { flex: none; }
-  .actionCardBot { flex: none; flex-direction: row; padding: 12px 16px; gap: 12px; }
-  .botAvatar { width: 36px; height: 36px; }
+/* ── Responsive adjustments ── */
+@media (max-width: 640px) {
+  .headerSearchRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .searchControlsGroup {
+    flex-direction: column;
+    max-width: 100%;
+  }
+  .locationFormWrapper {
+    width: 100%;
+  }
+  .produceGrid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -9,9 +9,11 @@ import { createClient } from '../../../lib/supabase'
 import { formatUsd } from '../../../lib/store'
 import { useAuth } from '../../../lib/useAuth'
 import { useQuickSetup } from '../../../lib/useQuickSetup'
-import { hasValidWindows } from '../../../lib/windowUtils'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress } from '../../../lib/address'
+import { getInstacartItemUrl, getKrogerItemUrl } from '../../../lib/groceryDelivery'
+import { hasValidWindows } from '../../../lib/windowUtils'
+import { trackEvent } from '../../../lib/crm-analytics'
 import styles from './page.module.css'
 
 export default function CartPage() {
@@ -158,12 +160,39 @@ export default function CartPage() {
       })
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Compute checkout amounts (must be before Stripe mount effect)
-  const grandTotal = boothGroups.reduce((sum, g) => sum + g.subtotal, 0)
+  const isCommercialBooth = (boothId: string) =>
+    boothId.startsWith('booth_instacart') ||
+    boothId.startsWith('booth_kroger') ||
+    boothId.includes('_partner')
+
+  const localBoothGroups = boothGroups.filter(g => !isCommercialBooth(g.booth.id))
+  const commercialBoothGroups = boothGroups.filter(g => isCommercialBooth(g.booth.id))
+
+  // Compute checkout amounts for local grower booths only (commercial items are transferred to partners)
+  const grandTotal = localBoothGroups.reduce((sum, g) => sum + g.subtotal, 0)
   const balanceApplied = Math.min(Math.max(0, availableBalance), grandTotal) // clamp: never negative
   const cardAmount = Math.max(0, grandTotal - balanceApplied)
   const cardCents = Math.round(cardAmount * 100)
   const needsCard = balanceLoaded && cardCents > 0 && existingHoldRemaining < cardCents
+
+  const handleTransferCommercial = (group: BoothGroup) => {
+    const isInstacart = group.booth.id.includes('instacart')
+    const firstCrop = group.items[0]?.product.name.replace(/\s*\(.*\)/, '').trim() || 'produce'
+    const targetZip = deliveryAddressFields.zip || '95125'
+    const transferUrl = isInstacart
+      ? getInstacartItemUrl(firstCrop, targetZip)
+      : getKrogerItemUrl(firstCrop, targetZip)
+
+    trackEvent('button_click', '/cart', {
+      action: 'commercial_cart_transfer',
+      partner: isInstacart ? 'instacart' : 'kroger',
+      item_count: group.items.length,
+      items: group.items.map(i => i.product.name),
+    })
+
+    window.open(transferUrl, '_blank', 'noopener,noreferrer')
+    showToast(`🚀 Transferred to ${isInstacart ? 'Instacart' : 'Kroger'} checkout!`)
+  }
 
   // Initialize Stripe Elements — load Stripe once
   useEffect(() => {
@@ -232,8 +261,8 @@ export default function CartPage() {
     setCheckoutError('')
 
     try {
-      // Group available items by booth
-      const orderGroups = boothGroups.map(group => ({
+      // Group available items by local booth only
+      const orderGroups = localBoothGroups.map(group => ({
         booth: group.booth,
         items: getCheckoutItems(group),
         subtotal: group.subtotal,
@@ -488,12 +517,36 @@ export default function CartPage() {
         const hasUnavailable = unavailCount > 0
         const availableItems = getCheckoutItems(group)
 
+        const isCommercial = isCommercialBooth(group.booth.id)
+        const isInstacart = group.booth.id.includes('instacart')
+
         return (
           <div key={group.booth.id} className={styles.boothGroup}>
             {/* Booth header */}
-            <div className={styles.boothHeader}>
-              <span>🏪</span>
+            <div
+              className={styles.boothHeader}
+              style={isCommercial ? {
+                background: isInstacart ? '#f0fdf4' : '#eff6ff',
+                borderBottom: isInstacart ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
+                display: 'flex',
+                alignItems: 'center',
+              } : undefined}
+            >
+              <span>{isCommercial ? (isInstacart ? '🛒' : '🏪') : '🏪'}</span>
               <span>{group.booth.name}</span>
+              {isCommercial && (
+                <span style={{
+                  marginLeft: 'auto',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 100,
+                  background: isInstacart ? '#166534' : '#1e40af',
+                  color: '#ffffff',
+                }}>
+                  Commercial Delivery
+                </span>
+              )}
             </div>
 
             {/* Unavailability banner */}
@@ -656,26 +709,63 @@ export default function CartPage() {
               )
             })}
 
-            {/* Booth subtotal */}
+            {/* Booth subtotal and checkout actions */}
             <div className={styles.boothFooter}>
-              <div className={styles.subtotalRow}>
-                <span>Subtotal ({availableItems.length} item{availableItems.length !== 1 ? 's' : ''})</span>
-                <span>{formatUsd(group.subtotal)}</span>
-              </div>
+              {isCommercial ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+                  <div className={styles.subtotalRow}>
+                    <span>Estimated Supermarket Subtotal ({availableItems.length} item{availableItems.length !== 1 ? 's' : ''})</span>
+                    <span style={{ fontWeight: 700, fontSize: 16 }}>{formatUsd(group.subtotal)}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: 0 }}>
+                    {isInstacart
+                      ? 'Items will be transferred directly to Instacart to choose your nearest local store (Sprouts, Safeway, ALDI) & delivery time slot.'
+                      : `Items will be transferred directly to ${group.booth.name} to choose your delivery or pickup window.`}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleTransferCommercial(group)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 18px',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#fff',
+                      background: isInstacart ? 'var(--green-600)' : '#2563eb',
+                      border: 'none',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                  >
+                    <span>🚀 Transfer to {isInstacart ? 'Instacart' : 'Kroger'} Checkout →</span>
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.subtotalRow}>
+                  <span>Subtotal ({availableItems.length} item{availableItems.length !== 1 ? 's' : ''})</span>
+                  <span>{formatUsd(group.subtotal)}</span>
+                </div>
+              )}
             </div>
           </div>
         )
       })}
 
-      {/* Grand total and unified checkout */}
+      {/* Grand total and unified checkout for local stands */}
       {(() => {
-        const allAvailable = boothGroups.flatMap(g => getCheckoutItems(g))
-        const hasQuarantined = false && allAvailable.some(i => quarantinedProducts[i.product.id])
-        const quarantinedCount = allAvailable.filter(i => quarantinedProducts[i.product.id]).length
-        return allAvailable.length > 0 && (
+        const localAvailable = localBoothGroups.flatMap(g => getCheckoutItems(g))
+        const hasQuarantined = false && localAvailable.some(i => quarantinedProducts[i.product.id])
+        const quarantinedCount = localAvailable.filter(i => quarantinedProducts[i.product.id]).length
+        return localAvailable.length > 0 && (
           <div className={styles.grandTotalSection}>
             <div className={styles.grandTotalRow}>
-              <span>Grand Total ({allAvailable.length} item{allAvailable.length !== 1 ? 's' : ''})</span>
+              <span>Local Stands Total ({localAvailable.length} item{localAvailable.length !== 1 ? 's' : ''})</span>
               <span className={styles.grandTotalAmount}>{formatUsd(grandTotal)}</span>
             </div>
             {balanceApplied > 0 && (
@@ -702,7 +792,7 @@ export default function CartPage() {
             )}
 
             {/* Delivery address — shown when any item is set to delivery */}
-            {allAvailable.some(i => i.fulfillmentMode === 'delivery') && (
+            {localAvailable.some(i => i.fulfillmentMode === 'delivery') && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
                   🚗 Delivery Address

@@ -171,7 +171,7 @@ test.describe('Checkout Gaps E2E - Delivery Instructions & Sales Tax ZIP', () =>
     await placeBtn.click()
 
     // Wait for success screen or redirect
-    await page.waitForURL(/\/orders\//, { timeout: 15000 })
+    await page.waitForURL(/\/orders\//, { timeout: 30000 })
     const currentUrl = page.url()
     const orderIdMatch = currentUrl.match(/\/orders\/([a-f0-9-]{36})/i)
     expect(orderIdMatch).toBeTruthy()

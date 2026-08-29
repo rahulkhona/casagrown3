@@ -23,7 +23,7 @@ test.describe('Market Growth Funnel Interactions', () => {
     await navigateToMarket(page)
 
     // 2. Perform search with zero results
-    const searchInput = page.locator('input[placeholder*="Search products"]')
+    const searchInput = page.locator('input#produce-search, input[placeholder*="Search produce"], input[placeholder*="Search products"]').first()
     await searchInput.fill('sugarcane')
     await page.waitForTimeout(3000)
 
@@ -50,7 +50,7 @@ test.describe('Market Growth Funnel Interactions', () => {
     await navigateToMarket(page)
     
     // 1. Try to trigger Empty State via search
-    const searchInput = page.locator('input[placeholder*="Search products"]')
+    const searchInput = page.locator('input#produce-search, input[placeholder*="Search produce"], input[placeholder*="Search products"]').first()
     await searchInput.fill('dragonfruit')
     
     // Wait for empty state — but don't hard-fail if it doesn't appear

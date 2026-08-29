@@ -1,4 +1,14 @@
 import { test, expect } from './fixtures'
+import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
+import { resolve } from 'path'
+
+config({ path: resolve(__dirname, '../.env') })
+config({ path: resolve(__dirname, '../.env.local') })
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 // Run with clean guest state (unauthenticated)
 test.use({ storageState: { cookies: [], origins: [] } })
@@ -156,7 +166,13 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
     // Verify account badge
     await expect(page.locator('text=Signed in as')).toBeVisible()
 
-    // Ensure pickup is unchecked so delivery-only is used
+    // Ensure delivery is checked so delivery-only is used
+    const deliveryCheckbox = page.locator('#delivery-section input[type="checkbox"]')
+    if (!(await deliveryCheckbox.isChecked())) {
+      await deliveryCheckbox.check()
+    }
+
+    // Ensure pickup is unchecked
     const pickupCheckbox = page.locator('#pickup-section input[type="checkbox"]')
     if (await pickupCheckbox.isChecked()) {
       await pickupCheckbox.uncheck()
@@ -174,6 +190,33 @@ test.describe('Bulk Produce Listing Wizard (/list_bulk) — Authenticated Seller
     // Social Share Modal should pop up
     const shareModal = page.locator('text=Share Your Stand with Neighbors').or(page.locator('text=CasaGrown Share')).or(page.locator('text=Your Stand is Live!'))
     await expect(shareModal.first()).toBeVisible({ timeout: 15000 })
-  })
 
+    // Verify product was accurately persisted to the database with all fields
+    const { data: dbProducts } = await supabase
+      .from('market_products')
+      .select('name, inventory, is_active, is_draft, delivery_zipcodes, product_delivery_windows, window_dates')
+      .ilike('name', '%Meyer Lemons%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    expect(dbProducts).toBeDefined()
+    expect(dbProducts!.length).toBeGreaterThan(0)
+    expect(dbProducts![0].name).toContain('Meyer Lemons')
+    expect(dbProducts![0].inventory).toBe(10)
+    expect(dbProducts![0].is_active).toBe(true)
+    expect(dbProducts![0].is_draft).toBe(false)
+    expect(dbProducts![0].delivery_zipcodes).toContain('95120')
+
+    // Verify implicit sell interest was persisted in crm_produce_interests
+    const { data: dbInterests } = await supabase
+      .from('crm_produce_interests')
+      .select('produce_name, interest_type, zipcodes')
+      .ilike('produce_name', '%meyer%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    expect(dbInterests).toBeDefined()
+    expect(dbInterests!.length).toBeGreaterThan(0)
+    expect(dbInterests![0].interest_type).toBe('sell')
+  })
 })

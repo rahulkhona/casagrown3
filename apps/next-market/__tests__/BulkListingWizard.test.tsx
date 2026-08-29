@@ -50,6 +50,8 @@ vi.mock('../lib/supabase', () => ({
   createClient: () => mockSupabase,
 }))
 
+const mockInserts: Record<string, any[]> = {}
+
 const createQueryChain = (tableName: string) => {
   const queryResult = {
     data: tableName === 'market_products'
@@ -62,7 +64,11 @@ const createQueryChain = (tableName: string) => {
 
   const builder: any = {
     select: vi.fn(() => builder),
-    insert: vi.fn(() => builder),
+    insert: vi.fn((payload: any) => {
+      if (!mockInserts[tableName]) mockInserts[tableName] = []
+      mockInserts[tableName].push(payload)
+      return builder
+    }),
     update: vi.fn(() => builder),
     delete: vi.fn(() => builder),
     eq: vi.fn(() => builder),
@@ -540,9 +546,40 @@ describe('BulkListingWizard (Exhaustive E2E Form & Button Matrix)', () => {
 
 
 
-    // Assert that market_products.insert was executed
+    // Assert that market_products.insert was executed and saved correct fields
     await waitFor(() => {
       expect(mockFromSpy).toHaveBeenCalledWith('market_products')
+      expect(mockInserts['market_products']).toBeDefined()
+      expect(mockInserts['market_products'].length).toBeGreaterThan(0)
+    })
+
+    const insertedProductList = mockInserts['market_products'][0]
+    expect(insertedProductList).toBeDefined()
+    expect(insertedProductList.length).toBe(1)
+    const product = insertedProductList[0]
+
+    expect(product).toMatchObject({
+      name: 'Tomatoes',
+      seller_id: 'seller-789',
+      is_active: true,
+      is_draft: false,
+      delivery_zipcodes: ['95120'],
+      pickup_notice_minutes: 30,
+    })
+    expect(product.product_delivery_windows).toBeDefined()
+    expect(product.product_pickup_windows).toBeDefined()
+    expect(product.window_dates).toBeDefined()
+    expect(Array.isArray(product.window_dates)).toBe(true)
+
+    // Assert that implicit sell interest was saved in crm_produce_interests
+    expect(mockFromSpy).toHaveBeenCalledWith('crm_produce_interests')
+    expect(mockInserts['crm_produce_interests']).toBeDefined()
+    const insertedInterests = mockInserts['crm_produce_interests'][0]
+    expect(insertedInterests[0]).toMatchObject({
+      user_id: 'seller-789',
+      produce_name: 'tomatoes',
+      interest_type: 'sell',
+      zipcodes: ['95120'],
     })
   })
 })

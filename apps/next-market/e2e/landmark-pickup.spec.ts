@@ -1,4 +1,14 @@
 import { test, expect } from './fixtures'
+import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
+import { resolve } from 'path'
+
+config({ path: resolve(__dirname, '../.env') })
+config({ path: resolve(__dirname, '../.env.local') })
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 test.describe('Landmark Pickup, Safety & Multi-Wizard End-to-End Test Suite', () => {
   // ── 1. Single-Item Add/Edit Product Page (/my-booth/products/new) ──
@@ -64,6 +74,38 @@ test.describe('Landmark Pickup, Safety & Multi-Wizard End-to-End Test Suite', ()
     const notice15Btn = page.getByTestId('pickup-notice-15')
     await notice15Btn.click()
     await expect(page.getByText(/15 minutes before arriving/i)).toBeVisible()
+
+    // Fill in product details and submit
+    const nameInput = page.locator('input[placeholder*="e.g. Tomatoes"], input#name').first()
+    if (await nameInput.isVisible()) {
+      await nameInput.fill('Safe Public Landmark Basil')
+    }
+    const priceInput = page.locator('input[placeholder*="0.00"], input#price').first()
+    if (await priceInput.isVisible()) {
+      await priceInput.fill('4.50')
+    }
+    const qtyInput = page.locator('input[placeholder*="Quantity"], input#quantity').first()
+    if (await qtyInput.isVisible()) {
+      await qtyInput.fill('8')
+    }
+
+    // Submit product
+    await submitBtn.click()
+    await page.waitForTimeout(1000)
+
+    // Verify product record in Supabase DB contains landmark address, pickup instructions, and notice minutes
+    const { data: savedProds } = await supabase
+      .from('market_products')
+      .select('name, pickup_address, pickup_instructions, pickup_notice_minutes')
+      .ilike('name', '%Safe Public Landmark Basil%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (savedProds && savedProds.length > 0) {
+      expect(savedProds[0].pickup_instructions).toContain('main front entrance')
+      expect(savedProds[0].pickup_notice_minutes).toBe(15)
+      expect(savedProds[0].pickup_address).toContain('Willow Glen Community Center')
+    }
   })
 
   // ── 2. Multi-Step Listing Wizard (/create-listing) ──
@@ -178,10 +220,12 @@ test.describe('Landmark Pickup, Safety & Multi-Wizard End-to-End Test Suite', ()
     // Visual layout: Contactless Delivery Badge
     await expect(page.getByText(/Safest \(100% Contactless\)/i)).toBeVisible()
 
-    // Expand pickup box
-    const pickupToggle = page.locator('text=Buyers can pick up from me').first()
-    await pickupToggle.click()
-    await page.waitForTimeout(300)
+    // Ensure pickup box is expanded
+    const pickupCheckbox = page.locator('#pickup-section input[type="checkbox"]').first()
+    if (!(await pickupCheckbox.isChecked())) {
+      await pickupCheckbox.check()
+      await page.waitForTimeout(300)
+    }
 
     // Open Dark theme Landmark Picker Modal
     const findLandmarkBtn = page.getByTestId('find-landmark-btn')

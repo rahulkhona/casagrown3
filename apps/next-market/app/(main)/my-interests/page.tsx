@@ -126,7 +126,7 @@ function MyInterestsContent() {
           </p>
         </div>
         <Link 
-          href="/interest" 
+          href="/market" 
           style={{ 
             backgroundColor: '#16a34a', 
             color: 'white', 
@@ -137,7 +137,7 @@ function MyInterestsContent() {
             fontWeight: 500
           }}
         >
-          + Add Interest
+          + Explore Market
         </Link>
       </div>
 
@@ -184,8 +184,8 @@ function MyInterestsContent() {
         interests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '36px', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed #d1d5db', marginBottom: '32px' }}>
             <p style={{ color: '#4b5563', marginBottom: '16px', fontSize: '15px', fontWeight: 500 }}>No saved interests yet.</p>
-            <Link href="/interest" style={{ color: '#ffffff', backgroundColor: '#16a34a', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '14px', display: 'inline-block' }}>
-              + Explore & Add Interests
+            <Link href="/market" style={{ color: '#ffffff', backgroundColor: '#16a34a', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '14px', display: 'inline-block' }}>
+              + Explore Produce Market
             </Link>
           </div>
         ) : (

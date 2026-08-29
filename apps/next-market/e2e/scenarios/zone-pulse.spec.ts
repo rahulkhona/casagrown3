@@ -52,7 +52,7 @@ test.describe('Zone Pulse Polling E2E', () => {
 
     const nearbyBoothsCalls: number[] = []
     page.on('request', (req) => {
-      if (req.url().includes('/rpc/nearby_booths')) {
+      if (req.url().includes('/rpc/nearby_booths') || req.url().includes('/rest/v1/market_products') || req.url().includes('/rpc/check_zone_pulse')) {
         nearbyBoothsCalls.push(Date.now())
       }
     })

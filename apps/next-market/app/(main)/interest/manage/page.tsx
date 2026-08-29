@@ -53,7 +53,7 @@ function ManageInterestContent() {
     <div style={styles.pageRoot}>
       <header style={styles.navHeader}>
         <div style={styles.navContainer}>
-          <Link href="/interest" style={styles.logoLink}>
+          <Link href="/market" style={styles.logoLink}>
             <span style={{ fontSize: '24px', marginRight: '6px' }}>🌱</span>
             <span style={styles.logoText}>CasaGrown Security & Alerts</span>
           </Link>
@@ -136,8 +136,8 @@ function ManageInterestContent() {
           </div>
 
           <div style={styles.footerLinkRow}>
-            <Link href="/interest" style={styles.backLink}>
-              ← Return to Produce Interests Page
+            <Link href="/market" style={styles.backLink}>
+              ← Return to Produce Market
             </Link>
           </div>
         </div>
