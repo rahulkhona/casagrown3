@@ -57,7 +57,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_match_buyer_to_sellers ON crm_produce_interests;
 CREATE TRIGGER trigger_match_buyer_to_sellers
@@ -108,7 +108,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_match_listing_to_buyers ON market_products;
 CREATE TRIGGER trigger_match_listing_to_buyers
