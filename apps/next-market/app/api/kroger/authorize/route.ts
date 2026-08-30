@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
   const clientId = process.env.KROGER_CLIENT_ID || process.env.NEXT_PUBLIC_KROGER_CLIENT_ID || 'casagrown-bbchvmkv'
   
   // Resolve host for callback
-  const origin = req.nextUrl.origin || 'https://casagrown.com'
+  let origin = req.nextUrl.origin || 'https://casagrown.com'
+  if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+    origin = origin.replace('http://', 'https://')
+  }
   const redirectUri = `${origin}/api/kroger/callback`
 
   const statePayload = {
