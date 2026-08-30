@@ -221,13 +221,12 @@ describe('Produce Cards on Market Page', () => {
     })
   })
 
-  it('renders category filter tabs', async () => {
+  it('renders produce search and location inputs in header', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain('All Seasonal Produce')
+      expect(container.querySelector('#produce-search')).toBeTruthy()
     })
-    expect(container.textContent).toContain('Vegetables')
-    expect(container.textContent).toContain('Fruit & Citrus')
+    expect(container.querySelector('#zip-search')).toBeTruthy()
   })
 
   it('renders produce search and location inputs', async () => {

@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkTextForViolations } from '../../../../lib/moderation'
 import { normalizeProduceKey } from '../../../../lib/bulkListingUtils'
+
+const PROCESSED_NON_HARVEST_REGEX = /\b(pie|tart|cake|bread|focaccia|sourdough|pastry|cookie|jam|jelly|canned|soup|salsa|pickle|meal|sandwich|baked|loaf|loaves|muffin|cupcake|brownie)\b/i
+
+function isRawHarvestProduce(name: string): boolean {
+  if (!name || typeof name !== 'string') return false
+  return !PROCESSED_NON_HARVEST_REGEX.test(name)
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -32,27 +40,48 @@ export async function GET(req: Request) {
         totalBuyers: 0,
         locationLabel: cleanZip ? `In ${cleanZip}` : 'In Your Area',
         produceCounts: {},
+        demandedItems: [],
       })
     }
 
     const counts: Record<string, number> = {}
+    const rawCounts: Record<string, number> = {}
+    const displayNames: Record<string, string> = {}
     const uniqueBuyers = new Set<string>()
 
     if (data && data.length > 0) {
       data.forEach((item: any) => {
-        const rawName = (item.produce_name || '').toLowerCase().trim()
-        if (rawName) {
-          const keys = normalizeProduceKey(rawName)
-          keys.forEach((k) => {
-            counts[k] = (counts[k] || 0) + 1
-          })
+        const rawName = (item.produce_name || '').trim()
+        if (!rawName) return
+
+        // 1. Content Moderation & Banned Items Check
+        const modCheck = checkTextForViolations(rawName)
+        if (!modCheck.isClean) return
+
+        // 2. Non-harvest processed items check
+        if (!isRawHarvestProduce(rawName)) return
+
+        const norm = rawName.toLowerCase()
+        rawCounts[norm] = (rawCounts[norm] || 0) + 1
+        if (!displayNames[norm]) {
+          displayNames[norm] = rawName.charAt(0).toUpperCase() + rawName.slice(1)
         }
-        const buyerId = item.user_id || item.lead_id || `${rawName}_${Math.random()}`
+
+        const keys = normalizeProduceKey(norm)
+        keys.forEach((k) => {
+          counts[k] = (counts[k] || 0) + 1
+        })
+
+        const buyerId = item.user_id || item.lead_id || `${norm}_${Math.random()}`
         uniqueBuyers.add(buyerId)
       })
     }
 
     const totalBuyers = uniqueBuyers.size
+    const demandedItems = Object.entries(rawCounts).map(([norm, count]) => ({
+      produce_name: displayNames[norm] || norm,
+      count,
+    }))
 
     return NextResponse.json({
       success: true,
@@ -60,6 +89,7 @@ export async function GET(req: Request) {
       totalBuyers,
       locationLabel: cleanZip ? `In ${cleanZip}` : 'In Your Area',
       produceCounts: counts,
+      demandedItems,
     })
   } catch (err: any) {
     console.error('[API /api/interest/demand] Error:', err)

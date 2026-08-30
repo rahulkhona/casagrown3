@@ -70,15 +70,6 @@ test.describe('Market Page — Produce Marketplace Layout', () => {
     await expect(addLink).toHaveAttribute('href', '/my-booth/products/new')
   })
 
-  test('should show category filter pills', async ({ page }) => {
-    await page.goto('/market')
-    await page.waitForTimeout(1000)
-    const body = await page.textContent('body')
-    expect(body).toContain('All Seasonal Produce')
-    expect(body).toContain('Vegetables')
-    expect(body).toContain('Fruit & Citrus')
-  })
-
   test('should show search and location inputs', async ({ page }) => {
     await page.goto('/market')
     await page.waitForTimeout(1000)

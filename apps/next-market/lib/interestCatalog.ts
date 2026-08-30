@@ -3,7 +3,7 @@ export interface InterestCatalogItem {
   defaultUnit?: string
   id: string
   name: string
-  category: 'produce' | 'herbs' | 'flowers' | 'honey' | 'eggs' | 'seedlings' | 'plants'
+  category: 'produce' | 'herbs' | 'flowers' | 'honey' | 'eggs' | 'seedlings' | 'plants' | 'flower_arrangements' | 'garden_equipment' | 'pots' | 'soil' | 'seeds' | string
   displayCategory: string
   image: string
   buyersCount: number

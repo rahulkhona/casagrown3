@@ -1,13 +1,22 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   getInstacartItemUrl,
   getInstacartMultiItemUrl,
   getKrogerItemUrl,
+  getKrogerAuthorizeUrl,
   getRegionalKrogerBanner,
   getPartnerStoreDisplay,
+  sanitizeGroceryName,
+  checkKrogerProximity,
 } from '../groceryDelivery'
 
 describe('groceryDelivery canonical utility suite', () => {
+  it('sanitizes marketing descriptors from product names', () => {
+    expect(sanitizeGroceryName('Fresh Homegrown Meyer Lemons (Instacart Supermarket)')).toBe('Meyer Lemons')
+    expect(sanitizeGroceryName('Organic Backyard Heirloom Tomatoes')).toBe('Heirloom Tomatoes')
+    expect(sanitizeGroceryName('Sweet Ripe Peaches')).toBe('Peaches')
+  })
+
   it('generates clean Instacart produce search URL with partner tag and zip code', () => {
     const url = getInstacartItemUrl('Fresh Meyer Lemons', '95125')
     expect(url).toContain('https://www.instacart.com/store/s?k=Meyer%20Lemons')
@@ -21,9 +30,20 @@ describe('groceryDelivery canonical utility suite', () => {
       { name: 'Roma Tomatoes', quantity: 3, unit: 'lbs' },
     ]
     const url = getInstacartMultiItemUrl(items, '95120')
-    expect(url).toContain('https://www.instacart.com/store/partner_recipe')
-    expect(url).toContain('2%20lbs%20Lemons%2C3%20lbs%20Roma%20Tomatoes')
+    expect(url).toContain('https://www.instacart.com/store/s?k=Lemons%20Roma%20Tomatoes')
     expect(url).toContain('zipcode=95120')
+  })
+
+  it('generates Kroger OAuth authorize URL with encoded items and zip code', () => {
+    const items = [
+      { name: 'Fresh Heirloom Tomatoes', quantity: 2, unit: 'lb', price_usd: 3.49 },
+      { name: 'Organic Basil', quantity: 1, unit: 'bunch', price_usd: 2.49 },
+    ]
+    const url = getKrogerAuthorizeUrl(items, '95125', '/cart')
+    expect(url).toContain('/api/kroger/authorize')
+    expect(url).toContain('zipcode=95125')
+    expect(url).toContain('returnUrl=%2Fcart')
+    expect(url).toContain('Heirloom%20Tomatoes')
   })
 
   it('generates Kroger search URL with query', () => {
@@ -49,5 +69,11 @@ describe('groceryDelivery canonical utility suite', () => {
     expect(soilDisplay.categoryType).toBe('garden_supplies')
     expect(soilDisplay.instacartStoresPill).toContain('Home Depot')
     expect(soilDisplay.instacartStoresPill).toContain("Lowe's")
+  })
+
+  it('checks Kroger proximity fallback for valid ZIP codes', async () => {
+    const result = await checkKrogerProximity('95125', 15)
+    expect(result.available).toBe(true)
+    expect(result.banner).toBe('Ralphs')
   })
 })

@@ -114,15 +114,12 @@ describe('MarketProducePage', () => {
     cleanup()
   })
 
-  it('renders search bar, location bar, and category tabs', async () => {
+  it('renders search bar and location bar in sticky header', async () => {
     render(<MarketPage />)
 
     expect(screen.getByRole('link', { name: /Add Produce/i })).toHaveAttribute('href', '/my-booth/products/new')
     expect(screen.getByPlaceholderText(/Search produce/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Address or ZIP/i)).toBeInTheDocument()
-    expect(screen.getByText(/All Seasonal Produce/i)).toBeInTheDocument()
-    expect(screen.getByText(/Vegetables/i)).toBeInTheDocument()
-    expect(screen.getByText(/Fruit & Citrus/i)).toBeInTheDocument()
   })
 
   it('filters produce cards when typing in the produce search bar', async () => {
@@ -148,8 +145,29 @@ describe('MarketProducePage', () => {
     const searchInput = screen.getByPlaceholderText(/Search produce/i)
     fireEvent.change(searchInput, { target: { value: 'Dragonfruit' } })
 
-    expect(screen.getByText(/No produce found matching.*Dragonfruit/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /List on Neighborhood Stand/i })).toHaveAttribute('href', '/my-booth/products/new?name=Dragonfruit')
+    expect(screen.getByText(/No active listings for.*Dragonfruit.*nearby/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Want Dragonfruit/i })).toBeInTheDocument()
+    const addLinks = screen.getAllByRole('link', { name: /\+ Add Produce/i })
+    expect(addLinks.some(l => l.getAttribute('href') === '/my-booth/products/new?name=Dragonfruit')).toBe(true)
+
+    // Test prohibited term (e.g. gun)
+    fireEvent.change(searchInput, { target: { value: 'gun' } })
+    expect(screen.getByText(/Prohibited Search Term/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Want gun/i })).not.toBeInTheDocument()
+
+    // Test non-garden item (e.g. chair)
+    fireEvent.change(searchInput, { target: { value: 'chair' } })
+    expect(screen.getByText(/Not a recognized garden item/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Want chair/i })).not.toBeInTheDocument()
+
+    // Test valid garden equipment & supplies (wooden pots & soil)
+    fireEvent.change(searchInput, { target: { value: 'wooden pots' } })
+    expect(screen.getByText(/No active listings for.*wooden pots.*nearby/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Want wooden pots/i })).toBeInTheDocument()
+
+    fireEvent.change(searchInput, { target: { value: 'potting soil' } })
+    expect(screen.getByText(/No active listings for.*potting soil.*nearby/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Want potting soil/i })).toBeInTheDocument()
   })
 
   it('opens listing modal when clicking Have Extra on a crop card', async () => {

@@ -288,11 +288,24 @@ test.describe('Helper Product Listing — /my-stands + /create-listing', () => {
   // HL3: Maria (helper) sees helper booths in my-stands
   // ──────────────────────────────────────────────────
   test('HL3: maria sees helper booth with seller name', async ({ browser }) => {
+    // Get the booth ID for seller's default booth
+    const boothId = execSql(`
+      SELECT id FROM market_booths
+      WHERE owner_id = 'a1111111-1111-1111-1111-111111111111'
+      AND is_default = true LIMIT 1
+    `).trim()
+
+    if (!boothId) {
+      console.log('[HL3] No default booth found — skipping')
+      test.skip()
+      return
+    }
+
     // Ensure maria is accepted as helper for Sam's booth
     execSql(`
       INSERT INTO booth_helpers (booth_id, helper_id, status)
       VALUES (
-        'b9a8a4b1-d59f-4aa3-9e03-b1d33e011a2a',
+        '${boothId}',
         (SELECT id FROM auth.users WHERE email = 'maria@test.local'),
         'accepted'
       )

@@ -538,7 +538,20 @@ function ProductDetailPageInner({ params }: { params: Promise<{ id: string; prod
       )}
 
       <div className={styles.breadcrumb}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--green-700)', cursor: 'pointer', padding: 0, font: 'inherit' }}>← Back</button>
+        <button
+          onClick={() => {
+            const fromParam = searchParams.get('from')
+            const cropParam = searchParams.get('crop')
+            if (fromParam === 'market' && cropParam) {
+              router.push(`/market?openCrop=${encodeURIComponent(cropParam)}`)
+            } else {
+              router.back()
+            }
+          }}
+          style={{ background: 'none', border: 'none', color: 'var(--green-700)', cursor: 'pointer', padding: 0, font: 'inherit' }}
+        >
+          ← Back
+        </button>
         <span style={{ color: 'var(--gray-400)', margin: '0 6px' }}>/</span>
         <span>{product.name}</span>
       </div>

@@ -176,9 +176,9 @@ test.describe('Order Flows', () => {
       VALUES (
         gen_random_uuid(),
         (SELECT id FROM auth.users WHERE email='buyer@test.local'),
-        (SELECT id FROM auth.users WHERE email='seller2@test.local'),
-        (SELECT id FROM market_booths WHERE owner_id = (SELECT id FROM auth.users WHERE email='seller2@test.local') LIMIT 1),
-        (SELECT id FROM market_products WHERE seller_id = (SELECT id FROM auth.users WHERE email='seller2@test.local') LIMIT 1),
+        (SELECT id FROM auth.users WHERE email='sofia@test.local'),
+        (SELECT id FROM market_booths WHERE owner_id = (SELECT id FROM auth.users WHERE email='sofia@test.local') LIMIT 1),
+        (SELECT id FROM market_products WHERE seller_id = (SELECT id FROM auth.users WHERE email='sofia@test.local') LIMIT 1),
         'E2E Decline Test Product',
         1, 5.00, 5.00, 5.00, 'delivery', 'pending'
       );

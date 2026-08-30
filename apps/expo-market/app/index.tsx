@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as ImagePicker from 'expo-image-picker';
+import * as WebBrowser from 'expo-web-browser';
 
 const getBaseUrl = (): string => {
   const url = process.env.EXPO_PUBLIC_WEB_URL;
@@ -467,6 +468,18 @@ export default function AppShell() {
         }
       }
 
+      if (data.type === 'OPEN_EXTERNAL_URL' && data.url) {
+        try {
+          await WebBrowser.openBrowserAsync(data.url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+            dismissButtonStyle: 'done',
+          });
+        } catch (_) {
+          Linking.openURL(data.url);
+        }
+        return;
+      }
+
     } catch (e: any) {
       console.error('WebView message parsing error:', e);
     }
@@ -498,15 +511,29 @@ export default function AppShell() {
       ref={webViewRef}
       source={{ uri: currentUrl }}
       injectedJavaScriptBeforeContentLoaded={INJECTED_JAVASCRIPT}
-      inspectable={true}
+      webviewDebuggingEnabled={true}
       onMessage={onMessage}
       onNavigationStateChange={(navState) => {
         setCanGoBack(navState.canGoBack);
       }}
       onShouldStartLoadWithRequest={(request: WebViewNavigation) => {
-        // External links (USDA, OFN, farmer sites) → open in system browser
+        // External links (Instacart, Kroger, USDA, OFN, farmer sites)
         if (!isInternalUrl(request.url)) {
-          Linking.openURL(request.url);
+          const isCommercialTransfer =
+            request.url.includes('instacart.com') ||
+            request.url.includes('kroger.com') ||
+            request.url.includes('/api/kroger/');
+
+          if (isCommercialTransfer) {
+            WebBrowser.openBrowserAsync(request.url, {
+              presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+              dismissButtonStyle: 'done',
+            }).catch(() => {
+              Linking.openURL(request.url);
+            });
+          } else {
+            Linking.openURL(request.url);
+          }
 
           // Hide splash screen in case we cancelled the load before it finished
           const p = SplashScreen.hideAsync();

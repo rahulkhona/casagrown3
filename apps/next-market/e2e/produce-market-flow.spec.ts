@@ -32,10 +32,10 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     const produceSearch = page.locator('#produce-search')
     await produceSearch.fill('Dragonfruit')
     await expect(page.locator('#no-produce-matches')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText(/No produce found matching.*Dragonfruit/i)).toBeVisible()
+    await expect(page.getByText(/No active listings for.*Dragonfruit.*nearby/i)).toBeVisible()
 
     // 3. Zero-Results CTA links directly to /my-booth/products/new with pre-filled name
-    const zeroResultsCta = page.getByRole('link', { name: /List on Neighborhood Stand/i })
+    const zeroResultsCta = page.getByRole('link', { name: /Add Produce/i }).last()
     await expect(zeroResultsCta).toBeVisible()
     await expect(zeroResultsCta).toHaveAttribute('href', /\/my-booth\/products\/new\?name=Dragonfruit/)
 
@@ -54,7 +54,7 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await wantButton.click()
 
     // If active listings view is shown, switch to signal form
-    const signalLink = page.getByRole('button', { name: /Signal All Neighbors/i })
+    const signalLink = page.getByRole('button', { name: /Find Sellers/i })
     if (await signalLink.isVisible({ timeout: 2000 }).catch(() => false)) {
       await signalLink.click()
     }
@@ -128,16 +128,8 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     expect(savedRecord.status).toBe('active')
   })
 
-  test('PM-04: Category tabs and legacy /interest redirect', async ({ page }) => {
-    // 1. Category Filtering
-    await page.goto('/market')
-    await page.getByRole('button', { name: 'Fruit & Citrus' }).click()
-    await expect(page.locator('.produce-card, [class*="produceCard"]').first()).toBeVisible()
-
-    await page.getByRole('button', { name: 'All Seasonal Produce' }).click()
-    await expect(page.locator('.produce-card, [class*="produceCard"]').first()).toBeVisible()
-
-    // 2. /interest Legacy URL Redirects to /market
+  test('PM-04: Legacy /interest redirect', async ({ page }) => {
+    // /interest Legacy URL Redirects to /market
     await page.goto('/interest')
     await expect(page).toHaveURL(/\/market/)
   })
@@ -154,7 +146,7 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await wantButton.click()
 
     // 3. Switch to signal form if needed and submit signal
-    const signalLink = page.getByRole('button', { name: /Signal All Neighbors/i })
+    const signalLink = page.getByRole('button', { name: /Find Sellers/i })
     if (await signalLink.isVisible({ timeout: 2000 }).catch(() => false)) {
       await signalLink.click()
     }
@@ -184,7 +176,7 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(page.getByText('Commercial Delivery')).toBeVisible()
 
     // 7. Verify transfer checkout hand-off
-    const transferBtn = page.locator('button:has-text("Transfer to Instacart Checkout")')
+    const transferBtn = page.locator('button:has-text("Instacart Checkout")').first()
     await expect(transferBtn).toBeVisible()
 
     const [popup] = await Promise.all([
@@ -266,6 +258,8 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
       //    The market page fires loadMarketData only after resolving lat/lng, so
       //    we wait for networkidle, then reload once if the card isn't yet visible.
       await page.goto('/market')
+      await page.evaluate(() => localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125'))
+      await page.reload()
       await expect(page.locator('#produce-search')).toBeVisible({ timeout: 10000 })
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
 
@@ -293,12 +287,12 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
       //    Scope to the modal's root class (WantProduceModal.module.css uses .modalContent)
       const modal = page.locator('[class*="modalContent"]').first()
       await expect(modal.getByText('Available from Neighbors')).toBeVisible({ timeout: 8000 })
-      const standCards = modal.locator('[class*="listingCard"]')
+      const standCards = modal.locator('[class*="listingsScrollList"] > [class*="listingCard"]')
       await expect(standCards).toHaveCount(2, { timeout: 8000 })
 
       // Verify prices $4.50 and $5.00 are rendered inside the modal
-      await expect(modal.locator('[class*="listingPriceBadge"]').filter({ hasText: '$4.50' })).toBeVisible()
-      await expect(modal.locator('[class*="listingPriceBadge"]').filter({ hasText: '$5.00' })).toBeVisible()
+      await expect(modal.locator('[class*="heroPriceBadge"]').filter({ hasText: '$4.50' })).toBeVisible()
+      await expect(modal.locator('[class*="heroPriceBadge"]').filter({ hasText: '$5.00' })).toBeVisible()
 
       // Verify Buy Now buttons exist for both stands inside the modal
       const buyNowBtns = modal.locator('button:has-text("Buy Now")')
@@ -312,6 +306,8 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
 
   test('PM-07: Buy Now, + Cart button, and View Details link in WantProduceModal', async ({ page }) => {
     await page.goto('/market')
+    await page.evaluate(() => localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125'))
+    await page.reload()
     await expect(page.locator('#produce-grid')).toBeVisible({ timeout: 10000 })
 
     // 1. Open Want modal for Tomatoes (which has live neighbor stands)
@@ -321,17 +317,17 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
 
     // 2. Verify View Details link exists and links to product page
     await expect(page.getByText('Available from Neighbors')).toBeVisible({ timeout: 5000 })
-    const viewDetailsLink = page.locator('a:has-text("View Details →")').first()
+    const viewDetailsLink = page.locator('a:has-text("View Full Details →")').first()
     await expect(viewDetailsLink).toBeVisible()
     await expect(viewDetailsLink).toHaveAttribute('href', /\/market\/booth\/.*\/product\/.*/)
 
-    // 3. Click + Cart on the first neighbor listing
-    const addCartBtn = page.locator('button:has-text("+ Cart")').first()
+    // 3. Click Add to Cart on the first neighbor listing
+    const addCartBtn = page.locator('button:has-text("Add to Cart")').first()
     await expect(addCartBtn).toBeVisible()
     await addCartBtn.click()
 
     // 4. Verify immediate feedback banner appears with View Cart link
-    const feedbackBanner = page.locator('text=/Added .* to Cart!/')
+    const feedbackBanner = page.locator('text=/Added .* to cart/i')
     await expect(feedbackBanner).toBeVisible({ timeout: 5000 })
     const viewCartLink = page.getByRole('link', { name: /View Cart →/i })
     await expect(viewCartLink).toBeVisible()

@@ -11,7 +11,12 @@ import { useAuth } from '../../../lib/useAuth'
 import { useQuickSetup } from '../../../lib/useQuickSetup'
 import AddressInput from '../../components/AddressInput'
 import { type AddressFields, formatFullAddress } from '../../../lib/address'
-import { getInstacartItemUrl, getKrogerItemUrl } from '../../../lib/groceryDelivery'
+import {
+  getInstacartMultiItemUrl,
+  getKrogerAuthorizeUrl,
+  recordCommercialTransfer,
+  type GroceryItem,
+} from '../../../lib/groceryDelivery'
 import { hasValidWindows } from '../../../lib/windowUtils'
 import { trackEvent } from '../../../lib/crm-analytics'
 import styles from './page.module.css'
@@ -175,23 +180,46 @@ export default function CartPage() {
   const cardCents = Math.round(cardAmount * 100)
   const needsCard = balanceLoaded && cardCents > 0 && existingHoldRemaining < cardCents
 
-  const handleTransferCommercial = (group: BoothGroup) => {
+  const handleTransferCommercial = async (group: BoothGroup) => {
     const isInstacart = group.booth.id.includes('instacart')
-    const firstCrop = group.items[0]?.product.name.replace(/\s*\(.*\)/, '').trim() || 'produce'
     const targetZip = deliveryAddressFields.zip || '95125'
-    const transferUrl = isInstacart
-      ? getInstacartItemUrl(firstCrop, targetZip)
-      : getKrogerItemUrl(firstCrop, targetZip)
 
+    const groceryItems: GroceryItem[] = group.items.map(item => ({
+      name: item.product.name.replace(/\s*\(.*?\)/g, '').trim(),
+      quantity: item.qty,
+      unit: item.product.unit || 'lb',
+      price_usd: item.latestPrice ?? item.product.price_usd,
+      estimatedPriceUsd: item.latestPrice ?? item.product.price_usd,
+      provider: isInstacart ? 'instacart' : 'kroger',
+    }))
+
+    const transferUrl = isInstacart
+      ? getInstacartMultiItemUrl(groceryItems, targetZip)
+      : getKrogerAuthorizeUrl(groceryItems, targetZip, '/cart')
+
+    // 1. Record lead & dollar GMV analytics
+    recordCommercialTransfer({
+      partner: isInstacart ? 'instacart' : 'kroger',
+      banner: group.booth.name,
+      zipcode: targetZip,
+      items: groceryItems,
+      total_usd: group.subtotal,
+      userId: user?.id,
+    })
+
+    // 2. Track CRM analytics event
     trackEvent('button_click', '/cart', {
       action: 'commercial_cart_transfer',
       partner: isInstacart ? 'instacart' : 'kroger',
+      banner: group.booth.name,
       item_count: group.items.length,
-      items: group.items.map(i => i.product.name),
+      total_usd: group.subtotal,
+      items: group.items.map(i => `${i.qty} ${i.product.unit} ${i.product.name}`),
     })
 
+    // 3. Open in-app/tab transfer
     window.open(transferUrl, '_blank', 'noopener,noreferrer')
-    showToast(`🚀 Transferred to ${isInstacart ? 'Instacart' : 'Kroger'} checkout!`)
+    showToast(`🚀 Transferred ${group.items.length} item${group.items.length > 1 ? 's' : ''} to ${isInstacart ? 'Instacart' : group.booth.name}!`)
   }
 
   // Initialize Stripe Elements — load Stripe once
@@ -745,7 +773,7 @@ export default function CartPage() {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     }}
                   >
-                    <span>🚀 Transfer to {isInstacart ? 'Instacart' : 'Kroger'} Checkout →</span>
+                    <span>🚀 Transfer {availableItems.length} item{availableItems.length !== 1 ? 's' : ''} to {isInstacart ? 'Instacart' : group.booth.name} Checkout →</span>
                   </button>
                 </div>
               ) : (

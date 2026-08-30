@@ -22,7 +22,7 @@ export function Avatar({ name, imageUrl, size = 'md', style }: AvatarProps) {
     return (
       <Image
         source={{ uri: imageUrl }}
-        style={[{ width: dim, height: dim, borderRadius: dim / 2 }, style]}
+        style={[{ width: dim, height: dim, borderRadius: dim / 2 }, style as any]}
       />
     );
   }

@@ -12,6 +12,8 @@ import {
   getKrogerItemUrl,
   getRegionalKrogerBanner,
   getPartnerStoreDisplay,
+  checkKrogerProximity,
+  type KrogerProximityResult,
 } from '../../../../lib/groceryDelivery'
 import {
   FULFILLMENT_PRESET_OPTIONS,
@@ -21,8 +23,46 @@ import {
   toggleHourCell,
   inferProduceUnitAndPrice,
 } from '../../../../lib/bulkListingUtils'
+import { getWindowDays } from '../../../../lib/windowDisplay'
+import { geocodeAddress, STATE_CODES } from '../../../../lib/geocode'
 import { EXHAUSTIVE_INTERESTS_CATALOG } from '../../../../lib/interestCatalog'
+import AddressInput from '../../../components/AddressInput'
+import { AddressFields, formatFullAddress, EMPTY_ADDRESS } from '../../../../lib/address'
 import styles from './WantProduceModal.module.css'
+
+// Haversine distance in meters
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+function metersToMiles(m: number): number {
+  return m / 1609.344
+}
+
+export function resolveCropPhotoUrl(cropName: string, prodPhotoUrl?: string, cropImg?: string): string {
+  if (prodPhotoUrl && !prodPhotoUrl.includes('127.0.0.1:54321')) {
+    return prodPhotoUrl
+  }
+  if (cropImg) {
+    if (cropImg.startsWith('/')) {
+      return cropImg
+    }
+    if (cropImg.includes('/interest-images/')) {
+      const filename = cropImg.split('/interest-images/')[1]
+      if (filename) return `/images/catalog/${filename}`
+    }
+    if (!cropImg.includes('127.0.0.1:54321')) {
+      return cropImg
+    }
+  }
+  const norm = (cropName || '').toLowerCase().trim().replace(/\s+/g, '_')
+  return `/images/catalog/studio_${norm}.jpg`
+}
 
 export interface LiveProductItem {
   id: string
@@ -42,10 +82,54 @@ export interface LiveProductItem {
   booth_zip?: string
   distance_miles?: number
   driving_mins?: number
+  latitude?: number
+  longitude?: number
   offers_pickup?: boolean
   offers_delivery?: boolean
   stock_quantity?: number
   rating?: { avg: number; count: number }
+  pickup_windows?: any
+  delivery_windows?: any
+  product_pickup_windows?: any
+  product_delivery_windows?: any
+}
+
+function formatFulfillmentWindowPreview(
+  windows: any
+): { label: string; pills: string[] } | null {
+  if (!windows) return null
+
+  // If per-date object e.g. { "2026-08-30": [{ start: "16:00", end: "18:00" }] }
+  if (typeof windows === 'object' && !Array.isArray(windows)) {
+    const dates = Object.keys(windows).sort()
+    if (dates.length > 0) {
+      const days = getWindowDays(dates, windows)
+      if (days.length > 0) {
+        return { label: days[0].label, pills: days[0].pills }
+      }
+    }
+  }
+
+  // If array of slots or schedule strings
+  if (Array.isArray(windows) && windows.length > 0) {
+    const SLOT_LABELS: Record<string, string> = {
+      '8-10': '8–10a',
+      '10-12': '10–12p',
+      '12-14': '12–2p',
+      '14-16': '2–4p',
+      '16-18': '4–6p',
+      '18-20': '6–8p',
+    }
+    const pills = windows.map((w: any) => {
+      if (typeof w === 'string') return SLOT_LABELS[w] || w
+      if (w.start && w.end) return `${w.start}–${w.end}`
+      if (w.start_time && w.end_time) return `${w.start_time}–${w.end_time}`
+      return w.label || String(w)
+    })
+    return { label: 'Available Windows', pills }
+  }
+
+  return null
 }
 
 export interface UsdaMarketItem {
@@ -158,14 +242,220 @@ export default function WantProduceModal({
   const [usdaMarkets, setUsdaMarkets] = useState<UsdaMarketItem[]>([])
   const [isLoadingUsda, setIsLoadingUsda] = useState(false)
 
+  // Distance & Address State for Pickup & Delivery Eligibility
+  const [buyerAddress, setBuyerAddress] = useState<string>('')
+  const [buyerLat, setBuyerLat] = useState<number | null>(null)
+  const [buyerLng, setBuyerLng] = useState<number | null>(null)
+  const [profileAddress, setProfileAddress] = useState<string | null>(null)
+  const [showAddressModal, setShowAddressModal] = useState(false)
+  const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS)
+  const [isGeocoding, setIsGeocoding] = useState(false)
+  const [isGeolocating, setIsGeolocating] = useState(false)
+  const [fulfillmentListFilter, setFulfillmentListFilter] = useState<'all' | 'pickup' | 'delivery'>('all')
+
   // Regional supermarket banner & delivery links
-  const krogerBanner = getRegionalKrogerBanner(currentZipcode)
+  const [krogerProximity, setKrogerProximity] = useState<KrogerProximityResult | null>(null)
+  const [liveKrogerPrice, setLiveKrogerPrice] = useState<{ price: number; unit: string } | null>(null)
+  const [isLoadingKroger, setIsLoadingKroger] = useState(false)
+
+  const krogerBanner = krogerProximity?.banner || getRegionalKrogerBanner(currentZipcode)
   const partnerStoreInfo = getPartnerStoreDisplay(cropName)
   const instacartUrl = getInstacartItemUrl(cropName, currentZipcode)
   const krogerUrl = getKrogerItemUrl(cropName, currentZipcode)
-
   const prevCropNameRef = React.useRef(cropName)
   const prevIsOpenRef = React.useRef(isOpen)
+
+  const [standCoords, setStandCoords] = useState<Record<string, { lat: number; lng: number }>>({})
+
+  // Pre-geocode seller stands to guarantee instant driving distance calculation
+  useEffect(() => {
+    if (!liveProducts || liveProducts.length === 0) return
+    liveProducts.forEach((p) => {
+      const addr = p.pickup_address || p.pickup_display_address
+      if (addr && !standCoords[p.id]) {
+        geocodeAddress(addr).then((geo) => {
+          if (geo) {
+            setStandCoords((prev) => ({ ...prev, [p.id]: { lat: geo.lat, lng: geo.lng } }))
+          }
+        })
+      }
+    })
+  }, [liveProducts, standCoords])
+
+  // ── Address Resolution for Driving Distance & Delivery Eligibility ──
+  useEffect(() => {
+    if (!isOpen) return
+
+    // 1. Try localStorage (from market search bar)
+    try {
+      const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
+      const savedAddr = saved.get('addr') || ''
+      if (savedAddr) {
+        setBuyerAddress(savedAddr)
+        geocodeAddress(savedAddr).then((geo) => {
+          if (geo) {
+            setBuyerLat(geo.lat)
+            setBuyerLng(geo.lng)
+          }
+        })
+      }
+    } catch {}
+
+    // 2. Load user profile address if logged in (for 1-click popup shortcut)
+    if (user?.id) {
+      supabase
+        .from('profiles')
+        .select('street_address, city, state_code, zip_code, latitude, longitude')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data: profile }: { data: any }) => {
+          if (profile) {
+            if (profile.street_address || profile.city || profile.zip_code) {
+              setAddressFields({
+                street: profile.street_address || '',
+                city: profile.city || '',
+                state: profile.state_code || 'CA',
+                zip: profile.zip_code || currentZipcode || '',
+              })
+            }
+            const parts = [profile.street_address, profile.city, profile.state_code, profile.zip_code].filter(Boolean)
+            if (parts.length > 0) {
+              const fullProfileAddr = parts.join(', ')
+              setProfileAddress(fullProfileAddr)
+            }
+          }
+        })
+    }
+  }, [isOpen, user?.id, currentZipcode])
+
+  const handleApplyAddressFields = async (fields: AddressFields) => {
+    const fullAddr = formatFullAddress(fields)
+    if (!fullAddr.trim()) return
+    setIsGeocoding(true)
+    try {
+      const geo = await geocodeAddress(fullAddr.trim())
+      if (geo) {
+        setBuyerAddress(fullAddr.trim())
+        setBuyerLat(geo.lat)
+        setBuyerLng(geo.lng)
+        setShowAddressModal(false)
+        try {
+          const currentParams = new URLSearchParams(localStorage.getItem('market_search') || '')
+          currentParams.set('addr', fullAddr.trim())
+          if (geo.zipCode || fields.zip) currentParams.set('zip', geo.zipCode || fields.zip)
+          localStorage.setItem('market_search', currentParams.toString())
+        } catch {}
+      } else {
+        setBuyerAddress(fullAddr.trim())
+        setShowAddressModal(false)
+      }
+    } catch (err) {
+      console.warn('Geocoding failed:', err)
+      setBuyerAddress(fullAddr.trim())
+      setShowAddressModal(false)
+    } finally {
+      setIsGeocoding(false)
+    }
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    setIsGeolocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude
+          const lng = pos.coords.longitude
+          setBuyerLat(lat)
+          setBuyerLng(lng)
+
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+              { headers: { 'User-Agent': 'CasaGrown/1.0' } }
+            )
+            if (res.ok) {
+              const data = await res.json()
+              const addr = data.address || {}
+              const road = addr.road || addr.pedestrian || addr.street || ''
+              const houseNum = addr.house_number || ''
+              const street = [houseNum, road].filter(Boolean).join(' ')
+              const city = addr.city || addr.town || addr.village || addr.suburb || ''
+              const state = addr.state ? (STATE_CODES[addr.state] || addr.state.slice(0, 2).toUpperCase()) : 'CA'
+              const zip = addr.postcode || ''
+
+              const newFields: AddressFields = { street, city, state, zip }
+              setAddressFields(newFields)
+              const formatted = formatFullAddress(newFields) || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+              setBuyerAddress(formatted)
+              try {
+                localStorage.setItem('market_search', JSON.stringify({
+                  address: formatted,
+                  zipcode: zip || currentZipcode,
+                  lat,
+                  lng,
+                }))
+              } catch {}
+            } else {
+              setBuyerAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+            }
+          } catch {
+            setBuyerAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+          }
+          setShowAddressModal(false)
+        } catch (err) {
+          console.warn('Geolocation failed:', err)
+        } finally {
+          setIsGeolocating(false)
+        }
+      },
+      (err) => {
+        console.warn('Geolocation error / permission denied:', err)
+        setIsGeolocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    const cleanZip = (currentZipcode || '95125').trim().substring(0, 5)
+    if (!cleanZip) return
+
+    let cancelled = false
+    setIsLoadingKroger(true)
+
+    checkKrogerProximity(cleanZip, 15).then((prox) => {
+      if (cancelled) return
+      setKrogerProximity(prox)
+      if (prox.available) {
+        supabase.rpc('get_suggested_produce_price', {
+          p_produce_name: cropName,
+          p_zip_code: cleanZip,
+        }).then(({ data, error }: { data: any; error: any }) => {
+          if (cancelled) return
+          if (!error && data && data.found && typeof data.suggested_price === 'number') {
+            setLiveKrogerPrice({
+              price: Number(data.avg_retail_price || data.suggested_price),
+              unit: data.unit || 'lb',
+            })
+          } else {
+            setLiveKrogerPrice(null)
+          }
+        }).catch(() => {
+          if (!cancelled) setLiveKrogerPrice(null)
+        })
+      }
+      setIsLoadingKroger(false)
+    }).catch(() => {
+      if (!cancelled) setIsLoadingKroger(false)
+    })
+
+    return () => { cancelled = true }
+  }, [isOpen, currentZipcode, cropName])
 
   useEffect(() => {
     if (!prevIsOpenRef.current && isOpen) {
@@ -358,11 +648,12 @@ export default function WantProduceModal({
   const handleAddInstacartToCart = (e: React.MouseEvent) => {
     e.preventDefault()
     const numQty = parseFloat(quantity) || 1
+    const itemPrice = benchmarkInfo.price
     cart.addItem(
       {
         id: `commercial_instacart_${cropName.toLowerCase().replace(/\s+/g, '_')}`,
         name: `${cropName} (Instacart Supermarket)`,
-        price_usd: Number((benchmarkInfo.price * 1.35).toFixed(2)),
+        price_usd: Number(itemPrice.toFixed(2)),
         unit: unit || benchmarkInfo.unit,
         inventory: 999,
         photos: cropImage ? [cropImage] : [],
@@ -391,19 +682,23 @@ export default function WantProduceModal({
   const handleAddKrogerToCart = (e: React.MouseEvent) => {
     e.preventDefault()
     const numQty = parseFloat(quantity) || 1
+    const banner = krogerProximity?.banner || krogerBanner
+    const itemPrice = liveKrogerPrice?.price || benchmarkInfo.price
+    const itemUnit = liveKrogerPrice?.unit || unit || benchmarkInfo.unit
+
     cart.addItem(
       {
         id: `commercial_kroger_${cropName.toLowerCase().replace(/\s+/g, '_')}`,
-        name: `${cropName} (${krogerBanner} Delivery)`,
-        price_usd: Number((benchmarkInfo.price * 1.30).toFixed(2)),
-        unit: unit || benchmarkInfo.unit,
+        name: `${cropName} (${banner} Delivery)`,
+        price_usd: Number(itemPrice.toFixed(2)),
+        unit: itemUnit,
         inventory: 999,
         photos: cropImage ? [cropImage] : [],
         category: category || 'produce',
       },
       {
         id: 'booth_kroger_partner',
-        name: `${krogerBanner} Delivery & Pickup`,
+        name: `${banner} Delivery & Pickup`,
         offers_delivery: true,
         offers_pickup: true,
         delivery_radius_miles: 15,
@@ -414,12 +709,12 @@ export default function WantProduceModal({
     trackEvent('button_click', '/market', {
       action: 'add_to_casagrown_cart',
       partner: 'kroger',
-      banner: krogerBanner,
+      banner,
       cropName,
       zipcode: currentZipcode,
       quantity: numQty,
     })
-    setCartFeedback(`Added ${numQty} ${unit || benchmarkInfo.unit} of ${cropName} to CasaGrown Cart!`)
+    setCartFeedback(`Added ${numQty} ${itemUnit} of ${cropName} to CasaGrown Cart!`)
   }
 
   const hasActiveListings = liveProducts.length > 0 && !showSignalForm
@@ -523,7 +818,7 @@ export default function WantProduceModal({
                         Instacart Delivery <span className={styles.partnerPill}>{partnerStoreInfo.instacartStoresPill}</span>
                       </div>
                       <div className={styles.partnerSub}>
-                        {partnerStoreInfo.instacartDescription} in {currentZipcode} • Avg supermarket price: ~${(benchmarkInfo.price * 1.35).toFixed(2)}/{benchmarkInfo.unit}
+                        {partnerStoreInfo.instacartDescription} in {currentZipcode} • Choose Sprouts, Safeway, ALDI at checkout
                       </div>
                     </div>
                   </div>
@@ -536,31 +831,37 @@ export default function WantProduceModal({
                   </button>
                 </div>
 
-                {/* Kroger Banner Card */}
-                <div
-                  className={styles.deliveryPartnerCard}
-                  onClick={handleAddKrogerToCart}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className={styles.deliveryPartnerLeft}>
-                    <div className={styles.krogerLogoBadge}>🏪</div>
-                    <div>
-                      <div className={styles.partnerName}>
-                        {krogerBanner} <span className={styles.partnerPill}>Delivery & Pickup</span>
-                      </div>
-                      <div className={styles.partnerSub}>
-                        Local supermarket delivery from your nearest {krogerBanner} • Avg supermarket price: ~${(benchmarkInfo.price * 1.3).toFixed(2)}/{benchmarkInfo.unit}
+                {/* Kroger Banner Card - Rendered only if store exists within radius */}
+                {krogerProximity?.available !== false && (
+                  <div
+                    className={styles.deliveryPartnerCard}
+                    onClick={handleAddKrogerToCart}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className={styles.deliveryPartnerLeft}>
+                      <div className={styles.krogerLogoBadge}>🏪</div>
+                      <div>
+                        <div className={styles.partnerName}>
+                          {krogerProximity?.banner || krogerBanner}{' '}
+                          <span className={styles.partnerPill}>
+                            {krogerProximity?.distanceMiles ? `${krogerProximity.distanceMiles.toFixed(1)} mi away` : 'Delivery & Pickup'}
+                          </span>
+                        </div>
+                        <div className={styles.partnerSub}>
+                          Local supermarket delivery from your nearest {krogerProximity?.banner || krogerBanner}
+                          {liveKrogerPrice?.price ? ` • Local store price: $${liveKrogerPrice.price.toFixed(2)}/${liveKrogerPrice.unit}` : ` • Est. price: ~$${benchmarkInfo.price.toFixed(2)}/${benchmarkInfo.unit}`}
+                        </div>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleAddKrogerToCart}
+                      className={styles.partnerCta}
+                    >
+                      + Add to Cart →
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddKrogerToCart}
-                    className={styles.partnerCta}
-                  >
-                    + Add to Cart →
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -689,132 +990,228 @@ export default function WantProduceModal({
               <span className={styles.listingsBadge}>
                 <span className={styles.pulseDot}></span> Available from Neighbors
               </span>
-              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Sorted by distance</span>
+              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                {liveProducts.length} {liveProducts.length === 1 ? 'stand' : 'stands'} nearby
+              </span>
             </div>
 
             <div className={styles.listingsScrollList}>
-              {liveProducts.map((prod) => {
-                const dist = prod.distance_miles != null ? prod.distance_miles : 1.2
-                const deliversToBuyer = prod.offers_delivery && (
-                  (prod.delivery_zipcodes && prod.delivery_zipcodes.length > 0
-                    ? prod.delivery_zipcodes.includes(currentZipcode.trim())
-                    : true) &&
-                  (dist == null || prod.delivery_radius_miles == null || dist <= (prod.delivery_radius_miles || 5))
-                )
-                const productDetailUrl = `/market/booth/${prod.booth_id || prod.seller_id}/product/${prod.id}`
+              {liveProducts
+                .map((prod) => {
+                let exactDist: number | null = null
+                if (buyerLat != null && buyerLng != null) {
+                  const standCoord = standCoords[prod.id] || (prod.latitude && prod.longitude ? { lat: prod.latitude, lng: prod.longitude } : null)
+                  if (standCoord) {
+                    exactDist = Math.round(metersToMiles(haversineMeters(buyerLat, buyerLng, standCoord.lat, standCoord.lng)) * 10) / 10
+                  } else if (prod.distance_miles != null) {
+                    exactDist = prod.distance_miles
+                  } else {
+                    exactDist = 0.8
+                  }
+                } else if (buyerAddress) {
+                  exactDist = prod.distance_miles || 0.8
+                }
+
+                const maxRadius = prod.delivery_radius_miles || 5
+                const hasZipFilter = Array.isArray(prod.delivery_zipcodes) && prod.delivery_zipcodes.length > 0
+                const zipMatches = hasZipFilter ? prod.delivery_zipcodes!.includes(currentZipcode.trim()) : null
+
+                let deliversToBuyer: boolean | null = null
+                if (buyerAddress || (buyerLat != null && buyerLng != null)) {
+                  if (hasZipFilter) {
+                    const bZip = addressFields.zip || currentZipcode
+                    deliversToBuyer = prod.delivery_zipcodes!.includes(bZip.trim())
+                  } else if (exactDist != null) {
+                    deliversToBuyer = exactDist <= maxRadius
+                  }
+                }
+
+                const encodedCrop = encodeURIComponent(cropName)
+                const productDetailUrl = `/market/booth/${prod.booth_id || prod.seller_id}/product/${prod.id}?from=market&crop=${encodedCrop}`
+                const pickupSched = formatFulfillmentWindowPreview(prod.product_pickup_windows || prod.pickup_windows)
+                const deliverySched = formatFulfillmentWindowPreview(prod.product_delivery_windows || prod.delivery_windows)
+                const heroImgSrc = resolveCropPhotoUrl(cropName, prod.photo_url, cropImage)
 
                 return (
                   <div key={prod.id} className={styles.listingCard}>
-                    {/* Top Row: Thumbnail + Stand Info + Price */}
-                    <div className={styles.listingTopRow}>
-                      <Link href={productDetailUrl} onClick={onClose} style={{ display: 'block', flexShrink: 0 }}>
-                        <img
-                          src={prod.photo_url || cropImage || '/images/produce_placeholder.jpg'}
-                          alt={prod.name}
-                          className={styles.listingThumb}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      </Link>
-                      <div className={styles.listingMainContent}>
-                        <div className={styles.listingHeaderLine}>
-                          <Link href={productDetailUrl} onClick={onClose} style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <span className={styles.standTitle} style={{ cursor: 'pointer' }}>
-                              🏡 {prod.seller_name || 'Neighborhood Stand'}
-                              {prod.rating && (
-                                <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginLeft: 4 }}>
-                                  ⭐️ {prod.rating.avg.toFixed(1)}
-                                </span>
-                              )}
-                            </span>
-                          </Link>
-                          <span className={styles.listingPriceBadge}>
-                            ${prod.price.toFixed(2)}<span className={styles.listingPriceUnit}>/{prod.unit}</span>
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-                          {prod.stock_quantity != null && (
-                            <span className={styles.stockLine}>
-                              {prod.stock_quantity > 0 ? `${prod.stock_quantity} available` : 'Sold out'}
-                            </span>
-                          )}
-                          <Link href={productDetailUrl} onClick={onClose} style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-700)', textDecoration: 'none' }}>
-                            View Details →
-                          </Link>
-                        </div>
-
-                        {/* Badges / Chips: Driving distance & Delivery area */}
-                        <div className={styles.chipsContainer}>
-                          {prod.offers_pickup && (
-                            <div className={styles.pickupChip}>
-                              <span>📍</span>
-                              <span>
-                                {prod.pickup_landmark ? prod.pickup_landmark : prod.pickup_display_address || 'Pickup'}
-                                {` · ~${dist.toFixed(1)} mi driving distance`}
-                              </span>
-                              {prod.pickup_notice_minutes ? (
-                                <span className={styles.noticeChip}>{prod.pickup_notice_minutes}m notice</span>
-                              ) : null}
-                            </div>
-                          )}
-
-                          {prod.offers_delivery && (
-                            <div className={styles.deliveryChip}>
-                              <span>🚗</span>
-                              <span>
-                                {deliversToBuyer
-                                  ? `Delivers to your zip (${currentZipcode})`
-                                  : `Delivers within ${prod.delivery_radius_miles || 5} mi`}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons: Buy Now & Add to Cart */}
-                    <div className={styles.listingButtonRow}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onBuyProduct) {
-                            onBuyProduct(prod)
+                    {/* Full-Width Hero Photo Container with Overlays */}
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: 160,
+                        background: '#e8f5e9',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={heroImgSrc}
+                        alt={prod.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          const fallback = `/images/catalog/studio_${cropName.toLowerCase().replace(/\s+/g, '_')}.jpg`
+                          if (!target.src.endsWith(fallback) && !target.src.includes('produce_placeholder')) {
+                            target.src = fallback
+                          } else {
+                            target.src = '/images/produce_placeholder.jpg'
                           }
                         }}
-                        className={styles.buyNowActionBtn}
-                      >
-                        <span>⚡</span> Buy Now (${prod.price.toFixed(2)})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          addItem(
-                            {
-                              id: prod.id,
-                              name: prod.name,
-                              price_usd: prod.price,
-                              unit: prod.unit,
-                              inventory: prod.stock_quantity || 10,
-                              photos: prod.photo_url ? [prod.photo_url] : [],
-                              category: category,
-                            },
-                            {
-                              id: prod.booth_id || prod.seller_id,
-                              name: prod.seller_name || 'Neighborhood Stand',
-                              offers_delivery: prod.offers_delivery ?? false,
-                              offers_pickup: prod.offers_pickup ?? true,
-                              pickup_address: prod.pickup_address || prod.pickup_display_address || '',
-                              delivery_radius_miles: prod.delivery_radius_miles || 5,
-                            },
-                            1,
-                            prod.offers_pickup ? 'pickup' : 'delivery'
+                      />
+                      <Link href={productDetailUrl} onClick={onClose} className={styles.heroStandBadge}>
+                        🏡 {prod.seller_name || 'Neighborhood Stand'}
+                        {prod.rating && (
+                          <span style={{ fontSize: 11, color: '#fbbf24', marginLeft: 2 }}>
+                            ⭐️ {prod.rating.avg.toFixed(1)}
+                          </span>
+                        )}
+                      </Link>
+                      <div className={styles.heroPriceBadge}>
+                        ${prod.price.toFixed(2)}<span style={{ fontSize: 11, fontWeight: 500, opacity: 0.9 }}>/{prod.unit}</span>
+                      </div>
+                      <Link href={productDetailUrl} onClick={onClose} className={styles.heroDetailsOverlayBtn}>
+                        View Full Details →
+                      </Link>
+                    </div>
+
+                    <div className={styles.listingCardBody} style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Stock Line if available */}
+                      {prod.stock_quantity != null && (
+                        <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>
+                          📦 {prod.stock_quantity > 0 ? `${prod.stock_quantity} available` : 'Sold out'}
+                        </div>
+                      )}
+
+                      {/* Fulfillment Section */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Pickup */}
+                        {prod.offers_pickup && (
+                          exactDist == null ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowAddressModal(true)}
+                              style={{ width: '100%', padding: '9px 12px', background: '#eff6ff', border: '1.5px solid #93c5fd', color: '#1d4ed8', fontSize: 12, fontWeight: 700, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                              <span>📍</span> Check driving distance for pickup
+                            </button>
+                          ) : (
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '6px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, color: '#1e40af', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                <span>📍</span>
+                                <span style={{ fontWeight: 700 }}>Porch Pickup:</span>
+                                <span>
+                                  {prod.pickup_landmark ? prod.pickup_landmark : prod.pickup_display_address || 'Pickup'} · ~{exactDist.toFixed(1)} mi driving distance
+                                </span>
+                                {prod.pickup_notice_minutes ? (
+                                  <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 700, marginLeft: 4 }}>{prod.pickup_notice_minutes}m notice</span>
+                                ) : null}
+                              </div>
+                              {pickupSched && pickupSched.pills.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3, paddingTop: 3, borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#1e40af' }}>🕒 {pickupSched.label}:</span>
+                                  {pickupSched.pills.map((pill, i) => (
+                                    <span key={i} style={{ padding: '1px 6px', borderRadius: 10, background: '#dbeafe', border: '1px solid #bfdbfe', color: '#1e3a8a', fontSize: 10, fontWeight: 700 }}>{pill}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )
-                          setCartFeedback(`Added 1 ${prod.unit} of ${prod.name} to Cart!`)
-                        }}
-                        className={styles.cartActionBtn}
-                      >
-                        <span>🛒</span> + Cart
-                      </button>
+                        )}
+
+                        {/* Delivery */}
+                        {prod.offers_delivery && (
+                          deliversToBuyer == null ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowAddressModal(true)}
+                              style={{ width: '100%', padding: '9px 12px', background: '#f0fdf4', border: '1.5px solid #86efac', color: '#166534', fontSize: 12, fontWeight: 700, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                              <span>🚗</span> Check delivery availability to my address
+                            </button>
+                          ) : (
+                            <div style={{ background: '#dcfce7', border: '1px solid #86efac', padding: '6px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, color: '#166534', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                <span>🚗</span>
+                                <span style={{ fontWeight: 700 }}>Home Delivery:</span>
+                                <span>
+                                  {deliversToBuyer === true ? (
+                                    `✅ Delivers to your location (${exactDist != null ? `~${exactDist.toFixed(1)} mi away` : `ZIP ${currentZipcode}`})`
+                                  ) : (
+                                    `❌ Outside delivery area (${exactDist != null ? `~${exactDist.toFixed(1)} mi away — max ${maxRadius} mi` : hasZipFilter ? 'ZIP not covered' : `max ${maxRadius} mi`})`
+                                  )}
+                                </span>
+                              </div>
+                              {deliverySched && deliverySched.pills.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3, paddingTop: 3, borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#166534' }}>🕒 {deliverySched.label}:</span>
+                                  {deliverySched.pills.map((pill, i) => (
+                                    <span key={i} style={{ padding: '1px 6px', borderRadius: 10, background: '#bbf7d0', border: '1px solid #86efac', color: '#14532d', fontSize: 10, fontWeight: 700 }}>{pill}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      {/* Bottom Action Buttons — only shown when address is known */}
+                      {buyerAddress ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                          {/* Change my address — full width, subtle */}
+                          <button
+                            type="button"
+                            onClick={() => setShowAddressModal(true)}
+                            style={{ width: '100%', padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', fontSize: 12, fontWeight: 600, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                          >
+                            <span>📍</span> Change my address
+                          </button>
+                          {/* Buy Now + Add to Cart side by side */}
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onBuyProduct) {
+                                  onBuyProduct(prod)
+                                }
+                              }}
+                              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#ffffff', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer', boxShadow: '0 2px 4px rgba(22,163,74,0.2)' }}
+                            >
+                              <span>⚡</span> Buy Now (${prod.price.toFixed(2)})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addItem(
+                                  {
+                                    id: prod.id,
+                                    name: prod.name,
+                                    price_usd: prod.price,
+                                    unit: prod.unit,
+                                    inventory: prod.stock_quantity || 10,
+                                    photos: prod.photo_url ? [prod.photo_url] : [],
+                                    category: category,
+                                  },
+                                  {
+                                    id: prod.booth_id || prod.seller_id,
+                                    name: prod.seller_name || 'Neighborhood Stand',
+                                    offers_delivery: prod.offers_delivery ?? false,
+                                    offers_pickup: prod.offers_pickup ?? true,
+                                    pickup_address: prod.pickup_address || prod.pickup_display_address || '',
+                                    delivery_radius_miles: prod.delivery_radius_miles || 5,
+                                  },
+                                  1
+                                )
+                                setCartFeedback(`Added ${prod.name} to cart`)
+                                setTimeout(() => setCartFeedback(null), 3000)
+                              }}
+                              style={{ padding: '11px 14px', background: '#ffffff', border: '1.5px solid #16a34a', color: '#16a34a', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+                            >
+                              <span>🛒</span> Add to Cart
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )
@@ -822,13 +1219,13 @@ export default function WantProduceModal({
             </div>
 
             <div className={styles.signalPromptBanner}>
-              <span>Need a custom quantity or looking for another harvest?</span>
+              <span>Looking for a custom quantity or another harvest?</span>
               <button
                 type="button"
                 onClick={() => setShowSignalForm(true)}
                 className={styles.signalLinkBtn}
               >
-                Signal All Neighbors
+                Find Sellers
               </button>
             </div>
           </div>
@@ -1100,6 +1497,101 @@ export default function WantProduceModal({
               <span>🔔</span> {isSubmitting ? 'Notifying Neighbors...' : 'Find sellers in my neighborhood'}
             </button>
           </form>
+        )}
+
+        {/* Address & Distance Verification Modal Popup */}
+        {showAddressModal && (
+          <div className={styles.addressModalOverlay} onClick={() => setShowAddressModal(false)}>
+            <div className={styles.addressModalCard} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.addressModalHeader}>
+                <div>
+                  <h3 className={styles.addressModalTitle}>📍 Check Distance & Delivery</h3>
+                  <p className={styles.addressModalSubtitle}>
+                    Provide your address or use GPS to calculate driving distance and verify doorstep delivery for neighborhood stands.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddressModal(false)}
+                  className={styles.addressModalCloseBtn}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Quick Option 1: Use Current Location (GPS) */}
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={isGeolocating}
+                className={styles.useLocationBtn}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>📍</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                      {isGeolocating ? 'Locating via GPS…' : 'Use Current Location'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Auto-detect using browser GPS
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb' }}>
+                  {isGeolocating ? '⏳' : 'Locate →'}
+                </span>
+              </button>
+
+              {/* Quick Option 2: Saved Profile Address (if available) */}
+              {profileAddress && (
+                <button
+                  type="button"
+                  onClick={() => handleApplyAddressFields(addressFields)}
+                  className={styles.useProfileAddressCard}
+                >
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+                      Saved Profile Address
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#14532d', marginTop: 2 }}>
+                      {profileAddress}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>Use →</span>
+                </button>
+              )}
+
+              <div className={styles.addressModalDivider}>
+                <span>or enter full address</span>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleApplyAddressFields(addressFields) }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <AddressInput
+                  value={addressFields}
+                  onChange={setAddressFields}
+                  placeholderStreet="Street Address (e.g. 123 Main St)"
+                />
+
+                <div className={styles.addressModalActions}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddressModal(false)}
+                    className={styles.addressModalCancelBtn}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isGeocoding || (!addressFields.street?.trim() && !addressFields.zip?.trim())}
+                    className={styles.addressModalSubmitBtn}
+                  >
+                    {isGeocoding ? 'Calculating…' : 'Calculate Distance & Delivery'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </div>

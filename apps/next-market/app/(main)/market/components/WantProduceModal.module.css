@@ -21,8 +21,10 @@
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 520px;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-height: 95vh;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
   animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
@@ -84,6 +86,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* ── Live Listings View ── */
@@ -112,86 +117,402 @@
   box-shadow: 0 0 0 2px var(--green-200);
 }
 
+.fulfillmentFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.filterPill {
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--gray-200, #e5e7eb);
+  background: #ffffff;
+  color: var(--gray-600, #4b5563);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filterPill:hover {
+  background: var(--gray-50, #f9fafb);
+  color: var(--gray-900, #111827);
+}
+
+.filterPillActive {
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1.5px solid var(--green-600, #16a34a);
+  background: #f0fdf4;
+  color: #166534;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Address Check Popup Modal */
+.addressModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.addressModalCard {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 440px;
+  padding: 22px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.addressModalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.addressModalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900, #111827);
+  margin: 0;
+}
+
+.addressModalSubtitle {
+  font-size: 12.5px;
+  color: var(--gray-500, #6b7280);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.addressModalCloseBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--gray-400, #9ca3af);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.addressModalCloseBtn:hover {
+  color: var(--gray-700, #374151);
+  background: var(--gray-100, #f3f4f6);
+}
+
+.useProfileAddressCard {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.useProfileAddressCard:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
+}
+
+.useLocationBtn {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 11px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.useLocationBtn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.useLocationBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.addressModalDivider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--gray-400, #9ca3af);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.addressModalDivider::before,
+.addressModalDivider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+}
+
+.addressModalDivider span {
+  padding: 0 10px;
+}
+
+.addressModalInput {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-300, #d1d5db);
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  background: #ffffff;
+}
+
+.addressModalInput:focus {
+  border-color: var(--green-600, #16a34a);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.addressModalActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.addressModalCancelBtn {
+  padding: 9px 16px;
+  border: 1px solid var(--gray-300, #d1d5db);
+  background: #ffffff;
+  color: var(--gray-700, #374151);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addressModalSubmitBtn {
+  padding: 9px 18px;
+  background: var(--green-600, #16a34a);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease;
+}
+
+.addressModalSubmitBtn:hover:not(:disabled) {
+  background: var(--green-700, #15803d);
+}
+
+.addressModalSubmitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Card Inline Check Distance / Delivery Buttons */
+.checkInlinePillBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffffff;
+  border: 1px solid currentColor;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.35;
+  margin-left: 4px;
+}
+
+.checkInlinePillBtn:hover {
+  transform: translateY(-0.5px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .listingsScrollList {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: 380px;
-  overflow-y: auto;
-  padding: 4px 2px;
+  padding: 4px 2px 8px;
 }
 
 .listingCard {
   background: #ffffff;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 16px;
-  padding: 14px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   transition: all 0.15s ease;
 }
 
 .listingCard:hover {
   border-color: var(--green-500, #10b981);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.1);
 }
 
-.listingTopRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.listingThumb {
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
-  object-fit: cover;
+/* Full Width Hero Photo Container */
+.listingHero {
+  position: relative;
+  width: 100%;
+  height: 150px;
   background: var(--gray-100, #f3f4f6);
-  border: 1px solid var(--border, #e5e7eb);
-  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.listingMainContent {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.listingHeroImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.listingHeaderLine {
+.heroStandBadge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  text-decoration: none;
+}
+
+.heroPriceBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(22, 101, 52, 0.9);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.heroDetailsOverlayBtn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  color: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+.heroDetailsOverlayBtn:hover {
+  background: #ffffff;
+  color: #16a34a;
+  transform: translateY(-1px);
+}
+
+.listingCardBody {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.standTitle {
-  font-size: 14px;
+.checkFulfillmentBtn {
+  width: 100%;
+  padding: 9px 12px;
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  color: #1d4ed8;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--gray-900, #111827);
+  border-radius: 10px;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  line-height: 1.25;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
 }
 
-.listingPriceBadge {
-  font-size: 15px;
-  font-weight: 800;
-  color: #15803d;
-  flex-shrink: 0;
+.checkFulfillmentBtn:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
 }
 
-.listingPriceUnit {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--gray-500, #6b7280);
+.checkDeliveryFulfillmentBtn {
+  width: 100%;
+  padding: 9px 12px;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.checkDeliveryFulfillmentBtn:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
 }
 
 .stockLine {
@@ -203,35 +524,36 @@
 .chipsContainer {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 3px;
+  gap: 6px;
 }
 
 .pickupChip {
   display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  font-size: 11px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  font-size: 11.5px;
   font-weight: 600;
   color: #1e40af;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   line-height: 1.35;
 }
 
 .deliveryChip {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #166534;
   background: #dcfce7;
   border: 1px solid #86efac;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   line-height: 1.35;
 }
 
@@ -247,11 +569,86 @@
   display: inline-block;
 }
 
+.windowRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.windowLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.deliveryWindowLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.windowPills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pickupWindowPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.deliveryWindowPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #bbf7d0;
+  border: 1px solid #86efac;
+  color: #14532d;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .listingButtonRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 4px;
+}
+
+.changeAddressBtn {
+  padding: 9px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.changeAddressBtn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
 }
 
 .buyNowActionBtn {

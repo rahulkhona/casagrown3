@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkTextForViolations } from '../../../../lib/moderation'
+
+const PROCESSED_NON_HARVEST_REGEX = /\b(pie|tart|cake|bread|focaccia|sourdough|pastry|cookie|jam|jelly|canned|soup|salsa|pickle|meal|sandwich|baked|loaf|loaves|muffin|cupcake|brownie)\b/i
+
+function isRawHarvestProduce(name: string): boolean {
+  if (!name || typeof name !== 'string') return false
+  return !PROCESSED_NON_HARVEST_REGEX.test(name)
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -55,6 +63,22 @@ export async function POST(req: Request) {
     const invalidZip = zipcodes.find((z: string) => !/^\d{5}$/.test(String(z).trim()))
     if (invalidZip) {
       return NextResponse.json({ error: `Invalid 5-digit zipcode provided: ${invalidZip}` }, { status: 400 })
+    }
+
+    // 1b. Validate produce interests against moderation checks & banned items upfront
+    if (interests && Array.isArray(interests)) {
+      for (const item of interests) {
+        const pName = (item.produce_name || '').trim()
+        if (pName) {
+          const modCheck = checkTextForViolations(pName)
+          if (!modCheck.isClean) {
+            return NextResponse.json({ error: modCheck.error || 'Prohibited item cannot be added.' }, { status: 400 })
+          }
+          if (!isRawHarvestProduce(pName)) {
+            return NextResponse.json({ error: 'Only fresh garden and harvest produce can be requested.' }, { status: 400 })
+          }
+        }
+      }
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)

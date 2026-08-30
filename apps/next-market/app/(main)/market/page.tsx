@@ -7,7 +7,9 @@ import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
 import { resolveProgressiveLocation, type IpLocationData } from '../../../lib/locationResolver'
 import { EXHAUSTIVE_INTERESTS_CATALOG, InterestCatalogItem } from '../../../lib/interestCatalog'
-import { extractBaseProduce, getProduceImage } from '../../../lib/produceCatalog'
+import { extractBaseProduce, getProduceImage, categorizeProduce, isRawHarvestProduce } from '../../../lib/produceCatalog'
+import { isProduceInSeason } from '../../../lib/produceSeasonality'
+import { checkTextForViolations } from '../../../lib/moderation'
 import WantProduceModal, { LiveProductItem } from './components/WantProduceModal'
 import BatchListingDrawer, { BatchItem } from './components/BatchListingDrawer'
 import LeadMagnetReportBanner from './components/LeadMagnetReportBanner'
@@ -26,18 +28,12 @@ interface ProduceDisplayItem {
   defaultPrice: number
   defaultUnit: string
   liveProductCount: number
+  inSeason?: boolean
+  isUserDemanded?: boolean
+  userDemandCount?: number
   description?: string
   liveProduct?: LiveProductItem
 }
-
-const CATEGORY_TABS = [
-  { id: 'all', label: 'All Seasonal Produce' },
-  { id: 'vegetables', label: 'Vegetables' },
-  { id: 'fruit', label: 'Fruit & Citrus' },
-  { id: 'herbs', label: 'Fresh Herbs' },
-  { id: 'honey_eggs', label: 'Honey & Eggs' },
-  { id: 'plants', label: 'Flowers & Seedlings' },
-]
 
 function MarketProducePageContent() {
   const router = useRouter()
@@ -53,7 +49,6 @@ function MarketProducePageContent() {
   const [locationInput, setLocationInput] = useState<string>('San Jose, CA 95125')
   const [isGeolocating, setIsGeolocating] = useState<boolean>(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [activeCategory, setActiveCategory] = useState<string>('all')
 
   // Produce Grid State
   const [produceItems, setProduceItems] = useState<ProduceDisplayItem[]>([])
@@ -273,6 +268,8 @@ function MarketProducePageContent() {
           const boothProducts = b.matched_products || []
           boothProducts.forEach((p: any) => {
             const rawName = (p.name || '').trim()
+            if (!isRawHarvestProduce(rawName)) return // Skip baked / processed goods (e.g. pies, breads)
+
             const normName = rawName.toLowerCase()
             const baseName = extractBaseProduce(rawName).name.toLowerCase()
 
@@ -281,22 +278,28 @@ function MarketProducePageContent() {
               name: p.name,
               price: Number(p.price_usd) || 0,
               unit: p.unit || 'lb',
-              photo_url: p.photo,
+              photo_url: p.photo_url || p.photo || (Array.isArray(p.photos) ? p.photos[0] : p.photos) || undefined,
               seller_id: b.owner_id,
               seller_name: b.booth_name || 'Neighborhood Stand',
               booth_id: b.booth_id || b.owner_id,
               pickup_address: b.pickup_address || '',
               pickup_display_address: b.pickup_address || 'Porch Pickup',
-              pickup_landmark: undefined,
-              pickup_notice_minutes: 60,
-              delivery_radius_miles: b.delivery_radius_miles || 5,
-              delivery_zipcodes: [],
-              booth_zip: undefined,
+              pickup_landmark: b.pickup_landmark || undefined,
+              pickup_notice_minutes: p.pickup_notice_minutes || b.pickup_notice_minutes || 60,
+              delivery_radius_miles: p.delivery_radius_miles || b.delivery_radius_miles || 5,
+              delivery_zipcodes: b.delivery_zipcodes || [],
+              booth_zip: b.zipcode || undefined,
               distance_miles: b.distance_miles || 1.2,
               driving_mins: Math.ceil((b.distance_miles || 1.2) * 3), // rough estimate
-              offers_pickup: b.offers_pickup,
-              offers_delivery: b.offers_delivery,
+              offers_pickup: p.offers_pickup ?? b.offers_pickup ?? true,
+              offers_delivery: p.offers_delivery ?? b.offers_delivery ?? false,
               stock_quantity: p.inventory,
+              latitude: b.latitude ?? b.lat,
+              longitude: b.longitude ?? b.lng,
+              pickup_windows: p.product_pickup_windows || p.pickup_windows || b.pickup_windows,
+              delivery_windows: p.product_delivery_windows || p.delivery_windows || b.delivery_windows,
+              product_pickup_windows: p.product_pickup_windows || b.pickup_windows,
+              product_delivery_windows: p.product_delivery_windows || b.delivery_windows,
             }
 
             if (!prodMap[normName]) prodMap[normName] = []
@@ -312,14 +315,7 @@ function MarketProducePageContent() {
       setLiveProductsMap(prodMap)
 
       // Filter catalog to strictly raw produce items
-      const rawCatalog = EXHAUSTIVE_INTERESTS_CATALOG.filter((item) => {
-        const isNotPackaged =
-          !item.image.includes('apple-pie') &&
-          !item.image.includes('focaccia') &&
-          !item.image.includes('sourdough') &&
-          !item.image.includes('jam')
-        return isNotPackaged
-      })
+      const rawCatalog = EXHAUSTIVE_INTERESTS_CATALOG.filter((item) => isRawHarvestProduce(item.name))
 
       const displayList: ProduceDisplayItem[] = rawCatalog.map((catItem) => {
         const norm = catItem.name.toLowerCase()
@@ -328,6 +324,7 @@ function MarketProducePageContent() {
 
         const livePhoto = liveMatches.find((m) => m.photo_url)?.photo_url
         const livePrice = liveCount > 0 ? liveMatches[0].price : catItem.defaultPrice || 3.5
+        const inSeason = isProduceInSeason(catItem.name, zipcode)
 
         return {
           id: catItem.id,
@@ -339,13 +336,16 @@ function MarketProducePageContent() {
           defaultUnit: liveCount > 0 ? liveMatches[0].unit : catItem.defaultUnit || 'lb',
           liveProductCount: liveCount,
           liveProduct: liveMatches.length > 0 ? liveMatches[0] : undefined,
+          inSeason,
           description: `Freshly harvested, locally grown ${catItem.name.toLowerCase()}.`,
         }
       })
 
-      // Add any live neighbor products that were not matched to rawCatalog
+      // Add any live neighbor products that were not matched to rawCatalog (if raw produce)
       Object.values(prodMap).flat().forEach((p: LiveProductItem) => {
         const rawName = (p.name || '').trim()
+        if (!isRawHarvestProduce(rawName)) return
+
         const norm = rawName.toLowerCase()
         const baseName = extractBaseProduce(rawName).name.toLowerCase()
         const existingIdx = displayList.findIndex(
@@ -356,29 +356,102 @@ function MarketProducePageContent() {
         const liveCount = allMatches.length || 1
 
         if (existingIdx >= 0) {
-          // Already in list -> update aggregate count
+          // Already in list -> update aggregate count and photo
           displayList[existingIdx].liveProductCount = liveCount
+          const bestPhoto = allMatches.find((m) => m.photo_url)?.photo_url
+          if (bestPhoto) {
+            displayList[existingIdx].image = bestPhoto
+          }
         } else if (!displayList.some((d) => d.id === p.id)) {
+          const base = extractBaseProduce(rawName)
+          const livePhoto = allMatches.find((m) => m.photo_url)?.photo_url || p.photo_url
           displayList.push({
             id: p.id,
             name: p.name,
-            category: 'produce',
-            displayCategory: 'Vegetables',
-            image: p.photo_url || getProduceImage(p.name),
+            category: base.category || 'produce',
+            displayCategory: base.displayCategory || 'Vegetables',
+            image: livePhoto || getProduceImage(p.name),
             defaultPrice: Number(p.price) || 3.5,
             defaultUnit: p.unit || 'lb',
             liveProductCount: liveCount,
             liveProduct: p,
+            inSeason: isProduceInSeason(p.name, zipcode),
             description: `Freshly harvested ${p.name} from local neighbors.`,
           })
         }
       })
 
-      // Sort items with live listings first!
+      // ── Tier 4: Fetch User-Initiated Demand Signals for this ZIP ──
+      try {
+        const origin = typeof window !== 'undefined' ? window.location.origin : ''
+        const demandRes = await fetch(`${origin}/api/interest/demand?zipcode=${encodeURIComponent(zipcode || '95125')}`)
+        if (demandRes.ok) {
+          const demandJson = await demandRes.json()
+          if (demandJson.success && Array.isArray(demandJson.demandedItems)) {
+            demandJson.demandedItems.forEach((dItem: { produce_name: string; count: number }) => {
+              const rawName = (dItem.produce_name || '').trim()
+              if (!rawName) return
+
+              // Content moderation & banned items check
+              const modCheck = checkTextForViolations(rawName)
+              if (!modCheck.isClean) return
+
+              // Raw harvest check
+              if (!isRawHarvestProduce(rawName)) return
+
+              const norm = rawName.toLowerCase()
+              const baseName = extractBaseProduce(rawName).name.toLowerCase()
+
+              // Check if already in displayList (e.g. from standard catalog or live listings)
+              const alreadyExists = displayList.some(
+                (d) => d.name.toLowerCase() === norm || d.name.toLowerCase() === baseName || d.id.toLowerCase() === norm
+              )
+
+              if (!alreadyExists) {
+                const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1)
+                displayList.push({
+                  id: `user_demand_${norm.replace(/\s+/g, '_')}`,
+                  name: capitalized,
+                  category: 'produce',
+                  displayCategory: 'Neighborhood Request',
+                  image: '',
+                  defaultPrice: 3.5,
+                  defaultUnit: 'lb',
+                  liveProductCount: 0,
+                  isUserDemanded: true,
+                  userDemandCount: dItem.count || 1,
+                  inSeason: isProduceInSeason(rawName, zipcode),
+                  description: `Requested by ${dItem.count} neighbor${dItem.count > 1 ? 's' : ''} in ${zipcode}. Have extra in your garden?`,
+                })
+              }
+            })
+          }
+        }
+      } catch (demandErr) {
+        console.warn('Failed to load user-demanded produce:', demandErr)
+      }
+
+      // ── 4-Tier Sort: 1. Live Listings -> 2. In Season -> 3. Off Season -> 4. User Demanded ──
       displayList.sort((a, b) => {
+        // Tier 1: Live listings first (by live stand count)
         if (b.liveProductCount !== a.liveProductCount) {
           return b.liveProductCount - a.liveProductCount
         }
+
+        const getTier = (item: ProduceDisplayItem) => {
+          if (item.liveProductCount > 0) return 1
+          if (!item.isUserDemanded && item.inSeason) return 2
+          if (!item.isUserDemanded && !item.inSeason) return 3
+          return 4 // User-demanded uncatalogued request
+        }
+
+        const tierA = getTier(a)
+        const tierB = getTier(b)
+        if (tierA !== tierB) {
+          return tierA - tierB
+        }
+
+        // Within each tier: Pure Alphabetical sort
         return a.name.localeCompare(b.name)
       })
 
@@ -388,7 +461,7 @@ function MarketProducePageContent() {
     } finally {
       setIsLoading(false)
     }
-  }, [buyerLat, buyerLng, supabase])
+  }, [buyerLat, buyerLng, supabase, zipcode])
 
   useEffect(() => {
     loadMarketData()
@@ -510,28 +583,12 @@ function MarketProducePageContent() {
     }
   }
 
-  // ── 5. Produce Filter Logic ──
+  // ── 5. Produce Filter Logic (Search Query) ──
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
-    return produceItems.filter((item) => {
-      const matchesSearch = !q || item.name.toLowerCase().includes(q)
-      let matchesCat = true
-
-      if (activeCategory === 'vegetables') {
-        matchesCat = item.category === 'produce' && item.displayCategory !== 'Fruit' && item.displayCategory !== 'Citrus'
-      } else if (activeCategory === 'fruit') {
-        matchesCat = item.displayCategory === 'Fruit' || item.displayCategory === 'Citrus'
-      } else if (activeCategory === 'herbs') {
-        matchesCat = item.category === 'herbs'
-      } else if (activeCategory === 'honey_eggs') {
-        matchesCat = item.category === 'honey' || item.category === 'eggs'
-      } else if (activeCategory === 'plants') {
-        matchesCat = item.category === 'flowers' || item.category === 'seedlings' || item.category === 'plants'
-      }
-
-      return matchesSearch && matchesCat
-    })
-  }, [produceItems, searchQuery, activeCategory])
+    if (!q) return produceItems
+    return produceItems.filter((item) => item.name.toLowerCase().includes(q))
+  }, [produceItems, searchQuery])
 
   // ── 6. Produce Listing Handlers ──
   const handleOpenListingForCrop = (item: ProduceDisplayItem, existingListing?: {
@@ -565,6 +622,48 @@ function MarketProducePageContent() {
     setIsBatchDrawerOpen(true)
   }
 
+  // ── Auto-open modal from ?openCrop= param (used by product detail back button) ──
+  const didAutoOpenCrop = React.useRef(false)
+  useEffect(() => {
+    if (didAutoOpenCrop.current) return
+    const openCropParam = searchParams.get('openCrop')
+    if (!openCropParam || produceItems.length === 0) return
+    const targetName = decodeURIComponent(openCropParam).toLowerCase()
+    const match = produceItems.find(
+      (p) => p.name.toLowerCase() === targetName || p.name.toLowerCase().startsWith(targetName)
+    )
+    if (match) {
+      didAutoOpenCrop.current = true
+      setSelectedWantCrop(match)
+      setIsWantModalOpen(true)
+      // Clean up URL param without adding a history entry
+      const url = new URL(window.location.href)
+      url.searchParams.delete('openCrop')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [produceItems, searchParams])
+
+  const handleOpenWantForCrop = (crop: ProduceDisplayItem) => {
+    setSelectedWantCrop(crop)
+    setIsWantModalOpen(true)
+  }
+
+  const handleCustomCropAdded = (name: string, price: string, unit: string) => {
+    const newItem: ProduceDisplayItem = {
+      id: `custom_${Date.now()}`,
+      name,
+      category: 'produce',
+      displayCategory: 'Vegetables',
+      image: getProduceImage(name),
+      defaultPrice: parseFloat(price) || 4.0,
+      defaultUnit: unit || 'lb',
+      liveProductCount: 0,
+      description: `Locally grown custom ${name}.`,
+    }
+    setProduceItems((prev) => [newItem, ...prev])
+    handleOpenListingForCrop(newItem)
+  }
+
   const handleUpdateBatchItem = (id: string, updates: Partial<BatchItem>) => {
     setSelectedExtra((prev) => {
       if (!prev[id]) return prev
@@ -588,6 +687,30 @@ function MarketProducePageContent() {
   }
 
   // ── 7. Custom Produce Creator ──
+  const handleOpenWantForSearch = (query: string) => {
+    const cleanName = query.trim()
+    if (!cleanName) return
+
+    // Strict category validation & moderation
+    const categoryMatch = categorizeProduce(cleanName)
+    if (!categoryMatch) return
+
+    const capitalized = cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+    const customCropItem: ProduceDisplayItem = {
+      id: `custom_want_${Date.now()}`,
+      name: capitalized,
+      category: categoryMatch.category,
+      displayCategory: categoryMatch.displayCategory,
+      image: getProduceImage(cleanName),
+      defaultPrice: 3.5,
+      defaultUnit: 'lb',
+      liveProductCount: 0,
+      description: `Locally grown ${cleanName}.`,
+    }
+    setSelectedWantCrop(customCropItem)
+    setIsWantModalOpen(true)
+  }
+
   const handleAddCustomWant = (name: string, category: string, price: string, unit: string, photoUrl?: string) => {
     const newItem: ProduceDisplayItem = {
       id: `custom_${Date.now()}`,
@@ -624,7 +747,7 @@ function MarketProducePageContent() {
   return (
     <div className={styles.marketContainer}>
       <SmartAppBanner />
-      {/* ── TOP HEADER: 1. Add Produce -> 2. Categories -> 3. Search & Location ── */}
+      {/* ── TOP HEADER: 1. Add Produce -> 2. Search & Location ── */}
       <header className={styles.headerSticky}>
         <div className={styles.headerInner}>
           {/* 1. Add Produce Button */}
@@ -636,23 +759,7 @@ function MarketProducePageContent() {
             <span>+</span> <span>Add Produce</span>
           </Link>
 
-          {/* 2. Category Filter Pills */}
-          <div className={styles.categoryPillsRow}>
-            {CATEGORY_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveCategory(tab.id)}
-                className={`${styles.categoryPill} ${
-                  activeCategory === tab.id ? styles.categoryPillActive : ''
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* 3. Search & Location Bar */}
+          {/* 2. Search & Location Bar */}
           <div className={styles.headerSearchRow}>
             {/* Produce Search Bar */}
             <div className={styles.searchBarWrapper}>
@@ -715,23 +822,78 @@ function MarketProducePageContent() {
         ) : (
           <div className={styles.produceGrid} id="produce-grid">
             {/* Zero-Results Search State */}
-            {filteredItems.length === 0 && searchQuery && (
-              <div id="no-produce-matches" className={styles.zeroResultsCard}>
-                <div className={styles.zeroIcon}>🌱</div>
-                <div className={styles.zeroTitle}>
-                  No produce found matching &ldquo;{searchQuery}&rdquo;
+            {filteredItems.length === 0 && searchQuery && (() => {
+              const categoryMatch = categorizeProduce(searchQuery)
+              const modCheck = checkTextForViolations(searchQuery)
+
+              if (!modCheck.isClean) {
+                return (
+                  <div id="no-produce-matches" className={styles.zeroBlockedCard}>
+                    <div className={styles.zeroBlockedIcon}>🛡️</div>
+                    <div className={styles.zeroBlockedTitle}>Prohibited Search Term</div>
+                    <p className={styles.zeroBlockedSub}>
+                      {modCheck.error || 'Weapons, controlled substances, and prohibited items are not allowed on CasaGrown.'}
+                    </p>
+                  </div>
+                )
+              }
+
+              if (!isRawHarvestProduce(searchQuery)) {
+                return (
+                  <div id="no-produce-matches" className={styles.zeroBlockedCard}>
+                    <div className={styles.zeroBlockedIcon}>🥗</div>
+                    <div className={styles.zeroBlockedTitle}>Raw Garden Produce Only</div>
+                    <p className={styles.zeroBlockedSub}>
+                      CasaGrown neighborhood stands are exclusively for freshly harvested garden produce. Cooked food, baked goods, and cottage food are not eligible.
+                    </p>
+                  </div>
+                )
+              }
+
+              if (!categoryMatch) {
+                return (
+                  <div id="no-produce-matches" className={styles.zeroBlockedCard}>
+                    <div className={styles.zeroBlockedIcon}>🌱</div>
+                    <div className={styles.zeroBlockedTitle}>Not a recognized garden item</div>
+                    <p className={styles.zeroBlockedSub}>
+                      &ldquo;{searchQuery}&rdquo; is not a recognized garden category (produce, herbs, flowers, honey, eggs, pots, soil, seeds, or garden equipment). CasaGrown is exclusively dedicated to fresh garden harvests and supplies.
+                    </p>
+                  </div>
+                )
+              }
+
+              return (
+                <div id="no-produce-matches" className={styles.zeroResultsCard}>
+                  <div className={styles.zeroIcon}>🌱</div>
+                  <div className={styles.zeroTitle}>
+                    No active listings for &ldquo;{searchQuery}&rdquo; nearby
+                  </div>
+                  <p className={styles.zeroSub}>
+                    Signal neighbors to harvest {searchQuery}, or add it to your stand if you have extra to share.
+                  </p>
+
+                  <div className={styles.zeroActionRow}>
+                    {/* Primary Buyer Action: Signal Neighbors -> Save demand -> Show Instacart/Kroger delivery options */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWantForSearch(searchQuery)}
+                      className={styles.zeroWantBtn}
+                      id="zero-want-btn"
+                    >
+                      <span>💚</span> Want {searchQuery} (Notify Neighbors)
+                    </button>
+
+                    {/* Consistent Seller Action: Add Produce */}
+                    <Link
+                      href={searchQuery.trim() ? `/my-booth/products/new?name=${encodeURIComponent(searchQuery.trim())}` : '/my-booth/products/new'}
+                      className={styles.zeroAddBtn}
+                    >
+                      <span>+</span> Add Produce
+                    </Link>
+                  </div>
                 </div>
-                <p className={styles.zeroSub}>
-                  Want to list your harvest on a neighborhood stand?
-                </p>
-                <Link
-                  href={searchQuery.trim() ? `/my-booth/products/new?name=${encodeURIComponent(searchQuery.trim())}` : '/my-booth/products/new'}
-                  className={styles.zeroAddBtn}
-                >
-                  <span>+</span> List on Neighborhood Stand
-                </Link>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Produce Cards */}
             {filteredItems.map((item) => {
@@ -745,23 +907,36 @@ function MarketProducePageContent() {
                   data-name={item.name}
                   className={styles.produceCard}
                 >
-                  <div className={styles.produceImageWrapper}>
-                    <img
-                      src={myListing?.photoUrl || item.image}
-                      alt={item.name}
-                      onError={(e: any) => {
-                        e.currentTarget.src = '/images/produce_placeholder.jpg'
-                      }}
-                      className={styles.produceImage}
-                    />
-                  </div>
+                  {item.isUserDemanded && !item.image ? (
+                    <div className={styles.demandPlaceholderWrapper}>
+                      <span className={styles.demandBadge}>💚 Requested</span>
+                      <span className={styles.demandPlaceholderIcon}>🌱</span>
+                    </div>
+                  ) : (
+                    <div className={styles.produceImageWrapper}>
+                      <img
+                        src={myListing?.photoUrl || item.image || '/images/produce_placeholder.jpg'}
+                        alt={item.name}
+                        onError={(e: any) => {
+                          e.currentTarget.src = '/images/produce_placeholder.jpg'
+                        }}
+                        className={styles.produceImage}
+                      />
+                    </div>
+                  )}
 
                   <div className={styles.produceCardContent}>
                     <div className={styles.produceTitleRow}>
                       <h3 className={styles.produceTitle}>{item.name}</h3>
-                      <span className={styles.priceBadge}>
-                        ~${item.defaultPrice.toFixed(2)} / {item.defaultUnit}
-                      </span>
+                      {item.isUserDemanded ? (
+                        <span className={styles.demandPriceBadge}>
+                          {item.userDemandCount || 1} wanted
+                        </span>
+                      ) : (
+                        <span className={styles.priceBadge}>
+                          ~${item.defaultPrice.toFixed(2)} / {item.defaultUnit}
+                        </span>
+                      )}
                     </div>
 
                     {myListing && (
@@ -851,10 +1026,32 @@ function MarketProducePageContent() {
             })
           }}
           onSignalSuccess={(name, qty, unit) => {
+            const norm = name.toLowerCase()
             setUserExistingDemand((prev) => ({
               ...prev,
-              [name.toLowerCase()]: { quantity: qty, unit },
+              [norm]: { quantity: qty, unit },
             }))
+            setProduceItems((prev) => {
+              const exists = prev.some((p) => p.name.toLowerCase() === norm)
+              if (exists) return prev
+              const capitalized = name.charAt(0).toUpperCase() + name.slice(1)
+              const newItem: ProduceDisplayItem = {
+                id: `user_demand_${norm.replace(/\s+/g, '_')}`,
+                name: capitalized,
+                category: 'produce',
+                displayCategory: 'Neighborhood Request',
+                image: '',
+                defaultPrice: 3.5,
+                defaultUnit: unit || 'lb',
+                liveProductCount: 0,
+                isUserDemanded: true,
+                userDemandCount: 1,
+                inSeason: isProduceInSeason(name, zipcode),
+                description: `Requested by neighbors in ${zipcode}. Have extra in your garden?`,
+              }
+              return [...prev, newItem]
+            })
+            loadMarketData()
           }}
         />
       )}

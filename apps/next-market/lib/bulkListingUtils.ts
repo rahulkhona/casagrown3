@@ -33,14 +33,17 @@ export const ALLOWED_UNITS = [
 ]
 
 export const PRODUCE_CATEGORIES = [
-  { id: 'produce', label: 'Vegetables & Produce' },
-  { id: 'fruit', label: 'Fruit & Citrus' },
-  { id: 'herbs', label: 'Herbs & Seasonings' },
-  { id: 'flowers', label: 'Cut Flowers & Bouquets' },
-  { id: 'honey', label: 'Honey & Hive Products' },
-  { id: 'eggs', label: 'Pastured Fresh Eggs' },
-  { id: 'seedlings', label: 'Seedlings & Starts' },
-  { id: 'plants', label: 'Potted Garden Plants' },
+  { id: 'produce', label: '🥬 Produce' },
+  { id: 'flowers', label: '🌸 Flowers' },
+  { id: 'flower_arrangements', label: '💐 Flower Arrangements' },
+  { id: 'garden_equipment', label: '🧰 Garden Equipment' },
+  { id: 'pots', label: '🪴 Pots' },
+  { id: 'soil', label: '🪨 Soil' },
+  { id: 'seeds', label: '🌱 Seeds' },
+  { id: 'eggs', label: '🥚 Eggs' },
+  { id: 'honey', label: '🍯 Honey' },
+  { id: 'plants', label: '📦 Plants' },
+  { id: 'seedlings', label: '📦 Seedlings' },
 ]
 
 export type FulfillmentPresetType = 'weekend_mornings' | 'weekday_evenings' | 'both' | 'custom' | 'city_market_day'
