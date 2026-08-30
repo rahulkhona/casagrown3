@@ -2,6 +2,27 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
   test('LM-01: /sell lead capture auto-creates sell produce interest', async ({ page }) => {
+    // Mock /api/interest/submit
+    await page.route('**/api/interest/submit', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
+    })
+
+    // Mock estimate-earnings edge function
+    await page.route('**/functions/v1/estimate-earnings', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ai_estimate_result: {
+            estimated_annual_earnings: 240,
+            excess_produce: '20 lbs of Tomatoes',
+            analogies: ['A nice dinner out for two', '3 months of coffee'],
+            reasoning: 'Based on local demand for homegrown tomatoes.'
+          }
+        })
+      })
+    })
+
     // 1. Navigate to /sell
     await page.goto('/sell')
     await expect(page.getByText(/Estimate Your Backyard Potential/i)).toBeVisible()
@@ -49,19 +70,28 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
     // Submit via "Continue with email" button (this IS the submit button)
     await page.getByRole('button', { name: /Continue with email/i }).click()
 
-    // Verify results / queued view and produce prefilled CTA button
-    const ctaLink = page.locator('a[href*="/create-listing"]').first()
-    await expect(ctaLink).toBeVisible({ timeout: 15000 })
-    const href = await ctaLink.getAttribute('href')
-    expect(href).toContain('/create-listing')
+    // 10. Verify redirect to /market with lead magnet parameters
+    await page.waitForURL(/\/market\?from=sell_report/, { timeout: 15000 })
+    expect(page.url()).toContain('/market')
+    expect(page.url()).toContain('from=sell_report')
+    expect(page.url()).toContain('zipcode=95125')
 
-    // Verify secondary demand alerts CTA
-    const demandCta = page.locator('a[href*="/interest?scope=sell"]').first()
-    await expect(demandCta).toBeVisible({ timeout: 5000 })
-    await expect(demandCta).toContainText('Get Notified When Buyers Want Your Produce')
+    // 11. Verify the expandable report banner is visible on /market
+    const reportBanner = page.locator('#lead-magnet-report-banner')
+    await expect(reportBanner).toBeVisible({ timeout: 10000 })
+    await expect(reportBanner).toContainText(/Your Backyard Potential|Your Report is On Its Way/i)
+
+    // 12. If breakdown toggle button exists, click to expand and verify breakdown panel
+    const toggleBtn = page.locator('#toggle-report-breakdown-btn')
+    if (await toggleBtn.isVisible()) {
+      await toggleBtn.click()
+      const breakdown = page.locator('#expanded-report-breakdown')
+      await expect(breakdown).toBeVisible()
+      await expect(breakdown).toContainText(/Tomatoes/i)
+    }
   })
 
-  test('LM-02: /check-nutrition-loss lead capture auto-creates buy produce interest', async ({ page }) => {
+  test('LM-02: /check-nutrition-loss lead capture auto-creates buy produce interest and redirects to /market', async ({ page }) => {
     // Mock /api/interest/submit so it immediately returns 200 (fire-and-forget call)
     let interestSubmitCalled = false
     await page.route('**/api/interest/submit', async (route) => {
@@ -75,11 +105,9 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          result: {
-            nutrition_loss_pct: 42,
-            weekly_cost_usd: 8.50,
-            annual_cost_usd: 442,
-            produce: [{ name: 'Spinach', loss_pct: 45 }]
+          ai_nutrition_result: {
+            summary: 'Store-bought produce loses significant Vitamin C in transit.',
+            items: [{ name: 'spinach', time_to_shelf: '7-10 days', nutrient_loss_pct: '80% Vitamin C', impacted_nutrients: 'Vitamin C' }]
           }
         })
       })
@@ -129,10 +157,24 @@ test.describe('Lead Magnet Interest Auto-Registration E2E', () => {
     // Submit via "Continue with email" button (this IS the submit button)
     await page.getByRole('button', { name: /Continue with email/i }).click()
 
-    // Verify the new CTA: 'Set Up Your Produce Alerts'
-    const marketCta = page.getByRole('link', { name: /Set Up Your Produce Alerts/i })
-    await expect(marketCta).toBeVisible({ timeout: 15000 })
-    expect(await marketCta.getAttribute('href')).toContain('/interest?scope=buy')
+    // 10. Verify redirect to /market
+    await page.waitForURL(/\/market\?from=nutrition_report/, { timeout: 15000 })
+    expect(page.url()).toContain('/market')
+    expect(page.url()).toContain('from=nutrition_report')
+
+    // 11. Verify the expandable report banner is visible on /market
+    const reportBanner = page.locator('#lead-magnet-report-banner')
+    await expect(reportBanner).toBeVisible({ timeout: 10000 })
+    await expect(reportBanner).toContainText(/Nutrient Loss Alert/i)
+
+    // 12. Expand breakdown
+    const toggleBtn = page.locator('#toggle-report-breakdown-btn')
+    await expect(toggleBtn).toBeVisible()
+    await toggleBtn.click()
+
+    const breakdown = page.locator('#expanded-report-breakdown')
+    await expect(breakdown).toBeVisible()
+    await expect(breakdown).toContainText(/spinach/i)
 
     // Interest submit should have been called (mocked to return 200)
     expect(interestSubmitCalled).toBe(true)

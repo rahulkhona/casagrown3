@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackMetaLead } from '../../../lib/crm-analytics'
 
 export default function NutritionLossLandingPage() {
+  const router = useRouter()
 
   const [step, setStep] = useState<
-    'intro' | 'zipcode' | 'produce' | 'store_types' | 'fulfillment' | 'frequency' | 'neighbor_buying' | 'calculating' | 'lead-capture' | 'queued' | 'results'
+    'intro' | 'zipcode' | 'produce' | 'store_types' | 'fulfillment' | 'frequency' | 'neighbor_buying' | 'calculating' | 'lead-capture'
   >('intro')
 
   const stepEnteredAt = React.useRef(Date.now())
@@ -30,8 +32,6 @@ export default function NutritionLossLandingPage() {
   const [neighborBuyingComfort, setNeighborBuyingComfort] = useState('')
 
   const [errorMsg, setErrorMsg] = useState('')
-  const [results, setResults] = useState<any>(null)
-  const [hasActiveListings, setHasActiveListings] = useState(false)
 
   // Lead Capture State
   const [name, setName] = useState('')
@@ -101,7 +101,7 @@ export default function NutritionLossLandingPage() {
 
   useEffect(() => {
     const stepIndexes: Record<string, number> = {
-      'intro': 1, 'zipcode': 2, 'produce': 3, 'store_types': 4, 'fulfillment': 5, 'frequency': 6, 'neighbor_buying': 7, 'calculating': 8, 'lead-capture': 9, 'queued': 10, 'results': 11
+      'intro': 1, 'zipcode': 2, 'produce': 3, 'store_types': 4, 'fulfillment': 5, 'frequency': 6, 'neighbor_buying': 7, 'calculating': 8, 'lead-capture': 9
     }
 
     if (step === 'produce') {
@@ -127,9 +127,9 @@ export default function NutritionLossLandingPage() {
 
     const handleUnload = () => {
       const currentStep = stepRef.current
-      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+      if (!wentNext.current) {
         const stepIndexes: Record<string, number> = {
-          'intro': 1, 'zipcode': 2, 'produce': 3, 'store_types': 4, 'fulfillment': 5, 'frequency': 6, 'neighbor_buying': 7, 'calculating': 8, 'lead-capture': 9, 'queued': 10, 'results': 11
+          'intro': 1, 'zipcode': 2, 'produce': 3, 'store_types': 4, 'fulfillment': 5, 'frequency': 6, 'neighbor_buying': 7, 'calculating': 8, 'lead-capture': 9
         }
         trackEvent('wizard_abandon', '/check-nutrition-loss', {
           last_step: stepIndexes[currentStep] || 0,
@@ -269,15 +269,29 @@ export default function NutritionLossLandingPage() {
                     })
                   });
                   const data = await resp.json();
-                  if (data?.ai_nutrition_result) {
-                    setResults(data.ai_nutrition_result);
-                    setStep('results');
-                  } else {
-                    setStep('queued');
-                  }
+                  const finalRes = data?.ai_nutrition_result || null;
+                  try {
+                    const leadReport = {
+                      type: 'nutrition',
+                      email: uEmail,
+                      name: uName,
+                      zipcode: draft.zipcode || '95125',
+                      status: finalRes ? 'ready' : 'queued',
+                      ai_nutrition_result: finalRes || undefined,
+                      selected_produce: finalProduce,
+                    };
+                    sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport));
+                    sessionStorage.removeItem('casagrown_report_banner_dismissed');
+                    if (draft.zipcode) {
+                      localStorage.setItem('casagrown_user_zip', draft.zipcode);
+                    }
+                  } catch {}
+
+                  const itemsParam = finalProduce.length > 0 ? `&produce=${encodeURIComponent(finalProduce[0])}` : '';
+                  router.push(`/market?from=nutrition_report&zipcode=${encodeURIComponent(draft.zipcode || '95125')}${itemsParam}${finalRes ? '' : '&status=queued'}`);
                 } catch (e) {
                   console.error('[NutritionLoss] Edge function error:', e);
-                  setStep('queued');
+                  router.push(`/market?from=nutrition_report&zipcode=${encodeURIComponent(draft.zipcode || '95125')}&status=queued`);
                 }
                 setIsLoading(false);
               }
@@ -296,10 +310,19 @@ export default function NutritionLossLandingPage() {
           try {
             const { data } = await supabase.from('crm_leads').select('metadata, email, name').eq('id', leadId).single();
             if (data && data.metadata?.ai_nutrition_result) {
-              setResults(data.metadata.ai_nutrition_result);
-              setEmail(data.email || '');
-              setName(data.name || '');
-              setStep('results');
+              try {
+                const leadReport = {
+                  type: 'nutrition',
+                  email: data.email || '',
+                  name: data.name || '',
+                  zipcode: data.metadata?.zipcode || '95125',
+                  status: 'ready',
+                  ai_nutrition_result: data.metadata.ai_nutrition_result,
+                };
+                sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport));
+                sessionStorage.removeItem('casagrown_report_banner_dismissed');
+              } catch {}
+              router.push(`/market?from=nutrition_report&zipcode=${encodeURIComponent(data.metadata?.zipcode || '95125')}`);
             }
           } catch (err) {
             console.error("Failed to load existing report:", err);
@@ -418,40 +441,36 @@ export default function NutritionLossLandingPage() {
         trackMetaLead('buyer_nutrition_report', { force: true })
       }
 
-      // Check marketplace for active produce listings
-      try {
-        const { data: activeListings } = await supabase
-          .from('market_products')
-          .select('id')
-          .eq('status', 'active')
-          .limit(1)
-        if (activeListings && activeListings.length > 0) {
-          setHasActiveListings(true)
-        }
-      } catch (mErr) {
-        console.warn("Marketplace listings check failed:", mErr)
-      }
-
-      if (!error && data?.queued) {
-        wentNext.current = true
-        setStep('queued')
-        return
-      }
-
+      let finalRes = null
       if (data && data.ai_nutrition_result) {
-        const resObj = data.ai_nutrition_result
-        setResults(resObj)
-        wentNext.current = true
-        setStep('results')
-        return
+        finalRes = data.ai_nutrition_result
       }
-      
+
+      try {
+        const leadReport = {
+          type: 'nutrition',
+          email,
+          name,
+          zipcode: zipcode.trim() || '95125',
+          status: finalRes ? 'ready' : 'queued',
+          ai_nutrition_result: finalRes || undefined,
+          selected_produce: finalProduce,
+        }
+        sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport))
+        sessionStorage.removeItem('casagrown_report_banner_dismissed')
+        if (zipcode.trim()) {
+          localStorage.setItem('casagrown_user_zip', zipcode.trim())
+        }
+      } catch {}
+
       wentNext.current = true
-      setStep('queued')
+      const firstProduce = finalProduce[0] || ''
+      const itemsParam = firstProduce ? `&produce=${encodeURIComponent(firstProduce)}` : ''
+      router.push(`/market?from=nutrition_report&zipcode=${encodeURIComponent(zipcode.trim() || '95125')}${itemsParam}${finalRes ? '' : '&status=queued'}`)
     } catch (err) {
       console.error("Failed to generate report", err)
       wentNext.current = true
-      setStep('queued')
+      router.push(`/market?from=nutrition_report&zipcode=${encodeURIComponent(zipcode.trim() || '95125')}&status=queued`)
     } finally {
       setIsLoading(false)
     }
@@ -1114,112 +1133,6 @@ export default function NutritionLossLandingPage() {
                   </div>
                 </div>
               )}
-
-              {/* STEP 10: RESULTS */}
-              {step === 'results' && results && (
-                <div className="fade-in-up" style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🥬</div>
-                  <h2 className="form-heading" style={{ fontSize: '1.8rem', marginBottom: '8px', color: '#4ade80' }}>
-                    Your Nutrition Report is Ready!
-                  </h2>
-                  <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', lineHeight: 1.6 }}>
-                    We've emailed a full copy of this report to <strong>{email}</strong>.
-                  </p>
-
-                  {/* Summary / Freshness Score Card */}
-                  <div style={{ background: 'rgba(34,197,94,0.1)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(74,222,128,0.3)', marginBottom: '24px', textAlign: 'left' }}>
-                    <div style={{ fontSize: '0.85rem', color: '#4ade80', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
-                      POST-HARVEST ANALYSIS
-                    </div>
-                    <p style={{ fontSize: '1.05rem', color: '#ffffff', lineHeight: 1.6, margin: 0 }}>
-                      {results.summary || 'Store-bought produce loses significant Vitamin C and essential nutrients during multi-day transport.'}
-                    </p>
-                  </div>
-
-                  {/* Items Breakdown Table */}
-                  {results.items && results.items.length > 0 && (
-                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: '24px', textAlign: 'left' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                        <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.05)', color: '#4ade80', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                            <th style={{ padding: '12px 16px' }}>Item</th>
-                            <th style={{ padding: '12px 16px' }}>Nutrient Loss</th>
-                            <th style={{ padding: '12px 16px' }}>Transit Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {results.items.map((item: any, idx: number) => (
-                            <tr key={idx} style={{ borderBottom: idx < results.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                              <td style={{ padding: '12px 16px', fontWeight: 600, textTransform: 'capitalize' }}>{item.name}</td>
-                              <td style={{ padding: '12px 16px', color: '#f87171', fontWeight: 700 }}>{item.nutrient_loss_pct}</td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>{item.time_to_shelf}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Dynamic CTA depending on marketplace availability */}
-                  {(() => {
-                    const allProduceNames = [
-                      ...selectedProduce.filter(p => p !== 'Other'),
-                      ...customProduceList.filter(c => c.name.trim()).map(c => c.name.trim()),
-                    ]
-                    const firstProduce = allProduceNames[0] || ''
-                    const itemsParam = allProduceNames.length > 0 ? `&items=${encodeURIComponent(allProduceNames.join(','))}` : ''
-                    if (hasActiveListings) {
-                      return (
-                        <Link 
-                          href={`/market?q=${encodeURIComponent(firstProduce)}&zipcode=${encodeURIComponent(zipcode || '95125')}`} 
-                          className="btn-action" 
-                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
-                        >
-                          🛒 Find Fresh {firstProduce ? firstProduce.charAt(0).toUpperCase() + firstProduce.slice(1) : 'Harvest'} Near You →
-                        </Link>
-                      )
-                    } else {
-                      return (
-                        <a 
-                          href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${itemsParam}`} 
-                          className="btn-action" 
-                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center', background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 14px rgba(34,197,94,0.4)' }}
-                        >
-                          🔔 Set Up Your Produce Alerts →
-                        </a>
-                      )
-                    }
-                  })()}
-                </div>
-              )}
-
-              {/* STEP 10: QUEUED (Fallback if AI delayed) */}
-              {step === 'queued' && (
-                <div className="fade-in-up" style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🌱</div>
-                  <h2 className="form-heading" style={{ fontSize: '1.8rem', marginBottom: '12px' }}>
-                    Your Report is On Its Way!
-                  </h2>
-                  <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', marginBottom: '24px', lineHeight: 1.6 }}>
-                    We're analyzing post-harvest degradation data for your specific items and emailing your personalized report to <strong>{email}</strong>.
-                  </p>
-
-                  <div style={{ background: 'rgba(34,197,94,0.1)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(74,222,128,0.3)', marginBottom: '24px', textAlign: 'left' }}>
-                    <p style={{ fontSize: '0.95rem', color: '#4ade80', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
-                      🔔 We've saved your produce list to match you with backyard growers near {zipcode || '95125'}! As soon as local neighbors harvest fresh produce, we'll notify you.
-                    </p>
-                  </div>
-                  
-                  <a 
-                    href={`/interest?scope=buy&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '95125')}${selectedProduce.filter(p => p !== 'Other').length > 0 ? `&items=${encodeURIComponent([...selectedProduce.filter(p => p !== 'Other'), ...customProduceList.filter(c => c.name.trim()).map(c => c.name.trim())].join(','))}` : ''}`} 
-                    className="btn-action" 
-                    style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}
-                  >
-                    🔔 Set Up Your Produce Alerts →
-                  </a>
-                </div>
-              )}
-
             </div>
           </div>
 

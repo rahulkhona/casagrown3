@@ -3,6 +3,12 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react'
 import NutritionLossLandingPage from '../page'
 
+// Mock next/navigation
+const mockPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
+}))
+
 // Mock next/link
 vi.mock('next/link', () => ({
   default: ({ children, href, className, style }: any) => <a href={href} className={className} style={style}>{children}</a>
@@ -72,6 +78,7 @@ async function navigateToLeadCapture() {
 describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
   })
 
   it('renders landing page headline', () => {
@@ -80,7 +87,7 @@ describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
     expect(screen.getAllByText(/Check My Nutrition Loss →/i)[0]).toBeDefined()
   })
 
-  it('auto-registers buy interests when lead form is submitted and displays market CTA', async () => {
+  it('auto-registers buy interests and navigates to /market when lead form is submitted', async () => {
     await navigateToLeadCapture()
 
     fireEvent.change(screen.getByPlaceholderText(/First and Last Name/i), { target: { value: 'Test Buyer' } })
@@ -99,12 +106,17 @@ describe('Nutrition Lead Magnet Interest Auto-Registration', () => {
       )
     })
 
-    // Verify the new CTA text: 'Set Up Your Produce Alerts'
+    // Verify immediate redirect to /market with searchParams and sessionStorage
     await waitFor(() => {
-      const marketCta = screen.getByText(/Set Up Your Produce Alerts/i)
-      expect(marketCta).toBeDefined()
-      expect(marketCta.getAttribute('href')).toContain('/interest?scope=buy')
+      expect(mockPush).toHaveBeenCalledWith(
+        expect.stringContaining('/market?from=nutrition_report&zipcode=95125')
+      )
     })
+
+    const storedReport = JSON.parse(sessionStorage.getItem('casagrown_lead_report') || '{}')
+    expect(storedReport.type).toBe('nutrition')
+    expect(storedReport.email).toBe('buyer@test.local')
+    expect(storedReport.zipcode).toBe('95125')
   })
 
   it('renders Google and Apple OAuth buttons on lead capture step', async () => {

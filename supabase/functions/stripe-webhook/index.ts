@@ -33,7 +33,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // Peek at the event to choose the right webhook secret:
     // Connect events (account.*) carry an `account` field at the top level.
-    let event: Record<string, unknown>;
+    let event: any;
     try {
         event = JSON.parse(body);
     } catch {
@@ -443,11 +443,6 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                                 matchedByApi = true;
                             }
                         }
-                    } else {
-                        console.warn(
-                            `Balance Transactions API failed (${btRes.status}), falling back to amount matching`,
-                        );
-                    }
                 } catch (apiErr) {
                     console.warn(
                         "Balance Transactions API error, falling back:",
@@ -1315,6 +1310,7 @@ async function verifyStripeSignature(
 
         const timestampStr = timestampPart.split("=")[1];
         const expectedSig = signaturePart.split("=")[1];
+        if (!timestampStr || !expectedSig) return false;
 
         // CRIT-1 FIX: Reject webhooks older than 5 minutes to prevent replay attacks.
         // Stripe recommends a 300-second tolerance window.
@@ -1353,7 +1349,9 @@ async function verifyStripeSignature(
         const b = new TextEncoder().encode(expectedSig);
         if (a.length !== b.length) return false;
         let result = 0;
-        for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i];
+        for (let i = 0; i < a.length; i++) {
+            result |= (a[i] ?? 0) ^ (b[i] ?? 0);
+        }
         return result === 0;
     } catch (e) {
         console.error("Signature verification error:", e);

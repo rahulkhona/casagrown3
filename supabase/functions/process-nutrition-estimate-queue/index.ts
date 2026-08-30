@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
         </table>
 
         <div style="text-align: center; margin-top: 32px;">
-          <a href="https://casagrown.com/market"
+          <a href="https://casagrown.com/market?utm_source=email&utm_medium=report_email&utm_campaign=nutrition_loss_report&utm_content=queue_find_fresh_harvest"
              style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">
             🔔 Notify me when local sellers have what I want →
           </a>

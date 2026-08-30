@@ -14,9 +14,9 @@ Deno.serve(async (req: Request) => {
         <p>We ran into a temporary issue generating your personalized earnings estimate — we're sorry for the delay!</p>
         <p>The great news is that you don't need a report to start selling. Neighbors in your area are already looking for fresh, local produce.</p>
         <div style="text-align: center; margin-top: 32px;">
-          <a href="https://casagrown.com/create-listing"
+          <a href="https://casagrown.com/market?utm_source=email&utm_medium=report_email&utm_campaign=backyard_earnings_report&utm_content=fallback_view_market"
              style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">
-            Create Your First Listing Now →
+            Explore Your Neighborhood Market →
           </a>
         </div>
       </div>
@@ -51,9 +51,9 @@ Deno.serve(async (req: Request) => {
         </div>
 
         <div style="text-align: center; margin-top: 32px;">
-          <a href="https://casagrown.com/create-listing"
+          <a href="https://casagrown.com/market?utm_source=email&utm_medium=report_email&utm_campaign=backyard_earnings_report&utm_content=view_market"
              style="display: inline-block; background-color: #16a34a; color: white; padding: 14px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 16px;">
-            Start Selling on CasaGrown →
+            Explore Your Neighborhood Market →
           </a>
         </div>
         

@@ -20,9 +20,14 @@ vi.mock('../lib/supabase', () => ({
   })),
 }))
 
-// ── next/link mock ───────────────────────────────────────────────────────────
+// ── next/link & next/navigation mock ───────────────────────────────────────────
 vi.mock('next/link', () => ({
   default: ({ children, href }: any) => <a href={href}>{children}</a>,
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 const AI_RESULT = {

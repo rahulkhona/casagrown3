@@ -3,6 +3,12 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react'
 import SellLandingPage from '../page'
 
+// Mock next/navigation
+const mockPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
+}))
+
 // Mock next/link
 vi.mock('next/link', () => ({
   default: ({ children, href, className, style }: any) => <a href={href} className={className} style={style}>{children}</a>
@@ -78,6 +84,7 @@ async function navigateToLeadCapture() {
 describe('Sell Lead Magnet Interest Auto-Registration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
   })
 
   it('renders landing page with Estimate Your Backyard Potential prompt', () => {
@@ -86,7 +93,7 @@ describe('Sell Lead Magnet Interest Auto-Registration', () => {
     expect(screen.getByText(/Calculate My Backyard's Value →/i)).toBeDefined()
   })
 
-  it('auto-registers sell interests when lead form is submitted', async () => {
+  it('auto-registers sell interests and navigates to /market when lead form is submitted', async () => {
     await navigateToLeadCapture()
 
     fireEvent.change(screen.getByPlaceholderText(/Jane Doe/i), { target: { value: 'Test Seller' } })
@@ -109,19 +116,17 @@ describe('Sell Lead Magnet Interest Auto-Registration', () => {
       )
     })
 
-    // Verify primary CTA link points to /create-listing with prefilled produce
+    // Verify immediate redirect to /market with searchParams and sessionStorage
     await waitFor(() => {
-      const cta = screen.getByText(/Create Your First Listing/i)
-      expect(cta).toBeDefined()
-      expect(cta.getAttribute('href')).toContain('/create-listing')
+      expect(mockPush).toHaveBeenCalledWith(
+        expect.stringContaining('/market?from=sell_report&zipcode=95125')
+      )
     })
 
-    // Verify secondary CTA link points to /interest?scope=sell (demand alerts)
-    await waitFor(() => {
-      const demandCta = screen.getByText(/Get Notified When Buyers Want Your Produce/i)
-      expect(demandCta).toBeDefined()
-      expect(demandCta.getAttribute('href')).toContain('/interest?scope=sell')
-    })
+    const storedReport = JSON.parse(sessionStorage.getItem('casagrown_lead_report') || '{}')
+    expect(storedReport.type).toBe('sell')
+    expect(storedReport.email).toBe('seller@test.local')
+    expect(storedReport.zipcode).toBe('95125')
   })
 
   it('renders Google and Apple OAuth buttons on lead capture step', async () => {

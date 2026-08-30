@@ -141,7 +141,7 @@ Respond ONLY with the JSON object for the provided details (no markdown, no code
           </ul>
         </div>
 
-        ${actionButton("Start Selling on CasaGrown →", "https://casagrown.com/create-listing")}
+        ${actionButton("Explore Your Neighborhood Market →", "https://casagrown.com/market?utm_source=email&utm_medium=report_email&utm_campaign=backyard_earnings_report&utm_content=view_market")}
       `;
 
       return wrapInBrandedTemplate({

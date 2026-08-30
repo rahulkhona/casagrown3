@@ -10,6 +10,7 @@ import { EXHAUSTIVE_INTERESTS_CATALOG, InterestCatalogItem } from '../../../lib/
 import { extractBaseProduce, getProduceImage } from '../../../lib/produceCatalog'
 import WantProduceModal, { LiveProductItem } from './components/WantProduceModal'
 import BatchListingDrawer, { BatchItem } from './components/BatchListingDrawer'
+import LeadMagnetReportBanner from './components/LeadMagnetReportBanner'
 import BuyModal from '../../components/BuyModal'
 import { SmartAppBanner } from '../../components/SmartAppBanner'
 import DailyGamesMicrostrip from '../../components/games/DailyGamesMicrostrip'
@@ -75,34 +76,47 @@ function MarketProducePageContent() {
   } | null>(null)
 
   // ── 1. Resolve User Location ──
+  // Track whether we have seeded the search query from the URL param already
+  const didSeedSearchQuery = React.useRef(false)
+
   useEffect(() => {
     async function initLocation() {
-      // Try to get zip from user profile or cache
-      let initialZip = '95125'
-      let initialLabel = 'San Jose, CA 95125'
+      // Check URL search params for zipcode first
+      const zipParam = searchParams.get('zipcode') || searchParams.get('zip')
+      const qParam = searchParams.get('q') || searchParams.get('produce')
+      // Only seed from URL once on initial mount; don't overwrite user's subsequent searches
+      if (qParam && !didSeedSearchQuery.current) {
+        didSeedSearchQuery.current = true
+        setSearchQuery(qParam)
+      }
 
-      try {
-        const cachedZip = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_zip') : null
-        const cachedLabel = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_location_label') : null
-        if (cachedZip) {
-          initialZip = cachedZip
-          initialLabel = cachedLabel || cachedZip
-        }
-      } catch {}
+      let initialZip = zipParam || '95125'
+      let initialLabel = zipParam ? `ZIP ${zipParam}` : 'San Jose, CA 95125'
 
-      if (user?.id) {
+      if (!zipParam) {
         try {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('zip_code, city, state, home_address')
-            .eq('id', user.id)
-            .maybeSingle()
-
-          if (prof?.zip_code) {
-            initialZip = prof.zip_code
-            initialLabel = [prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ') || prof.zip_code
+          const cachedZip = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_zip') : null
+          const cachedLabel = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_location_label') : null
+          if (cachedZip) {
+            initialZip = cachedZip
+            initialLabel = cachedLabel || cachedZip
           }
         } catch {}
+
+        if (user?.id) {
+          try {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('zip_code, city, state, home_address')
+              .eq('id', user.id)
+              .maybeSingle()
+
+            if (prof?.zip_code) {
+              initialZip = prof.zip_code
+              initialLabel = [prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ') || prof.zip_code
+            }
+          } catch {}
+        }
       }
 
       setZipcode(initialZip)
@@ -115,6 +129,10 @@ function MarketProducePageContent() {
         if (res?.lat && res?.lng) {
           setBuyerLat(res.lat)
           setBuyerLng(res.lng)
+          if (res.displayLabel) {
+            setLocationDisplay(res.displayLabel)
+            setLocationInput(res.displayLabel)
+          }
         } else {
           // Fallback San Jose
           setBuyerLat(37.3382)
@@ -126,7 +144,7 @@ function MarketProducePageContent() {
       }
     }
     initLocation()
-  }, [user?.id, supabase])
+  }, [user?.id, supabase, searchParams])
 
   // ── 2. Fetch User's Existing Interests & Active Listings ──
   const [userExistingListings, setUserExistingListings] = useState<Record<string, {
@@ -683,6 +701,9 @@ function MarketProducePageContent() {
 
       {/* ── MAIN CONTENT & PRODUCE GRID ── */}
       <main className={styles.mainContainer}>
+        {/* Lead Magnet Report Banner (if arriving from /sell or /check-nutrition-loss) */}
+        <LeadMagnetReportBanner />
+
         {/* Floating Daily Games Microstrip & Collapsible Mini-Bubble */}
         <DailyGamesMicrostrip />
 

@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { trackEvent, trackFieldInteract, trackStepTiming, resetSessionId, trackMetaLead } from '../../../lib/crm-analytics'
 
 export default function SellLandingPage() {
+  const router = useRouter()
 
-  const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'trees' | 'plants' | 'habits' | 'intent' | 'fulfillment' | 'calculating' | 'lead-capture' | 'results' | 'queued'>('intro')
+  const [step, setStep] = useState<'intro' | 'zipcode' | 'size' | 'trees' | 'plants' | 'habits' | 'intent' | 'fulfillment' | 'calculating' | 'lead-capture'>('intro')
 
   const stepEnteredAt = React.useRef(Date.now())
   const prevStepRef = React.useRef<string>('intro')
@@ -68,7 +70,7 @@ export default function SellLandingPage() {
   useEffect(() => {
     const stepIndexes: Record<string, number> = {
       'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
-      'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
+      'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10
     }
 
     if (step === 'zipcode') {
@@ -107,10 +109,10 @@ export default function SellLandingPage() {
 
     const handleUnload = () => {
       const currentStep = stepRef.current
-      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+      if (!wentNext.current) {
         const stepIndexes: Record<string, number> = {
           'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
-          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
+          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10
         }
         trackEvent('wizard_abandon', '/sell', {
           form_version: 'v2_fulfillment',
@@ -146,13 +148,13 @@ export default function SellLandingPage() {
     return () => {
       window.removeEventListener('beforeunload', handleUnload)
       const currentStep = stepRef.current
-      if (!wentNext.current && currentStep !== 'results' && currentStep !== 'queued') {
+      if (!wentNext.current) {
         const duration = (Date.now() - startTime) / 1000
         if (duration < 0.5) return
 
         const stepIndexes: Record<string, number> = {
           'intro': 1, 'zipcode': 2, 'size': 3, 'trees': 4, 'plants': 5,
-          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10, 'results': 11, 'queued': 12
+          'habits': 6, 'intent': 7, 'fulfillment': 8, 'calculating': 9, 'lead-capture': 10
         }
         trackEvent('wizard_abandon', '/sell', {
           form_version: 'v2_fulfillment',
@@ -360,15 +362,29 @@ export default function SellLandingPage() {
                     body: JSON.stringify(payload)
                   });
                   const data = await resp.json();
-                  if (data?.ai_estimate_result) {
-                    setResults(data.ai_estimate_result);
-                    setStep('results');
-                  } else {
-                    setStep('queued');
-                  }
+                  const finalRes = data?.ai_estimate_result || null;
+                  try {
+                    const leadReport = {
+                      type: 'sell',
+                      email: uEmail,
+                      name: uName,
+                      zipcode: draft.zipcode || '95125',
+                      status: finalRes ? 'ready' : 'queued',
+                      ai_estimate_result: finalRes || undefined,
+                      selected_plants: rawP,
+                      selected_trees: rawT,
+                    };
+                    sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport));
+                    sessionStorage.removeItem('casagrown_report_banner_dismissed');
+                    if (draft.zipcode) {
+                      localStorage.setItem('casagrown_user_zip', draft.zipcode);
+                    }
+                  } catch {}
+
+                  router.push(`/market?from=sell_report&zipcode=${encodeURIComponent(draft.zipcode || '95125')}${finalRes ? '' : '&status=queued'}`);
                 } catch (e) {
                   console.error('[SellPage] Edge function error:', e);
-                  setStep('queued');
+                  router.push(`/market?from=sell_report&zipcode=${encodeURIComponent(draft.zipcode || '95125')}&status=queued`);
                 }
                 setIsLoading(false);
               }
@@ -387,10 +403,19 @@ export default function SellLandingPage() {
           try {
             const { data } = await supabase.from('crm_leads').select('metadata, email, name').eq('id', leadId).single();
             if (data && data.metadata?.ai_estimate_result) {
-              setResults(data.metadata.ai_estimate_result);
-              setEmail(data.email || '');
-              setName(data.name || '');
-              setStep('results');
+              try {
+                const leadReport = {
+                  type: 'sell',
+                  email: data.email || '',
+                  name: data.name || '',
+                  zipcode: data.metadata?.zipcode || '95125',
+                  status: 'ready',
+                  ai_estimate_result: data.metadata.ai_estimate_result,
+                };
+                sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport));
+                sessionStorage.removeItem('casagrown_report_banner_dismissed');
+              } catch {}
+              router.push(`/market?from=sell_report&zipcode=${encodeURIComponent(data.metadata?.zipcode || '95125')}`);
             }
           } catch (err) {
             console.error("Failed to load existing report:", err);
@@ -403,14 +428,6 @@ export default function SellLandingPage() {
     }
   }, []);
 
-  // Results State
-  const [results, setResults] = useState<{
-    excess_produce: string;
-    estimated_annual_earnings: number;
-    analogies: string[];
-    reasoning: string;
-  } | null>(null)
-  
 
   const toggleSelection = (item: string, list: string[], setList: (l: string[]) => void) => {
     if (list.includes(item)) {
@@ -508,12 +525,6 @@ export default function SellLandingPage() {
           trackMetaLead('sell_backyard_calculator', { force: true })
         }
 
-        if (!error && data?.queued) {
-          wentNext.current = true
-          setStep('queued')
-          return
-        }
-        
         if (data && data.ai_estimate_result) {
           finalData = data.ai_estimate_result
         }
@@ -521,17 +532,31 @@ export default function SellLandingPage() {
         console.error("[SellPage] Edge function invoke failed:", invokeErr)
       }
       
-      if (finalData) {
-        setResults(finalData)
-        wentNext.current = true
-        setStep('results')
-      } else {
-        wentNext.current = true
-        setStep('queued')
-      }
+      try {
+        const leadReport = {
+          type: 'sell',
+          email,
+          name,
+          zipcode: zipcode || '95125',
+          status: finalData ? 'ready' : 'queued',
+          ai_estimate_result: finalData || undefined,
+          selected_plants: rawPlants,
+          selected_trees: rawTrees,
+        }
+        sessionStorage.setItem('casagrown_lead_report', JSON.stringify(leadReport))
+        sessionStorage.removeItem('casagrown_report_banner_dismissed')
+        if (zipcode) {
+          localStorage.setItem('casagrown_user_zip', zipcode)
+        }
+      } catch {}
+
+      wentNext.current = true
+      const cropsParam = allCrops.length > 0 ? `&produce=${encodeURIComponent(allCrops[0])}` : ''
+      router.push(`/market?from=sell_report&zipcode=${encodeURIComponent(zipcode || '95125')}${cropsParam}${finalData ? '' : '&status=queued'}`)
     } catch (err) {
       console.error("Failed to generate report", err)
-      setErrorMsg("We're currently experiencing high demand and couldn't generate your report right away. Please try again in a moment!")
+      wentNext.current = true
+      router.push(`/market?from=sell_report&zipcode=${encodeURIComponent(zipcode || '95125')}&status=queued`)
     } finally {
       setIsLoading(false)
     }
@@ -1174,138 +1199,7 @@ export default function SellLandingPage() {
                       </form>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {step === 'results' && results && (
-                <div className="fade-in-up" style={{ textAlign: 'center' }}>
-                  <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#14532d', marginBottom: '8px' }}>Your Backyard Potential</h2>
-                  <p style={{ fontSize: '1.05rem', color: '#4b5563', marginBottom: '24px' }}>
-                    We've emailed a copy of this report to {email}.
-                  </p>
-                  
-                  <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(22,163,74,0.1))', padding: '32px 20px', borderRadius: '24px', marginBottom: '24px', border: '1px solid rgba(34,197,94,0.3)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: -20, right: -20, fontSize: '6rem', opacity: 0.1 }}>🌿</div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '1rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Estimated Annual Earnings</div>
-                      <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '12px', fontWeight: 600, border: '1px solid #bbf7d0' }}>AI ESTIMATED</span>
-                    </div>
-                    <div style={{ fontSize: '4.5rem', fontWeight: 900, color: '#14532d', lineHeight: 1, marginBottom: '16px' }}>
-                      ${results.estimated_annual_earnings}
-                    </div>
-                    <p style={{ fontSize: '0.95rem', color: '#166534', lineHeight: 1.5, margin: '0 auto', maxWidth: '80%', fontStyle: 'italic', opacity: 0.9 }}>
-                      {results.reasoning}
-                    </p>
-                  </div>
-
-                  <div style={{ textAlign: 'left', background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-                    <h3 style={{ fontSize: '1.1rem', color: '#1f2937', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>🍅</span> Projected Yield
-                    </h3>
-                    <p style={{ color: '#4b5563', lineHeight: 1.6 }}>{results.excess_produce}</p>
-                  </div>
-
-                  <div style={{ background: '#f0fdf4', padding: '24px', borderRadius: '16px', marginBottom: '32px', border: '1px solid #bbf7d0', textAlign: 'left' }}>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <div style={{ fontSize: '1.8rem' }}>🎯</div>
-                      <p style={{ fontSize: '1.1rem', color: '#166534', fontWeight: 600, margin: 0, paddingTop: '4px' }}>
-                        That's enough extra cash per year to pay for:
-                      </p>
-                    </div>
-                    <ul style={{ margin: '0 0 0 46px', padding: 0, listStyleType: 'none', color: '#15803d', fontStyle: 'italic', lineHeight: 1.6 }}>
-                      {(results.analogies || []).map((analogy, i) => (
-                        <li key={i} style={{ marginBottom: '8px', position: 'relative' }}>
-                          <span style={{ position: 'absolute', left: '-20px' }}>•</span> {analogy}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* CTA buttons */}
-                  {(() => {
-                    const allCropNames = [
-                      ...selectedPlants.filter(p => p !== 'Other'),
-                      ...customPlantsList.filter(c => c.name.trim()).map(c => c.name.trim()),
-                      ...selectedTrees.filter(t => t !== 'Other' && t !== 'None'),
-                      ...customTreesList.filter(c => c.name.trim()).map(c => c.name.trim()),
-                    ]
-                    const firstCrop = allCropNames[0] || ''
-                    const itemsParam = allCropNames.length > 0 ? `&items=${encodeURIComponent(allCropNames.join(','))}` : (firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : '')
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <Link 
-                          href={`/create-listing?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}${firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : ''}`} 
-                          className="btn-action" 
-                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}
-                        >
-                          🚀 Create Your First Listing →
-                        </Link>
-                        <a 
-                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
-                          style={{ 
-                            display: 'block', textDecoration: 'none', textAlign: 'center',
-                            padding: '18px 32px', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800,
-                            border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', 
-                            color: '#22c55e', cursor: 'pointer', transition: 'all 0.3s', width: '100%'
-                          }}
-                        >
-                          🔔 Get Notified When Buyers Want Your Produce
-                        </a>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-
-              {step === 'queued' && (
-                <div className="fade-in-up" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '4rem', marginBottom: '16px' }}>📩</div>
-                  <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#14532d', marginBottom: '16px', lineHeight: 1.2 }}>
-                    Your Report is On Its Way!
-                  </h2>
-                  <p style={{ fontSize: '1.1rem', color: '#166534', marginBottom: '16px', lineHeight: 1.6 }}>
-                    Our AI is analyzing local market data for your specific garden. We'll email your personalized earnings estimate to <strong>{email}</strong> shortly.
-                  </p>
-                  <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '32px', lineHeight: 1.6, background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-                    💡 <strong>Don't wait for the report to start earning!</strong> You can create your listing right now — it only takes 2 minutes. Your neighbors are looking for exactly what you're growing.
-                  </p>
-                  
-                  {(() => {
-                    const allCropNames = [
-                      ...selectedPlants.filter(p => p !== 'Other'),
-                      ...customPlantsList.filter(c => c.name.trim()).map(c => c.name.trim()),
-                      ...selectedTrees.filter(t => t !== 'Other' && t !== 'None'),
-                      ...customTreesList.filter(c => c.name.trim()).map(c => c.name.trim()),
-                    ]
-                    const firstCrop = allCropNames[0] || ''
-                    const itemsParam = allCropNames.length > 0 ? `&items=${encodeURIComponent(allCropNames.join(','))}` : ''
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <Link 
-                          href={`/create-listing?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}${firstCrop ? `&produce=${encodeURIComponent(firstCrop)}` : ''}`} 
-                          className="btn-action" 
-                          style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}
-                        >
-                          🚀 Create Your First Listing →
-                        </Link>
-                        <a 
-                          href={`/interest?scope=sell&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&zipcode=${encodeURIComponent(zipcode || '')}${itemsParam}`} 
-                          style={{ 
-                            display: 'block', textDecoration: 'none', textAlign: 'center',
-                            padding: '18px 32px', borderRadius: '16px', fontSize: '1.15rem', fontWeight: 800,
-                            border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', 
-                            color: '#22c55e', cursor: 'pointer', transition: 'all 0.3s', width: '100%'
-                          }}
-                        >
-                          🔔 Get Notified When Buyers Want Your Produce
-                        </a>
-                      </div>
-                    )
-                  })()}
-                  <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '12px' }}>
-                    Your report will be in your inbox by the time your listing is live!
-                  </p>
-                </div>
+                 </div>
               )}
             </div>
           </div>
