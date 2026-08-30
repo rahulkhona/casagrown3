@@ -41,6 +41,9 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             corsHeaders,
         );
     }
+    
+    // Convert zip_code to string in case the client sent a number
+    const zipString = String(zip_code);
 
     // Normalize state code (e.g. "California" -> "CA")
     const STATE_MAP: Record<string, string> = {
@@ -115,7 +118,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // ── 3. Check zip_tax_cache ──────────────────────────────────────────
     // Use the 9-digit zip if available, fallback to 5-digit for legacy/API
-    const zipOnly = zip_code.replace(/[^0-9-]/g, "");
+    const zipOnly = zipString.replace(/[^0-9-]/g, "");
     const isZip9 = zipOnly.length > 5 && zipOnly.includes("-");
 
     if (isZip9) {

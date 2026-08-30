@@ -67,6 +67,50 @@ export const TEST_USERS = {
 
 export type UserKey = keyof typeof TEST_USERS
 
+/**
+ * Get a fresh Supabase session cookie for browser-side authenticated writes.
+ *
+ * All parallel Playwright workers share the same storageState (same refresh_token).
+ * When one worker's Supabase client refreshes it, GoTrue invalidates it for the
+ * others, causing the client to clear the sb-*-auth-token cookie on page load.
+ * This leaves the browser with no session — API calls go as anon → RLS violations.
+ *
+ * Call this BEFORE page.goto() in any test that relies on the browser app making
+ * authenticated Supabase writes (INSERT/UPDATE/DELETE via RLS).
+ */
+export async function refreshBrowserAuth(
+  page: Page,
+  email = 'buyer@test.local',
+  password = 'TestPassword123!',
+) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await res.json()
+  if (!data.access_token) return
+
+  const sessionPayload = JSON.stringify({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_in: 3600,
+    token_type: 'bearer',
+    user: data.user,
+  })
+  const cookieValue = Buffer.from(sessionPayload).toString('base64url')
+  await page.context().addCookies([{
+    name: SUPABASE_COOKIE_NAME,
+    value: `base64-${cookieValue}`,
+    domain: 'localhost',
+    path: '/',
+    sameSite: 'Lax',
+    httpOnly: false,
+    expires: Math.floor(Date.now() / 1000) + 3600,
+  }])
+}
+
 // ── Auth ──
 
 /**

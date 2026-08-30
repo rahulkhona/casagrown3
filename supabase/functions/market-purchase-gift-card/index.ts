@@ -82,8 +82,16 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
       const brand = catalog.find((c: any) =>
         normalizeBrand(c.brandName) === brandKey
       );
-      if (brand?.availableProviders?.length > 0) {
-        cachedProviders = brand.availableProviders;
+      if (brand) {
+        // Validate face value against catalog limits
+        const minCents = brand.minRecipientDenomination ? Math.round(brand.minRecipientDenomination * 100) : 0;
+        const maxCents = brand.maxRecipientDenomination ? Math.round(brand.maxRecipientDenomination * 100) : Infinity;
+        if (faceValueCents < minCents || faceValueCents > maxCents) {
+           return jsonError(`Face value must be between $${minCents/100} and $${maxCents/100}`, corsHeaders);
+        }
+        if (brand.availableProviders?.length > 0) {
+          cachedProviders = brand.availableProviders;
+        }
       }
     } catch {
       console.warn("[REDEEM] Failed to parse cached catalog");

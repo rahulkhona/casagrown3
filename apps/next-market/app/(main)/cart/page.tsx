@@ -304,6 +304,30 @@ export default function CartPage() {
         return
       }
 
+      // BUG-7: Re-check prices haven't changed since cart was loaded
+      let priceChanged = false
+      for (const group of orderGroups) {
+        for (const item of group.items) {
+          const fresh = freshMap.get(item.product.id)
+          if (fresh && Number(fresh.price_usd) !== item.product.price_usd) {
+            priceChanged = true
+            // Update the cart with fresh prices
+            refreshItems((freshData as any[]).map((d: any) => ({
+              id: d.id, inventory: d.inventory, price_usd: Number(d.price_usd),
+              is_active: d.is_active, expires_at: d.expires_at || null,
+              window_dates: d.window_dates || [], product_delivery_windows: d.product_delivery_windows || [],
+              product_pickup_windows: d.product_pickup_windows || [],
+            })))
+          }
+        }
+      }
+      if (priceChanged) {
+        setCheckoutError('Some prices have been updated. Please review your cart and try again.')
+        setCheckingOut(false)
+        checkoutBusyRef.current = false
+        return
+      }
+
       // Step 2: Create/top-up hold FIRST (before any orders)
       const totalCents = Math.round(grandTotal * 100)
       const holdCents = Math.round(Math.max(0, grandTotal - balanceApplied) * 100)
@@ -363,30 +387,6 @@ export default function CartPage() {
         }
       }
 
-      // BUG-7: Re-check prices haven't changed since cart was loaded
-      let priceChanged = false
-      for (const group of orderGroups) {
-        for (const item of group.items) {
-          const fresh = freshMap.get(item.product.id)
-          if (fresh && Number(fresh.price_usd) !== item.product.price_usd) {
-            priceChanged = true
-            // Update the cart with fresh prices
-            refreshItems((freshData as any[]).map((d: any) => ({
-              id: d.id, inventory: d.inventory, price_usd: Number(d.price_usd),
-              is_active: d.is_active, expires_at: d.expires_at || null,
-              window_dates: d.window_dates || [], product_delivery_windows: d.product_delivery_windows || [],
-              product_pickup_windows: d.product_pickup_windows || [],
-            })))
-          }
-        }
-      }
-      if (priceChanged) {
-        setCheckoutError('Some prices have been updated. Please review your cart and try again.')
-        setCheckingOut(false)
-        checkoutBusyRef.current = false
-        return
-      }
-
       // Step 4: Place orders ONLY after payment is secured
       // BUG-1: Track successful orders for partial rollback on failure
       const placedOrderIds: string[] = []
@@ -401,6 +401,8 @@ export default function CartPage() {
             p_quantity: item.qty,
             p_fulfillment_type: item.fulfillmentMode || 'delivery',
             p_hold_id: holdResult?.holdId || null,
+            p_delivery_instructions: deliveryInstructions?.trim() || null,
+            p_buyer_zip: deliveryAddressFields?.zip?.trim() || null,
           })
 
           // BUG-10: Handle tax_cache_miss — ask user to retry (cache will be warmed by first attempt)

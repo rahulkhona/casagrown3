@@ -166,6 +166,7 @@ export default function SettlementsPage() {
   }
 
   const writeOffDebt = async (debtId: string) => {
+    if (!window.confirm('Are you sure you want to write off this debt? This cannot be undone.')) return;
     await adminApi.update('buyer_debts', { status: 'written_off', updated_at: new Date().toISOString() }, { eq: { id: debtId } })
     fetchData()
   }

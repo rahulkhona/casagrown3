@@ -66,6 +66,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
   disputed:  { label: 'Disputed',  color: 'var(--red-600, #dc2626)',   icon: '⚠️' },
   escalated: { label: 'Escalated', color: 'var(--red-600, #dc2626)',   icon: '🔺' },
   resolved:  { label: 'Resolved',  color: 'var(--green-600)',          icon: '✓' },
+  refunded:  { label: 'Refunded',  color: 'var(--red-600, #dc2626)',   icon: '💸' },
+  auto_cancelled: { label: 'Auto-Cancelled', color: 'var(--gray-500)', icon: '✕' },
 }
 
 function formatUsd(n: number) {

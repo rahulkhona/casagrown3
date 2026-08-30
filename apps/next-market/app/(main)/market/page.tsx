@@ -46,6 +46,8 @@ function MarketProducePageContent() {
 
   // Location & Search State
   const [zipcode, setZipcode] = useState<string>('95125')
+  const [buyerLat, setBuyerLat] = useState<number | null>(null)
+  const [buyerLng, setBuyerLng] = useState<number | null>(null)
   const [locationDisplay, setLocationDisplay] = useState<string>('San Jose, CA 95125')
   const [locationInput, setLocationInput] = useState<string>('San Jose, CA 95125')
   const [isGeolocating, setIsGeolocating] = useState<boolean>(false)
@@ -75,15 +77,16 @@ function MarketProducePageContent() {
   // ── 1. Resolve User Location ──
   useEffect(() => {
     async function initLocation() {
-      // Check cached preference first
+      // Try to get zip from user profile or cache
+      let initialZip = '95125'
+      let initialLabel = 'San Jose, CA 95125'
+
       try {
         const cachedZip = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_zip') : null
         const cachedLabel = typeof window !== 'undefined' ? localStorage.getItem('casagrown_user_location_label') : null
         if (cachedZip) {
-          setZipcode(cachedZip)
-          setLocationDisplay(cachedLabel || cachedZip)
-          setLocationInput(cachedLabel || cachedZip)
-          return
+          initialZip = cachedZip
+          initialLabel = cachedLabel || cachedZip
         }
       } catch {}
 
@@ -96,26 +99,30 @@ function MarketProducePageContent() {
             .maybeSingle()
 
           if (prof?.zip_code) {
-            setZipcode(prof.zip_code)
-            const disp = [prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ') || prof.zip_code
-            setLocationDisplay(disp)
-            setLocationInput(disp)
-            return
+            initialZip = prof.zip_code
+            initialLabel = [prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ') || prof.zip_code
           }
-        } catch {
-          // ignore profile lookup error
-        }
+        } catch {}
       }
 
+      setZipcode(initialZip)
+      setLocationDisplay(initialLabel)
+      setLocationInput(initialLabel)
+
+      // Always resolve the zip to get lat/lng
       try {
-        const res = await resolveProgressiveLocation('', null)
-        if (res?.zipCode) {
-          setZipcode(res.zipCode)
-          setLocationDisplay(res.displayLabel || res.zipCode)
-          setLocationInput(res.displayLabel || res.zipCode)
+        const res = await resolveProgressiveLocation(initialZip, null)
+        if (res?.lat && res?.lng) {
+          setBuyerLat(res.lat)
+          setBuyerLng(res.lng)
+        } else {
+          // Fallback San Jose
+          setBuyerLat(37.3382)
+          setBuyerLng(-121.8863)
         }
       } catch {
-        // Fallback default remains 95125
+        setBuyerLat(37.3382)
+        setBuyerLng(-121.8863)
       }
     }
     initLocation()
@@ -226,76 +233,62 @@ function MarketProducePageContent() {
 
   // ── 3. Fetch Produce & Live Neighbor Listings ──
   const loadMarketData = useCallback(async () => {
+    if (!buyerLat || !buyerLng) return // Wait until coordinates are resolved
     setIsLoading(true)
     try {
-      const { data: rawProducts } = await supabase
-        .from('market_products')
-        .select(`
-          id,
-          name,
-          price_usd,
-          unit,
-          photos,
-          seller_id,
-          product_pickup_windows,
-          product_delivery_windows,
-          inventory,
-          is_active,
-          is_draft,
-          market_booths (
-            id,
-            name,
-            offers_delivery,
-            offers_pickup,
-            pickup_address,
-            pickup_display_address,
-            delivery_radius_miles,
-            delivery_zipcodes,
-            booth_zip
-          )
-        `)
-        .eq('is_active', true)
-        .eq('is_draft', false)
-        .limit(100)
+      const { data: nearbyBooths, error } = await supabase.rpc('nearby_booths', {
+        user_lat: buyerLat,
+        user_lng: buyerLng,
+        max_miles: 25,
+        fulfillment_filter: 'all',
+        exclude_demos: true,
+      })
+
+      if (error) {
+        console.error('Error calling nearby_booths:', error)
+      }
 
       const prodMap: Record<string, LiveProductItem[]> = {}
-      if (rawProducts) {
-        rawProducts.forEach((p: any) => {
-          const rawName = (p.name || '').trim()
-          const normName = rawName.toLowerCase()
-          const baseName = extractBaseProduce(rawName).name.toLowerCase()
-          const boothData = p.market_booths
+      
+      if (nearbyBooths) {
+        nearbyBooths.forEach((b: any) => {
+          const boothProducts = b.matched_products || []
+          boothProducts.forEach((p: any) => {
+            const rawName = (p.name || '').trim()
+            const normName = rawName.toLowerCase()
+            const baseName = extractBaseProduce(rawName).name.toLowerCase()
 
-          const liveItem: LiveProductItem = {
-            id: p.id,
-            name: p.name,
-            price: Number(p.price_usd) || 0,
-            unit: p.unit || 'lb',
-            photo_url: p.photos && p.photos.length > 0 ? p.photos[0] : undefined,
-            seller_id: p.seller_id,
-            seller_name: boothData?.name || 'Neighborhood Stand',
-            booth_id: boothData?.id || p.seller_id,
-            pickup_address: boothData?.pickup_address || '',
-            pickup_display_address: boothData?.pickup_display_address || boothData?.pickup_address || 'Porch Pickup',
-            pickup_landmark: boothData?.pickup_landmark,
-            pickup_notice_minutes: boothData?.pickup_notice_minutes || 60,
-            delivery_radius_miles: boothData?.delivery_radius_miles || 5,
-            delivery_zipcodes: boothData?.delivery_zipcodes || [],
-            booth_zip: boothData?.booth_zip || undefined,
-            distance_miles: 1.2,
-            driving_mins: 4,
-            offers_pickup: boothData?.offers_pickup || p.product_pickup_windows != null,
-            offers_delivery: boothData?.offers_delivery || p.product_delivery_windows != null,
-            stock_quantity: p.inventory,
-          }
+            const liveItem: LiveProductItem = {
+              id: p.id,
+              name: p.name,
+              price: Number(p.price_usd) || 0,
+              unit: p.unit || 'lb',
+              photo_url: p.photo,
+              seller_id: b.owner_id,
+              seller_name: b.booth_name || 'Neighborhood Stand',
+              booth_id: b.booth_id || b.owner_id,
+              pickup_address: b.pickup_address || '',
+              pickup_display_address: b.pickup_address || 'Porch Pickup',
+              pickup_landmark: undefined,
+              pickup_notice_minutes: 60,
+              delivery_radius_miles: b.delivery_radius_miles || 5,
+              delivery_zipcodes: [],
+              booth_zip: undefined,
+              distance_miles: b.distance_miles || 1.2,
+              driving_mins: Math.ceil((b.distance_miles || 1.2) * 3), // rough estimate
+              offers_pickup: b.offers_pickup,
+              offers_delivery: b.offers_delivery,
+              stock_quantity: p.inventory,
+            }
 
-          if (!prodMap[normName]) prodMap[normName] = []
-          prodMap[normName].push(liveItem)
+            if (!prodMap[normName]) prodMap[normName] = []
+            prodMap[normName].push(liveItem)
 
-          if (baseName !== normName) {
-            if (!prodMap[baseName]) prodMap[baseName] = []
-            prodMap[baseName].push(liveItem)
-          }
+            if (baseName !== normName) {
+              if (!prodMap[baseName]) prodMap[baseName] = []
+              prodMap[baseName].push(liveItem)
+            }
+          })
         })
       }
       setLiveProductsMap(prodMap)
@@ -333,61 +326,35 @@ function MarketProducePageContent() {
       })
 
       // Add any live neighbor products that were not matched to rawCatalog
-      if (rawProducts) {
-        rawProducts.forEach((p: any) => {
-          const rawName = (p.name || '').trim()
-          const norm = rawName.toLowerCase()
-          const baseName = extractBaseProduce(rawName).name.toLowerCase()
-          const existingIdx = displayList.findIndex(
-            (d) => d.name.toLowerCase() === norm || d.name.toLowerCase() === baseName
-          )
+      Object.values(prodMap).flat().forEach((p: LiveProductItem) => {
+        const rawName = (p.name || '').trim()
+        const norm = rawName.toLowerCase()
+        const baseName = extractBaseProduce(rawName).name.toLowerCase()
+        const existingIdx = displayList.findIndex(
+          (d) => d.name.toLowerCase() === norm || d.name.toLowerCase() === baseName
+        )
 
-          const allMatches = prodMap[norm] || prodMap[baseName] || []
-          const liveCount = allMatches.length || 1
+        const allMatches = prodMap[norm] || prodMap[baseName] || []
+        const liveCount = allMatches.length || 1
 
-          if (existingIdx >= 0) {
-            // Already in list -> update aggregate count
-            displayList[existingIdx].liveProductCount = liveCount
-          } else if (!displayList.some((d) => d.id === p.id)) {
-            const boothData = p.market_booths
-            const customLiveItem: LiveProductItem = {
-              id: p.id,
-              name: p.name,
-              price: Number(p.price_usd) || 3.5,
-              unit: p.unit || 'lb',
-              photo_url: p.photos?.[0],
-              seller_id: p.seller_id,
-              seller_name: boothData?.name || 'Neighborhood Stand',
-              booth_id: boothData?.id || p.seller_id,
-              pickup_address: boothData?.pickup_address || '',
-              pickup_display_address: boothData?.pickup_display_address || boothData?.pickup_address || 'Porch Pickup',
-              pickup_landmark: boothData?.pickup_landmark,
-              pickup_notice_minutes: boothData?.pickup_notice_minutes || 60,
-              delivery_radius_miles: boothData?.delivery_radius_miles || 5,
-              delivery_zipcodes: boothData?.delivery_zipcodes || [],
-              booth_zip: boothData?.booth_zip || undefined,
-              distance_miles: 1.2,
-              driving_mins: 4,
-              offers_pickup: boothData?.offers_pickup || p.product_pickup_windows != null,
-              offers_delivery: boothData?.offers_delivery || p.product_delivery_windows != null,
-              stock_quantity: p.inventory,
-            }
-
-            displayList.push({
-              id: p.id,
-              name: p.name,
-              category: p.category || 'produce',
-              displayCategory: 'Vegetables',
-              image: p.photos?.[0] || getProduceImage(p.name),
-              defaultPrice: Number(p.price_usd) || 3.5,
-              defaultUnit: p.unit || 'lb',
-              liveProductCount: liveCount,
-              liveProduct: customLiveItem,
-              description: `Freshly harvested ${p.name} from local neighbors.`,
-            })
-          }
-        })
-      }
+        if (existingIdx >= 0) {
+          // Already in list -> update aggregate count
+          displayList[existingIdx].liveProductCount = liveCount
+        } else if (!displayList.some((d) => d.id === p.id)) {
+          displayList.push({
+            id: p.id,
+            name: p.name,
+            category: 'produce',
+            displayCategory: 'Vegetables',
+            image: p.photo_url || getProduceImage(p.name),
+            defaultPrice: Number(p.price) || 3.5,
+            defaultUnit: p.unit || 'lb',
+            liveProductCount: liveCount,
+            liveProduct: p,
+            description: `Freshly harvested ${p.name} from local neighbors.`,
+          })
+        }
+      })
 
       // Sort items with live listings first!
       displayList.sort((a, b) => {
@@ -403,7 +370,7 @@ function MarketProducePageContent() {
     } finally {
       setIsLoading(false)
     }
-  }, [zipcode, supabase])
+  }, [buyerLat, buyerLng, supabase])
 
   useEffect(() => {
     loadMarketData()
@@ -454,6 +421,8 @@ function MarketProducePageContent() {
 
           if (detectedZip) {
             setZipcode(detectedZip)
+            setBuyerLat(lat)
+            setBuyerLng(lng)
             setLocationDisplay(label)
             setLocationInput(label)
             try {
@@ -484,6 +453,13 @@ function MarketProducePageContent() {
     const zipMatch = trimmed.match(/\b\d{5}\b/)
     if (zipMatch) {
       const zip = zipMatch[0]
+      try {
+        const res = await resolveProgressiveLocation(zip, null)
+        if (res?.lat && res?.lng) {
+          setBuyerLat(res.lat)
+          setBuyerLng(res.lng)
+        }
+      } catch {}
       setZipcode(zip)
       setLocationDisplay(trimmed)
       try {
@@ -497,6 +473,10 @@ function MarketProducePageContent() {
       const res = await resolveProgressiveLocation(trimmed, null)
       if (res?.zipCode) {
         setZipcode(res.zipCode)
+        if (res.lat && res.lng) {
+          setBuyerLat(res.lat)
+          setBuyerLng(res.lng)
+        }
         const label = res.displayLabel || trimmed
         setLocationDisplay(label)
         setLocationInput(label)

@@ -328,7 +328,14 @@ test.describe('Fulfillment State Integrity', () => {
     const bothLabel = pickupBox.locator('text=Both — Recommended').or(pickupBox.locator('text=Both')).or(pickupBox.locator('text=Schedule:')).or(pickupBox.locator('button[data-testid="customize-pickup-schedule-btn"]'))
     await expect(bothLabel.first()).toBeVisible()
 
-    // Click 'Weekend mornings' in delivery box
+    // If city schedule is active, the preset pills are hidden behind a city banner.
+    // Click "Customize" first to enter custom mode and reveal the preset pills.
+    const customizeDeliveryBtn = deliveryBox.locator('[data-testid="customize-delivery-schedule-btn"]')
+    if (await customizeDeliveryBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await customizeDeliveryBtn.click()
+      await page.waitForTimeout(300)
+    }
+    // Click 'Weekend mornings' in delivery box (now visible in preset group)
     await deliveryBox.locator('text=Weekend mornings').click()
     await page.waitForTimeout(300)
 

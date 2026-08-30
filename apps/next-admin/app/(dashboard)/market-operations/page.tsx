@@ -156,11 +156,14 @@ export default function MarketOperationsPage() {
     loadSchedules()
   }, [])
 
+  const [globalSettingsId, setGlobalSettingsId] = useState<string | null>(null)
+
   const loadSettings = async () => {
     setSettingsLoading(true)
     const { data } = await adminApi.select('market_settings', '*', undefined, { limit: 1, single: true })
     if (data) {
       setProductsNeverExpire(data.products_never_expire ?? false)
+      setGlobalSettingsId(data.id)
     }
     setSettingsLoading(false)
   }
@@ -385,6 +388,7 @@ export default function MarketOperationsPage() {
 
   // ── Save Global Settings ──
   const handleSaveSettings = async () => {
+    if (!globalSettingsId) return showToast('Error: Settings ID not loaded', 'error');
     setSavingSettings(true)
     const { error } = await adminApi.update(
       'market_settings',
@@ -392,7 +396,7 @@ export default function MarketOperationsPage() {
         products_never_expire: productsNeverExpire,
         updated_at: new Date().toISOString(),
       },
-      { eq: { id: true } }
+      { eq: { id: globalSettingsId } }
     )
 
     if (error) {

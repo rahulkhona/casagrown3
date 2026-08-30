@@ -138,6 +138,18 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { showPrompt, modalProps } = useNotificationPrompt(user?.id)
   const { showError } = useErrorToast()
+  const [qrUrl, setQrUrl] = useState('')
+
+  useEffect(() => {
+    if (order?.buyer_passcode && order?.id) {
+      import('./actions').then(m => {
+        m.generateSignedQrUrl(order.id, order.buyer_passcode!).then(path => {
+          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'
+          setQrUrl(origin + path)
+        })
+      }).catch(e => console.error('Failed to generate signed QR URL', e))
+    }
+  }, [order?.buyer_passcode, order?.id])
 
   const loadOrder = useCallback(async () => {
     if (!user) return
@@ -453,7 +465,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
             boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
           }}>
             <QRCode
-              value={`${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/orders/${order.id}/pickup?passcode=${order.buyer_passcode || 'PASS'}`}
+              value={qrUrl || `${typeof window !== 'undefined' ? window.location.origin : 'https://casagrown.com'}/orders/${order.id}/pickup?passcode=${order.buyer_passcode || 'PASS'}`}
               size={180}
               level="M"
             />
@@ -851,6 +863,30 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                 }}
               >
                 ✓ Issue Resolved (withdraw dispute)
+              </button>
+            )}
+
+            {/* Either Party: Escalate to Support */}
+            {['open', 'seller_responded'].includes(dispute.status) && (
+              <button
+                className="btn btn-outline btn-sm"
+                style={{ marginTop: 8, width: '100%', borderColor: 'var(--red-300, #fca5a5)', color: 'var(--red-600, #dc2626)' }}
+                disabled={actionLoading}
+                onClick={async () => {
+                  const reason = window.prompt("Why are you escalating this dispute to support?");
+                  if (!reason) return;
+                  await callRpc('escalate_dispute', { p_dispute_id: dispute.id })
+                  // Add the reason to chat
+                  if (user?.id) {
+                    await supabase.from('order_chat_messages').insert({
+                      order_id: orderId,
+                      sender_id: user.id,
+                      content: `🔺 Escalated to support: ${reason}`
+                    })
+                  }
+                }}
+              >
+                🔺 Escalate to Support
               </button>
             )}
           </div>

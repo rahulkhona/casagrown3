@@ -47,7 +47,56 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const keyPrefix = STRIPE_SECRET_KEY.substring(0, 12);
     console.log(`[MARKET-HOLD] Using Stripe key: ${keyPrefix}...`);
 
-    const { order_id, amount_cents, suggested_hold_cents } = await req.json();
+    const { action, order_id, amount_cents, suggested_hold_cents, hold_id, new_amount_cents } = await req.json();
+
+    // ══════════════════════════════════════════════════════════
+    // Handle action: adjust or release (C-3 Fix)
+    // ══════════════════════════════════════════════════════════
+    if (action === 'adjust' && hold_id && new_amount_cents !== undefined) {
+        const { data: hold } = await supabase.from('market_holds').select('*').eq('id', hold_id).single();
+        if (hold && hold.stripe_payment_intent_id) {
+            const newHoldCents = Math.max(100, new_amount_cents); // Stripe min $1
+            const adjustResponse = await fetch(
+                `${STRIPE_API_BASE}/v1/payment_intents/${hold.stripe_payment_intent_id}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `amount=${newHoldCents}`,
+                }
+            );
+            if (adjustResponse.ok) {
+                await supabase.from('market_holds')
+                    .update({ hold_amount_cents: newHoldCents, updated_at: new Date().toISOString() })
+                    .eq('id', hold_id);
+                return jsonOk({ success: true, adjustedCents: newHoldCents }, corsHeaders);
+            }
+        }
+        return jsonError("Failed to adjust hold", corsHeaders);
+    }
+    
+    if (action === 'release' && hold_id) {
+        const { data: hold } = await supabase.from('market_holds').select('*').eq('id', hold_id).single();
+        if (hold && hold.stripe_payment_intent_id) {
+            const cancelResponse = await fetch(
+                `${STRIPE_API_BASE}/v1/payment_intents/${hold.stripe_payment_intent_id}/cancel`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                }
+            );
+            if (cancelResponse.ok) {
+                await supabase.from('market_holds').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', hold_id);
+                return jsonOk({ success: true }, corsHeaders);
+            }
+        }
+        return jsonError("Failed to release hold", corsHeaders);
+    }
 
     if (!amount_cents) {
         return jsonError("amount_cents is required", corsHeaders);
@@ -93,9 +142,10 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         },
     );
 
+    // BUG FIX C-4: Return error on balance debit failure
     if (debitErr) {
         console.error("Balance debit failed:", debitErr);
-        // Non-fatal — proceed with full card hold
+        return jsonError("Failed to process wallet balance. Please try again.", corsHeaders, 500);
     }
 
     const balanceAppliedCents = balanceDebitedCents || 0;
@@ -119,19 +169,20 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // ══════════════════════════════════════════════════════════
     if (remainderCents <= 0) {
         // Check for existing hold to link order
-        const { data: existingHold } = await supabase
+        let { data: existingHold } = await supabase
             .from("market_holds")
-            .select("id, spent_amount_cents")
+            .select("id, spent_amount_cents, balance_applied_cents")
             .eq("buyer_id", buyerId)
             .eq("status", "active")
             .single();
 
         if (existingHold) {
             // Update existing hold with more balance applied
+            // BUG FIX H-4: Fix balance accumulation tautology
             await supabase
                 .from("market_holds")
                 .update({
-                    balance_applied_cents: supabase.rpc ? balanceAppliedCents : balanceAppliedCents,
+                    balance_applied_cents: existingHold.balance_applied_cents + balanceAppliedCents,
                     spent_amount_cents: existingHold.spent_amount_cents + amount_cents,
                     updated_at: new Date().toISOString(),
                 })
@@ -143,6 +194,19 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                     .update({ hold_id: existingHold.id })
                     .eq("id", order_id);
             }
+        } else {
+            // BUG FIX H-5: Create a minimal hold row for balance-only checkouts
+            const { data: newHold } = await supabase
+                .from("market_holds")
+                .insert({
+                    buyer_id: buyerId,
+                    stripe_payment_intent_id: "wallet_only",
+                    hold_amount_cents: 0,
+                    balance_applied_cents: balanceAppliedCents,
+                    spent_amount_cents: amount_cents,
+                    status: "active",
+                }).select('id').single();
+            existingHold = newHold;
         }
 
         console.log(

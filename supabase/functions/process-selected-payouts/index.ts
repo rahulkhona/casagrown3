@@ -119,6 +119,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         }
 
         try {
+            // BUG FIX C-9: Pessimistic Lock before processing
+            const { data: lockResult, error: lockErr } = await supabase
+                .from("redemptions")
+                .update({ status: "processing", processing_started_at: new Date().toISOString() })
+                .eq("id", redemption.id)
+                .in("status", ["queued", "failed"])
+                .select("id");
+            if (lockErr || !lockResult || lockResult.length === 0) {
+                console.warn(`[MANUAL-RETRY] Skipping ${redemption.id} - already locked or processed`);
+                continue;
+            }
+
             if (provider === "globalgiving") {
                 await processGlobalGiving(supabase, env, redemption, user_id, point_cost, metadata);
             } else if (provider === "reloadly") {

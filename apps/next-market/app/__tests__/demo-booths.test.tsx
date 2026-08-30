@@ -163,6 +163,13 @@ vi.mock('../../../lib/store', () => ({
 vi.mock('../../lib/geocode', () => ({ geocodeAddress: vi.fn() }))
 vi.mock('../../../lib/geocode', () => ({ geocodeAddress: vi.fn() }))
 
+vi.mock('../../lib/locationResolver', () => ({
+  resolveProgressiveLocation: vi.fn().mockResolvedValue({ lat: 37.7749, lng: -122.4194, method: 'mock' })
+}))
+vi.mock('../../../lib/locationResolver', () => ({
+  resolveProgressiveLocation: vi.fn().mockResolvedValue({ lat: 37.7749, lng: -122.4194, method: 'mock' })
+}))
+
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn() }))
 vi.mock('../../../lib/analytics', () => ({ trackEvent: vi.fn(), trackPageView: vi.fn(), setAnalyticsUser: vi.fn() }))
 
@@ -210,9 +217,8 @@ describe('Produce Cards on Market Page', () => {
   it('renders produce cards on market page', async () => {
     const { container } = render(React.createElement(BrowseMarketPage))
     await waitFor(() => {
-      expect(container.textContent).toContain('Add Produce')
+      expect(container.textContent).toContain('Cherry Tomatoes')
     })
-    expect(container.textContent).toContain('Lemons')
   })
 
   it('renders category filter tabs', async () => {

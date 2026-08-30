@@ -92,62 +92,37 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
     // BUG-15: Track per-capture results for accurate totalCaptured computation
     const captureResults = captures.map(c => ({ id: c.id, success: false, amount: 0 }));
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < captures.length; i += BATCH_SIZE) {
+        const batch = captures.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async (capture, batchIdx) => {
+            const captureIdx = i + batchIdx;
+            const captureAmountCents = Math.round(capture.capture_amount_usd * 100);
 
-    for (let captureIdx = 0; captureIdx < captures.length; captureIdx++) {
-        const capture = captures[captureIdx];
-        const captureAmountCents = Math.round(capture.capture_amount_usd * 100);
+            // BUG-17: Check if PaymentIntent auth has expired (> 6 days / 144 hours)
+            const createdAt = new Date(capture.created_at);
+            const ageMs = Date.now() - createdAt.getTime();
+            const maxAgeMs = 144 * 60 * 60 * 1000; // 6 days in ms
+            if (ageMs > maxAgeMs) {
+                console.warn(
+                    `⚠️ [CAPTURE] Skipping expired PI ${capture.stripe_payment_intent_id} ` +
+                    `(created ${createdAt.toISOString()}, age: ${(ageMs / 3600000).toFixed(1)}h)`,
+                );
+                await supabase
+                    .from("settlement_captures")
+                    .update({
+                        capture_status: "expired",
+                        error_message: `PaymentIntent auth expired (age: ${(ageMs / 3600000).toFixed(1)}h, max: 144h)`,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", capture.id);
+                failed++;
+                return;
+            }
 
-        // BUG-17: Check if PaymentIntent auth has expired (> 6 days / 144 hours)
-        const createdAt = new Date(capture.created_at);
-        const ageMs = Date.now() - createdAt.getTime();
-        const maxAgeMs = 144 * 60 * 60 * 1000; // 6 days in ms
-        if (ageMs > maxAgeMs) {
-            console.warn(
-                `⚠️ [CAPTURE] Skipping expired PI ${capture.stripe_payment_intent_id} ` +
-                `(created ${createdAt.toISOString()}, age: ${(ageMs / 3600000).toFixed(1)}h)`,
-            );
-            await supabase
-                .from("settlement_captures")
-                .update({
-                    capture_status: "expired",
-                    error_message: `PaymentIntent auth expired (age: ${(ageMs / 3600000).toFixed(1)}h, max: 144h)`,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", capture.id);
-            failed++;
-            continue;
-        }
-
-        // Attempt Stripe capture
-        const result = await attemptStripeCapture(
-            STRIPE_SECRET_KEY,
-            capture.stripe_payment_intent_id,
-            captureAmountCents,
-            STRIPE_API_BASE,
-            capture.id,
-        );
-
-        if (result.success) {
-            // Update capture record with Stripe charge ID
-            await supabase
-                .from("settlement_captures")
-                .update({
-                    stripe_capture_id: result.chargeId,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", capture.id);
-
-            console.log(`✅ [CAPTURE] ${capture.stripe_payment_intent_id} → $${capture.capture_amount_usd}`);
-            captureResults[captureIdx].success = true;
-            captureResults[captureIdx].amount = capture.capture_amount_usd;
-            succeeded++;
-        } else {
-            console.warn(`⚠️ [CAPTURE] First attempt failed for ${capture.stripe_payment_intent_id}: ${result.error}`);
-
-            // Auto-retry after 5 second delay
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-
-            const retryResult = await attemptStripeCapture(
+            // Attempt Stripe capture
+            const result = await attemptStripeCapture(
                 STRIPE_SECRET_KEY,
                 capture.stripe_payment_intent_id,
                 captureAmountCents,
@@ -155,90 +130,119 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 capture.id,
             );
 
-            if (retryResult.success) {
+            if (result.success) {
+                // Update capture record with Stripe charge ID
                 await supabase
                     .from("settlement_captures")
                     .update({
-                        stripe_capture_id: retryResult.chargeId,
+                        stripe_capture_id: result.chargeId,
                         updated_at: new Date().toISOString(),
                     })
                     .eq("id", capture.id);
 
-                console.log(`✅ [CAPTURE] Retry succeeded: ${capture.stripe_payment_intent_id}`);
+                console.log(`✅ [CAPTURE] ${capture.stripe_payment_intent_id} → $${capture.capture_amount_usd}`);
                 captureResults[captureIdx].success = true;
                 captureResults[captureIdx].amount = capture.capture_amount_usd;
                 succeeded++;
             } else {
-                // Permanent failure → mark capture failed, create buyer debt
-                const errorMsg = retryResult.error || "Capture failed after retry";
+                console.warn(`⚠️ [CAPTURE] First attempt failed for ${capture.stripe_payment_intent_id}: ${result.error}`);
 
-                await supabase
-                    .from("settlement_captures")
-                    .update({
-                        capture_status: "failed",
+                // Auto-retry after 5 second delay
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+
+                const retryResult = await attemptStripeCapture(
+                    STRIPE_SECRET_KEY,
+                    capture.stripe_payment_intent_id,
+                    captureAmountCents,
+                    STRIPE_API_BASE,
+                    capture.id,
+                );
+
+                if (retryResult.success) {
+                    await supabase
+                        .from("settlement_captures")
+                        .update({
+                            stripe_capture_id: retryResult.chargeId,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("id", capture.id);
+
+                    console.log(`✅ [CAPTURE] Retry succeeded: ${capture.stripe_payment_intent_id}`);
+                    captureResults[captureIdx].success = true;
+                    captureResults[captureIdx].amount = capture.capture_amount_usd;
+                    succeeded++;
+                } else {
+                    // Permanent failure → mark capture failed, create buyer debt
+                    const errorMsg = retryResult.error || "Capture failed after retry";
+
+                    await supabase
+                        .from("settlement_captures")
+                        .update({
+                            capture_status: "failed",
+                            error_message: errorMsg,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq("id", capture.id);
+
+                    // Create buyer debt
+                    await supabase.from("buyer_debts").insert({
+                        buyer_id: capture.buyer_id,
+                        settlement_id: settlement_id,
+                        capture_id: capture.id,
+                        amount_usd: capture.capture_amount_usd,
+                        reason: "capture_failed",
+                        stripe_payment_intent_id: capture.stripe_payment_intent_id,
                         error_message: errorMsg,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("id", capture.id);
+                        retry_count: 2,
+                    });
 
-                // Create buyer debt
-                await supabase.from("buyer_debts").insert({
-                    buyer_id: capture.buyer_id,
-                    settlement_id: settlement_id,
-                    capture_id: capture.id,
-                    amount_usd: capture.capture_amount_usd,
-                    reason: "capture_failed",
-                    stripe_payment_intent_id: capture.stripe_payment_intent_id,
-                    error_message: errorMsg,
-                    retry_count: 2,
-                });
+                    // Notify buyer (GAP-9: fix table + add email + SMS)
+                    await supabase.from("market_notifications").insert({
+                        user_id: capture.buyer_id,
+                        content: `⚠️ Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. ` +
+                            `Please update your payment method to continue using the market.`,
+                        link_url: "/profile",
+                    });
 
-                // Notify buyer (GAP-9: fix table + add email + SMS)
-                await supabase.from("market_notifications").insert({
-                    user_id: capture.buyer_id,
-                    content: `⚠️ Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. ` +
-                        `Please update your payment method to continue using the market.`,
-                    link_url: "/profile",
-                });
+                    // Typed email for capture failure
+                    try {
+                        const { data: profile } = await supabase
+                            .from("profiles").select("full_name").eq("id", capture.buyer_id).single();
+                        const { data: emailData } = await supabase
+                            .rpc("get_user_email", { p_user_id: capture.buyer_id });
 
-                // Typed email for capture failure
-                try {
-                    const { data: profile } = await supabase
-                        .from("profiles").select("full_name").eq("id", capture.buyer_id).single();
-                    const { data: emailData } = await supabase
-                        .rpc("get_user_email", { p_user_id: capture.buyer_id });
+                        if (emailData) {
+                            await supabase.functions.invoke("send-notification-email", {
+                                body: {
+                                    type: "capture_failed",
+                                    recipients: [{ email: emailData, name: profile?.full_name || "there" }],
+                                    dollarAmount: capture.capture_amount_usd,
+                                },
+                            });
+                        }
+                    } catch (emailErr) {
+                        console.warn("Capture failure email failed:", emailErr);
+                    }
 
-                    if (emailData) {
-                        await supabase.functions.invoke("send-notification-email", {
+                    // SMS fallback for capture failure
+                    try {
+                        await supabase.functions.invoke("send-sms-notification", {
                             body: {
-                                type: "capture_failed",
-                                recipients: [{ email: emailData, name: profile?.full_name || "there" }],
-                                dollarAmount: capture.capture_amount_usd,
+                                userId: capture.buyer_id,
+                                message: `⚠️ CasaGrown: Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. Please update your payment method.`,
+                                linkUrl: "/profile",
                             },
                         });
+                    } catch (smsErr) {
+                        console.warn("Capture failure SMS failed:", smsErr);
                     }
-                } catch (emailErr) {
-                    console.warn("Capture failure email failed:", emailErr);
-                }
 
-                // SMS fallback for capture failure
-                try {
-                    await supabase.functions.invoke("send-sms-notification", {
-                        body: {
-                            userId: capture.buyer_id,
-                            message: `⚠️ CasaGrown: Payment of $${capture.capture_amount_usd.toFixed(2)} could not be processed. Please update your payment method.`,
-                            linkUrl: "/profile",
-                        },
-                    });
-                } catch (smsErr) {
-                    console.warn("Capture failure SMS failed:", smsErr);
+                    console.error(`❌ [CAPTURE] Failed permanently: ${capture.stripe_payment_intent_id} → debt created`);
+                    failed++;
+                    debtsCreated++;
                 }
-
-                console.error(`❌ [CAPTURE] Failed permanently: ${capture.stripe_payment_intent_id} → debt created`);
-                failed++;
-                debtsCreated++;
             }
-        }
+        }));
     }
 
     // Record bank ledger inflow for total successfully captured amount

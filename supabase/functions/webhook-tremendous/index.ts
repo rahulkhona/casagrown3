@@ -31,14 +31,18 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     const signature = req.headers.get("tremendous-webhook-signature") ||
         req.headers.get("x-tremendous-webhook-signature");
 
-    // Verify signature if secret is configured
-    if (WEBHOOK_SECRET && signature) {
+    if (!WEBHOOK_SECRET) {
+        console.error("[CRITICAL] Tremendous webhook secret not configured");
+        return new Response("Webhook secret not configured", { status: 500 });
+    }
+
+    if (signature) {
         const isValid = await verifyHmacSha256(body, signature, WEBHOOK_SECRET);
         if (!isValid) {
             console.error("[WEBHOOK-TREMENDOUS] Invalid signature");
             return jsonError("Invalid signature", corsHeaders, 401);
         }
-    } else if (WEBHOOK_SECRET && !signature) {
+    } else {
         console.error("[WEBHOOK-TREMENDOUS] Missing signature header");
         return jsonError("Missing signature", corsHeaders, 401);
     }
@@ -78,7 +82,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     }
 
     // Idempotency: skip if already completed or failed
-    if (redemption.status === "completed" || redemption.status === "refunded") {
+    if (redemption.status === "completed" || redemption.status === "refunded" || redemption.status === "failed") {
         console.log(`[WEBHOOK-TREMENDOUS] Redemption ${externalId} already ${redemption.status}, skipping`);
         return jsonOk({ received: true, alreadyProcessed: true }, corsHeaders);
     }
@@ -156,6 +160,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
             return jsonOk({ received: true, status: "completed" }, corsHeaders);
         }
 
+        case "REWARDS.ORDER.FAILED":
         case "REWARDS.DELIVERY.FAILED": {
             const failReason = payload.failure_reason || reward?.failure_details || "Delivery failed";
             const brandName = redemption.metadata?.brand_name || "Gift card";

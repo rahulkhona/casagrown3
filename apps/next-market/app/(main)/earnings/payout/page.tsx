@@ -300,7 +300,7 @@ export default function PayoutPage() {
     const tabs: { key: Tab; icon: string; label: string }[] = []
     if (availableUsd >= GIFT_CARD_MIN || isMethodAvailable('giftcards')) tabs.push({ key: 'giftCards', icon: '🎁', label: 'Gift Cards' })
     if (isMethodAvailable('charity')) tabs.push({ key: 'donate', icon: '❤️', label: 'Donate' })
-    if (isMethodAvailable('cashout') || true) tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo / PayPal' })
+    if (isMethodAvailable('cashout')) tabs.push({ key: 'cashout', icon: '💸', label: 'Venmo / PayPal' })
     if (tabs.length === 0) {
       tabs.push({ key: 'giftCards', icon: '🎁', label: 'Gift Cards' })
       tabs.push({ key: 'donate', icon: '❤️', label: 'Donate' })

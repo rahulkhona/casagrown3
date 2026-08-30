@@ -97,11 +97,22 @@ export default function CashFlowPage() {
   const simulateDeposit = async () => {
     setDepositLoading(true)
     setDepositResult(null)
-    const { data, error } = await adminApi.invokeFunction('simulate-bank-deposit', { amount_usd: 1000 })
+    
+    // M-33: Get most recent pending settlement
+    const { data: pendingData } = await adminApi.select('market_settlements', 'id', { eq: { status: 'funds_pending' } }, { order: { column: 'created_at', ascending: false }, limit: 1 })
+    const pending = pendingData?.[0]
+      
+    if (!pending) {
+      setDepositResult(`Error: No funds_pending settlements found to simulate`)
+      setDepositLoading(false)
+      return
+    }
+
+    const { data, error } = await adminApi.invokeFunction('simulate-bank-deposit', { settlement_id: pending.id })
     if (error) {
       setDepositResult(`Error: ${error}`)
     } else {
-      setDepositResult(`Deposited $${data?.amount_usd || 1000} (entry #${data?.entry_id || '?'})`)
+      setDepositResult(`Deposited $${data?.simulated_payout_usd || 0} for settlement ${data?.settlement_id || '?'}`)
       fetchData()
     }
     setDepositLoading(false)

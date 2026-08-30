@@ -54,8 +54,12 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
   // Auth: service-role only
   const authHeader = req.headers.get("Authorization");
   const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  if (!authHeader || !authHeader.includes(serviceRoleKey || "")) {
-    return jsonError("Unauthorized", corsHeaders, 401);
+  if (!serviceRoleKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY not set")
+      return jsonError("Server misconfiguration", corsHeaders, 500)
+  }
+  if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+      return jsonError("Unauthorized", corsHeaders, 401);
   }
 
   // 1. Fetch eligible users
@@ -197,13 +201,61 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         ? "https://api-m.paypal.com"
         : "https://api-m.sandbox.paypal.com";
 
-      const recipients: PayPalRecipient[] = cashoutUsers.map((u) => ({
-        user_id: u.user_id,
-        payout_handle: u.payout_handle,
-        amount_usd: Number(u.available_usd),
-        note: `CasaGrown auto-payout (${u.trigger_reason})`,
-      }));
+        // BUG FIX C-1: Insert redemption rows first so webhook has rows to finalize
+        const redemptionIds: Record<string, string> = {}
+        for (const u of cashoutUsers) {
+            const { data: redemption, error: insertErr } = await supabase
+                .from('redemptions')
+                .insert({
+                    user_id: u.user_id,
+                    provider: 'paypal',
+                    point_cost: Math.round(Number(u.available_usd) * 100),
+                    status: 'pending',  // webhook will flip to completed
+                    metadata: {
+                        source: 'auto_payout', trigger: u.trigger_reason,
+                        payout_target: u.payout_handle,
+                    },
+                })
+                .select('id').single()
+            if (insertErr || !redemption) {
+                console.error(`Failed to insert redemption for ${u.user_id}:`, insertErr)
+                continue
+            }
+            redemptionIds[u.user_id] = redemption.id
+        }
 
+        const validCashoutUsers = cashoutUsers.filter(u => redemptionIds[u.user_id])
+        if (validCashoutUsers.length === 0) {
+            return jsonError("Failed to create redemption rows", corsHeaders, 500)
+        }
+
+        const debits = validCashoutUsers.map((u) => ({
+            user_id: u.user_id,
+            amount_usd: Number(u.available_usd),
+            reason: `auto_payout_${u.trigger_reason}`,
+        }));
+
+        // Debit BEFORE the batch send (additional safeguard)
+        const { error: debitError } = await supabase
+            .rpc('batch_debit_market_balance', { p_debits: debits })
+        if (debitError) {
+            console.error("Batch debit failed:", debitError)
+            // Mark all redemptions as failed — no money has moved
+            await supabase.from('redemptions').update({ status: 'failed' })
+                .in('id', Object.values(redemptionIds))
+            return jsonError('Batch debit failed — no payouts sent', corsHeaders, 500)
+        }
+
+        const recipients: PayPalRecipient[] = validCashoutUsers.map((u) => ({
+            user_id: u.user_id,
+            payout_handle: u.payout_handle!,
+            amount_usd: Number(u.available_usd),
+            sender_item_id: redemptionIds[u.user_id], // Pass redemption ID so webhook can look it up
+            note: `CasaGrown auto-payout (${u.trigger_reason})`,
+        }));
+
+        console.log(`[EXECUTE-AUTO-PAYOUTS] Sending PayPal batch to ${recipients.length} users`);
+        
       try {
         const batchResult = await sendBatchPayPalPayout(
           recipients,
@@ -214,89 +266,56 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         );
 
         if (batchResult.success) {
-          // Batch debit all cashout users at once
-          const debits = cashoutUsers.map((u) => ({
-            user_id: u.user_id,
-            amount_usd: Number(u.available_usd),
-            metadata: {
-              provider: "paypal",
-              payout_target: u.payout_handle,
-              batch_id: batchResult.batch_id,
-              trigger: u.trigger_reason,
-            },
-          }));
-
-          const { data: debitResult, error: debitError } = await supabase
-            .rpc("batch_debit_market_balance", { p_debits: debits });
-
-          if (debitError) {
-            console.error("[AUTO-PAYOUT] CRITICAL: Batch debit failed after PayPal batch succeeded:", JSON.stringify(debitError));
-
-            // Mark ALL users in this batch as debit_failed
+            console.log(
+                `✅ [EXECUTE-AUTO-PAYOUTS] Batch accepted. Batch ID: ${batchResult.batch_id}`,
+            );
             for (const u of cashoutUsers) {
-              results.push({
+                results.push({
+                    user_id: u.user_id,
+                    trigger: u.trigger_reason,
+                    method: "cashout",
+                    amount: Number(u.available_usd),
+                    status: "success",
+                });
+            }
+        } else {
+            console.error(`❌ [EXECUTE-AUTO-PAYOUTS] Batch failed:`, batchResult.error);
+            
+            // Refund the debit since the batch failed entirely
+            for (const debit of debits) {
+                await supabase.rpc('credit_market_balance', {
+                    p_user_id: debit.user_id,
+                    p_amount_usd: debit.amount_usd,
+                    p_reason: 'paypal_batch_failed_refund'
+                })
+            }
+            
+            // Mark redemptions as failed
+            await supabase.from('redemptions').update({ status: 'failed' })
+                .in('id', Object.values(redemptionIds))
+            
+            for (const u of cashoutUsers) {
+                results.push({
+                    user_id: u.user_id,
+                    trigger: u.trigger_reason,
+                    method: "cashout",
+                    amount: Number(u.available_usd),
+                    status: "failed",
+                    error: batchResult.error,
+                });
+            }
+        }
+      } catch (err) {
+        console.error("[AUTO-PAYOUT] Unexpected PayPal error:", err);
+        for (const u of cashoutUsers) {
+            results.push({
                 user_id: u.user_id,
                 trigger: u.trigger_reason,
                 method: "cashout",
                 amount: Number(u.available_usd),
                 status: "failed",
-                error: `Batch debit failed: ${debitError.message}`,
-              });
-            }
-
-            // Insert admin alert notification
-            await supabase.from("market_notifications").insert({
-              user_id: null,
-              content: `🚨 CRITICAL: PayPal batch ${batchResult.batch_id} sent successfully but balance debit failed. ${cashoutUsers.length} users affected. Error: ${debitError.message}`,
-              link_url: "/admin/payouts",
+                error: String(err),
             });
-
-            return jsonError(
-              `PayPal batch sent (batch_id=${batchResult.batch_id}) but balance debit failed: ${debitError.message}. Manual reconciliation required.`,
-              corsHeaders,
-              500
-            );
-          }
-
-          for (const u of cashoutUsers) {
-            results.push({
-              user_id: u.user_id,
-              trigger: u.trigger_reason,
-              method: "cashout",
-              amount: Number(u.available_usd),
-              status: "success",
-            });
-          }
-
-          console.log(
-            `[AUTO-PAYOUT] PayPal batch sent: ${batchResult.items_count} items, ` +
-            `batch_id=${batchResult.batch_id}, debits=${debitResult?.succeeded || 'unknown'}`
-          );
-        } else {
-          console.error("[AUTO-PAYOUT] PayPal batch failed:", batchResult.error);
-          for (const u of cashoutUsers) {
-            results.push({
-              user_id: u.user_id,
-              trigger: u.trigger_reason,
-              method: "cashout",
-              amount: Number(u.available_usd),
-              status: "failed",
-              error: batchResult.error,
-            });
-          }
-        }
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.error("[AUTO-PAYOUT] PayPal batch exception:", errMsg);
-        for (const u of cashoutUsers) {
-          results.push({
-            user_id: u.user_id,
-            trigger: u.trigger_reason,
-            method: "cashout",
-            amount: Number(u.available_usd),
-            status: "failed",
-            error: errMsg,
-          });
         }
       }
     }

@@ -19,9 +19,26 @@ import {
 import { sendPushNotification } from "../_shared/push-notify.ts";
 import { sendTransactionEmail, getUserEmail } from "../_shared/postmark.ts";
 import { buildPayoutEmail } from "../_shared/payout-email.ts";
+import { verifyHmacSha256 } from "./verifyHmacSha256.ts";
 
 serveWithCors(async (req, { supabase, env, corsHeaders }) => {
+    const WEBHOOK_SECRET = env("RELOADLY_WEBHOOK_SECRET");
+    
     const body = await req.text();
+    const signature = req.headers.get("x-reloadly-signature");
+
+    // Verify signature if secret is configured (C-5 Fix)
+    if (WEBHOOK_SECRET && signature) {
+        const isValid = await verifyHmacSha256(body, signature, WEBHOOK_SECRET);
+        if (!isValid) {
+            console.error("[WEBHOOK-RELOADLY] Invalid signature");
+            return jsonError("Invalid signature", corsHeaders, 401);
+        }
+    } else if (WEBHOOK_SECRET && !signature) {
+        console.error("[WEBHOOK-RELOADLY] Missing signature header");
+        return jsonError("Missing signature", corsHeaders, 401);
+    }
+
     const event = JSON.parse(body);
 
     // BUG-32: Log request metadata for audit trail

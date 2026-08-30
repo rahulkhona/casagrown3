@@ -385,6 +385,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders, siteUrl }) => {
         'line_items[0][price]': priceId,
         'line_items[0][quantity]': '1',
         'metadata[supabase_user_id]': userId,
+        'metadata[plan]': plan,
         'subscription_data[metadata][supabase_user_id]': userId,
         'subscription_data[metadata][plan]': plan,
       }

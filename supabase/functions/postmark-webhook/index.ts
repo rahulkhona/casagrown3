@@ -132,6 +132,12 @@ Deno.serve(async (req: Request) => {
           .eq("email", recipient)
           .is("bounced_at", null);
       }
+      if (recordType === "SpamComplaint") {
+        await supabase
+          .from("crm_leads")
+          .update({ accepts_email: false })
+          .eq("email", recipient);
+      }
       break;
     }
 

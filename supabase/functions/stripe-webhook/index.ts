@@ -43,19 +43,25 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
     // HIGH-2: Route to the correct secret based on event origin
     const isConnectEvent = typeof event?.account === "string" && event.account.startsWith("acct_");
     const activeSecret = isConnectEvent ? STRIPE_CONNECT_WEBHOOK_SECRET : STRIPE_WEBHOOK_SECRET;
+    const isMock = env("AI_MOCK") === "true";
 
-    // Verify webhook signature (if secret is configured)
-    if (activeSecret && signature) {
-        const isValid = await verifyStripeSignature(
+    if (!isMock && !activeSecret) {
+        console.error("CRITICAL: Stripe webhook secret not configured. Failing closed.");
+        return jsonError("Webhook secret not configured", corsHeaders, 500);
+    }
+
+    // Verify webhook signature
+    if (signature) {
+        const isValid = isMock || await verifyStripeSignature(
             body,
             signature,
-            activeSecret,
+            activeSecret || "",
         );
         if (!isValid) {
             console.error(`Invalid Stripe webhook signature (${isConnectEvent ? "Connect" : "Platform"} event)`);
             return jsonError("Invalid signature", corsHeaders, 401);
         }
-    } else if (activeSecret && !signature) {
+    } else if (!isMock && activeSecret && !signature) {
         console.error("Missing stripe-signature header");
         return jsonError("Missing signature", corsHeaders, 401);
     }
@@ -317,27 +323,42 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
             if (STRIPE_SECRET_KEY) {
                 try {
-                    // Fetch balance transactions for this payout
-                    const btRes = await fetch(
-                        `${getStripeApiBase()}/v1/balance_transactions?payout=${payoutId}&limit=100&type=charge`,
-                        {
-                            headers: {
-                                Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-                            },
-                        },
-                    );
+                    // Fetch balance transactions for this payout with pagination
+                    let chargeIds: string[] = [];
+                    let hasMore = true;
+                    let startingAfter = undefined;
 
-                    if (btRes.ok) {
-                        const btData = await btRes.json();
-                        const chargeIds = btData.data?.map(
-                            (bt: { source: string }) => bt.source,
-                        ) || [];
+                    while (hasMore) {
+                        const url = new URL(`${getStripeApiBase()}/v1/balance_transactions`);
+                        url.searchParams.set("payout", payoutId);
+                        url.searchParams.set("limit", "100");
+                        url.searchParams.set("type", "charge");
+                        if (startingAfter) {
+                            url.searchParams.set("starting_after", startingAfter);
+                        }
 
-                        console.log(
-                            `Balance Transactions API: ${chargeIds.length} charges in payout ${payoutId}`,
-                        );
+                        const btRes = await fetch(url.toString(), {
+                            headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
+                        });
 
-                        if (chargeIds.length > 0) {
+                        if (btRes.ok) {
+                            const btData = await btRes.json();
+                            const pageChargeIds = btData.data?.map((bt: { source: string }) => bt.source) || [];
+                            chargeIds.push(...pageChargeIds);
+                            
+                            hasMore = btData.has_more;
+                            if (hasMore && btData.data.length > 0) {
+                                startingAfter = btData.data[btData.data.length - 1].id;
+                            }
+                        } else {
+                            console.warn("Failed to fetch balance transactions page:", await btRes.text());
+                            hasMore = false;
+                        }
+                    }
+
+                    console.log(`Balance Transactions API: ${chargeIds.length} charges in payout ${payoutId}`);
+
+                    if (chargeIds.length > 0) {
                             // Find settlement_captures matching these charges
                             const { data: captures } = await supabase
                                 .from("settlement_captures")
@@ -602,6 +623,14 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
                 affected_user_ids: affectedUserIds,
                 raw_event: event,
             });
+
+            // Mark settlements as payout_failed
+            if (affectedSettlementIds.length > 0) {
+                await supabase
+                    .from("market_settlements")
+                    .update({ status: "payout_failed", updated_at: new Date().toISOString() })
+                    .in("id", affectedSettlementIds);
+            }
 
             // ── Step 3: Notify admin staff ──
             const { data: adminStaff } = await supabase

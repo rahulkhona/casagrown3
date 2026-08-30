@@ -81,6 +81,8 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
 
       // Determine if trial
       const status = session.payment_status === 'paid' ? 'active' : 'trialing'
+      
+      const plan = (session.metadata?.plan as 'pro' | 'elite') || 'pro'
 
       const { error: updateErr } = await supabase
         .from('seller_subscriptions')
@@ -88,7 +90,7 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           user_id: targetUserId,
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
-          plan: 'pro',
+          plan,
           status,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
@@ -163,6 +165,15 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
         .single()
 
       if (sub) {
+        // H-10: Check if invoice already processed (idempotent)
+        const { data: existing } = await supabase
+          .from('subscription_receipts').select('id')
+          .eq('stripe_invoice_id', invoice.id).maybeSingle()
+        if (existing) {
+          console.log(`[SUB-WEBHOOK] Duplicate invoice.paid for ${invoice.id}, skipping.`)
+          return jsonOk({ received: true, duplicate: true }, corsHeaders)
+        }
+
         await supabase
           .from('seller_subscriptions')
           .update({
@@ -324,6 +335,11 @@ serveWithCors(async (req, { supabase, env, corsHeaders }) => {
           .from('seller_subscriptions')
           .update({ status: 'past_due', updated_at: new Date().toISOString() })
           .eq('user_id', sub.user_id)
+
+        const attemptCount = invoice.attempt_count ?? 1
+        if (attemptCount >= 3) {
+          await supabase.from('profiles').update({ is_pro: false }).eq('id', sub.user_id)
+        }
 
         await supabase.from('notifications').insert({
           user_id: sub.user_id,

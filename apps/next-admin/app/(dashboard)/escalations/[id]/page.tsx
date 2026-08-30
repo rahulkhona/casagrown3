@@ -185,6 +185,10 @@ export default function EscalationDetailPage() {
       alert('Please provide a resolution reason')
       return
     }
+
+    const confirmMsg = `Are you sure you want to execute this resolution?\n\nAction: ${resolutionType.replace(/_/g, ' ').toUpperCase()}\nAffected Order: ${order?.id}\n\nThis cannot be undone.`
+    if (!window.confirm(confirmMsg)) return
+
     setResolving(true)
     try {
       const rpcParams: any = {
@@ -211,6 +215,39 @@ export default function EscalationDetailPage() {
       const res = await adminApi.rpc('admin_resolve_escalation', rpcParams)
       if (res.data?.error) {
         alert('Error: ' + res.data.error)
+      } else {
+        fetchDetail()
+      }
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  const handleFlagFraud = async (userId: string, isBuyer: boolean) => {
+    const role = isBuyer ? 'Buyer' : 'Seller';
+    if (!window.confirm(`Are you sure you want to flag this ${role} for fraud?\n\nThis will ban their account and close the dispute (No Action).`)) return;
+    
+    setResolving(true)
+    try {
+      const banRes = await adminApi.rpc('staff_ban_user', {
+        target_user_id: userId,
+        banned: true,
+        reason: `Flagged for fraud in dispute ${disputeId}`
+      })
+      
+      if (banRes.data?.error) {
+        alert('Ban Error: ' + banRes.data.error)
+        return
+      }
+
+      const res = await adminApi.rpc('admin_resolve_escalation', {
+        p_order_id: detail!.order.id,
+        p_resolution_type: 'no_action',
+        p_reason: `Account banned for fraud: ${role}`
+      });
+
+      if (res.data?.error) {
+        alert('Resolution Error: ' + res.data.error)
       } else {
         fetchDetail()
       }
@@ -388,11 +425,21 @@ export default function EscalationDetailPage() {
                 <Text fontSize={12} color="#6B7280" fontWeight="600">BUYER</Text>
                 <Text fontSize={14} fontWeight="500" color="#374151">{buyer?.name || 'Unknown'}</Text>
                 <Text fontSize={12} color="#9CA3AF">{buyer?.email}</Text>
+                {!isResolved && (
+                  <Button size="$2" backgroundColor="#FEF2F2" borderColor="#FCA5A5" borderWidth={1} marginTop="$2" onPress={() => handleFlagFraud(buyer.id, true)}>
+                    <Text fontSize={11} color="#DC2626">🚩 Flag for Fraud</Text>
+                  </Button>
+                )}
               </YStack>
               <YStack flex={1} gap="$1">
                 <Text fontSize={12} color="#6B7280" fontWeight="600">SELLER</Text>
                 <Text fontSize={14} fontWeight="500" color="#374151">{seller?.name || 'Unknown'}</Text>
                 <Text fontSize={12} color="#9CA3AF">{seller?.email}</Text>
+                {!isResolved && (
+                  <Button size="$2" backgroundColor="#FEF2F2" borderColor="#FCA5A5" borderWidth={1} marginTop="$2" onPress={() => handleFlagFraud(seller.id, false)}>
+                    <Text fontSize={11} color="#DC2626">🚩 Flag for Fraud</Text>
+                  </Button>
+                )}
               </YStack>
             </XStack>
             <Separator />

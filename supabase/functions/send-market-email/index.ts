@@ -11,7 +11,7 @@
 //
 // Falls back to Mailpit (local Docker) when POSTMARK_SERVER_TOKEN is not set.
 
-import { serveWithCors } from '../_shared/serve-with-cors.ts'
+import { serveWithCors, requireAuth } from '../_shared/serve-with-cors.ts'
 import { sendTransactionEmail } from '../_shared/postmark.ts'
 import { wrapInBrandedTemplate, actionButton } from '../_shared/email-templates.ts'
 
@@ -22,7 +22,14 @@ interface EmailRequest {
   text?: string
 }
 
-serveWithCors(async (req, { corsHeaders }) => {
+serveWithCors(async (req, { supabase, corsHeaders }) => {
+  // M-36: Secure endpoint
+  const authUserId = await requireAuth(req, supabase, corsHeaders)
+  if (authUserId instanceof Response) return authUserId
+  if (authUserId !== 'service_role') {
+    return new Response(JSON.stringify({ error: 'Service Role only' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  }
+
   let { to, subject, html, text } = (await req.json()) as EmailRequest
 
   // Strip emojis and non-ASCII characters (e.g. 🛒, 📦, —, ×) from the subject
@@ -124,12 +131,34 @@ serveWithCors(async (req, { corsHeaders }) => {
      });
   }
 
-  const result = await sendTransactionEmail({ to, subject, htmlBody: finalHtml })
+  let success = false
+  try {
+    const result = await sendTransactionEmail({ to, subject, htmlBody: finalHtml })
+    success = result.success
+  } catch (err: any) {
+    console.error(`[send-market-email] Failed:`, err)
+  }
 
-  console.log(`[send-market-email] Sent to ${to}: ${subject} - Success: ${result.success}`)
+  console.log(`[send-market-email] Sent to ${to}: ${subject} - Success: ${success}`)
+
+  // M-35: Insert email delivery failure notification
+  if (!success) {
+    try {
+      const { data: adminRole } = await supabase.from('staff_members').select('user_id').eq('role', 'admin').limit(1).maybeSingle()
+      if (adminRole) {
+         await supabase.from('notifications').insert({
+            user_id: adminRole.user_id,
+            content: `Email delivery failed for ${to}. Subject: ${subject}`,
+            link_url: '/escalations',
+         })
+      }
+    } catch (e) {
+      console.error(`[send-market-email] Failed to log delivery failure:`, e)
+    }
+  }
 
   return new Response(
-    JSON.stringify({ success: true }),
+    JSON.stringify({ success }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 })

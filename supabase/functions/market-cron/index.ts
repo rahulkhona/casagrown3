@@ -473,7 +473,7 @@ async function handleReconcileRedemptions(
   // Find stale pending redemptions
   const { data: stale, error } = await supabase
     .from('redemptions')
-    .select('id, user_id, status, point_cost, provider, provider_order_id, metadata')
+    .select('id, user_id, status, point_cost, provider, provider_order_id, metadata, created_at')
     .eq('status', 'pending')
     .lt('created_at', TEN_MIN_AGO)
     .limit(20)
@@ -585,8 +585,14 @@ async function handleReconcileRedemptions(
           } else if (['FAILED', 'BLOCKED', 'RETURNED'].includes(status)) {
             await refundStale(supabase, r, `PayPal status: ${status}`)
             refunded++
+          } else {
+            // PENDING/UNCLAIMED
+            const THIRTY_DAYS_AGO = Date.now() - 30 * 24 * 60 * 60 * 1000
+            if (new Date(r.created_at).getTime() < THIRTY_DAYS_AGO) {
+              await refundStale(supabase, r, `PayPal UNCLAIMED for > 30 days`)
+              refunded++
+            }
           }
-          // else PENDING/UNCLAIMED — leave it, check next cycle
         } else {
           console.warn(`[RECONCILE] PayPal batch lookup failed: ${batchRes.status}`)
         }

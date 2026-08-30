@@ -7,10 +7,17 @@
  *   POST /functions/v1/post-checkout-messenger
  *   Body: { orderId }
  */
-import { serveWithCors, jsonOk, jsonError } from '../_shared/serve-with-cors.ts'
+import { serveWithCors, jsonOk, jsonError, requireAuth } from '../_shared/serve-with-cors.ts'
 import { sendMessengerMessage } from '../_shared/facebook.ts'
 
 serveWithCors(async (req, { supabase, corsHeaders }) => {
+  // M-36: Secure endpoint
+  const authUserId = await requireAuth(req, supabase, corsHeaders)
+  if (authUserId instanceof Response) return authUserId
+  if (authUserId !== 'service_role') {
+    return jsonError('Service Role only', corsHeaders, 403)
+  }
+
   if (req.method !== 'POST') {
     return jsonError('Method not allowed', corsHeaders, 405)
   }
@@ -84,6 +91,18 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     await sendMessengerMessage(fbConn.fb_page_access_token, psid, { text: followPageText })
   } catch (fbErr: any) {
     console.error(`[POST-CHECKOUT-MESSENGER] Facebook Send API failed:`, fbErr.message)
+    // M-35: Insert email delivery failure notification
+    try {
+      const { data: adminRole } = await supabase.from('staff_members').select('user_id').eq('role', 'admin').limit(1).maybeSingle()
+      if (adminRole) {
+         await supabase.from('notifications').insert({
+            user_id: adminRole.user_id,
+            content: `Messenger delivery failed for order ${orderId}. PSID: ${psid}. Error: ${fbErr.message}`,
+            link_url: '/escalations',
+         })
+      }
+    } catch (e) {}
+
     return jsonError(`Facebook Send API failed: ${fbErr.message}`, corsHeaders, 502)
   }
 
