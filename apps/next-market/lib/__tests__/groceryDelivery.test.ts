@@ -76,4 +76,26 @@ describe('groceryDelivery canonical utility suite', () => {
     expect(result.available).toBe(true)
     expect(result.banner).toBe('Ralphs')
   })
+
+  it('correctly calculates URL lengths for large carts and identifies batching need', () => {
+    const produceNames = ['Heirloom Tomatoes', 'Meyer Lemons', 'Sweet Peaches', 'Wild Honeycomb', 'Homegrown Zucchini', 'Backyard Strawberries']
+    const largeCart = Array.from({ length: 30 }, (_, i) => ({
+      name: `Organic ${produceNames[i % produceNames.length]} #${i + 1}`,
+      quantity: 2,
+      unit: 'lb',
+      price_usd: 3.99,
+    }))
+
+    const krogerUrl = getKrogerAuthorizeUrl(largeCart, '95125', '/cart')
+    const instacartUrl = getInstacartMultiItemUrl(largeCart, '95125')
+
+    // Kroger URL with 30 items exceeds standard 2048 safety limit
+    expect(krogerUrl.length).toBeGreaterThan(2000)
+    expect(instacartUrl.length).toBeGreaterThan(300)
+
+    // Verify that slicing to 15 items produces safe URL lengths
+    const batched15 = largeCart.slice(0, 15)
+    const batchedKrogerUrl = getKrogerAuthorizeUrl(batched15, '95125', '/cart')
+    expect(batchedKrogerUrl.length).toBeLessThan(2048)
+  })
 })

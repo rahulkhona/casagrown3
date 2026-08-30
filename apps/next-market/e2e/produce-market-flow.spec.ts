@@ -170,13 +170,13 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(viewCartLink).toBeVisible({ timeout: 5000 })
     await viewCartLink.click()
 
-    // 6. Verify cart page renders Instacart Commercial Delivery group
+    // 6. Verify cart page renders Instacart Delivery group
     await expect(page).toHaveURL(/\/cart/)
     await expect(page.getByText('Instacart Supermarket Delivery')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('Commercial Delivery')).toBeVisible()
+    await expect(page.getByText('Delivery with Instacart')).toBeVisible()
 
     // 7. Verify transfer checkout hand-off
-    const transferBtn = page.locator('button:has-text("Instacart Checkout")').first()
+    const transferBtn = page.locator('button').filter({ hasText: /Transfer.*Instacart/i }).first()
     await expect(transferBtn).toBeVisible()
 
     const [popup] = await Promise.all([

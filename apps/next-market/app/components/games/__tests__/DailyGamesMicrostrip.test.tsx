@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import DailyGamesMicrostrip from '../DailyGamesMicrostrip'
 
 vi.mock('next/link', () => ({
@@ -22,6 +23,10 @@ vi.mock('../../../../lib/gamesCatalog', () => ({
 describe('DailyGamesMicrostrip', () => {
   beforeEach(() => {
     localStorage.clear()
+  })
+
+  afterEach(() => {
+    cleanup()
   })
 
   it('renders expanded microstrip by default with streak and link to /games', () => {

@@ -24,6 +24,7 @@ import styles from './page.module.css'
 export default function CartPage() {
   const { items, boothGroups, removeItem, updateQty, updateFulfillment, clearBooth, clearCart, refreshItems } = useCart()
   const { isOpen: marketIsOpen, loading: marketLoading } = useMarketStatus()
+  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({})
 
   const { user, isAuthenticated } = useAuth()
   const { requireAuth } = useQuickSetup()
@@ -184,7 +185,41 @@ export default function CartPage() {
     const isInstacart = group.booth.id.includes('instacart')
     const targetZip = deliveryAddressFields.zip || '95125'
 
-    const groceryItems: GroceryItem[] = group.items.map(item => ({
+    // Compute if selection mode is active
+    const availableGroupItems: GroceryItem[] = group.items.filter(i => !i.unavailable).map(item => ({
+      name: item.product.name.replace(/\s*\(.*?\)/g, '').trim(),
+      quantity: item.qty,
+      unit: item.product.unit || 'lb',
+      price_usd: item.latestPrice ?? item.product.price_usd,
+      estimatedPriceUsd: item.latestPrice ?? item.product.price_usd,
+      provider: isInstacart ? 'instacart' : 'kroger',
+    }));
+    const fullUrl = isInstacart
+      ? getInstacartMultiItemUrl(availableGroupItems, targetZip)
+      : getKrogerAuthorizeUrl(availableGroupItems, targetZip, '/cart');
+    
+    const isLocalTest = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('git-feature-densification2'));
+    const threshold = isLocalTest ? 0 : 2048;
+    const isSelectionMode = fullUrl.length > threshold;
+
+    // Filter items based on selection state if in selection mode
+    const selectedGroupItems = group.items.filter((item, index) => {
+      if (item.unavailable) return false;
+      return selectedItems[item.product.id] ?? (isSelectionMode ? index < 15 : true);
+    });
+
+    if (selectedGroupItems.length === 0) {
+      showToast('⚠️ Please select at least one item to transfer.')
+      return
+    }
+
+    if (isSelectionMode && selectedGroupItems.length > 15) {
+      showToast('⚠️ You can select at most 15 items in a single batch.')
+      return
+    }
+
+    const groceryItems: GroceryItem[] = selectedGroupItems.map(item => ({
       name: item.product.name.replace(/\s*\(.*?\)/g, '').trim(),
       quantity: item.qty,
       unit: item.product.unit || 'lb',
@@ -197,13 +232,15 @@ export default function CartPage() {
       ? getInstacartMultiItemUrl(groceryItems, targetZip)
       : getKrogerAuthorizeUrl(groceryItems, targetZip, '/cart')
 
+    const transferSubtotal = selectedGroupItems.reduce((sum, item) => sum + (item.qty * (item.latestPrice ?? item.product.price_usd)), 0)
+
     // 1. Record lead & dollar GMV analytics
     recordCommercialTransfer({
       partner: isInstacart ? 'instacart' : 'kroger',
       banner: group.booth.name,
       zipcode: targetZip,
       items: groceryItems,
-      total_usd: group.subtotal,
+      total_usd: transferSubtotal,
       userId: user?.id,
     })
 
@@ -212,14 +249,19 @@ export default function CartPage() {
       action: 'commercial_cart_transfer',
       partner: isInstacart ? 'instacart' : 'kroger',
       banner: group.booth.name,
-      item_count: group.items.length,
-      total_usd: group.subtotal,
-      items: group.items.map(i => `${i.qty} ${i.product.unit} ${i.product.name}`),
+      item_count: selectedGroupItems.length,
+      total_usd: transferSubtotal,
+      items: selectedGroupItems.map(i => `${i.qty} ${i.product.unit} ${i.product.name}`),
     })
 
     // 3. Open in-app/tab transfer
     window.open(transferUrl, '_blank', 'noopener,noreferrer')
-    showToast(`🚀 Transferred ${group.items.length} item${group.items.length > 1 ? 's' : ''} to ${isInstacart ? 'Instacart' : group.booth.name}!`)
+    showToast(`🚀 Transferred ${selectedGroupItems.length} selected item${selectedGroupItems.length > 1 ? 's' : ''} to ${isInstacart ? 'Instacart' : group.booth.name}!`)
+
+    // 4. Remove successfully transferred items from the cart, leaving the rest
+    for (const item of selectedGroupItems) {
+      removeItem(item.product.id)
+    }
   }
 
   // Initialize Stripe Elements — load Stripe once
@@ -550,6 +592,31 @@ export default function CartPage() {
         const isCommercial = isCommercialBooth(group.booth.id)
         const isInstacart = group.booth.id.includes('instacart')
 
+        // Compute selection mode and url length safety threshold
+        const targetZip = deliveryAddressFields.zip || '95125'
+        const availableGroupItems: GroceryItem[] = group.items.filter(i => !i.unavailable).map(item => ({
+          name: item.product.name.replace(/\s*\(.*?\)/g, '').trim(),
+          quantity: item.qty,
+          unit: item.product.unit || 'lb',
+          price_usd: item.latestPrice ?? item.product.price_usd,
+          estimatedPriceUsd: item.latestPrice ?? item.product.price_usd,
+          provider: isInstacart ? 'instacart' : 'kroger',
+        }));
+        const fullUrl = isInstacart
+          ? getInstacartMultiItemUrl(availableGroupItems, targetZip)
+          : getKrogerAuthorizeUrl(availableGroupItems, targetZip, '/cart');
+        
+        const isLocalTest = typeof window !== 'undefined' && 
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('git-feature-densification2'));
+        const threshold = isLocalTest ? 0 : 2048;
+        const isSelectionMode = isCommercial && fullUrl.length > threshold;
+
+        // Count selected items in this group
+        const groupSelectedCount = group.items.filter((item, index) => {
+          const isSel = selectedItems[item.product.id] ?? (isSelectionMode ? index < 15 : true);
+          return isSel && !item.unavailable;
+        }).length;
+
         return (
           <div key={group.booth.id} className={styles.boothGroup}>
             {/* Booth header */}
@@ -574,10 +641,31 @@ export default function CartPage() {
                   background: isInstacart ? '#166534' : '#1e40af',
                   color: '#ffffff',
                 }}>
-                  Commercial Delivery
+                  {isInstacart ? 'Delivery with Instacart' : 'Delivery/Pickup by Kroger'}
                 </span>
               )}
             </div>
+
+            {/* Warning banner for large carts */}
+            {isSelectionMode && (
+              <div style={{
+                background: '#fffbeb',
+                borderBottom: '1px solid #fef3c7',
+                padding: '12px 16px',
+                fontSize: 13,
+                color: '#b45309',
+                display: 'flex',
+                gap: 8,
+              }}>
+                <span>⚠️</span>
+                <div>
+                  <strong style={{ fontWeight: 600 }}>Your cart is very large</strong>
+                  <p style={{ margin: '2px 0 0 0', color: '#78350f', fontSize: 12 }}>
+                    To ensure a successful transfer to {isInstacart ? 'Instacart' : group.booth.name}, please select a batch of <strong>up to 15 items</strong>. You can transfer the rest on your next click.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Unavailability banner */}
             {hasUnavailable && (
@@ -607,15 +695,46 @@ export default function CartPage() {
             )}
 
             {/* Cart items */}
-            {group.items.map(item => {
+            {group.items.map((item, itemIndex) => {
               const price = item.latestPrice ?? item.product.price_usd
               const priceChanged = item.latestPrice != null && item.latestPrice !== item.product.price_usd
+
+              const isChecked = selectedItems[item.product.id] ?? (isSelectionMode ? itemIndex < 15 : true);
+              const showCheckbox = isSelectionMode && !item.unavailable;
+
+              const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                const checked = e.target.checked
+                if (checked && groupSelectedCount >= 15) {
+                  showToast('⚠️ You can select at most 15 items in a single batch.')
+                  return
+                }
+                setSelectedItems(prev => ({
+                  ...prev,
+                  [item.product.id]: checked
+                }))
+              }
 
               return (
                 <div
                   key={item.product.id}
                   className={`${styles.cartItem} ${item.unavailable ? styles.cartItemUnavailable : ''}`}
+                  style={{ display: 'flex', alignItems: 'center' }}
                 >
+                  {showCheckbox && (
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={handleCheckboxChange}
+                      style={{
+                        marginRight: 12,
+                        marginLeft: 4,
+                        width: 18,
+                        height: 18,
+                        cursor: 'pointer',
+                        accentColor: isInstacart ? 'var(--green-600)' : '#2563eb',
+                      }}
+                    />
+                  )}
                   {/* Product image */}
                   {item.product.photos?.[0] ? (
                     <img src={item.product.photos[0]} alt={item.product.name} className={styles.itemImage} />
@@ -744,8 +863,22 @@ export default function CartPage() {
               {isCommercial ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
                   <div className={styles.subtotalRow}>
-                    <span>Estimated Supermarket Subtotal ({availableItems.length} item{availableItems.length !== 1 ? 's' : ''})</span>
-                    <span style={{ fontWeight: 700, fontSize: 16 }}>{formatUsd(group.subtotal)}</span>
+                    <span>
+                      {isSelectionMode 
+                        ? `Selected Subtotal (${groupSelectedCount} item${groupSelectedCount !== 1 ? 's' : ''})` 
+                        : `Estimated Supermarket Subtotal (${availableItems.length} item${availableItems.length !== 1 ? 's' : ''})`
+                      }
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 16 }}>
+                      {formatUsd(
+                        isSelectionMode 
+                          ? group.items.reduce((sum, item, index) => {
+                              const isSel = selectedItems[item.product.id] ?? (index < 15);
+                              return isSel && !item.unavailable ? sum + (item.qty * (item.latestPrice ?? item.product.price_usd)) : sum;
+                            }, 0)
+                          : group.subtotal
+                      )}
+                    </span>
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--gray-500)', margin: 0 }}>
                     {isInstacart
@@ -773,7 +906,12 @@ export default function CartPage() {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     }}
                   >
-                    <span>🚀 Transfer {availableItems.length} item{availableItems.length !== 1 ? 's' : ''} to {isInstacart ? 'Instacart' : group.booth.name} Checkout →</span>
+                    <span>
+                      {isSelectionMode 
+                        ? `🚀 Transfer ${groupSelectedCount} Selected Item${groupSelectedCount !== 1 ? 's' : ''} to ${isInstacart ? 'Instacart' : group.booth.name} →`
+                        : `🚀 Transfer ${availableItems.length} item${availableItems.length !== 1 ? 's' : ''} to ${isInstacart ? 'Instacart' : group.booth.name} Checkout →`
+                      }
+                    </span>
                   </button>
                 </div>
               ) : (

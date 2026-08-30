@@ -33,8 +33,28 @@ describe('Kroger OAuth API Integration', () => {
       expect(location).toContain('client_id=')
       expect(location).toContain('response_type=code')
       expect(location).toContain('scope=cart.basic%3Awrite+profile.compact')
-      expect(location).toContain('redirect_uri=')
+      expect(location).toContain('redirect_uri=http%3A%2F%2Flocalhost%3A3001%2Fapi%2Fkroger%2Fcallback')
       expect(location).toContain('state=')
+    })
+
+    it('enforces https:// protocol on production casagrown.com and www.casagrown.com domains', async () => {
+      const items = [{ name: 'Peaches', quantity: 1, unit: 'lb' }]
+      
+      // Test naked domain
+      const reqNaked = new NextRequest(
+        `http://casagrown.com/api/kroger/authorize?items=${encodeURIComponent(JSON.stringify(items))}&zipcode=95125`
+      )
+      const respNaked = await authorizeHandler(reqNaked)
+      const locNaked = respNaked.headers.get('location')
+      expect(locNaked).toContain('redirect_uri=https%3A%2F%2Fcasagrown.com%2Fapi%2Fkroger%2Fcallback')
+
+      // Test www domain
+      const reqWww = new NextRequest(
+        `http://www.casagrown.com/api/kroger/authorize?items=${encodeURIComponent(JSON.stringify(items))}&zipcode=95125`
+      )
+      const respWww = await authorizeHandler(reqWww)
+      const locWww = respWww.headers.get('location')
+      expect(locWww).toContain('redirect_uri=https%3A%2F%2Fwww.casagrown.com%2Fapi%2Fkroger%2Fcallback')
     })
   })
 
