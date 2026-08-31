@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Unmock analytics so we test the real implementation (setup.ts mocks it for rendering tests)
 vi.unmock('../../lib/analytics')

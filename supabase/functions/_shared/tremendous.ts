@@ -228,7 +228,10 @@ export async function fetchTremendousProduct(
     try {
         const res = await fetch(
             `${TREMENDOUS_API_BASE}/api/v2/products/${productId}`,
-            { headers: { Authorization: `Bearer ${apiKey}` } },
+            {
+                headers: { Authorization: `Bearer ${apiKey}` },
+                signal: AbortSignal.timeout(3000),
+            },
         );
 
         if (!res.ok) {

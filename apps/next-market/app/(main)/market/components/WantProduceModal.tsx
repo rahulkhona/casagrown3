@@ -16,11 +16,6 @@ import {
   type KrogerProximityResult,
 } from '../../../../lib/groceryDelivery'
 import {
-  FULFILLMENT_PRESET_OPTIONS,
-  FulfillmentPresetType,
-  getWindowsForPreset,
-  isHourSelected,
-  toggleHourCell,
   inferProduceUnitAndPrice,
 } from '../../../../lib/bulkListingUtils'
 import { getWindowDays } from '../../../../lib/windowDisplay'
@@ -175,7 +170,7 @@ export default function WantProduceModal({
   onSignalSuccess,
 }: WantProduceModalProps) {
   const supabase = createClient()
-  const { user } = useAuth()
+  const { user, isAuthenticated, tosAccepted } = useAuth()
   const { requireAuth } = useQuickSetup()
   const { addItem } = useCart()
 
@@ -184,21 +179,6 @@ export default function WantProduceModal({
   const [quantity, setQuantity] = useState(initialQty)
   const [unit, setUnit] = useState(initialUnit)
   const [fulfillmentPref, setFulfillmentPref] = useState<'either' | 'pickup' | 'delivery'>('either')
-
-  // ── 7-Day Matrix Day Options for Custom Calendar ──
-  const dayOptions = React.useMemo(() => {
-    const localToday = new Date()
-    const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const options: { date: string; label: string; isWeekend: boolean }[] = []
-    for (let offset = 0; offset < 7; offset++) {
-      const d = new Date(localToday.getFullYear(), localToday.getMonth(), localToday.getDate() + offset)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6
-      const label = DAY_SHORT[d.getDay()]
-      options.push({ date: dateStr, label, isWeekend })
-    }
-    return options
-  }, [])
 
   // ── Price Benchmark & Est. Value ──
   const benchmarkInfo = React.useMemo(() => {
@@ -223,12 +203,6 @@ export default function WantProduceModal({
   const estimatedTotal = !isNaN(parsedQty) && parsedQty > 0
     ? (parsedQty * unitPrice).toFixed(2)
     : unitPrice.toFixed(2)
-
-  // ── Separate Windows for Pickup & Delivery ──
-  const [pickupPreset, setPickupPreset] = useState<FulfillmentPresetType>('both')
-  const [customPickupWindows, setCustomPickupWindows] = useState<Record<string, string[]>>(() => getWindowsForPreset('both'))
-  const [deliveryPreset, setDeliveryPreset] = useState<FulfillmentPresetType>('both')
-  const [customDeliveryWindows, setCustomDeliveryWindows] = useState<Record<string, string[]>>(() => getWindowsForPreset('both'))
   
   // CasaGrown Cart Integration
   const cart = useCart()
@@ -286,73 +260,111 @@ export default function WantProduceModal({
   useEffect(() => {
     if (!isOpen) return
 
-    // 1. Try localStorage (from market search bar)
+    // 1. Instant fallback from localStorage
     try {
-      const saved = new URLSearchParams(localStorage.getItem('market_search') || '')
-      const savedAddr = saved.get('addr') || ''
-      if (savedAddr) {
-        setBuyerAddress(savedAddr)
-        geocodeAddress(savedAddr).then((geo) => {
-          if (geo) {
-            setBuyerLat(geo.lat)
-            setBuyerLng(geo.lng)
+      const savedDeliveryAddr = localStorage.getItem('casagrown_delivery_address')
+      const savedFields = localStorage.getItem('casagrown_delivery_fields')
+      if (savedDeliveryAddr) {
+        setBuyerAddress(savedDeliveryAddr)
+        setProfileAddress(savedDeliveryAddr)
+      }
+      if (savedFields) {
+        try {
+          const parsed = JSON.parse(savedFields)
+          if (parsed && (parsed.street || parsed.zip)) {
+            setAddressFields(parsed)
           }
-        })
+        } catch {}
       }
     } catch {}
 
-    // 2. Load user profile address if logged in (for 1-click popup shortcut)
-    if (user?.id) {
-      supabase
-        .from('profiles')
-        .select('street_address, city, state_code, zip_code, latitude, longitude')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data: profile }: { data: any }) => {
-          if (profile) {
-            if (profile.street_address || profile.city || profile.zip_code) {
-              setAddressFields({
-                street: profile.street_address || '',
-                city: profile.city || '',
-                state: profile.state_code || 'CA',
-                zip: profile.zip_code || currentZipcode || '',
-              })
+    // 2. Load user profile address if logged in
+    const resolveUserProfile = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const activeId = user?.id || session?.user?.id
+        if (!activeId) return
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('street_address, city, state_code, zip_code, latitude, longitude')
+          .eq('id', activeId)
+          .maybeSingle()
+
+        if (profile) {
+          const hasStreet = !!profile.street_address
+          const hasCity = !!profile.city
+          const hasZip = !!profile.zip_code
+          if (hasStreet || hasCity || hasZip) {
+            const newFields: AddressFields = {
+              street: profile.street_address || '',
+              city: profile.city || '',
+              state: profile.state_code || 'CA',
+              zip: profile.zip_code || currentZipcode || '',
             }
+            setAddressFields(newFields)
             const parts = [profile.street_address, profile.city, profile.state_code, profile.zip_code].filter(Boolean)
             if (parts.length > 0) {
               const fullProfileAddr = parts.join(', ')
               setProfileAddress(fullProfileAddr)
+              setBuyerAddress(fullProfileAddr)
+              if (profile.latitude && profile.longitude) {
+                setBuyerLat(profile.latitude)
+                setBuyerLng(profile.longitude)
+              }
+              try {
+                localStorage.setItem('casagrown_delivery_address', fullProfileAddr)
+                localStorage.setItem('casagrown_delivery_fields', JSON.stringify(newFields))
+              } catch {}
             }
           }
-        })
+        }
+      } catch (err) {
+        console.warn('Failed to load profile address:', err)
+      }
     }
+
+    resolveUserProfile()
   }, [isOpen, user?.id, currentZipcode])
 
   const handleApplyAddressFields = async (fields: AddressFields) => {
     const fullAddr = formatFullAddress(fields)
     if (!fullAddr.trim()) return
+    setAddressFields(fields)
+    setBuyerAddress(fullAddr.trim())
+    setProfileAddress(fullAddr.trim())
+    setShowAddressModal(false)
+
+    try {
+      localStorage.setItem('casagrown_delivery_address', fullAddr.trim())
+      localStorage.setItem('casagrown_delivery_fields', JSON.stringify(fields))
+    } catch {}
+
     setIsGeocoding(true)
     try {
       const geo = await geocodeAddress(fullAddr.trim())
       if (geo) {
-        setBuyerAddress(fullAddr.trim())
         setBuyerLat(geo.lat)
         setBuyerLng(geo.lng)
-        setShowAddressModal(false)
-        try {
-          const currentParams = new URLSearchParams(localStorage.getItem('market_search') || '')
-          currentParams.set('addr', fullAddr.trim())
-          if (geo.zipCode || fields.zip) currentParams.set('zip', geo.zipCode || fields.zip)
-          localStorage.setItem('market_search', currentParams.toString())
-        } catch {}
-      } else {
-        setBuyerAddress(fullAddr.trim())
-        setShowAddressModal(false)
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const activeId = user?.id || session?.user?.id
+      if (activeId) {
+        await supabase
+          .from('profiles')
+          .update({
+            street_address: fields.street || '',
+            city: fields.city || '',
+            state_code: fields.state || 'CA',
+            zip_code: fields.zip || geo?.zipCode || currentZipcode || '',
+            latitude: geo?.lat || undefined,
+            longitude: geo?.lng || undefined,
+          })
+          .eq('id', activeId)
       }
     } catch (err) {
-      console.warn('Geocoding failed:', err)
-      setBuyerAddress(fullAddr.trim())
-      setShowAddressModal(false)
+      console.warn('Geocoding/profile sync failed:', err)
     } finally {
       setIsGeocoding(false)
     }
@@ -391,14 +403,31 @@ export default function WantProduceModal({
               setAddressFields(newFields)
               const formatted = formatFullAddress(newFields) || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
               setBuyerAddress(formatted)
+              setProfileAddress(formatted)
               try {
-                localStorage.setItem('market_search', JSON.stringify({
-                  address: formatted,
-                  zipcode: zip || currentZipcode,
-                  lat,
-                  lng,
-                }))
+                localStorage.setItem('casagrown_delivery_address', formatted)
+                localStorage.setItem('casagrown_delivery_fields', JSON.stringify(newFields))
               } catch {}
+
+              const { data: { session } } = await supabase.auth.getSession()
+              const activeId = user?.id || session?.user?.id
+              if (activeId) {
+                try {
+                  await supabase
+                    .from('profiles')
+                    .update({
+                      street_address: street || '',
+                      city: city || '',
+                      state_code: state || 'CA',
+                      zip_code: zip || currentZipcode || '',
+                      latitude: lat,
+                      longitude: lng,
+                    })
+                    .eq('id', activeId)
+                } catch (e: any) {
+                  console.warn('Failed to update profile location:', e)
+                }
+              }
             } else {
               setBuyerAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`)
             }
@@ -565,20 +594,15 @@ export default function WantProduceModal({
         headers['Authorization'] = `Bearer ${session.access_token}`
       }
 
-      const resolvedPickupWindows = pickupPreset === 'custom'
-        ? customPickupWindows
-        : getWindowsForPreset(pickupPreset)
-
-      const resolvedDeliveryWindows = deliveryPreset === 'custom'
-        ? customDeliveryWindows
-        : getWindowsForPreset(deliveryPreset)
+      const effectiveZip = addressFields.zip || currentZipcode.trim() || '95125'
+      const effectiveDeliveryAddr = buyerAddress || formatFullAddress(addressFields) || null
 
       const res = await fetch('/api/interest/submit', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           email,
-          zipcodes: [currentZipcode.trim() || '95125'],
+          zipcodes: [effectiveZip],
           preference_pickup: fulfillmentPref === 'pickup' || fulfillmentPref === 'either',
           preference_delivery: fulfillmentPref === 'delivery' || fulfillmentPref === 'either',
           accepts_email: true,
@@ -586,12 +610,11 @@ export default function WantProduceModal({
           source_url: '/market',
           metadata: {
             fulfillment_pref: fulfillmentPref,
+            delivery_address: effectiveDeliveryAddr,
+            delivery_latitude: buyerLat,
+            delivery_longitude: buyerLng,
             benchmark_unit_price: benchmarkInfo.price,
             estimated_total_value: parseFloat(estimatedTotal),
-            pickup_preset: pickupPreset,
-            delivery_preset: deliveryPreset,
-            weekly_pickup_windows: (fulfillmentPref === 'pickup' || fulfillmentPref === 'either') ? resolvedPickupWindows : null,
-            weekly_delivery_windows: (fulfillmentPref === 'delivery' || fulfillmentPref === 'either') ? resolvedDeliveryWindows : null,
           },
           interests: [
             {
@@ -610,12 +633,39 @@ export default function WantProduceModal({
         throw new Error(data.error || 'Failed to save request')
       }
 
+      // Persist delivery address to user's profile and localStorage
+      const activeId = currentUser?.id || user?.id || session?.user?.id
+      if (activeId && (addressFields.street || effectiveDeliveryAddr)) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              street_address: addressFields.street || effectiveDeliveryAddr || '',
+              city: addressFields.city || '',
+              state_code: addressFields.state || 'CA',
+              zip_code: addressFields.zip || effectiveZip,
+              latitude: buyerLat || undefined,
+              longitude: buyerLng || undefined,
+            })
+            .eq('id', activeId)
+        } catch (e: any) {
+          console.warn('Failed to update profile during signal submission:', e)
+        }
+      }
+
+      if (effectiveDeliveryAddr) {
+        try {
+          localStorage.setItem('casagrown_delivery_address', effectiveDeliveryAddr)
+          localStorage.setItem('casagrown_delivery_fields', JSON.stringify(addressFields))
+        } catch {}
+      }
+
       trackEvent('button_click', '/market', {
         action: 'harvest_signal_submitted',
         cropName,
         quantity: numQty,
         unit,
-        zipcode: currentZipcode,
+        zipcode: effectiveZip,
       })
 
       setIsSubmitted(true)
@@ -639,6 +689,23 @@ export default function WantProduceModal({
     const numQty = parseFloat(quantity)
     if (isNaN(numQty) || numQty <= 0) {
       setErrorMessage('Please enter a valid quantity.')
+      return
+    }
+
+    // If Delivery or Either is selected, address is mandatory
+    if ((fulfillmentPref === 'delivery' || fulfillmentPref === 'either') && !buyerAddress && !addressFields.street) {
+      setErrorMessage('Please provide a delivery address so local sellers know where to deliver.')
+      setShowAddressModal(true)
+      return
+    }
+
+    if (!isAuthenticated || !tosAccepted) {
+      requireAuth({
+        trigger: 'want_signal',
+        onReady: () => {
+          performSignalSubmission(numQty)
+        },
+      })
       return
     }
 
@@ -1313,178 +1380,85 @@ export default function WantProduceModal({
               </div>
             </div>
 
-            {/* Pickup Schedule & Availability */}
-            {(fulfillmentPref === 'pickup' || fulfillmentPref === 'either') && (
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>
-                  📍 Pickup Availability & Timing
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: pickupPreset === 'custom' ? 10 : 0 }}>
-                  {FULFILLMENT_PRESET_OPTIONS.map((opt) => {
-                    const isActive = pickupPreset === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          setPickupPreset(opt.id)
-                          if (opt.id !== 'custom') {
-                            setCustomPickupWindows(getWindowsForPreset(opt.id))
-                          }
-                        }}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 100,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
-                          background: isActive ? 'var(--green-50)' : '#ffffff',
-                          color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {pickupPreset === 'custom' && (
-                  <div style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 10, marginTop: 8, overflowX: 'auto' }}>
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 6, textAlign: 'center' }}>
-                      Tap hour cells when you can pickup from seller
-                    </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'center' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ width: 28, padding: '2px' }}></th>
-                          {dayOptions.map((d) => (
-                            <th key={d.date} style={{ padding: '2px', fontWeight: 600, color: 'var(--gray-700)' }}>
-                              {d.label.split(' ')[0]}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Array.from({ length: 13 }).map((_, index) => {
-                          const hour = 8 + index
-                          const isPm = hour >= 12
-                          const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-                          const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
-                          return (
-                            <tr key={hour}>
-                              <td style={{ color: 'var(--gray-400)', padding: '2px 0', fontSize: 9 }}>{hourLabel}</td>
-                              {dayOptions.map((opt) => {
-                                const isSelected = isHourSelected(hour, customPickupWindows[opt.date] || [])
-                                return (
-                                  <td
-                                    key={opt.date}
-                                    onClick={() => toggleHourCell(opt.date, hour, customPickupWindows, setCustomPickupWindows)}
-                                    style={{
-                                      height: 18,
-                                      border: '1px solid #e5e7eb',
-                                      background: isSelected ? 'var(--green-500)' : '#ffffff',
-                                      cursor: 'pointer',
-                                      borderRadius: 2,
-                                    }}
-                                  />
-                                )
-                              })}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Delivery Schedule & Availability */}
+            {/* Delivery Address Section (Visible when Delivery or Either is selected) */}
             {(fulfillmentPref === 'delivery' || fulfillmentPref === 'either') && (
               <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>
-                  🚗 Delivery Availability & Timing
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: deliveryPreset === 'custom' ? 10 : 0 }}>
-                  {FULFILLMENT_PRESET_OPTIONS.map((opt) => {
-                    const isActive = deliveryPreset === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          setDeliveryPreset(opt.id)
-                          if (opt.id !== 'custom') {
-                            setCustomDeliveryWindows(getWindowsForPreset(opt.id))
-                          }
-                        }}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 100,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          border: isActive ? '1.5px solid var(--green-600)' : '1px solid var(--gray-300)',
-                          background: isActive ? 'var(--green-50)' : '#ffffff',
-                          color: isActive ? 'var(--green-800)' : 'var(--gray-700)',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className={styles.fieldLabel} style={{ marginBottom: 0 }}>
+                    🚗 Delivery Address <span style={{ color: '#dc2626', fontSize: 12 }}>*</span>
+                  </label>
+                  {buyerAddress ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddressModal(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#16a34a',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        padding: 0,
+                      }}
+                    >
+                      <span>✏️</span> Change Address
+                    </button>
+                  ) : null}
                 </div>
 
-                {deliveryPreset === 'custom' && (
-                  <div style={{ background: '#f9fafb', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 10, marginTop: 8, overflowX: 'auto' }}>
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 6, textAlign: 'center' }}>
-                      Tap hour cells when you are home for doorstep delivery
+                {buyerAddress ? (
+                  <div
+                    onClick={() => setShowAddressModal(true)}
+                    style={{
+                      background: '#f0fdf4',
+                      border: '1.5px solid #86efac',
+                      borderRadius: 12,
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>📍</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                          {buyerAddress}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#15803d' }}>
+                          Deliveries will be sent to this destination
+                        </div>
+                      </div>
                     </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'center' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ width: 28, padding: '2px' }}></th>
-                          {dayOptions.map((d) => (
-                            <th key={d.date} style={{ padding: '2px', fontWeight: 600, color: 'var(--gray-700)' }}>
-                              {d.label.split(' ')[0]}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Array.from({ length: 13 }).map((_, index) => {
-                          const hour = 8 + index
-                          const isPm = hour >= 12
-                          const hourNum = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-                          const hourLabel = `${hourNum}${isPm ? 'p' : 'a'}`
-                          return (
-                            <tr key={hour}>
-                              <td style={{ color: 'var(--gray-400)', padding: '2px 0', fontSize: 9 }}>{hourLabel}</td>
-                              {dayOptions.map((opt) => {
-                                const isSelected = isHourSelected(hour, customDeliveryWindows[opt.date] || [])
-                                return (
-                                  <td
-                                    key={opt.date}
-                                    onClick={() => toggleHourCell(opt.date, hour, customDeliveryWindows, setCustomDeliveryWindows)}
-                                    style={{
-                                      height: 18,
-                                      border: '1px solid #e5e7eb',
-                                      background: isSelected ? 'var(--green-500)' : '#ffffff',
-                                      cursor: 'pointer',
-                                      borderRadius: 2,
-                                    }}
-                                  />
-                                )
-                              })}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a' }}>Edit →</span>
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddressModal(true)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      background: '#fef2f2',
+                      border: '1.5px dashed #f87171',
+                      borderRadius: 12,
+                      color: '#b91c1c',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>📍</span> Enter Delivery Address (Required)
+                  </button>
                 )}
               </div>
             )}
@@ -1505,9 +1479,9 @@ export default function WantProduceModal({
             <div className={styles.addressModalCard} onClick={(e) => e.stopPropagation()}>
               <div className={styles.addressModalHeader}>
                 <div>
-                  <h3 className={styles.addressModalTitle}>📍 Check Distance & Delivery</h3>
+                  <h3 className={styles.addressModalTitle}>📍 Enter Delivery Address</h3>
                   <p className={styles.addressModalSubtitle}>
-                    Provide your address or use GPS to calculate driving distance and verify doorstep delivery for neighborhood stands.
+                    Provide your street address or use GPS to enable doorstep delivery from neighborhood growers.
                   </p>
                 </div>
                 <button
@@ -1586,7 +1560,7 @@ export default function WantProduceModal({
                     disabled={isGeocoding || (!addressFields.street?.trim() && !addressFields.zip?.trim())}
                     className={styles.addressModalSubmitBtn}
                   >
-                    {isGeocoding ? 'Calculating…' : 'Calculate Distance & Delivery'}
+                    {isGeocoding ? 'Saving Address…' : 'Save Delivery Address'}
                   </button>
                 </div>
               </form>

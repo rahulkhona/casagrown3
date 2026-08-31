@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '../../../lib/supabase'
 import { useAuth } from '../../../lib/useAuth'
+import { useQuickSetup } from '../../../lib/useQuickSetup'
 import { resolveProgressiveLocation, type IpLocationData } from '../../../lib/locationResolver'
 import { EXHAUSTIVE_INTERESTS_CATALOG, InterestCatalogItem } from '../../../lib/interestCatalog'
 import { extractBaseProduce, getProduceImage, categorizeProduce, isRawHarvestProduce } from '../../../lib/produceCatalog'
@@ -39,7 +40,8 @@ function MarketProducePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = useMemo(() => createClient(), [])
-  const { user } = useAuth()
+  const { user, isAuthenticated, tosAccepted } = useAuth()
+  const { requireAuth } = useQuickSetup()
 
   // Location & Search State
   const [zipcode, setZipcode] = useState<string>('95125')
@@ -707,6 +709,7 @@ function MarketProducePageContent() {
       liveProductCount: 0,
       description: `Locally grown ${cleanName}.`,
     }
+
     setSelectedWantCrop(customCropItem)
     setIsWantModalOpen(true)
   }
@@ -955,10 +958,7 @@ function MarketProducePageContent() {
                     <div className={styles.cardActionRow}>
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedWantCrop(item)
-                          setIsWantModalOpen(true)
-                        }}
+                        onClick={() => handleOpenWantForCrop(item)}
                         className={`${styles.wantBtn} ${myDemand ? styles.wantBtnActive : ''}`}
                       >
                         <span>💚</span> {myDemand ? `Want (${myDemand.quantity} ${myDemand.unit})` : 'Want'}

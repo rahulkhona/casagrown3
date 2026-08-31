@@ -17,7 +17,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     .select('id, last_message_id, created_at')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   // 2. Get the most recent message ID
   const { data: latestMessage } = await supabase
@@ -27,7 +27,7 @@ serveWithCors(async (req, { supabase, corsHeaders }) => {
     .eq('is_system', false)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   // 3. Skip if no messages at all
   if (!latestMessage) {

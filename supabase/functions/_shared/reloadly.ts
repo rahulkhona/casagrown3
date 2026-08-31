@@ -245,6 +245,7 @@ export async function fetchReloadlyProduct(
                 grant_type: "client_credentials",
                 audience,
             }),
+            signal: AbortSignal.timeout(3000),
         });
 
         if (!tokenRes.ok) {
@@ -258,7 +259,10 @@ export async function fetchReloadlyProduct(
         // Fetch product details
         const productRes = await fetch(
             `${audience}/products/${productId}`,
-            { headers: { Authorization: `Bearer ${access_token}` } },
+            {
+                headers: { Authorization: `Bearer ${access_token}` },
+                signal: AbortSignal.timeout(3000),
+            },
         );
 
         if (!productRes.ok) {

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
@@ -174,7 +175,7 @@ describe('MarketProducePage', () => {
     render(<MarketPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 3, name: 'Lemons' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 3, name: 'Apples' })).toBeInTheDocument()
     })
 
     const haveExtraButtons = screen.getAllByRole('button', { name: /Have Extra/i })
@@ -198,7 +199,7 @@ describe('MarketProducePage', () => {
     render(<MarketPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 3, name: 'Lemons' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 3, name: 'Apples' })).toBeInTheDocument()
     })
 
     const wantButtons = screen.getAllByRole('button', { name: /Want/i })
@@ -207,6 +208,10 @@ describe('MarketProducePage', () => {
     fireEvent.click(wantButtons[0])
 
     expect(screen.getByLabelText(/Desired Quantity/i)).toBeInTheDocument()
+
+    // Select Pickup fulfillment preference
+    const pickupBtn = screen.getByRole('button', { name: /Pickup/i })
+    fireEvent.click(pickupBtn)
 
     // Submit the demand signal
     const form = screen.getByRole('button', { name: /Find sellers in my neighborhood/i }).closest('form')
@@ -229,7 +234,7 @@ describe('MarketProducePage', () => {
     fireEvent.change(zipInput, { target: { value: '94040' } })
     fireEvent.submit(zipInput.closest('form')!)
 
-    expect(zipInput).toHaveValue('94040')
+    expect((zipInput as HTMLInputElement).value).toBe('94040')
   })
 
   it('renders GPS Geolocation button and handles click', async () => {
@@ -248,5 +253,58 @@ describe('MarketProducePage', () => {
 
     fireEvent.click(geoButton)
     expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled()
+  })
+
+  it('prompts for delivery address when submitting harvest signal with Delivery fulfillment without an address', async () => {
+    render(<MarketPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 3, name: 'Apples' })).toBeInTheDocument()
+    })
+
+    const wantButtons = screen.getAllByRole('button', { name: /Want/i })
+    fireEvent.click(wantButtons[0])
+
+    expect(screen.getByLabelText(/Desired Quantity/i)).toBeInTheDocument()
+
+    // Select Delivery fulfillment preference
+    const deliveryBtn = screen.getByRole('button', { name: /🚗 Delivery/i })
+    fireEvent.click(deliveryBtn)
+
+    // Verify Delivery Address prompt is visible
+    expect(screen.getByRole('button', { name: /Enter Delivery Address/i })).toBeInTheDocument()
+
+    // Attempting submit without address should trigger address prompt
+    const submitBtn = screen.getByRole('button', { name: /Find sellers in my neighborhood/i })
+    fireEvent.click(submitBtn)
+
+    expect(screen.getByText(/Please provide a delivery address/i)).toBeInTheDocument()
+  })
+
+  it('pre-populates delivery address when user already has a saved delivery address', async () => {
+    localStorage.setItem('casagrown_delivery_address', '123 Main St, San Jose, CA 95125')
+    localStorage.setItem('casagrown_delivery_fields', JSON.stringify({
+      street: '123 Main St',
+      city: 'San Jose',
+      state: 'CA',
+      zip: '95125',
+    }))
+
+    render(<MarketPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 3, name: 'Apples' })).toBeInTheDocument()
+    })
+
+    const wantButtons = screen.getAllByRole('button', { name: /Want/i })
+    fireEvent.click(wantButtons[0])
+
+    // Select Delivery fulfillment preference
+    const deliveryBtn = screen.getByRole('button', { name: /🚗 Delivery/i })
+    fireEvent.click(deliveryBtn)
+
+    // Should display the pre-populated address and Change Address button
+    expect(screen.getByText(/123 Main St, San Jose, CA 95125/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Change Address/i })).toBeInTheDocument()
   })
 })

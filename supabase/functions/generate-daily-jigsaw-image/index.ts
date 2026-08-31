@@ -47,7 +47,7 @@ serve(async (req) => {
       .filter("created_at", "gte", `${todayStr}T00:00:00Z`)
       .limit(1)
 
-    if (existingPool && existingPool.length > 0) {
+    if (existingPool && existingPool.length > 0 && !forceFailure) {
       return new Response(
         JSON.stringify({
           success: true,
@@ -154,8 +154,13 @@ serve(async (req) => {
     }
 
     // 4. Fallback Engine: If Imagen 3 API failed or API key missing, pick from fallback hierarchy
+    let isFallback = false
     if (!imageUrl) {
+      isFallback = true
       console.warn("Imagen 3 generation unavailable — engaging Fallback Engine...")
+      if (forceFailure) {
+        await supabase.rpc("log_jigsaw_generation_failure", { p_reason: "Simulated failure via force_failure parameter" }).catch(() => {})
+      }
       const { data: fallbackImage } = await supabase.rpc("get_or_create_daily_jigsaw_image", { p_date: todayStr })
       imageUrl = fallbackImage || "/images/catalog/studio_mandarins.jpg"
     } else {
@@ -172,7 +177,7 @@ serve(async (req) => {
         success: true,
         imageUrl: imageUrl,
         cropName: cropName,
-        source: GEMINI_API_KEY ? "imagen-3" : "fallback_engine",
+        source: isFallback ? "fallback_engine" : "imagen-3",
       }),
       { headers: { "Content-Type": "application/json" } }
     )

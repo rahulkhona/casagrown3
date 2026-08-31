@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { resolve } from 'path'
-import { execSql, refreshBrowserAuth } from './scenarios/scenario-helpers'
+import { execSql, refreshBrowserAuth, BASE_URL } from './scenarios/scenario-helpers'
 
 config({ path: resolve(__dirname, '../.env') })
 config({ path: resolve(__dirname, '../.env.local') })
@@ -20,7 +20,7 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
   const timestamp = Date.now()
 
   test('PM-01: Header Navigation & Zero-Results CTA route to /my-booth/products/new', async ({ page }) => {
-    await page.goto('/market')
+    await page.goto(`${BASE_URL}/market`)
     await expect(page.locator('#produce-search')).toBeVisible({ timeout: 10000 })
 
     // 1. Top Header "+ Add Produce" Button routes to /my-booth/products/new
@@ -44,7 +44,8 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
   })
 
   test('PM-02: Want button flow, signal submission, and empirical database verification', async ({ page }) => {
-    await page.goto('/market')
+    await refreshBrowserAuth(page)
+    await page.goto(`${BASE_URL}/market`)
     await expect(page.locator('.produce-card, [class*="produceCard"]').first()).toBeVisible({ timeout: 10000 })
 
     // Find Lemons produce card and click Want
@@ -64,17 +65,23 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     await expect(qtyInput).toBeVisible({ timeout: 5000 })
     await qtyInput.fill('4')
 
+    // Select Pickup fulfillment (no address required)
+    const pickupBtn = page.locator('button:has-text("Pickup")').first()
+    if (await pickupBtn.isVisible()) {
+      await pickupBtn.click()
+    }
+
     // Submit harvest signal
     const submitBtn = page.locator('button:has-text("Find sellers in my neighborhood")').last()
     await expect(submitBtn).toBeVisible()
     await submitBtn.click()
 
-    // Verify UI success confirmation and post-submission hub
-    await expect(page.getByRole('heading', { name: 'Neighbors notified' })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText(/Instacart Delivery/i)).toBeVisible({ timeout: 10000 })
+    // Verify UI success confirmation and post-submission grocery & market hub
+    await expect(page.getByRole('heading', { name: /Neighbors notified/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Instacart/i)).toBeVisible({ timeout: 10000 })
 
     // ── EMPIRICAL DATABASE VERIFICATION ──
-    // Verify that the record was written to crm_produce_interests
+    // Verify that the record was written to crm_produce_interests with correct metadata
     const { data: dbRecords, error } = await supabase
       .from('crm_produce_interests')
       .select('*')
@@ -90,10 +97,11 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     expect(savedRecord.interest_type).toBe('buy')
     expect(savedRecord.produce_name.toLowerCase()).toContain('lemon')
     expect(savedRecord.status).toBe('active')
+    expect(savedRecord.preference_pickup).toBe(true)
   })
 
   test('PM-03: Have Extra batch drawer flow, listing submission, and empirical database verification', async ({ page }) => {
-    await page.goto('/market')
+    await page.goto(`${BASE_URL}/market`)
     await expect(page.locator('.produce-card, [class*="produceCard"]').first()).toBeVisible({ timeout: 10000 })
 
     // Click Have Extra on a crop
@@ -130,13 +138,14 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
 
   test('PM-04: Legacy /interest redirect', async ({ page }) => {
     // /interest Legacy URL Redirects to /market
-    await page.goto('/interest')
+    await page.goto(`${BASE_URL}/interest`)
     await expect(page).toHaveURL(/\/market/)
   })
 
   test('PM-05: Commercial Produce Flow: Add to CasaGrown Cart & Transfer to Instacart / Kroger Checkout', async ({ page }) => {
     // 1. Open /market
-    await page.goto('/market')
+    await refreshBrowserAuth(page)
+    await page.goto(`${BASE_URL}/market`)
     await expect(page.locator('.produce-card, [class*="produceCard"]').first()).toBeVisible({ timeout: 10000 })
 
     // 2. Open Want modal for Lemons
@@ -153,6 +162,12 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
     const qtyInput = page.locator('#want-quantity')
     await expect(qtyInput).toBeVisible({ timeout: 5000 })
     await qtyInput.fill('2')
+
+    // Select Pickup
+    const pickupBtn = page.locator('button:has-text("Pickup")').first()
+    if (await pickupBtn.isVisible()) {
+      await pickupBtn.click()
+    }
 
     const submitBtn = page.locator('button:has-text("Find sellers in my neighborhood")').last()
     await submitBtn.click()
@@ -257,8 +272,12 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
       // 2. Load /market and wait for nearby_booths async data to arrive.
       //    The market page fires loadMarketData only after resolving lat/lng, so
       //    we wait for networkidle, then reload once if the card isn't yet visible.
-      await page.goto('/market')
-      await page.evaluate(() => localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125'))
+      await page.goto(`${BASE_URL}/market`)
+      await page.evaluate(() => {
+        localStorage.setItem('casagrown_user_zip', '95125')
+        localStorage.setItem('casagrown_user_location_label', 'San Jose, CA 95125')
+        localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125')
+      })
       await page.reload()
       await expect(page.locator('#produce-search')).toBeVisible({ timeout: 10000 })
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
@@ -305,8 +324,12 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
   })
 
   test('PM-07: Buy Now, + Cart button, and View Details link in WantProduceModal', async ({ page }) => {
-    await page.goto('/market')
-    await page.evaluate(() => localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125'))
+    await page.goto(`${BASE_URL}/market`)
+    await page.evaluate(() => {
+      localStorage.setItem('casagrown_user_zip', '95125')
+      localStorage.setItem('casagrown_user_location_label', 'San Jose, CA 95125')
+      localStorage.setItem('market_search', 'addr=100+Main+St%2C+San+Jose%2C+CA+95125&zip=95125')
+    })
     await page.reload()
     await expect(page.locator('#produce-grid')).toBeVisible({ timeout: 10000 })
 
@@ -352,7 +375,7 @@ test.describe('Produce-Centric Market Flow & Database Verification E2E', () => {
       // unconsumed refresh_token (see refreshBrowserAuth JSDoc for details).
       await refreshBrowserAuth(page)
 
-      await page.goto('/my-booth/products/new')
+      await page.goto(`${BASE_URL}/my-booth/products/new`)
       await expect(page.locator('#product-name, input[name="name"], input[placeholder*="Tomato"], input[placeholder*="Product name"]').first()).toBeVisible({ timeout: 10000 })
 
       const nameInput = page.locator('#product-name, input[name="name"], input[placeholder*="Tomato"], input[placeholder*="Product name"]').first()

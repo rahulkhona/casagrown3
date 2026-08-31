@@ -180,10 +180,13 @@ try {
   await runCycleUntilEmpty("Cycle 3 (wait_1 -> msg_2)");
   await printEnrollmentSummary("State: Paused at msg_2 (1-minute wait scheduled)");
 
-  // 8. Wait for the 1-minute delay to elapse
-  console.log("\n[SLEEP] Waiting 65 seconds for the 1-minute wait delay to elapse...");
-  await sleep(65000);
-  console.log("[SLEEP] Wait finished.");
+  // 8. Fast-forward the 1-minute wait delay in database
+  console.log("\n[FAST-FORWARD] Fast-forwarding 1-minute wait delay in database...");
+  await sql`
+    UPDATE crm_sequence_enrollments
+    SET next_evaluation_at = NOW() - interval '10 seconds'
+    WHERE sequence_id = ${sequenceId};
+  `;
 
   // 9. Cycle 4: msg_2 -> wait_slot (Email 2 sent)
   // Should send in-memory batch: 100 in Run 1, 20 in Run 2.
@@ -210,11 +213,13 @@ try {
   const resEarly = await triggerSequenceProcess();
   console.log(`Early Execution Output: processed ${resEarly.processed} enrollments (Expected: 0)`);
 
-  // 12. Wait for the slot window to open (remaining seconds)
-  const waitTimeMs = Math.max(0, ((slotEval ? slotEval.getTime() : Date.now()) - Date.now()) + 5000); // add 5s buffer
-  console.log(`\n[SLEEP] Waiting ${Math.ceil(waitTimeMs / 1000)} seconds for slot window to open...`);
-  await sleep(waitTimeMs);
-  console.log("[SLEEP] Wait finished.");
+  // 12. Fast-forward slot wait time in database so we can execute Cycle 6 immediately
+  console.log("\n[FAST-FORWARD] Setting next_evaluation_at to past timestamp to simulate slot arrival...");
+  await sql`
+    UPDATE crm_sequence_enrollments
+    SET next_evaluation_at = NOW() - interval '10 seconds'
+    WHERE sequence_id = ${sequenceId};
+  `;
 
   // 13. Cycle 6: msg_3 -> complete (Email 3 sent inside the optimal slot!)
   // Should send in-memory batch: 100 in Run 1, 20 in Run 2.
