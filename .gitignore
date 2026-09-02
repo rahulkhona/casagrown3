@@ -57,6 +57,7 @@ yarn-debug.log*
 yarn-error.log*
 logs
 *.log
+*.mp4
 
 # Supabase
 supabase/.temp/

@@ -41,6 +41,46 @@ module.exports = {
         destination: '/market',
         permanent: false,
       },
+      {
+        source: '/fresh',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/nutrition',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/nutritionloss',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/nutrition-loss',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/checknutritionloss',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/checknutrition',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/check-nutrition',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
+      {
+        source: '/loss',
+        destination: '/check-nutrition-loss',
+        permanent: false,
+      },
     ]
   },
 }
