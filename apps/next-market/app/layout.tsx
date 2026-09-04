@@ -4,6 +4,7 @@ import './globals.css'
 import { GlobalMarketingTracker } from './components/GlobalMarketingTracker'
 import { MetaPixel } from './components/MetaPixel'
 import { VibePixel } from './components/VibePixel'
+import { AudioGoPixel } from './components/AudioGoPixel'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -115,6 +116,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <MetaPixel />
         <VibePixel />
+        <AudioGoPixel />
         <GlobalMarketingTracker />
         {children}
       </body>
