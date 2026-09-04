@@ -99,63 +99,63 @@
 
 ---
 
-### 🟠 WEEK 3 (PART A): "Seller Active Listing Sprint" (Sept 19–22)
-* **Goal**: Drive registered growers to snap photos and publish active Saturday listings during the open 7-day fulfillment window (Sept 19–23).
-* **Duration**: Exactly **30.0 Seconds** (65 words).
-* **QR / Tracking URL**: `casagrown.com/sell?geo=97206&utm_source=vibeco&utm_medium=ctv&utm_campaign=franklin_w3_list`
+### 🟠 WEEK 3 (PART A): "Seller Active Listing Sprint" (Sept 20–25)
+* **Goal**: Urge backyard fruit tree owners and gardeners to snap photos and list active harvest slots on `CasaGrown.com` before Friday's cutoff.
+* **Duration**: Exactly **30.0 Seconds** (64 words).
+* **QR / Tracking URL**: `casagrown.com?geo=97206&utm_source=vibeco&utm_medium=ctv&utm_campaign=franklin_w3_list`
 
 #### 📺 Video Production Breakdown (Omni Prompts & Scene Flow)
-* **Scene 1 (0:00–0:07) — Slots Are Open**:
-  * *Visual*: Homeowner in sunny garden snapping a smartphone photo of freshly harvested apples and heirloom tomatoes on a wooden garden bench.
-  * *VO*: *"Backyard growers and gardeners! Fulfillment slots for our September 26th Market Day are officially open on CasaGrown!"*
-  * *Banner*: `Saturday Fulfillment Slots Are Open! 🍏 · List Your Produce in 60 Seconds`
-  * *Omni Prompt*: `Cinematic 16:9 close-up shot, 24fps. 50mm Prime lens. A smiling homeowner in a casual denim shirt holds a smartphone taking a photo of a wooden garden crate brimming with ripe Honeycrisp apples, purple Italian plums, and red heirloom tomatoes on an outdoor garden bench. Crisp camera phone shutter action, bright sunny morning light, 4K.`
-* **Scene 2 (0:07–0:15) — 60-Second Snap & List**:
-  * *Visual*: Over-the-shoulder POV of phone screen tapping "Publish Listing" with Saturday morning pickup time selected.
-  * *VO*: *"In under 60 seconds, snap a photo of your extra fruit, garden vegetables, or raw honey, set your price, and pick your Saturday pickup slot."*
-  * *Banner*: `Snap ➔ Set Price ➔ Pick Saturday Time ⏱️ · 100% Free to List`
-  * *Omni Prompt*: `Cinematic 16:9 over-the-shoulder POV shot, 24fps. Clean smartphone display showing the intuitive CasaGrown listing interface. The user taps a bright green 'Publish Saturday Stand' button with an apple photo and price tag. Smooth UI animation, natural outdoor lighting, shallow depth of field with garden background.`
-* **Scene 3 (0:15–0:21.5) — Wednesday Cutoff Urgency**:
-  * *Visual*: Split view of smiling neighbor packing a neat brown kraft bag while local buyers browse on mobile.
-  * *VO*: *"Don’t let your surplus harvest spoil on the branch. Publish your listings before Wednesday’s order cutoff!"*
-  * *Banner*: `Wednesday Listing Cutoff ⏳ · Connect With Hungry Neighbors`
-  * *Omni Prompt*: `Cinematic 16:9 medium shot, 24fps. A friendly homeowner gently packs ripe Honeycrisp apples and freshly clipped rosemary into a brown paper harvest bag with a CasaGrown stamp on a wooden porch table. Golden hour afternoon glow, warm Pacific Northwest neighborhood setting, 4K.`
-* **Scene 4 (0:21.5–0:30) — Outro & CTA**:
+* **Scene 1 (0:00–0:07) — The Harvest Is Ready**:
+  * *Visual*: Close-up of bountiful backyard apple and plum trees heavy with ripe fruit in morning sunlight.
+  * *VO*: *"Got extra fruit on your trees or vegetables in your garden? Listing slots for this Saturday’s Market Day are officially open!"*
+  * *Banner*: `Saturday Listing Slots Open! 🌳 · Market Day: Sat, Sept 26`
+  * *Omni Prompt*: `Cinematic 16:9 medium shot, 24fps. A bountiful backyard apple tree with ripe Honeycrisp apples glowing in crisp autumn morning sunlight. A homeowner smiles as they gently inspect a ripe apple on the branch. Warm Pacific Northwest suburban garden, photorealistic 4K.`
+* **Scene 2 (0:07–0:15) — 60-Second Photo Listing**:
+  * *Visual*: Homeowner snapping a quick smartphone photo of freshly harvested produce in a rustic wooden crate on their deck table.
+  * *VO*: *"In under sixty seconds, snap a photo on your phone, set your price, and list your harvest for pickup or delivery."*
+  * *Banner*: `Snap & List in 60s 📸 · Choose Pickup or Delivery`
+  * *Omni Prompt*: `Cinematic 16:9 close-up shot, 24fps. Hands holding a smartphone snapping a clean photo of a rustic wooden crate filled with freshly picked Italian plums and heirloom tomatoes on a cedar deck table. CasaGrown app interface visible showing pickup and delivery options, 4K.`
+* **Scene 3 (0:15–0:22) — Bagging for Neighbors**:
+  * *Visual*: Friendly homeowner gently packing apples into a CasaGrown brown paper harvest bag on a wooden porch table.
+  * *VO*: *"Don’t let your surplus harvest go to waste. Share with hungry neighbors down your street before Friday’s cutoff!"*
+  * *Banner*: `Friday Listing Cutoff ⏳ · Share Fresh With Neighbors`
+  * *Omni Prompt*: `Cinematic 16:9 medium shot, 24fps. A friendly homeowner gently packs ripe Honeycrisp apples into a brown paper harvest bag with a CasaGrown stamp on a wooden porch table. Golden hour afternoon glow, warm neighborhood setting, 4K.`
+* **Scene 4 (0:22–0:30) — Outro & CTA (Framed Left 60% for QR)**:
   * *Visual*: Friendly neighbor standing in front garden smiling, holding up a small produce basket. Framed on LEFT 60% (Right 40% clean for QR).
-  * *VO*: *"Scan the QR code or visit CasaGrown.com/sell right now to list your harvest before Saturday!"*
-  * *Banner*: `🗓️ MARKET DAY: SAT, SEPT 26 · List Your Backyard Produce in 60 Seconds · Visit CasaGrown.com/sell`
+  * *VO*: *"Scan the QR code or visit CasaGrown.com right now to publish your listing for Saturday’s Market Day!"*
+  * *Banner*: `🗓️ MARKET DAY: SAT, SEPT 26 · List Your Backyard Produce in 60s · Visit CasaGrown.com`
   * *Omni Prompt*: `Cinematic 16:9 eye-level shot, 24fps. Framed strictly on the LEFT 60% of the screen, leaving the right 40% clean with soft-focus cedar fencing and autumn trees. A smiling neighbor in a cozy fleece pullover holds a harvest basket of apples and fresh herbs, looking warmly at the camera. Warm golden morning sunlight, photorealistic 4K.`
 
 #### 🎧 Dedicated Podcast / AudioGO Script (Week 3 Part A — 30s)
 * **Sound Foley**: Camera shutter click (0:00–0:01) ➔ Crisp apple crunch ➔ Energetic acoustic rhythm.
 * **Voiceover Text**:
-  > *"Backyard growers and gardeners! Fulfillment slots for our neighborhood Market Day this Saturday, September 26th are officially open! In under 60 seconds, snap a photo of your extra fruit, garden vegetables, or raw honey, set your price, and choose your Saturday pickup slot. Don't let your harvest spoil! Tap the banner on your screen or visit **CasaGrown.com/sell** right now to publish your listing before Wednesday's cutoff!"*
+  > *"Backyard growers and gardeners! Listing slots for our neighborhood Market Day this Saturday, September 26th are officially open! In under sixty seconds, snap a photo of your extra fruit or garden vegetables, set your price, and choose your Saturday pickup window. Don’t let your harvest go to waste! Tap the banner or visit **CasaGrown.com** right now to list your harvest before Friday’s cutoff!"*
 
 ---
 
-### 🔵 WEEK 3 (PART B): "Buyer Order Blitz" (Sept 23–26)
-* **Goal**: Drive local buyers to `/market` to purchase and place pre-orders before inventory sells out for Saturday morning pickup.
+### 🔵 WEEK 3 (PART B): "Buyer Pre-Market Order Blitz" (Sept 23–26)
+* **Goal**: Drive local buyers to `CasaGrown.com` to pre-order fresh produce before items sell out for Saturday morning pickup/delivery.
 * **Duration**: Exactly **30.0 Seconds** (65 words).
-* **QR / Tracking URL**: `casagrown.com/market?geo=97206&utm_source=vibeco&utm_medium=ctv&utm_campaign=franklin_w3_market`
+* **QR / Tracking URL**: `casagrown.com?geo=97206&utm_source=vibeco&utm_medium=ctv&utm_campaign=franklin_w3_market`
 
 #### 📺 Video Production Breakdown (Omni Prompts & Scene Flow)
 * **Scene 1 (0:00–0:07) — The Marketplace is Live**:
-  * *Visual*: Close-up of a smartphone browsing the live CasaGrown marketplace (`/market`), scrolling past freshly listed Honeycrisp apples, Italian plums, and garden heirloom tomatoes.
-  * *VO*: *"Skip the supermarket aisles this Saturday! Neighbors on your street have just listed fresh backyard produce for this Saturday's Market Day!"*
+  * *Visual*: Close-up of a smartphone browsing live CasaGrown marketplace stands with freshly listed Honeycrisp apples, Italian plums, and garden heirloom tomatoes.
+  * *VO*: *"Skip the supermarket aisles this weekend! Neighbors on your street have just listed freshly harvested fruit and vegetables for Saturday’s Market Day!"*
   * *Banner*: `Local Stands Are Live! 🛒 · Fresh Backyard Produce on Your Street`
   * *Omni Prompt*: `Cinematic 16:9 macro shot, 24fps. 50mm Prime lens. A woman's hands holding a modern smartphone browsing the crisp CasaGrown marketplace app, scrolling smoothly past vibrant cards of fresh Honeycrisp apples, dark purple Italian plums, and heirloom tomatoes. Soft-focused cozy kitchen background, morning light, 4K.`
 * **Scene 2 (0:07–0:15) — One-Tap Checkout**:
   * *Visual*: User taps "Place Order" for Saturday pickup ➔ Instant green confirmation checkmark.
-  * *VO*: *"Order online today with one simple tap, and pick up fresh produce harvested just hours before you eat it."*
+  * *VO*: *"Order online with one simple tap, and get produce harvested just hours before you eat it."*
   * *Banner*: `One-Tap Ordering 📲 · Harvested Hours Before Pickup`
   * *Omni Prompt*: `Cinematic 16:9 over-the-shoulder POV shot, 24fps. A person sitting on a comfortable living room sofa taps a green 'Place Order' button on their smartphone. An animated checkmark confirms Saturday morning pickup. Bright, warm natural window light, inviting home interior, photorealistic.`
-* **Scene 3 (0:15–0:21.5) — Saturday Morning Pickup**:
-  * *Visual*: Happy customer picking up a fresh tote bag from a smiling neighbor on a sunny neighborhood sidewalk.
+* **Scene 3 (0:15–0:22) — Saturday Morning Pickup**:
+  * *Visual*: Happy customer picking up a fresh canvas tote bag from a smiling neighbor on a sunny neighborhood sidewalk.
   * *VO*: *"Taste the difference of true backyard freshness—dripping with flavor and packed with natural vitamins."*
   * *Banner*: `Pick Up Fresh This Saturday Morning 🗓️ · 100% Tree-Ripened`
   * *Omni Prompt*: `Cinematic 16:9 medium shot, 24fps. A happy woman in a casual autumn jacket walks up the flower-lined walkway of a neighbor's house on a crisp, sunny Saturday morning. The homeowner hands her a fresh canvas tote bag filled with red apples and garden vegetables. Genuine smiles, Pacific Northwest autumn foliage, 4K.`
-* **Scene 4 (0:21.5–0:30) — Outro & Final Order CTA**:
-  * *Visual*: Happy customer taking a crisp bite of a Honeycrisp apple on porch. Framed on LEFT 60% (Right 40% clean for QR).
+* **Scene 4 (0:22–0:30) — Outro & Final Order CTA (Framed Left 60% for QR)**:
+  * *Visual*: Happy customer taking a crisp, satisfying bite of a Honeycrisp apple on porch with her market tote bag.
   * *VO*: *"Scan the QR code or visit CasaGrown.com right now to place your order before Saturday items sell out!"*
   * *Banner*: `🗓️ MARKET DAY: SAT, SEPT 26 · Order Fresh Backyard Produce · Visit CasaGrown.com`
   * *Omni Prompt*: `Cinematic 16:9 eye-level shot, 24fps. Framed strictly on the LEFT 60% of the screen, leaving the right 40% clean with soft-focus background of trees and porch. A smiling woman takes a crisp, satisfying bite of a juicy red Honeycrisp apple, looking happily at the camera with her market tote bag. Golden morning light, photorealistic 4K.`
@@ -163,7 +163,7 @@
 #### 🎧 Dedicated Podcast / AudioGO Script (Week 3 Part B — 30s)
 * **Sound Foley**: Crisp Honeycrisp apple crunch (0:00–0:02) ➔ Morning birds singing ➔ Upbeat acoustic rhythm.
 * **Voiceover Text**:
-  > *"Skip the supermarket aisles this Saturday! Neighbors on your street have just listed freshly harvested Honeycrisp apples, Italian plums, and garden vegetables for our neighborhood Market Day this Saturday, September 26th! Taste food harvested hours before you eat it. Tap the banner on your screen or visit **CasaGrown.com** right now to place your order before local items sell out!"*
+  > *"Skip the supermarket aisles this weekend! Neighbors on your street have just listed freshly harvested apples, plums, and garden vegetables for our neighborhood Market Day this Saturday, September 26th! Taste food harvested just hours before you eat it. Tap the banner on your screen or visit **CasaGrown.com** right now to place your order before local items sell out!"*
 
 ---
 
