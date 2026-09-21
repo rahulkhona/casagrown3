@@ -920,6 +920,7 @@ function MarketProducePageContent() {
                       <img
                         src={myListing?.photoUrl || item.image || '/images/produce_placeholder.jpg'}
                         alt={item.name}
+                        loading="lazy"
                         onError={(e: any) => {
                           e.currentTarget.src = '/images/produce_placeholder.jpg'
                         }}
